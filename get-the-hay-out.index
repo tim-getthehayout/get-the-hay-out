@@ -1,0 +1,2025 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}]}">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+<meta name="apple-mobile-web-app-title" content="Get The Hay Out"/>
+<meta name="theme-color" content="#639922"/>
+<title>Get The Hay Out</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --green:#639922;--green-d:#3B6D11;--green-l:#EAF3DE;--green-l2:#97C459;
+  --amber:#BA7517;--amber-d:#854F0B;--amber-l:#FAEEDA;
+  --teal:#1D9E75;--teal-d:#0F6E56;--teal-l:#E1F5EE;
+  --purple:#534AB7;--purple-l:#EEEDFE;--purple-d:#3C3489;
+  --red:#E24B4A;--red-l:#FCEBEB;--red-d:#A32D2D;
+  --blue:#185FA5;--blue-l:#E6F1FB;--blue-d:#0C447C;
+  --bg:#ffffff;--bg2:#f5f5f3;--bg3:#eeede9;
+  --text:#1a1a18;--text2:#6b6b67;--text3:#9c9a94;
+  --border:rgba(0,0,0,0.12);--border2:rgba(0,0,0,0.2);
+  --radius:8px;--radius-l:12px;--radius-xl:16px;
+  --safe-top:env(safe-area-inset-top,0px);
+  --safe-bottom:env(safe-area-inset-bottom,0px);
+}
+@media(prefers-color-scheme:dark){
+  :root{
+    --bg:#1a1a18;--bg2:#242420;--bg3:#2c2c28;
+    --text:#e8e6de;--text2:#9c9a92;--text3:#6b6b67;
+    --border:rgba(255,255,255,0.1);--border2:rgba(255,255,255,0.18);
+    --green-l:#1a2e0a;--amber-l:#2e1e00;--teal-l:#002e20;
+    --purple-l:#1a1840;--red-l:#2e0a0a;--blue-l:#001830;
+  }
+}
+html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);font-size:16px;}
+.app{display:flex;flex-direction:column;height:100%;max-width:480px;margin:0 auto;position:relative;}
+.hdr{padding:10px 16px 8px;padding-top:calc(10px + var(--safe-top));background:var(--bg);border-bottom:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:8px;}
+.hdr-left{min-width:0;flex:1;}
+.hdr-title{font-size:17px;font-weight:600;letter-spacing:-0.3px;}
+.hdr-sub{font-size:11px;color:var(--text2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.hdr-right{display:flex;align-items:center;gap:6px;flex-shrink:0;}
+.content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 12px calc(80px + var(--safe-bottom));}
+.bnav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:var(--bg);border-top:0.5px solid var(--border);display:flex;padding-bottom:var(--safe-bottom);z-index:100;}
+.bnav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 2px;border:none;background:transparent;cursor:pointer;font-family:inherit;color:var(--text2);font-size:10px;gap:3px;position:relative;}
+.bnav-btn.active{color:var(--green);}
+.bnav-icon{width:22px;height:22px;}
+.bnav-badge{position:absolute;top:4px;right:calc(50% - 14px);background:var(--red);color:white;border-radius:10px;font-size:9px;font-weight:700;padding:1px 5px;min-width:16px;text-align:center;}
+.scr{display:none;}.scr.active{display:block;}
+.card{background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius-l);padding:14px 16px;margin-bottom:10px;}
+.card-inset{background:var(--bg2);border-radius:var(--radius);padding:12px 14px;margin-bottom:10px;}
+.banner{border-radius:var(--radius-l);padding:12px 14px;margin-bottom:10px;}
+.ban-green{background:var(--green-l);border:0.5px solid var(--green-l2);}
+.ban-amber{background:var(--amber-l);border:0.5px solid var(--amber);}
+.ban-teal{background:var(--teal-l);border:0.5px solid var(--teal);}
+.ban-red{background:var(--red-l);border:0.5px solid var(--red);}
+.ban-blue{background:var(--blue-l);border:0.5px solid var(--blue);}
+.sec{font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;}
+.field{margin-bottom:12px;}
+.field label{display:block;font-size:13px;color:var(--text2);margin-bottom:4px;}
+.field input,.field select,.field textarea{width:100%;padding:9px 12px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:15px;background:var(--bg);color:var(--text);font-family:inherit;-webkit-appearance:none;}
+.field textarea{resize:vertical;min-height:72px;line-height:1.5;}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--green);}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.three{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
+.btn{display:block;width:100%;padding:12px;border:none;border-radius:var(--radius);font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;text-align:center;}
+.btn:active{opacity:0.82;}
+.btn-green{background:var(--green);color:white;}
+.btn-amber{background:var(--amber);color:white;}
+.btn-teal{background:var(--teal);color:white;}
+.btn-blue{background:var(--blue);color:white;}
+.btn-red{background:var(--red);color:white;}
+.btn-outline{background:transparent;color:var(--text);border:0.5px solid var(--border2);}
+.btn-sm{display:inline-block;width:auto;padding:7px 16px;font-size:13px;}
+.btn-xs{display:inline-block;width:auto;padding:4px 10px;font-size:12px;}
+.btn-row{display:flex;gap:8px;}.btn-row .btn{flex:1;}
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;}
+.bg{background:var(--green-l);color:var(--green-d);}
+.ba{background:var(--amber-l);color:var(--amber-d);}
+.bt{background:var(--teal-l);color:var(--teal-d);}
+.bp{background:var(--purple-l);color:var(--purple-d);}
+.br{background:var(--red-l);color:var(--red-d);}
+.bb{background:var(--bg2);color:var(--text2);border:0.5px solid var(--border);}
+.bbl{background:var(--blue-l);color:var(--blue-d);}
+.m-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;}
+.m-cell{background:var(--bg2);border-radius:var(--radius);padding:12px;}
+.m-cell .ml{font-size:11px;color:var(--text2);margin-bottom:3px;}
+.m-cell .mv{font-size:20px;font-weight:600;}
+.row{border-bottom:0.5px solid var(--border);padding:11px 0;}
+.row:last-child{border-bottom:none;}
+.row-head{display:flex;justify-content:space-between;align-items:flex-start;}
+.row-detail{font-size:12px;color:var(--text2);margin-top:3px;line-height:1.5;}
+.chip{background:var(--bg2);border-radius:var(--radius);padding:10px 12px;margin-bottom:6px;}
+.empty{text-align:center;padding:20px 16px;color:var(--text2);font-size:13px;line-height:1.6;}
+.div{border:none;border-top:0.5px solid var(--border);margin:12px 0;}
+.qty-btn{width:32px;height:32px;border:0.5px solid var(--border2);border-radius:var(--radius);background:transparent;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text);font-family:inherit;flex-shrink:0;}
+.qty-val{min-width:40px;text-align:center;font-size:15px;font-weight:600;}
+.slider-row{display:flex;align-items:center;gap:10px;}
+.slider-row input[type=range]{flex:1;accent-color:var(--green);}
+.slider-out{min-width:40px;font-size:15px;font-weight:600;text-align:right;}
+.batch-sel{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;background:var(--bg2);border-radius:var(--radius);margin-bottom:5px;cursor:pointer;border:0.5px solid var(--border);}
+.batch-sel.on{border-color:var(--green);background:var(--green-l);}
+.chk{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--border2);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.batch-sel.on .chk{background:var(--green);border-color:var(--green);}
+.wiz-dots{display:flex;gap:6px;justify-content:center;margin-bottom:16px;}
+.wiz-dot{width:8px;height:8px;border-radius:50%;background:var(--border2);}
+.wiz-dot.on{background:var(--green);}
+.wiz-step{display:none;}.wiz-step.on{display:block;}
+.fab{position:fixed;bottom:calc(72px + var(--safe-bottom) + 12px);right:16px;width:48px;height:48px;border-radius:50%;background:var(--green);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:90;box-shadow:0 2px 10px rgba(0,0,0,0.2);}
+.fab:active{background:var(--green-d);}
+.sheet-wrap{display:none;position:fixed;inset:0;z-index:200;max-width:480px;left:50%;transform:translateX(-50%);}
+.sheet-wrap.open{display:block;}
+.sheet-backdrop{position:absolute;inset:0;background:rgba(0,0,0,0.4);}
+.sheet{position:absolute;bottom:0;left:0;right:0;background:var(--bg);border-radius:var(--radius-xl) var(--radius-xl) 0 0;padding:16px 16px calc(24px + var(--safe-bottom));max-height:92vh;overflow-y:auto;}
+.sheet-handle{width:36px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 16px;}
+.cat-pills{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;}
+.cat-pill{padding:6px 14px;border-radius:20px;font-size:13px;font-weight:500;cursor:pointer;border:0.5px solid var(--border2);background:transparent;color:var(--text2);font-family:inherit;}
+.cp-bug.sel{background:var(--red-l);color:var(--red-d);border-color:var(--red);}
+.cp-ux.sel{background:var(--amber-l);color:var(--amber-d);border-color:var(--amber);}
+.cp-feature.sel{background:var(--purple-l);color:var(--purple-d);border-color:var(--purple);}
+.cp-calc.sel{background:var(--teal-l);color:var(--teal-d);border-color:var(--teal);}
+.cp-idea.sel{background:var(--green-l);color:var(--green-d);border-color:var(--green);}
+.ctx-tag{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius);font-size:12px;color:var(--text2);margin-bottom:14px;}
+.confirm-item{padding:12px 14px;background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius-l);margin-bottom:8px;}
+.brief-box{background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius);padding:12px;font-size:12px;line-height:1.65;white-space:pre-wrap;font-family:Menlo,monospace;color:var(--text);max-height:300px;overflow-y:auto;margin-bottom:10px;}
+.prog{height:5px;background:var(--bg3);border-radius:3px;overflow:hidden;margin-top:4px;}
+.prog-fill{height:100%;border-radius:3px;}
+.ver-tag{display:inline-block;padding:2px 8px;background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius);font-size:11px;color:var(--text2);}
+.feed-row{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--bg2);border-radius:var(--radius);margin-bottom:5px;}
+.sync-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px;}
+.sync-ok{background:var(--green);} .sync-pending{background:var(--amber);} .sync-off{background:var(--text3);} .sync-err{background:var(--red);}
+.drive-dashed{border:1.5px dashed var(--border2);border-radius:var(--radius-l);padding:20px 16px;text-align:center;margin-bottom:10px;}
+
+/* User avatar */
+.avatar{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;font-size:11px;font-weight:700;color:white;flex-shrink:0;}
+.avatar-lg{width:40px;height:40px;font-size:15px;}
+
+/* User picker */
+.user-picker-wrap{display:none;position:fixed;inset:0;z-index:300;max-width:480px;left:50%;transform:translateX(-50%);}
+.user-picker-wrap.open{display:flex;align-items:center;justify-content:center;}
+.user-picker-backdrop{position:absolute;inset:0;background:rgba(0,0,0,0.5);}
+.user-picker{position:relative;background:var(--bg);border-radius:var(--radius-xl);padding:24px 20px;margin:20px;width:100%;max-width:360px;}
+
+/* To-do cards */
+.todo-card{background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius-l);padding:12px 14px;margin-bottom:8px;cursor:pointer;}
+.todo-card:active{background:var(--bg2);}
+.todo-card.closed{opacity:0.55;}
+.todo-status-bar{width:4px;border-radius:2px;flex-shrink:0;align-self:stretch;}
+.todo-inner{display:flex;gap:10px;align-items:flex-start;}
+.status-pill{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;}
+.sp-open{background:var(--amber-l);color:var(--amber-d);}
+.sp-progress{background:var(--blue-l);color:var(--blue-d);}
+.sp-closed{background:var(--green-l);color:var(--green-d);}
+
+/* Filter strip */
+.filter-strip{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:10px;-webkit-overflow-scrolling:touch;}
+.filter-strip::-webkit-scrollbar{display:none;}
+.fp{padding:5px 12px;border:0.5px solid var(--border2);border-radius:20px;font-size:12px;cursor:pointer;background:transparent;color:var(--text2);white-space:nowrap;font-family:inherit;flex-shrink:0;}
+.fp.on{background:var(--green);color:white;border-color:var(--green);}
+
+/* Checkbox */
+.cb-wrap{display:flex;align-items:center;gap:8px;padding:8px 0;cursor:pointer;}
+.cb-wrap input[type=checkbox]{width:18px;height:18px;accent-color:var(--green);cursor:pointer;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- HEADER -->
+  <div class="hdr">
+    <div class="hdr-left">
+      <div class="hdr-title">Get The Hay Out</div>
+      <div class="hdr-sub" id="hdr-sub">Loading...</div>
+    </div>
+    <div class="hdr-right">
+      <div id="sync-indicator" style="display:flex;align-items:center;font-size:11px;color:var(--text2);cursor:pointer;" onclick="nav('settings',document.getElementById('bn-settings'))">
+        <span class="sync-dot sync-off" id="sync-dot"></span>
+        <span id="sync-label">Drive</span>
+      </div>
+      <span class="ver-tag" id="ver-tag">v1.0</span>
+      <!-- Active user avatar -->
+      <div id="hdr-avatar" style="cursor:pointer;" onclick="openUserPicker()"></div>
+      <button id="move-btn" class="btn btn-teal btn-sm" onclick="openMoveWizard()" style="display:none;">Move herd</button>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- HOME -->
+    <div id="s-home" class="scr active">
+      <div id="home-active"></div>
+      <div id="home-none" style="display:none;">
+        <div class="card" style="text-align:center;padding:24px 16px;">
+          <div style="font-size:16px;font-weight:600;margin-bottom:6px;">No active grazing event</div>
+          <div style="font-size:13px;color:var(--text2);margin-bottom:16px;">Tap "Move herd" to open your first grazing event.</div>
+          <button class="btn btn-teal btn-sm" onclick="openMoveWizard()">Start grazing event</button>
+        </div>
+      </div>
+
+      <!-- Quick to-do strip -->
+      <div class="card" id="home-todos-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <div class="sec" style="margin:0;">My open tasks</div>
+          <button class="btn btn-outline btn-xs" onclick="nav('todos',document.getElementById('bn-todos'))">All tasks</button>
+        </div>
+        <div id="home-todos"></div>
+        <button class="btn btn-outline btn-sm" style="margin-top:8px;" onclick="openTodoSheet(null)">+ Add task</button>
+      </div>
+
+      <div class="card">
+        <div class="sec">Season at a glance</div>
+        <div class="m-grid">
+          <div class="m-cell"><div class="ml">Pasture DMI</div><div class="mv" id="h-pdmi" style="color:var(--green);">--</div><div style="font-size:11px;color:var(--text2);">lbs, closed events</div></div>
+          <div class="m-cell"><div class="ml">Feed cost</div><div class="mv" id="h-cost" style="color:var(--amber);">--</div></div>
+          <div class="m-cell"><div class="ml">Avg pasture %</div><div class="mv" id="h-pct" style="color:var(--teal);">--</div></div>
+          <div class="m-cell"><div class="ml">Events closed</div><div class="mv" id="h-evs">0</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="sec">Recent events</div>
+        <div id="h-event-list"><div class="empty">No closed events yet</div></div>
+      </div>
+    </div>
+
+    <!-- FEED -->
+    <div id="s-feed" class="scr">
+      <div id="feed-no-event" style="display:none;"><div class="card"><div class="empty">No active grazing event.<br>Use Move Herd to open one.</div></div></div>
+      <div id="feed-form">
+        <div id="feed-banner"></div>
+        <div class="card">
+          <div class="sec">Add feeding entry</div>
+          <div class="field"><label>Date fed</label><input type="date" id="ff-date"/></div>
+          <div class="sec" style="margin-bottom:6px;">Feed batch</div>
+          <div id="ff-batch-sel"></div>
+          <div id="ff-qty-wrap" style="display:none;"><div class="div"></div><div class="sec" style="margin-bottom:8px;">Quantities</div><div id="ff-qty-lines"></div></div>
+          <div class="div"></div>
+          <div class="card-inset">
+            <div class="two">
+              <div><div style="font-size:11px;color:var(--text2);">Feed DMI</div><div style="font-size:17px;font-weight:600;" id="ff-dmi-out">0 lbs</div></div>
+              <div><div style="font-size:11px;color:var(--text2);">Feed cost</div><div style="font-size:17px;font-weight:600;color:var(--amber);" id="ff-cost-out">$0.00</div></div>
+            </div>
+          </div>
+          <button class="btn btn-green" onclick="saveFeedEntry()">Save feeding entry</button>
+        </div>
+        <div class="card">
+          <div class="sec">Feedings this event</div>
+          <div id="ff-history"></div>
+          <div id="ff-running" style="display:none;padding-top:10px;border-top:0.5px solid var(--border);font-size:12px;color:var(--text2);margin-top:4px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MOVE WIZARD -->
+    <div id="s-move" class="scr">
+      <div class="wiz-dots"><div class="wiz-dot on" id="wd0"></div><div class="wiz-dot" id="wd1"></div><div class="wiz-dot" id="wd2"></div></div>
+      <!-- Step 0 -->
+      <div class="wiz-step on" id="ws0">
+        <div id="ws0-has">
+          <div class="banner ban-amber" id="ws0-banner"></div>
+          <div class="card">
+            <div class="sec">Move-out details</div>
+            <div class="field"><label>Move-out date</label><input type="date" id="w-out-date"/></div>
+            <div class="two">
+              <div class="field"><label>Residual height (in)</label><input type="number" id="w-res-h" min="0" step="0.5" placeholder="3" oninput="calcClosePreview()"/></div>
+              <div class="field"><label>Pre-graze height was</label><input type="number" id="w-pregraze-disp" disabled style="opacity:0.55;"/></div>
+            </div>
+            <div class="div"></div>
+            <div class="sec">Feed residual — left uneaten</div>
+            <div class="field"><label>% of last feeding left behind</label>
+              <div class="slider-row"><input type="range" id="w-feed-res" min="0" max="100" step="5" value="0" oninput="document.getElementById('w-res-pct').textContent=this.value+'%';calcClosePreview();"/><span class="slider-out" id="w-res-pct">0%</span></div>
+            </div>
+            <div id="close-preview" style="display:none;"><div class="div"></div><div class="sec">Event totals preview</div>
+              <div class="m-grid">
+                <div class="m-cell"><div class="ml">Days</div><div class="mv" id="cp-days">--</div></div>
+                <div class="m-cell"><div class="ml">Feed cost</div><div class="mv" style="color:var(--amber);" id="cp-cost">--</div></div>
+                <div class="m-cell"><div class="ml">Stored DMI</div><div class="mv" id="cp-sdmi">--</div></div>
+                <div class="m-cell"><div class="ml">Pasture DMI</div><div class="mv" style="color:var(--green);" id="cp-pdmi">--</div></div>
+                <div class="m-cell"><div class="ml">Pasture %</div><div class="mv" style="color:var(--teal);" id="cp-pct">--</div></div>
+                <div class="m-cell"><div class="ml">NPK value</div><div class="mv" style="color:var(--purple-d);" id="cp-npk">--</div></div>
+              </div>
+            </div>
+            <button class="btn btn-amber" onclick="wizCloseEvent()">Close event &amp; continue</button>
+          </div>
+          <!-- Open tasks on this paddock -->
+          <div class="card" id="w-paddock-tasks" style="display:none;">
+            <div class="sec">Open tasks on this paddock</div>
+            <div id="w-paddock-tasks-list"></div>
+          </div>
+        </div>
+        <div id="ws0-none" style="display:none;">
+          <div class="card"><div style="font-size:14px;color:var(--text2);margin-bottom:14px;">No active event. Opening your first.</div><button class="btn btn-teal" onclick="wizGo(2)">Set up first paddock</button></div>
+        </div>
+      </div>
+      <!-- Step 1 -->
+      <div class="wiz-step" id="ws1">
+        <div class="card" style="border-left:3px solid var(--green);" id="ws1-summary"></div>
+        <div class="card"><div style="font-size:14px;color:var(--text2);margin-bottom:14px;">Ready to move to the next paddock.</div><button class="btn btn-teal" onclick="wizGo(2)">Open new grazing event</button></div>
+      </div>
+      <!-- Step 2 -->
+      <div class="wiz-step" id="ws2">
+        <div class="card" style="border-left:3px solid var(--teal);"><div style="font-size:15px;font-weight:600;margin-bottom:2px;">New grazing event</div><div style="font-size:13px;color:var(--text2);">Open on the destination paddock</div></div>
+        <div class="card">
+          <div class="sec">Destination paddock</div>
+          <div class="field"><label>Paddock</label><select id="w-new-pasture" onchange="onWizPaddockChange()"><option value="">— select —</option></select></div>
+          <div class="two">
+            <div class="field"><label>Move-in date</label><input type="date" id="w-in-date"/></div>
+            <div class="field"><label>Pre-graze height (in)</label><input type="number" id="w-new-h" min="0" step="0.5" placeholder="10"/></div>
+          </div>
+          <div class="two">
+            <div class="field"><label>Head count</label><input type="number" id="w-new-head" placeholder="50"/></div>
+            <div class="field"><label>Avg body wt (lbs)</label><input type="number" id="w-new-wt" placeholder="1200"/></div>
+          </div>
+          <div class="div"></div>
+          <div class="sec" style="margin-bottom:6px;">Initial feeding (optional)</div>
+          <div id="w-feed-sel"></div><div id="w-feed-lines"></div>
+          <div class="div"></div>
+          <!-- Tasks on destination paddock -->
+          <div id="w-dest-tasks" style="display:none;">
+            <div class="sec">Open tasks on destination paddock</div>
+            <div id="w-dest-tasks-list"></div>
+            <div class="div"></div>
+          </div>
+          <!-- Quick add task for this move -->
+          <div style="margin-bottom:12px;">
+            <button class="btn btn-outline btn-sm" onclick="openTodoSheet(null,true)">+ Add task for this paddock</button>
+          </div>
+          <button class="btn btn-teal" onclick="wizSaveNew()">Open event on this paddock</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- EVENTS -->
+    <div id="s-events" class="scr">
+      <div id="ev-active-banner"></div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <div class="sec" style="margin:0;">Grazing events</div>
+          <select id="ev-filter" onchange="renderEventsLog()" style="font-size:12px;padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);font-family:inherit;">
+            <option value="all">All</option><option value="open">Open</option><option value="closed">Closed</option>
+          </select>
+        </div>
+        <div id="ev-list"></div>
+      </div>
+    </div>
+
+    <!-- TO-DOS (Air Traffic Control) -->
+    <div id="s-todos" class="scr">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div style="font-size:16px;font-weight:600;">Tasks</div>
+        <button class="btn btn-green btn-sm" onclick="openTodoSheet(null)">+ New task</button>
+      </div>
+
+      <!-- Filters -->
+      <div class="filter-strip" id="todo-user-filters"></div>
+      <div class="filter-strip" id="todo-location-filters"></div>
+      <div class="filter-strip" id="todo-status-filters">
+        <button class="fp on" onclick="toggleStatusFilter('open',this)">Open</button>
+        <button class="fp on" onclick="toggleStatusFilter('inprogress',this)">In progress</button>
+        <button class="fp" onclick="toggleStatusFilter('closed',this)">Closed</button>
+      </div>
+
+      <!-- Summary row -->
+      <div id="todo-summary" style="font-size:12px;color:var(--text2);margin-bottom:10px;"></div>
+
+      <div id="todo-list"></div>
+    </div>
+
+    <!-- PASTURES -->
+    <div id="s-pastures" class="scr">
+      <div class="card">
+        <div class="sec">Add location</div>
+        <div class="two">
+          <div class="field"><label>Name</label><input type="text" id="p-name" placeholder="North paddock"/></div>
+          <div class="field"><label>Acres</label><input type="number" id="p-acres" step="0.5" placeholder="20"/></div>
+        </div>
+        <div class="field"><label>Location type</label>
+          <select id="p-loctype" onchange="onLocTypeChange()">
+            <option value="pasture">Pasture / paddock</option>
+            <option value="confinement">Confinement / holding area</option>
+          </select>
+        </div>
+        <div id="p-pasture-fields">
+          <div class="two">
+            <div class="field"><label>Soil type</label><select id="p-soil"><option>Loam</option><option>Clay</option><option>Sandy</option><option>Silt</option></select></div>
+            <div class="field"><label>Forage species</label><input type="text" id="p-species" placeholder="Mixed grass/clover"/></div>
+          </div>
+        </div>
+        <div id="p-confinement-fields" style="display:none;">
+          <div class="field"><label>Description</label><input type="text" id="p-desc" placeholder="e.g. Winter barn, Drylot A, Sacrifice paddock"/></div>
+          <div class="field">
+            <label>Capture manure?</label>
+            <select id="p-capture" onchange="onCaptureChange()">
+              <option value="yes">Yes — manure captured for storage</option>
+              <option value="no">No — manure not captured (NPK not tracked)</option>
+            </select>
+          </div>
+          <div id="p-capture-fields">
+            <div class="two">
+              <div class="field"><label>Capture % (est.)</label><input type="number" id="p-capture-pct" min="0" max="100" step="5" placeholder="80"/></div>
+              <div class="field"><label>Manure batch mode</label>
+                <select id="p-batch-mode">
+                  <option value="accumulate">Accumulate into one running batch</option>
+                  <option value="new">New batch each event close</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-green" onclick="addPasture()">Add location</button>
+      </div>
+
+      <!-- Manure inventory section -->
+      <div id="manure-inventory-section" style="display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <div style="font-size:15px;font-weight:600;">Manure inventory</div>
+          <button class="btn btn-outline btn-xs" onclick="openSpreadSheet()">Spread manure</button>
+        </div>
+        <div id="manure-batch-list"></div>
+        <div class="div"></div>
+      </div>
+
+      <div style="font-size:15px;font-weight:600;margin-bottom:8px;">Locations</div>
+      <div id="pasture-list"></div>
+    </div>
+
+    <!-- FEEDBACK -->
+    <div id="s-feedback" class="scr">
+      <div id="confirm-section" style="display:none;">
+        <div class="banner ban-teal" style="margin-bottom:10px;"><div style="font-size:14px;font-weight:600;color:var(--teal-d);margin-bottom:2px;">Items awaiting your confirmation</div><div style="font-size:12px;color:var(--teal-d);opacity:0.85;">These were marked fixed. Please confirm or reopen.</div></div>
+        <div id="confirm-list"></div><div class="div"></div>
+      </div>
+      <div id="fb-stats"></div>
+      <div class="card">
+        <div class="sec">Dev session brief</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:12px;">Formatted summary for your Claude iteration session.</div>
+        <div class="btn-row" style="margin-bottom:10px;">
+          <button class="btn btn-outline" onclick="generateBrief()">Generate brief</button>
+          <button class="btn btn-outline" id="copy-btn" style="display:none;" onclick="copyBrief()">Copy</button>
+        </div>
+        <div id="brief-out" style="display:none;"><div class="brief-box" id="brief-text"></div></div>
+      </div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <div class="sec" style="margin:0;">All feedback</div>
+          <select id="fb-filter" onchange="renderFeedbackList()" style="font-size:12px;padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);font-family:inherit;">
+            <option value="all">All</option><option value="open">Open</option><option value="resolved">Resolved</option><option value="closed">Closed</option>
+            <option value="bug">Bugs</option><option value="ux">UX</option><option value="feature">Features</option><option value="calc">Calc</option><option value="idea">Ideas</option>
+          </select>
+        </div>
+        <div id="fb-list"></div>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div id="s-settings" class="scr">
+
+      <!-- Google Drive Sync -->
+      <div class="card">
+        <div class="sec">Data sync — Google Drive</div>
+        <div id="drive-disconnected">
+          <div class="drive-dashed">
+            <div style="font-size:15px;font-weight:600;margin-bottom:6px;">Connect Google Drive</div>
+            <div style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6;">Your farm data saves to your own Google Drive. Access from any device. You own the data — it never touches our servers.</div>
+            <button class="btn btn-blue btn-sm" onclick="driveConnect()">Connect Google Drive</button>
+          </div>
+          <div class="card-inset">
+            <div style="font-size:12px;font-weight:600;margin-bottom:8px;">One-time setup</div>
+            <div style="font-size:12px;color:var(--text2);line-height:1.75;">1. Go to <strong>console.cloud.google.com</strong><br>2. Create project → Enable <strong>Google Drive API</strong><br>3. Credentials → OAuth 2.0 → Web application<br>4. Add your app URL to <em>Authorized JS origins</em><br>5. Copy the Client ID below</div>
+            <div class="field" style="margin-top:10px;margin-bottom:6px;"><label>OAuth Client ID</label><input type="text" id="oauth-client-id" placeholder="xxxx.apps.googleusercontent.com"/></div>
+            <button class="btn btn-green btn-sm" onclick="saveClientId()">Save Client ID</button>
+          </div>
+        </div>
+        <div id="drive-connected" style="display:none;">
+          <div class="banner ban-green" style="margin-bottom:10px;">
+            <div style="font-size:14px;font-weight:600;color:var(--green-d);">Connected to Google Drive</div>
+            <div style="font-size:12px;color:var(--green-d);opacity:0.85;" id="drive-account-label">Signed in</div>
+          </div>
+          <div style="font-size:13px;color:var(--text2);margin-bottom:6px;" id="drive-file-label"></div>
+          <!-- Farm Code -->
+          <div class="card-inset" id="farm-code-section" style="display:none;">
+            <div style="font-size:12px;font-weight:600;margin-bottom:4px;">Farm Code — share with your team</div>
+            <div style="font-size:12px;color:var(--text2);margin-bottom:8px;line-height:1.6;">Give this code to workers. They enter it in Settings under "Join a Farm" to access your farm data.</div>
+            <div style="font-family:Menlo,monospace;font-size:14px;font-weight:700;background:var(--bg3);padding:10px;border-radius:var(--radius);letter-spacing:2px;text-align:center;margin-bottom:8px;" id="farm-code-display">—</div>
+            <button class="btn btn-outline btn-xs" onclick="copyFarmCode()">Copy Farm Code</button>
+          </div>
+          <div class="btn-row" style="margin-top:10px;">
+            <button class="btn btn-outline btn-sm" onclick="driveSync()">Sync now</button>
+            <button class="btn btn-outline btn-sm" style="color:var(--red);" onclick="driveDisconnect()">Disconnect</button>
+          </div>
+        </div>
+        <!-- Worker join section -->
+        <div class="div"></div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Join a farm (workers)</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.6;">If you have a Farm Code from your farm operator, enter it here. You'll also need to connect your own Google account — the farm owner must share the Drive file with your Google email first.</div>
+        <div class="field"><label>Farm Code</label><input type="text" id="farm-code-input" placeholder="Enter code from farm owner" style="font-family:Menlo,monospace;letter-spacing:1px;"/></div>
+        <button class="btn btn-blue btn-sm" onclick="joinFarm()">Join farm &amp; connect Drive</button>
+      </div>
+
+      <!-- Manual backup -->
+      <div class="card">
+        <div class="sec">Manual backup</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:12px;">Export all farm data as a JSON backup. Import on another device or restore from backup.</div>
+        <div class="btn-row">
+          <button class="btn btn-outline" onclick="exportDataJSON()">Export backup</button>
+          <button class="btn btn-outline" onclick="triggerImport()">Import backup</button>
+        </div>
+        <input type="file" id="import-file" accept=".json" style="display:none;" onchange="importDataJSON(event)"/>
+        <div id="import-status" style="font-size:12px;color:var(--teal-d);margin-top:8px;display:none;"></div>
+      </div>
+
+      <!-- Users -->
+      <div class="card">
+        <div class="sec">Farm users</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.6;">Add everyone who uses the app on this farm. <strong>Phase 1:</strong> users select their name when opening the app (no password). <strong>Phase 2:</strong> real email/password auth via Supabase.</div>
+        <div id="users-list"></div>
+        <div class="div"></div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Add user</div>
+        <div class="two">
+          <div class="field"><label>Name</label><input type="text" id="u-name" placeholder="John"/></div>
+          <div class="field"><label>Role</label>
+            <select id="u-role"><option value="owner">Owner</option><option value="worker">Worker</option><option value="vet">Vet/Advisor</option></select>
+          </div>
+        </div>
+        <div class="field"><label>Email (for Drive sharing)</label><input type="email" id="u-email" placeholder="john@example.com"/></div>
+        <div class="field"><label>Avatar color</label>
+          <div style="display:flex;gap:8px;margin-top:4px;" id="color-picker">
+            <div onclick="selectColor(this,'#639922')" style="width:28px;height:28px;border-radius:50%;background:#639922;cursor:pointer;border:2px solid transparent;" data-color="#639922"></div>
+            <div onclick="selectColor(this,'#1D9E75')" style="width:28px;height:28px;border-radius:50%;background:#1D9E75;cursor:pointer;border:2px solid transparent;" data-color="#1D9E75"></div>
+            <div onclick="selectColor(this,'#185FA5')" style="width:28px;height:28px;border-radius:50%;background:#185FA5;cursor:pointer;border:2px solid transparent;" data-color="#185FA5"></div>
+            <div onclick="selectColor(this,'#BA7517')" style="width:28px;height:28px;border-radius:50%;background:#BA7517;cursor:pointer;border:2px solid transparent;" data-color="#BA7517"></div>
+            <div onclick="selectColor(this,'#534AB7')" style="width:28px;height:28px;border-radius:50%;background:#534AB7;cursor:pointer;border:2px solid transparent;" data-color="#534AB7"></div>
+            <div onclick="selectColor(this,'#E24B4A')" style="width:28px;height:28px;border-radius:50%;background:#E24B4A;cursor:pointer;border:2px solid transparent;" data-color="#E24B4A"></div>
+          </div>
+        </div>
+        <input type="hidden" id="u-color" value="#639922"/>
+        <button class="btn btn-green btn-sm" onclick="addUser()">Add user</button>
+      </div>
+
+      <!-- Herd -->
+      <div class="card">
+        <div class="sec">Herd</div>
+        <div class="field"><label>Operation name</label><input type="text" id="s-name" placeholder="e.g. Smith Angus Farm"/></div>
+        <div class="two">
+          <div class="field"><label>Animal type</label><select id="s-type"><option>Beef cattle</option><option>Dairy cattle</option><option>Sheep</option><option>Goats</option></select></div>
+          <div class="field"><label>Head count</label><input type="number" id="s-count" placeholder="50"/></div>
+        </div>
+        <div class="two">
+          <div class="field"><label>Avg body weight (lbs)</label><input type="number" id="s-wt" placeholder="1200"/></div>
+          <div class="field"><label>DMI % of body weight</label><input type="number" id="s-dmi" step="0.1" placeholder="2.5"/></div>
+        </div>
+      </div>
+
+      <!-- NPK -->
+      <div class="card">
+        <div class="sec">NPK rates &amp; prices</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">Excretion rates (lbs / 1,000 lbs BW / day)</div>
+        <div class="three">
+          <div class="field"><label>N</label><input type="number" id="s-ne" step="0.01" placeholder="0.32"/></div>
+          <div class="field"><label>P</label><input type="number" id="s-pe" step="0.01" placeholder="0.09"/></div>
+          <div class="field"><label>K</label><input type="number" id="s-ke" step="0.01" placeholder="0.30"/></div>
+        </div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">Fertilizer prices ($/lb)</div>
+        <div class="three">
+          <div class="field"><label>N</label><input type="number" id="s-np" step="0.01" placeholder="0.55"/></div>
+          <div class="field"><label>P</label><input type="number" id="s-pp" step="0.01" placeholder="0.65"/></div>
+          <div class="field"><label>K</label><input type="number" id="s-kp" step="0.01" placeholder="0.42"/></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="sec">Manure production rates</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">Manure excreted per 1,000 lbs body weight per day (lbs, as-excreted wet weight)</div>
+        <div class="two">
+          <div class="field"><label>Volume rate (lbs/1000 lbs BW/day)</label><input type="number" id="s-manure-rate" step="1" placeholder="65"/></div>
+          <div class="field"><label>Lbs per load (for "loads" unit)</label><input type="number" id="s-load-lbs" step="100" placeholder="8000"/></div>
+        </div>
+        <div class="field"><label>Preferred volume unit</label>
+          <select id="s-vol-unit">
+            <option value="loads">Loads</option>
+            <option value="tons">Tons</option>
+            <option value="gallons">Gallons (liquid manure)</option>
+            <option value="cu_yards">Cubic yards</option>
+          </select>
+        </div>
+        <div style="font-size:12px;color:var(--text2);">Defaults: beef cattle ~65 lbs/1,000 lbs BW/day · 1 load = 8,000 lbs (4 tons)</div>
+      </div>
+
+      <!-- App -->
+      <div class="card">
+        <div class="sec">App</div>
+        <div class="two">
+          <div class="field"><label>Version string</label><input type="text" id="s-ver" placeholder="v1.0"/></div>
+          <div class="field"><label>Your name (tester)</label><input type="text" id="s-tester" placeholder="Name"/></div>
+        </div>
+      </div>
+
+      <!-- Feed inventory -->
+      <div class="card">
+        <div class="sec">Feed inventory</div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Feed types</div>
+        <div id="ft-list"></div>
+        <div class="div"></div>
+        <div class="two">
+          <div class="field"><label>Name</label><input type="text" id="ft-name" placeholder="Round bale"/></div>
+          <div class="field"><label>Unit</label><select id="ft-unit"><option value="bale">bale</option><option value="sq bale">sq bale</option><option value="ton">ton</option><option value="lb">lb</option><option value="bag">bag</option></select></div>
+        </div>
+        <div class="two">
+          <div class="field"><label>DM %</label><input type="number" id="ft-dm" placeholder="85"/></div>
+          <div class="field"><label>Category</label><select id="ft-cat"><option value="hay">Hay/forage</option><option value="silage">Silage</option><option value="grain">Grain/supp</option></select></div>
+        </div>
+        <button class="btn btn-green btn-sm" onclick="addFeedType()">Add feed type</button>
+        <div class="div"></div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Feed batches</div>
+        <div id="batch-list-s"></div>
+        <div class="div"></div>
+        <div class="two">
+          <div class="field"><label>Feed type</label><select id="b-type"><option value="">— type —</option></select></div>
+          <div class="field"><label>Label</label><input type="text" id="b-label" placeholder="June 1st cut"/></div>
+        </div>
+        <div class="two">
+          <div class="field"><label>Quantity</label><input type="number" id="b-qty" placeholder="100" oninput="calcBatch()"/></div>
+          <div class="field"><label>Wt / unit (lbs)</label><input type="number" id="b-wt" placeholder="850"/></div>
+        </div>
+        <div class="two">
+          <div class="field"><label>Cost / unit ($)</label><input type="number" id="b-cpu" step="0.01" placeholder="40" oninput="calcBatch()"/></div>
+          <div class="field"><label>Total cost ($)</label><input type="number" id="b-tcost" step="0.01" placeholder="4000" oninput="calcBatchFromTotal()"/></div>
+        </div>
+        <button class="btn btn-green btn-sm" onclick="addBatch()">Add batch</button>
+      </div>
+
+      <button class="btn btn-green" onclick="saveSettings()">Save settings</button>
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-outline btn-sm" onclick="exportCSV()">Export events CSV</button>
+        <button class="btn btn-outline btn-sm" onclick="exportFeedbackCSV()">Export feedback CSV</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- BOTTOM NAV -->
+  <div class="bnav">
+    <button class="bnav-btn active" id="bn-home" onclick="nav('home',this)">
+      <svg class="bnav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Home
+    </button>
+    <button class="bnav-btn" id="bn-feed" onclick="nav('feed',this)">
+      <svg class="bnav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Feed
+    </button>
+    <button class="bnav-btn" id="bn-todos" onclick="nav('todos',this)">
+      <svg class="bnav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+      Tasks
+      <span class="bnav-badge" id="todo-badge" style="display:none;"></span>
+    </button>
+    <button class="bnav-btn" id="bn-events" onclick="nav('events',this)">
+      <svg class="bnav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      Events
+    </button>
+    <button class="bnav-btn" id="bn-pastures" onclick="nav('pastures',this)">
+      <svg class="bnav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+      Pastures
+    </button>
+    <button class="bnav-btn" id="bn-feedback" onclick="nav('feedback',this)">
+      <svg class="bnav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+      Feedback
+      <span class="bnav-badge" id="fb-badge" style="display:none;"></span>
+    </button>
+    <button class="bnav-btn" id="bn-settings" onclick="nav('settings',this)">
+      <svg class="bnav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      Settings
+    </button>
+  </div>
+</div>
+
+<!-- FAB (feedback) -->
+<button class="fab" onclick="openFeedbackSheet()">
+  <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+</button>
+
+<!-- USER PICKER MODAL -->
+<div class="user-picker-wrap" id="user-picker-wrap">
+  <div class="user-picker-backdrop" onclick="closeUserPicker()"></div>
+  <div class="user-picker">
+    <div style="font-size:16px;font-weight:600;margin-bottom:4px;">Who are you?</div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:16px;">Select your name to track your activity</div>
+    <div id="user-picker-list"></div>
+  </div>
+</div>
+
+<!-- FEEDBACK SHEET -->
+<div class="sheet-wrap" id="fb-sheet-wrap">
+  <div class="sheet-backdrop" onclick="closeFeedbackSheet()"></div>
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:6px;">Leave feedback</div>
+    <div class="ctx-tag"><span id="fb-ctx-text">—</span></div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:8px;">Category</div>
+    <div class="cat-pills">
+      <button class="cat-pill cp-bug" onclick="selCat('bug',this)">Bug</button>
+      <button class="cat-pill cp-ux" onclick="selCat('ux',this)">UX friction</button>
+      <button class="cat-pill cp-feature" onclick="selCat('feature',this)">Missing feature</button>
+      <button class="cat-pill cp-calc" onclick="selCat('calc',this)">Calculation</button>
+      <button class="cat-pill cp-idea" onclick="selCat('idea',this)">Idea</button>
+    </div>
+    <div class="field"><label>Note</label><textarea id="fb-note" placeholder="What did you notice? What did you expect?"></textarea></div>
+    <div class="btn-row">
+      <button class="btn btn-green" onclick="saveFeedbackItem()">Save note</button>
+      <button class="btn btn-outline" onclick="closeFeedbackSheet()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- RESOLVE SHEET -->
+<div class="sheet-wrap" id="resolve-sheet-wrap">
+  <div class="sheet-backdrop" onclick="closeResolveSheet()"></div>
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:14px;">Mark as resolved</div>
+    <input type="hidden" id="resolve-id"/>
+    <div class="field"><label>What was changed to fix this?</label><textarea id="resolve-note" style="min-height:80px;"></textarea></div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:14px;">Tagged to version: <strong id="resolve-ver-label"></strong></div>
+    <div class="btn-row">
+      <button class="btn btn-teal" onclick="saveResolve()">Mark resolved</button>
+      <button class="btn btn-outline" onclick="closeResolveSheet()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- TO-DO SHEET -->
+<div class="sheet-wrap" id="todo-sheet-wrap">
+  <div class="sheet-backdrop" onclick="closeTodoSheet()"></div>
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:14px;" id="todo-sheet-title">New task</div>
+    <input type="hidden" id="todo-edit-id"/>
+    <div class="field"><label>Task name</label><input type="text" id="td-title" placeholder="e.g. Check water trough in North paddock"/></div>
+    <div class="field">
+      <label>Assign to</label>
+      <div id="td-assign-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;"></div>
+    </div>
+    <div class="two">
+      <div class="field"><label>Status</label>
+        <select id="td-status">
+          <option value="open">Open</option>
+          <option value="inprogress">In progress</option>
+          <option value="closed">Closed</option>
+        </select>
+      </div>
+      <div class="field"><label>Paddock (optional)</label>
+        <select id="td-paddock"><option value="">— none —</option></select>
+      </div>
+    </div>
+    <div class="field"><label>Note</label><textarea id="td-note" placeholder="Additional details..." style="min-height:60px;"></textarea></div>
+    <div class="btn-row">
+      <button class="btn btn-green" onclick="saveTodo()">Save task</button>
+      <button class="btn btn-outline" onclick="closeTodoSheet()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── DATA ─────────────────────────────────────────────────────────────────────
+let S = JSON.parse(localStorage.getItem('gthy')||'{}');
+if(!S.pastures)S.pastures=[];
+if(!S.events)S.events=[];
+if(!S.feedTypes)S.feedTypes=[];
+if(!S.batches)S.batches=[];
+if(!S.herd)S.herd={};
+if(!S.settings)S.settings={nPrice:0.55,pPrice:0.65,kPrice:0.42,nExc:0.32,pExc:0.09,kExc:0.30};
+if(!S.feedback)S.feedback=[];
+if(!S.version)S.version='v1.1';
+if(!S.testerName)S.testerName='';
+if(!S.users)S.users=[];
+if(!S.todos)S.todos=[];
+if(!S.manureBatches)S.manureBatches=[];
+if(!S.settings.manureVolumeRate)S.settings.manureVolumeRate=65;
+if(!S.settings.manureLoadLbs)S.settings.manureLoadLbs=8000;
+if(!S.settings.manureVolumeUnit)S.settings.manureVolumeUnit='loads';
+
+let driveState = JSON.parse(localStorage.getItem('gthy-drive')||'{}');
+let activeUserId = localStorage.getItem('gthy-user')||null;
+if(activeUserId)activeUserId=parseInt(activeUserId);
+
+function saveLocal(){localStorage.setItem('gthy',JSON.stringify(S));}
+function saveDriveState(){localStorage.setItem('gthy-drive',JSON.stringify(driveState));}
+function setActiveUser(id){activeUserId=id;localStorage.setItem('gthy-user',String(id));}
+function save(){saveLocal();if(driveState.connected&&driveState.accessToken)driveSyncDebounced();}
+function todayStr(){return new Date().toISOString().slice(0,10);}
+function dLabel(d){return d?new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}):'--';}
+function daysBetween(a,b){return Math.max(1,Math.round((new Date(b+'T12:00:00')-new Date(a+'T12:00:00'))/86400000)+1);}
+function getActive(){return S.events.find(e=>e.status==='open')||null;}
+function getDMITarget(){const h=S.herd;if(!h.count||!h.weight||!h.dmi)return null;return h.count*h.weight*(h.dmi/100);}
+function calcNPK(head,wt,days){const st=S.settings;const bw=head*wt;return{n:bw/1000*st.nExc*days,p:bw/1000*st.pExc*days,k:bw/1000*st.kExc*days};}
+function calcConsumedDMI(entries,resid){
+  if(!entries||!entries.length)return 0;
+  let t=0;
+  entries.forEach((e,i)=>{const r=(i===entries.length-1)?(resid/100):0;e.lines.forEach(l=>{const b=S.batches.find(x=>x.id===l.batchId);if(!b)return;const af=b.wt?l.qty*b.wt:l.qty;t+=af*(b.dm/100)*(1-r);});});
+  return t;
+}
+function calcEntryCost(entries){let c=0;(entries||[]).forEach(e=>e.lines.forEach(l=>{const b=S.batches.find(x=>x.id===l.batchId);if(b)c+=l.qty*(b.cpu||0);}));return c;}
+function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function getUser(id){return S.users.find(u=>u.id===id)||null;}
+function getActiveUser(){return getUser(activeUserId)||null;}
+function avatarHtml(user,lg=false){
+  if(!user)return '';
+  const cls=lg?'avatar avatar-lg':'avatar';
+  const initials=user.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
+  return `<span class="${cls}" style="background:${user.color||'var(--green)'};">${initials}</span>`;
+}
+
+// ─── GOOGLE DRIVE ─────────────────────────────────────────────────────────────
+const DRIVE_SCOPE='https://www.googleapis.com/auth/drive.file';
+const DATA_FILENAME='gthy-data.json';
+let syncTimer=null;
+
+function saveClientId(){
+  const id=document.getElementById('oauth-client-id').value.trim();
+  if(!id){alert('Paste your OAuth Client ID first');return;}
+  driveState.clientId=id;saveDriveState();
+  alert('Client ID saved. Now tap "Connect Google Drive".');
+}
+
+function driveConnect(){
+  if(!driveState.clientId){alert('Enter your OAuth Client ID first.');return;}
+  loadGISAndConnect();
+}
+
+function loadGISAndConnect(){
+  if(typeof google!=='undefined'&&google.accounts){doGISConnect();return;}
+  const s=document.createElement('script');s.src='https://accounts.google.com/gsi/client';s.onload=doGISConnect;document.head.appendChild(s);
+}
+
+function doGISConnect(){
+  const client=google.accounts.oauth2.initTokenClient({
+    client_id:driveState.clientId,
+    scope:DRIVE_SCOPE+' https://www.googleapis.com/auth/userinfo.email',
+    callback:async(resp)=>{
+      if(resp.error){setSyncStatus('error','Auth failed');return;}
+      driveState.accessToken=resp.access_token;
+      driveState.tokenExpiry=Date.now()+(resp.expires_in-60)*1000;
+      driveState.connected=true;
+      driveState.isOwner=true;
+      saveDriveState();
+      try{const r=await fetch('https://www.googleapis.com/oauth2/v1/userinfo?alt=json',{headers:{Authorization:'Bearer '+driveState.accessToken}});const u=await r.json();driveState.userEmail=u.email||'Google account';saveDriveState();}catch(e){}
+      updateDriveUI();
+      await driveSync();
+    }
+  });
+  client.requestAccessToken();
+}
+
+function joinFarm(){
+  const code=document.getElementById('farm-code-input').value.trim();
+  if(!code){alert('Enter the Farm Code from your farm owner');return;}
+  try{
+    const decoded=atob(code);
+    const[fileId,...rest]=decoded.split('|');
+    if(!fileId){throw new Error('Invalid code');}
+    driveState.fileId=fileId;
+    driveState.isOwner=false;
+    saveDriveState();
+    if(!driveState.clientId){alert('You also need to enter the OAuth Client ID above first.');return;}
+    loadGISAndConnect();
+  }catch(e){alert('Invalid Farm Code — check with your farm owner.');}
+}
+
+function generateFarmCode(){
+  if(!driveState.fileId)return null;
+  return btoa(driveState.fileId+'|'+driveState.userEmail);
+}
+
+function copyFarmCode(){
+  const code=generateFarmCode();
+  if(!code){alert('Connect Drive first to generate a Farm Code');return;}
+  navigator.clipboard.writeText(code).then(()=>{
+    const el=document.getElementById('farm-code-display');
+    el.textContent='Copied!';setTimeout(()=>{el.textContent=formatFarmCode(code);},2000);
+  });
+}
+
+function formatFarmCode(code){
+  return code.slice(0,6)+'...'+code.slice(-4);
+}
+
+function driveDisconnect(){
+  if(!confirm('Disconnect Google Drive? Local data stays on this device.'))return;
+  driveState={clientId:driveState.clientId};saveDriveState();updateDriveUI();setSyncStatus('off','Drive');
+}
+
+async function driveSync(){
+  if(!driveState.connected||!driveState.accessToken)return;
+  if(Date.now()>(driveState.tokenExpiry||0)){setSyncStatus('error','Token expired — reconnect');return;}
+  setSyncStatus('pending','Syncing...');
+  try{
+    if(!driveState.fileId)await driveFindOrCreateFile();
+    const remoteRaw=await driveFetchFile();
+    if(remoteRaw){const remote=JSON.parse(remoteRaw);S=mergeData(S,remote);saveLocal();}
+    await driveWriteFile(JSON.stringify(S,null,2));
+    driveState.lastSync=new Date().toISOString();saveDriveState();
+    const code=generateFarmCode();
+    if(code&&document.getElementById('farm-code-display'))document.getElementById('farm-code-display').textContent=formatFarmCode(code);
+    setSyncStatus('ok','Synced '+new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}));
+    renderCurrentScreen();
+  }catch(e){console.error(e);setSyncStatus('error','Sync failed');}
+}
+
+function driveSyncDebounced(){
+  setSyncStatus('pending','Unsaved');
+  if(syncTimer)clearTimeout(syncTimer);
+  syncTimer=setTimeout(driveSync,3000);
+}
+
+async function driveFindOrCreateFile(){
+  // If joining (not owner), fileId already set from Farm Code
+  if(driveState.fileId&&!driveState.isOwner)return;
+  const q=encodeURIComponent(`name='${DATA_FILENAME}' and trashed=false`);
+  const r=await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`,{headers:{Authorization:'Bearer '+driveState.accessToken}});
+  const data=await r.json();
+  if(data.files&&data.files.length>0){driveState.fileId=data.files[0].id;}
+  else{
+    const cr=await fetch('https://www.googleapis.com/drive/v3/files',{method:'POST',headers:{Authorization:'Bearer '+driveState.accessToken,'Content-Type':'application/json'},body:JSON.stringify({name:DATA_FILENAME,mimeType:'application/json'})});
+    const cf=await cr.json();driveState.fileId=cf.id;
+  }
+  saveDriveState();
+}
+
+async function driveFetchFile(){
+  if(!driveState.fileId)return null;
+  const r=await fetch(`https://www.googleapis.com/drive/v3/files/${driveState.fileId}?alt=media`,{headers:{Authorization:'Bearer '+driveState.accessToken}});
+  if(!r.ok)return null;
+  return await r.text();
+}
+
+async function driveWriteFile(content){
+  const boundary='pt_boundary';
+  const meta=JSON.stringify({name:DATA_FILENAME,mimeType:'application/json'});
+  const body=`--${boundary}\r\nContent-Type: application/json\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${content}\r\n--${boundary}--`;
+  const method=driveState.fileId?'PATCH':'POST';
+  const url=driveState.fileId?`https://www.googleapis.com/upload/drive/v3/files/${driveState.fileId}?uploadType=multipart`:'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+  await fetch(url,{method,headers:{Authorization:'Bearer '+driveState.accessToken,'Content-Type':`multipart/related; boundary=${boundary}`},body});
+}
+
+function setSyncStatus(state,label){
+  document.getElementById('sync-dot').className='sync-dot sync-'+state;
+  document.getElementById('sync-label').textContent=label;
+}
+
+function updateDriveUI(){
+  const conn=driveState.connected;
+  document.getElementById('drive-disconnected').style.display=conn?'none':'block';
+  document.getElementById('drive-connected').style.display=conn?'block':'none';
+  if(conn){
+    document.getElementById('drive-account-label').textContent='Signed in as '+(driveState.userEmail||'Google account')+(driveState.isOwner?' (owner)':' (worker)');
+    document.getElementById('drive-file-label').textContent='File: '+DATA_FILENAME+(driveState.lastSync?' · Last sync: '+new Date(driveState.lastSync).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}):'');
+    setSyncStatus('ok','Drive');
+    const farmCodeSection=document.getElementById('farm-code-section');
+    if(driveState.isOwner&&driveState.fileId){
+      farmCodeSection.style.display='block';
+      const code=generateFarmCode();
+      document.getElementById('farm-code-display').textContent=code?formatFarmCode(code):'Syncing...';
+    } else {farmCodeSection.style.display='none';}
+  }
+  if(driveState.clientId){const el=document.getElementById('oauth-client-id');if(el)el.value=driveState.clientId;}
+}
+
+// ─── EXPORT / IMPORT ──────────────────────────────────────────────────────────
+function mergeData(local,remote){
+  function ma(a,b,key='id'){
+    const m={};
+    (a||[]).forEach(x=>m[x[key]]=x);
+    (b||[]).forEach(x=>{
+      if(!m[x[key]]){m[x[key]]=x;}
+      else{const ex=m[x[key]];
+        if(x.status==='closed'&&ex.status==='open')m[x[key]]=x;
+        else if((x.feedEntries||[]).length>(ex.feedEntries||[]).length)m[x[key]]=x;
+      }
+    });
+    return Object.values(m);
+  }
+  return{
+    pastures:ma(local.pastures,remote.pastures,'name'),
+    events:ma(local.events,remote.events),
+    feedTypes:ma(local.feedTypes,remote.feedTypes),
+    batches:ma(local.batches,remote.batches),
+    feedback:ma(local.feedback,remote.feedback),
+    todos:ma(local.todos,remote.todos),
+    manureBatches:ma(local.manureBatches||[],remote.manureBatches||[]),
+    users:ma(local.users,remote.users),
+    herd:remote.herd&&remote.herd.name?remote.herd:local.herd,
+    settings:remote.settings||local.settings,
+    version:local.version||remote.version||'v1.0',
+    testerName:local.testerName||remote.testerName||'',
+  };
+}
+
+function exportDataJSON(){
+  const ts=new Date().toISOString().slice(0,10);
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,2)],{type:'application/json'}));
+  a.download=`gthy-backup-${ts}.json`;a.click();
+}
+function triggerImport(){document.getElementById('import-file').click();}
+function importDataJSON(event){
+  const file=event.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=(e)=>{
+    try{
+      const imported=JSON.parse(e.target.result);
+      if(!imported.herd&&!imported.events&&!imported.pastures)throw new Error('Not a Get The Hay Out backup file');
+      if(!confirm(`Import backup from ${file.name}? Will merge with existing data.`))return;
+      S=mergeData(S,imported);save();renderCurrentScreen();
+      const el=document.getElementById('import-status');el.style.display='block';
+      el.textContent='Import successful — '+(imported.events||[]).length+' events, '+(imported.pastures||[]).length+' paddocks merged.';
+      setTimeout(()=>{el.style.display='none';},5000);
+    }catch(err){alert('Import failed: '+err.message);}
+    event.target.value='';
+  };
+  reader.readAsText(file);
+}
+
+// ─── NAV ──────────────────────────────────────────────────────────────────────
+let curScreen='home';
+let todoStatusFilters=new Set(['open','inprogress']);
+
+function nav(screen,btn){
+  document.querySelectorAll('.scr').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.bnav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('s-'+screen).classList.add('active');
+  const nb=document.getElementById('bn-'+screen);if(nb)nb.classList.add('active');
+  curScreen=screen;renderCurrentScreen();
+}
+function renderCurrentScreen(){
+  if(curScreen==='home')renderHome();
+  else if(curScreen==='feed')renderFeedScreen();
+  else if(curScreen==='events')renderEventsLog();
+  else if(curScreen==='todos')renderTodos();
+  else if(curScreen==='pastures')renderPastures();
+  else if(curScreen==='feedback')renderFeedbackTab();
+  else if(curScreen==='settings'){loadSettings();renderFeedTypes();renderBatchListS();renderUsersList();updateDriveUI();}
+}
+
+// ─── USER SYSTEM ──────────────────────────────────────────────────────────────
+let selectedColor='#639922';
+
+function selectColor(el,color){
+  selectedColor=color;
+  document.getElementById('u-color').value=color;
+  document.querySelectorAll('#color-picker div').forEach(d=>{d.style.border='2px solid transparent';});
+  el.style.border='2px solid var(--text)';
+}
+
+function addUser(){
+  const name=document.getElementById('u-name').value.trim();
+  if(!name){alert('Enter a name');return;}
+  S.users.push({
+    id:Date.now(),name,
+    role:document.getElementById('u-role').value,
+    email:document.getElementById('u-email').value.trim(),
+    color:document.getElementById('u-color').value||'#639922',
+  });
+  save();renderUsersList();populateTodoAssign();
+  document.getElementById('u-name').value='';document.getElementById('u-email').value='';
+}
+
+function renderUsersList(){
+  const el=document.getElementById('users-list');
+  if(!S.users.length){el.innerHTML='<div style="font-size:13px;color:var(--text2);margin-bottom:8px;">No users yet — add yourself first</div>';return;}
+  el.innerHTML=S.users.map((u,i)=>{
+    const roleBadge={owner:'bg',worker:'bt',vet:'bp'}[u.role]||'bb';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--border);">
+      ${avatarHtml(u)}
+      <div style="flex:1;">
+        <div style="font-size:14px;font-weight:600;">${u.name} <span class="badge ${roleBadge}">${u.role}</span>${activeUserId===u.id?' <span class="badge bg">you</span>':''}</div>
+        ${u.email?`<div style="font-size:11px;color:var(--text2);">${u.email}</div>`:''}
+      </div>
+      <button class="btn btn-outline btn-xs" onclick="switchToUser(${u.id})">Select</button>
+      <button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:18px;padding:2px 6px;" onclick="S.users.splice(${i},1);save();renderUsersList();">×</button>
+    </div>`;
+  }).join('');
+}
+
+function switchToUser(id){setActiveUser(id);updateHeaderAvatar();renderCurrentScreen();}
+
+function openUserPicker(){
+  if(!S.users.length){nav('settings',document.getElementById('bn-settings'));return;}
+  const el=document.getElementById('user-picker-list');
+  el.innerHTML=S.users.map(u=>`
+    <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:0.5px solid var(--border);cursor:pointer;" onclick="switchToUser(${u.id});closeUserPicker();">
+      ${avatarHtml(u,true)}
+      <div>
+        <div style="font-size:15px;font-weight:600;">${u.name}</div>
+        <div style="font-size:12px;color:var(--text2);">${u.role}${u.email?' · '+u.email:''}</div>
+      </div>
+      ${activeUserId===u.id?'<span class="badge bg" style="margin-left:auto;">active</span>':''}
+    </div>
+  `).join('');
+  document.getElementById('user-picker-wrap').classList.add('open');
+}
+function closeUserPicker(){document.getElementById('user-picker-wrap').classList.remove('open');}
+
+function updateHeaderAvatar(){
+  const u=getActiveUser();
+  const el=document.getElementById('hdr-avatar');
+  el.innerHTML=u?avatarHtml(u):'<div style="width:28px;height:28px;border-radius:50%;border:1.5px dashed var(--border2);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--text2);">?</div>';
+}
+
+// Prompt user selection on first open
+function maybePromptUserSelect(){
+  if(S.users.length&&!activeUserId){
+    setTimeout(openUserPicker,500);
+  }
+}
+
+// ─── HOME ─────────────────────────────────────────────────────────────────────
+function renderHome(){
+  const ae=getActive();
+  document.getElementById('move-btn').style.display=ae?'':'none';
+  if(ae){
+    const days=daysBetween(ae.dateIn,todayStr());
+    const cost=calcEntryCost(ae.feedEntries);
+    document.getElementById('home-active').innerHTML=`<div class="banner ban-green"><div style="font-size:14px;font-weight:600;color:var(--green-d);">Active: ${ae.pasture} — Day ${days}</div><div style="font-size:12px;color:var(--green-d);opacity:0.85;margin-top:2px;">In ${dLabel(ae.dateIn)} · ${(ae.feedEntries||[]).length} feedings · $${cost.toFixed(2)} feed</div></div>`;
+    document.getElementById('home-none').style.display='none';
+  } else {
+    document.getElementById('home-active').innerHTML='';
+    document.getElementById('home-none').style.display='block';
+  }
+  // My open tasks
+  const myTodos=S.todos.filter(t=>t.status!=='closed'&&(t.assignedTo||[]).includes(activeUserId));
+  const homeTodos=document.getElementById('home-todos');
+  if(!myTodos.length){
+    homeTodos.innerHTML='<div style="font-size:13px;color:var(--text2);">No open tasks assigned to you</div>';
+  } else {
+    homeTodos.innerHTML=myTodos.slice(0,4).map(t=>todoCardHtml(t,true)).join('');
+  }
+  // Season stats
+  const closed=S.events.filter(e=>e.status==='closed');
+  const pdmi=closed.reduce((s,e)=>s+(e.totals?e.totals.pastureDMI||0:0),0);
+  const cost=closed.reduce((s,e)=>s+(e.totals?e.totals.cost||0:0),0);
+  const avgPct=closed.length?Math.round(closed.reduce((s,e)=>s+(e.totals?e.totals.pct||0:0),0)/closed.length):null;
+  document.getElementById('h-pdmi').textContent=pdmi?Math.round(pdmi).toLocaleString()+' lbs':'--';
+  document.getElementById('h-cost').textContent=cost?'$'+cost.toFixed(2):'--';
+  document.getElementById('h-pct').textContent=avgPct!==null?avgPct+'%':'--';
+  document.getElementById('h-evs').textContent=closed.length;
+  const el=document.getElementById('h-event-list');
+  if(!closed.length){el.innerHTML='<div class="empty">No closed events yet</div>';return;}
+  el.innerHTML=closed.slice().reverse().slice(0,5).map(e=>{
+    const t=e.totals||{};const pc=t.pct>=60?'bg':t.pct>=30?'ba':'br';
+    return `<div class="row"><div class="row-head"><span style="font-size:14px;font-weight:600;">${e.pasture}</span><span class="badge ${pc}">${t.pct!==undefined?t.pct+'%':'--'} pasture</span></div><div class="row-detail">${dLabel(e.dateIn)} → ${dLabel(e.dateOut)} · ${t.days||'?'} days · $${(t.cost||0).toFixed(2)} · ${Math.round(t.pastureDMI||0).toLocaleString()} lbs pasture DMI</div></div>`;
+  }).join('');
+  updateTodoBadge();
+}
+
+// ─── TO-DO SYSTEM ─────────────────────────────────────────────────────────────
+let selectedAssignees=new Set();
+let todoUserFilters=new Set();
+let todoLocationFilters=new Set();
+let wizPaddockForTodo=null;
+
+function todoStatusConfig(status){
+  if(status==='open')return{label:'Open',cls:'sp-open'};
+  if(status==='inprogress')return{label:'In progress',cls:'sp-progress'};
+  return{label:'Closed',cls:'sp-closed'};
+}
+
+function todoCardHtml(t,compact=false){
+  const sc=todoStatusConfig(t.status);
+  const assignees=(t.assignedTo||[]).map(id=>getUser(id)).filter(Boolean);
+  const avatars=assignees.map(u=>avatarHtml(u)).join('');
+  return `<div class="todo-card${t.status==='closed'?' closed':''}" onclick="openTodoSheet(${t.id})">
+    <div class="todo-inner">
+      <div class="todo-status-bar" style="background:${t.status==='open'?'var(--amber)':t.status==='inprogress'?'var(--blue)':'var(--green)'};min-height:40px;"></div>
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;">
+          <div style="font-size:14px;font-weight:600;line-height:1.4;">${escHtml(t.title)}</div>
+          <span class="status-pill ${sc.cls}" style="flex-shrink:0;">${sc.label}</span>
+        </div>
+        ${!compact&&t.paddock?`<div style="font-size:12px;color:var(--text2);margin-top:3px;">${t.paddock}</div>`:''}
+        ${!compact&&t.note?`<div style="font-size:12px;color:var(--text2);margin-top:2px;line-height:1.4;">${escHtml(t.note.slice(0,80))}${t.note.length>80?'…':''}</div>`:''}
+        <div style="display:flex;align-items:center;gap:6px;margin-top:6px;">${avatars}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderTodos(){
+  // Build user filter buttons
+  const uf=document.getElementById('todo-user-filters');
+  uf.innerHTML='<button class="fp'+(todoUserFilters.size===0?' on':'')+'" onclick="clearUserFilter(this)">All users</button>'+
+    S.users.map(u=>`<button class="fp${todoUserFilters.has(u.id)?' on':''}" onclick="toggleUserFilter(${u.id},this)">${u.name}</button>`).join('');
+  // Build location filter buttons
+  const lf=document.getElementById('todo-location-filters');
+  const locations=['(no paddock)',...S.pastures.map(p=>p.name)];
+  lf.innerHTML='<button class="fp'+(todoLocationFilters.size===0?' on':'')+'" onclick="clearLocationFilter(this)">All locations</button>'+
+    locations.map(loc=>`<button class="fp${todoLocationFilters.has(loc)?' on':''}" onclick="toggleLocationFilter('${loc}',this)">${loc}</button>`).join('');
+  // Filter todos
+  let todos=[...S.todos].sort((a,b)=>b.id-a.id);
+  if(todoUserFilters.size>0)todos=todos.filter(t=>(t.assignedTo||[]).some(id=>todoUserFilters.has(id)));
+  if(todoLocationFilters.size>0)todos=todos.filter(t=>{const loc=t.paddock||'(no paddock)';return todoLocationFilters.has(loc);});
+  if(todoStatusFilters.size>0)todos=todos.filter(t=>todoStatusFilters.has(t.status));
+  const el=document.getElementById('todo-list');
+  document.getElementById('todo-summary').textContent=`${todos.length} task${todos.length!==1?'s':''} shown`;
+  if(!todos.length){el.innerHTML='<div class="empty">No tasks match these filters</div>';return;}
+  el.innerHTML=todos.map(t=>todoCardHtml(t)).join('');
+}
+
+function toggleStatusFilter(status,btn){
+  if(todoStatusFilters.has(status))todoStatusFilters.delete(status);else todoStatusFilters.add(status);
+  btn.classList.toggle('on',todoStatusFilters.has(status));
+  renderTodos();
+}
+function toggleUserFilter(id,btn){
+  if(todoUserFilters.has(id))todoUserFilters.delete(id);else todoUserFilters.add(id);
+  renderTodos();
+}
+function clearUserFilter(btn){todoUserFilters.clear();renderTodos();}
+function toggleLocationFilter(loc,btn){
+  if(todoLocationFilters.has(loc))todoLocationFilters.delete(loc);else todoLocationFilters.add(loc);
+  renderTodos();
+}
+function clearLocationFilter(btn){todoLocationFilters.clear();renderTodos();}
+
+function populateTodoAssign(){
+  const el=document.getElementById('td-assign-list');
+  if(!el)return;
+  el.innerHTML=S.users.map(u=>`
+    <div style="display:flex;align-items:center;gap:6px;padding:5px 10px;border:0.5px solid var(--border);border-radius:var(--radius);cursor:pointer;${selectedAssignees.has(u.id)?'border-color:var(--green);background:var(--green-l)':''}" onclick="toggleAssignee(${u.id},this)">
+      ${avatarHtml(u)}
+      <span style="font-size:13px;font-weight:500;">${u.name}</span>
+    </div>
+  `).join('');
+}
+
+function toggleAssignee(id,el){
+  if(selectedAssignees.has(id)){selectedAssignees.delete(id);el.style.borderColor='';el.style.background='';}
+  else{selectedAssignees.add(id);el.style.borderColor='var(--green)';el.style.background='var(--green-l)';}
+}
+
+function populateTodoPaddock(preselect){
+  const sel=document.getElementById('td-paddock');
+  sel.innerHTML='<option value="">— none —</option>'+S.pastures.map(p=>`<option value="${p.name}"${p.name===preselect?' selected':''}>${p.name}</option>`).join('');
+}
+
+let todoEditId=null;
+function openTodoSheet(id,fromWiz=false){
+  todoEditId=id;
+  selectedAssignees=new Set();
+  document.getElementById('todo-sheet-title').textContent=id?'Edit task':'New task';
+  document.getElementById('todo-edit-id').value=id||'';
+  document.getElementById('td-status').value='open';
+  document.getElementById('td-note').value='';
+  document.getElementById('td-title').value='';
+  const ae=getActive();
+  const preselect=fromWiz&&wizPaddockForTodo?wizPaddockForTodo:ae?ae.pasture:'';
+  populateTodoPaddock(preselect);
+  if(id){
+    const t=S.todos.find(x=>x.id===id);
+    if(t){
+      document.getElementById('td-title').value=t.title;
+      document.getElementById('td-status').value=t.status;
+      document.getElementById('td-note').value=t.note||'';
+      selectedAssignees=new Set(t.assignedTo||[]);
+      populateTodoPaddock(t.paddock||'');
+    }
+  } else if(activeUserId){selectedAssignees.add(activeUserId);}
+  populateTodoAssign();
+  document.getElementById('todo-sheet-wrap').classList.add('open');
+  setTimeout(()=>document.getElementById('td-title').focus(),300);
+}
+function closeTodoSheet(){document.getElementById('todo-sheet-wrap').classList.remove('open');wizPaddockForTodo=null;}
+
+function saveTodo(){
+  const title=document.getElementById('td-title').value.trim();
+  if(!title){alert('Enter a task name');return;}
+  const id=todoEditId;
+  const data={
+    title,
+    assignedTo:[...selectedAssignees],
+    status:document.getElementById('td-status').value,
+    paddock:document.getElementById('td-paddock').value||null,
+    note:document.getElementById('td-note').value.trim(),
+    updatedAt:new Date().toISOString(),
+  };
+  if(id){
+    const idx=S.todos.findIndex(t=>t.id===id);
+    if(idx>=0){S.todos[idx]={...S.todos[idx],...data};}
+  } else {
+    S.todos.push({id:Date.now(),createdBy:activeUserId,createdAt:new Date().toISOString(),...data});
+  }
+  save();closeTodoSheet();updateTodoBadge();
+  if(curScreen==='todos')renderTodos();
+  if(curScreen==='home')renderHome();
+}
+
+function updateTodoBadge(){
+  const open=S.todos.filter(t=>t.status!=='closed').length;
+  const badge=document.getElementById('todo-badge');
+  badge.style.display=open>0?'':'none';badge.textContent=open;
+}
+
+// Show paddock tasks in move wizard
+function showPaddockTasksInWiz(paddock,containerId,listId){
+  const tasks=S.todos.filter(t=>t.paddock===paddock&&t.status!=='closed');
+  const container=document.getElementById(containerId);
+  if(!tasks.length){container.style.display='none';return;}
+  container.style.display='block';
+  document.getElementById(listId).innerHTML=tasks.map(t=>{
+    const sc=todoStatusConfig(t.status);
+    const assignees=(t.assignedTo||[]).map(id=>getUser(id)).filter(Boolean).map(u=>u.name).join(', ');
+    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:0.5px solid var(--border);">
+      <span class="status-pill ${sc.cls}">${sc.label}</span>
+      <div style="flex:1;"><div style="font-size:13px;font-weight:500;">${escHtml(t.title)}</div>${assignees?`<div style="font-size:11px;color:var(--text2);">${assignees}</div>`:''}</div>
+    </div>`;
+  }).join('');
+}
+
+// ─── FEED SCREEN ──────────────────────────────────────────────────────────────
+let ffLines=[];
+function renderFeedScreen(){
+  const ae=getActive();
+  document.getElementById('feed-no-event').style.display=ae?'none':'block';
+  document.getElementById('feed-form').style.display=ae?'block':'none';
+  if(!ae)return;
+  document.getElementById('feed-banner').innerHTML=`<div class="banner ban-green"><div style="font-size:14px;font-weight:600;color:var(--green-d);">Feeding: ${ae.pasture}</div><div style="font-size:12px;color:var(--green-d);opacity:0.85;">Day ${daysBetween(ae.dateIn,todayStr())} · in since ${dLabel(ae.dateIn)}</div></div>`;
+  document.getElementById('ff-date').value=todayStr();
+  ffLines=[];renderFFBatches();renderFFHistory(ae);
+}
+function renderFFBatches(){
+  const el=document.getElementById('ff-batch-sel');
+  const active=S.batches.filter(b=>b.remaining>0);
+  if(!active.length){el.innerHTML='<div style="font-size:13px;color:var(--text2);">No batches — add in Settings</div>';return;}
+  const byType={};
+  active.forEach(b=>{if(!byType[b.typeName])byType[b.typeName]=[];byType[b.typeName].push(b);});
+  el.innerHTML=Object.entries(byType).map(([type,batches])=>
+    `<div style="font-size:12px;font-weight:600;color:var(--text2);margin:8px 0 4px;">${type}</div>`+
+    batches.map(b=>{const on=ffLines.find(l=>l.batchId===b.id);
+      return `<div class="batch-sel${on?' on':''}" onclick="toggleFFBatch(${b.id})"><div><div style="font-size:13px;font-weight:600;">${b.label}</div><div style="font-size:11px;color:var(--text2);">${b.remaining.toFixed(1)} ${b.unit}s · ${b.dm}% DM${b.cpu?' · $'+b.cpu.toFixed(2)+'/'+b.unit:''}</div></div><div class="chk">${on?'<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>':''}</div></div>`;
+    }).join('')
+  ).join('');
+  renderFFQtyLines();
+}
+function toggleFFBatch(id){const i=ffLines.findIndex(l=>l.batchId===id);if(i>=0)ffLines.splice(i,1);else ffLines.push({batchId:id,qty:0});renderFFBatches();}
+function renderFFQtyLines(){
+  const wrap=document.getElementById('ff-qty-wrap');const el=document.getElementById('ff-qty-lines');
+  if(!ffLines.length){wrap.style.display='none';calcFFTotals();return;}
+  wrap.style.display='block';
+  el.innerHTML=ffLines.map((l,i)=>{const b=S.batches.find(x=>x.id===l.batchId);
+    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"><div style="flex:1;font-size:14px;font-weight:500;">${b.label} <span style="font-size:11px;color:var(--text2);">${b.unit}s</span></div><div style="display:flex;align-items:center;gap:8px;"><button class="qty-btn" onclick="adjFF(${i},-0.5)">−</button><span class="qty-val">${l.qty}</span><button class="qty-btn" onclick="adjFF(${i},0.5)">+</button></div></div>`;
+  }).join('');
+  calcFFTotals();
+}
+function adjFF(i,d){ffLines[i].qty=Math.max(0,+(ffLines[i].qty+d).toFixed(1));renderFFQtyLines();}
+function calcFFTotals(){
+  let dmi=0,cost=0;
+  ffLines.forEach(l=>{const b=S.batches.find(x=>x.id===l.batchId);if(!b||!l.qty)return;const af=b.wt?l.qty*b.wt:l.qty;dmi+=af*(b.dm/100);cost+=l.qty*(b.cpu||0);});
+  document.getElementById('ff-dmi-out').textContent=Math.round(dmi)+' lbs';
+  document.getElementById('ff-cost-out').textContent='$'+cost.toFixed(2);
+}
+function saveFeedEntry(){
+  const ae=getActive();if(!ae){alert('No active event');return;}
+  if(!ffLines.length){alert('Select a feed batch');return;}
+  if(!ae.feedEntries)ae.feedEntries=[];
+  ae.feedEntries.push({id:Date.now(),date:document.getElementById('ff-date').value,lines:[...ffLines]});
+  ffLines=[];save();renderFFBatches();renderFFHistory(ae);
+}
+function renderFFHistory(ae){
+  const el=document.getElementById('ff-history');const rt=document.getElementById('ff-running');
+  if(!ae.feedEntries||!ae.feedEntries.length){el.innerHTML='<div class="empty">No feedings yet</div>';rt.style.display='none';return;}
+  el.innerHTML=ae.feedEntries.map(e=>{
+    let dmi=0,cost=0;
+    e.lines.forEach(l=>{const b=S.batches.find(x=>x.id===l.batchId);if(!b||!l.qty)return;dmi+=b.wt?l.qty*b.wt*(b.dm/100):l.qty*(b.dm/100);cost+=l.qty*(b.cpu||0);});
+    const desc=e.lines.filter(l=>l.qty>0).map(l=>{const b=S.batches.find(x=>x.id===l.batchId);return b?`${l.qty} ${b.unit} ${b.label}`:''}).filter(Boolean).join(', ');
+    return `<div class="feed-row"><div><div style="font-size:13px;font-weight:600;">${dLabel(e.date)}</div><div style="font-size:11px;color:var(--text2);">${desc||'—'}</div></div><div style="text-align:right;"><div style="font-size:12px;color:var(--green-d);">${Math.round(dmi)} lbs DMI</div><div style="font-size:12px;color:var(--text2);">$${cost.toFixed(2)}</div></div></div>`;
+  }).join('');
+  const total=calcConsumedDMI(ae.feedEntries,0);const tcost=calcEntryCost(ae.feedEntries);
+  rt.style.display='block';rt.innerHTML=`${ae.feedEntries.length} entries · ${Math.round(total).toLocaleString()} lbs stored DMI · <span style="color:var(--amber);">$${tcost.toFixed(2)}</span>`;
+}
+
+// ─── MOVE WIZARD ──────────────────────────────────────────────────────────────
+let wizFeedLines=[];
+function openMoveWizard(){nav('move',document.getElementById('bn-home'));initWiz();}
+function initWiz(){
+  wizFeedLines=[];wizGo(0);
+  const ae=getActive();
+  document.getElementById('ws0-has').style.display=ae?'block':'none';
+  document.getElementById('ws0-none').style.display=ae?'none':'block';
+  if(ae){
+    document.getElementById('ws0-banner').innerHTML=`<div style="font-size:14px;font-weight:600;color:var(--amber-d);">Closing: ${ae.pasture}</div><div style="font-size:12px;color:var(--amber-d);opacity:0.85;margin-top:2px;">In ${dLabel(ae.dateIn)} · ${daysBetween(ae.dateIn,todayStr())} days · ${(ae.feedEntries||[]).length} feedings</div>`;
+    if(ae.heightIn)document.getElementById('w-pregraze-disp').value=ae.heightIn;
+    showPaddockTasksInWiz(ae.pasture,'w-paddock-tasks','w-paddock-tasks-list');
+  }
+  document.getElementById('w-out-date').value=todayStr();
+  document.getElementById('w-in-date').value=todayStr();
+  const h=S.herd;
+  if(h.count)document.getElementById('w-new-head').value=h.count;
+  if(h.weight)document.getElementById('w-new-wt').value=h.weight;
+  populateNewPastureSelect();renderWizFeedSel();calcClosePreview();
+}
+function wizGo(step){
+  [0,1,2].forEach(i=>{document.getElementById('ws'+i).classList.toggle('on',i===step);document.getElementById('wd'+i).classList.toggle('on',i===step);});
+}
+function calcClosePreview(){
+  const ae=getActive();const prev=document.getElementById('close-preview');
+  if(!ae){prev.style.display='none';return;}
+  // For confinement events, show simplified preview
+  if(ae.locationType==='confinement'){
+    const feedRes=parseInt(document.getElementById('w-feed-res').value)||0;
+    const outDate=document.getElementById('w-out-date').value||todayStr();
+    const days=daysBetween(ae.dateIn,outDate);
+    const sdmi=calcConsumedDMI(ae.feedEntries||[],feedRes);
+    const cost=calcEntryCost(ae.feedEntries||[]);
+    const head=ae.head||S.herd.count||0,wt=ae.wt||S.herd.weight||0;
+    const npk=head&&wt?calcNPK(head,wt,days):{n:0,p:0,k:0};
+    const loc=S.pastures.find(p=>p.name===ae.pasture);
+    const capPct=(loc&&loc.capturePercent||80)/100;
+    const st=S.settings;
+    const capVal=((npk.n*capPct)*st.nPrice+(npk.p*capPct)*st.pPrice+(npk.k*capPct)*st.kPrice).toFixed(2);
+    const volRate=S.settings.manureVolumeRate||65;
+    const volLbs=(head*wt/1000)*volRate*days*capPct;
+    const vol=volLbsToDisplay(volLbs);
+    prev.style.display='block';
+    document.getElementById('cp-days').textContent=days;
+    document.getElementById('cp-cost').textContent='$'+cost.toFixed(2);
+    document.getElementById('cp-sdmi').textContent=Math.round(sdmi).toLocaleString()+' lbs';
+    document.getElementById('cp-pdmi').textContent='N/A';
+    document.getElementById('cp-pct').textContent='Confinement';
+    document.getElementById('cp-npk').textContent=loc&&loc.captureManure?'$'+capVal+' cap.':'not captured';
+    return;
+  }
+  const outDate=document.getElementById('w-out-date').value||todayStr();
+  const feedRes=parseInt(document.getElementById('w-feed-res').value)||0;
+  const days=daysBetween(ae.dateIn,outDate);
+  const sdmi=calcConsumedDMI(ae.feedEntries||[],feedRes);
+  const cost=calcEntryCost(ae.feedEntries||[]);
+  const target=getDMITarget();
+  const pdmi=target?Math.max(0,target*days-sdmi):null;
+  const pct=target&&target*days>0?Math.round((pdmi/(target*days))*100):null;
+  const head=ae.head||S.herd.count||0,wt=ae.wt||S.herd.weight||0;
+  const npk=head&&wt?calcNPK(head,wt,days):{n:0,p:0,k:0};
+  const st=S.settings;
+  const npkVal=(npk.n*st.nPrice+npk.p*st.pPrice+npk.k*st.kPrice).toFixed(2);
+  prev.style.display='block';
+  document.getElementById('cp-days').textContent=days;document.getElementById('cp-cost').textContent='$'+cost.toFixed(2);
+  document.getElementById('cp-sdmi').textContent=Math.round(sdmi).toLocaleString()+' lbs';document.getElementById('cp-pdmi').textContent=pdmi!==null?Math.round(pdmi).toLocaleString()+' lbs':'--';
+  document.getElementById('cp-pct').textContent=pct!==null?pct+'%':'--';document.getElementById('cp-npk').textContent='$'+npkVal;
+}
+function wizCloseEvent(){
+  const ae=getActive();
+  const outDate=document.getElementById('w-out-date').value;if(!outDate){alert('Enter move-out date');return;}
+  const feedRes=parseInt(document.getElementById('w-feed-res').value)||0;
+  const days=daysBetween(ae.dateIn,outDate);
+  const sdmi=calcConsumedDMI(ae.feedEntries||[],feedRes);const cost=calcEntryCost(ae.feedEntries||[]);
+  const target=getDMITarget();const pdmi=target?Math.max(0,target*days-sdmi):null;
+  const pct=target&&target*days>0?Math.round((pdmi/(target*days))*100):null;
+  const head=ae.head||S.herd.count||0,wt=ae.wt||S.herd.weight||0;
+  const npk=head&&wt?calcNPK(head,wt,days):{n:0,p:0,k:0};
+  const st=S.settings;const npkVal=npk.n*st.nPrice+npk.p*st.pPrice+npk.k*st.kPrice;
+  ae.dateOut=outDate;ae.heightOut=parseFloat(document.getElementById('w-res-h').value)||null;
+  ae.feedResidual=feedRes;ae.status='closed';ae.totals={days,storedDMI:sdmi,pastureDMI:pdmi,cost,pct,npk,npkVal};
+  // If this is a confinement event with manure capture, route NPK to manure storage
+  if(ae.locationType==='confinement'){
+    const loc=S.pastures.find(p=>p.name===ae.pasture);
+    if(loc&&loc.captureManure){
+      const capPct=(loc.capturePercent||80)/100;
+      const capturedN=npk.n*capPct,capturedP=npk.p*capPct,capturedK=npk.k*capPct;
+      const volRate=S.settings.manureVolumeRate||65;
+      const estimatedVolLbs=(head*wt/1000)*volRate*days*capPct;
+      const st=S.settings;
+      ae.totals.capturedNPK={n:capturedN,p:capturedP,k:capturedK};
+      ae.totals.estimatedVolumeLbs=estimatedVolLbs;
+      ae.totals.capturePercent=loc.capturePercent||80;
+      addToManureBatch(loc,ae,capturedN,capturedP,capturedK,estimatedVolLbs,outDate);
+    }
+    ae.totals.pastureDMI=null;ae.totals.pct=null;
+  }
+  save();
+  const isCon=ae.locationType==='confinement';
+  let summaryExtra='';
+  if(isCon&&ae.totals.capturedNPK){
+    const cn=ae.totals.capturedNPK;const st=S.settings;
+    const capFertVal=(cn.n*st.nPrice+cn.p*st.pPrice+cn.k*st.kPrice).toFixed(2);
+    const vol=ae.totals.estimatedVolumeLbs?volLbsToDisplay(ae.totals.estimatedVolumeLbs):{val:'--',unit:''};
+    summaryExtra=`<div class="banner ban-teal" style="margin-top:10px;"><div style="font-size:13px;font-weight:600;color:var(--teal-d);">Manure captured</div><div style="font-size:12px;color:var(--teal-d);">~${vol.val} ${vol.unit} · N${cn.n.toFixed(1)}/P${cn.p.toFixed(1)}/K${cn.k.toFixed(1)} lbs · $${capFertVal} fert value<br>Added to manure inventory for ${ae.pasture}</div></div>`;
+  }
+  document.getElementById('ws1-summary').innerHTML=`<div style="font-size:15px;font-weight:600;margin-bottom:10px;">Closed: ${ae.pasture} ${isCon?'<span class="badge bb">confinement</span>':''}</div><div class="m-grid"><div class="m-cell"><div class="ml">Days</div><div class="mv">${days}</div></div><div class="m-cell"><div class="ml">Feed cost</div><div class="mv" style="color:var(--amber);">$${cost.toFixed(2)}</div></div><div class="m-cell"><div class="ml">Stored DMI</div><div class="mv">${Math.round(sdmi).toLocaleString()} lbs</div></div><div class="m-cell"><div class="ml">${isCon?'Manure NPK':'Pasture DMI'}</div><div class="mv" style="color:${isCon?'var(--purple-d)':'var(--green)'};">${isCon?(ae.totals.capturedNPK?'N'+ae.totals.capturedNPK.n.toFixed(1):'not captured'):(pdmi!==null?Math.round(pdmi).toLocaleString()+' lbs':'--')}</div></div><div class="m-cell"><div class="ml">${isCon?'Capture %':'Pasture %'}</div><div class="mv" style="color:var(--teal);">${isCon?(ae.totals.capturePercent||0)+'%':(pct!==null?pct+'%':'--')}</div></div><div class="m-cell"><div class="ml">NPK fert value</div><div class="mv" style="color:var(--purple-d);">$${npkVal.toFixed(2)}</div></div></div>${summaryExtra}`;
+  wizGo(1);
+}
+function populateNewPastureSelect(){
+  const ae=getActive();
+  const opts=S.pastures.filter(p=>!ae||p.name!==ae.pasture).map(p=>{
+    const isCon=p.locationType==='confinement';
+    const label=isCon?`${p.name} [confinement]`:`${p.name} (${p.acres} ac)`;
+    return `<option value="${p.name}">${label}</option>`;
+  }).join('');
+  document.getElementById('w-new-pasture').innerHTML='<option value="">— select location —</option>'+opts;
+}
+function onWizPaddockChange(){
+  const locName=document.getElementById('w-new-pasture').value;
+  wizPaddockForTodo=locName;
+  showPaddockTasksInWiz(locName,'w-dest-tasks','w-dest-tasks-list');
+  // Show/hide forage height based on location type
+  const loc=S.pastures.find(p=>p.name===locName);
+  const isCon=loc&&loc.locationType==='confinement';
+  const heightEl=document.getElementById('w-new-h');
+  if(heightEl){
+    heightEl.closest('.field').style.display=isCon?'none':'block';
+  }
+  // Show confinement notice
+  let notice=document.getElementById('wiz-confinement-notice');
+  if(!notice){
+    notice=document.createElement('div');notice.id='wiz-confinement-notice';
+    notice.className='banner ban-teal';notice.style.marginBottom='10px';
+    const destCard=document.getElementById('w-new-pasture').closest('.card');
+    destCard.insertBefore(notice,destCard.querySelector('.div'));
+  }
+  if(isCon){
+    const loc2=S.pastures.find(p=>p.name===locName);
+    const capNote=loc2&&loc2.captureManure?`Manure capture: ${loc2.capturePercent||80}% · ${loc2.batchMode==='accumulate'?'accumulates into running batch':'new batch per event'}`:'Manure not captured for this location';
+    notice.innerHTML=`<div style="font-size:13px;font-weight:600;color:var(--teal-d);">Confinement location</div><div style="font-size:12px;color:var(--teal-d);opacity:0.85;">${capNote}. No pasture DMI will be calculated.</div>`;
+    notice.style.display='block';
+  } else { notice.style.display='none'; }
+}
+function renderWizFeedSel(){
+  const el=document.getElementById('w-feed-sel');
+  const active=S.batches.filter(b=>b.remaining>0);
+  if(!active.length){el.innerHTML='<div style="font-size:13px;color:var(--text2);">No batches available</div>';return;}
+  el.innerHTML=active.map(b=>{const on=wizFeedLines.find(l=>l.batchId===b.id);
+    return `<div class="batch-sel${on?' on':''}" onclick="toggleWizFeed(${b.id})"><div><div style="font-size:13px;font-weight:600;">${b.label}</div><div style="font-size:11px;color:var(--text2);">${b.remaining.toFixed(1)} ${b.unit}s</div></div><div class="chk">${on?'<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>':''}</div></div>`;
+  }).join('');
+  renderWizFeedLines();
+}
+function toggleWizFeed(id){const i=wizFeedLines.findIndex(l=>l.batchId===id);if(i>=0)wizFeedLines.splice(i,1);else wizFeedLines.push({batchId:id,qty:0});renderWizFeedSel();}
+function renderWizFeedLines(){
+  const el=document.getElementById('w-feed-lines');
+  if(!wizFeedLines.length){el.innerHTML='';return;}
+  el.innerHTML='<div class="div"></div><div class="sec" style="margin-bottom:8px;">Quantities</div>'+wizFeedLines.map((l,i)=>{const b=S.batches.find(x=>x.id===l.batchId);
+    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"><div style="flex:1;font-size:14px;font-weight:500;">${b.label} <span style="font-size:11px;color:var(--text2);">${b.unit}s</span></div><div style="display:flex;align-items:center;gap:8px;"><button class="qty-btn" onclick="adjWiz(${i},-0.5)">−</button><span class="qty-val">${l.qty}</span><button class="qty-btn" onclick="adjWiz(${i},0.5)">+</button></div></div>`;
+  }).join('');
+}
+function adjWiz(i,d){wizFeedLines[i].qty=Math.max(0,+(wizFeedLines[i].qty+d).toFixed(1));renderWizFeedLines();}
+function wizSaveNew(){
+  const locName=document.getElementById('w-new-pasture').value;const inDate=document.getElementById('w-in-date').value;
+  if(!locName){alert('Select a location');return;}if(!inDate){alert('Enter move-in date');return;}
+  const loc=S.pastures.find(p=>p.name===locName);
+  const isCon=loc&&loc.locationType==='confinement';
+  const feedEntries=[];
+  if(wizFeedLines.some(l=>l.qty>0))feedEntries.push({id:Date.now(),date:inDate,lines:[...wizFeedLines]});
+  S.events.push({id:Date.now()+1,status:'open',pasture:locName,locationType:isCon?'confinement':'pasture',dateIn:inDate,head:parseFloat(document.getElementById('w-new-head').value)||S.herd.count||0,wt:parseFloat(document.getElementById('w-new-wt').value)||S.herd.weight||0,heightIn:(!isCon&&parseFloat(document.getElementById('w-new-h').value))||null,feedEntries});
+  wizFeedLines=[];save();nav('home',document.getElementById('bn-home'));
+}
+
+// ─── EVENTS ───────────────────────────────────────────────────────────────────
+function renderEventsLog(){
+  const ae=getActive();
+  const ab=document.getElementById('ev-active-banner');
+  ab.innerHTML=ae?`<div class="banner ban-green"><div style="font-size:14px;font-weight:600;color:var(--green-d);">Active: ${ae.pasture} — Day ${daysBetween(ae.dateIn,todayStr())}</div><div style="font-size:12px;color:var(--green-d);opacity:0.85;">In ${dLabel(ae.dateIn)} · ${(ae.feedEntries||[]).length} feedings</div></div>`:'';
+  const filter=document.getElementById('ev-filter').value;
+  let evs=[...S.events].reverse();
+  if(filter==='open')evs=evs.filter(e=>e.status==='open');
+  if(filter==='closed')evs=evs.filter(e=>e.status==='closed');
+  const el=document.getElementById('ev-list');
+  if(!evs.length){el.innerHTML='<div class="empty">No events</div>';return;}
+  el.innerHTML=evs.map(e=>{
+    const isClosed=e.status==='closed';const t=e.totals||{};
+    const days=e.dateIn&&e.dateOut?daysBetween(e.dateIn,e.dateOut):e.dateIn?daysBetween(e.dateIn,todayStr())+'+ (open)':'?';
+    return `<div class="row"><div class="row-head"><span style="font-size:14px;font-weight:600;">${e.pasture}</span><span class="badge ${isClosed?'bb':'bt'}">${isClosed?'closed':'active'}</span></div><div class="row-detail">${isClosed?`${dLabel(e.dateIn)} → ${dLabel(e.dateOut)} · ${days} days · $${(t.cost||0).toFixed(2)} · ${t.pct!==undefined?t.pct+'% pasture':'--'}`:dLabel(e.dateIn)+' → ongoing · '+days+' · '+(e.feedEntries||[]).length+' feedings'}${isClosed&&t.npkVal?`<br>NPK: N${t.npk?t.npk.n.toFixed(1):0}/P${t.npk?t.npk.p.toFixed(1):0}/K${t.npk?t.npk.k.toFixed(1):0} lbs · $${t.npkVal.toFixed(2)} fert value`:''}</div></div>`;
+  }).join('');
+}
+
+// ─── PASTURES ─────────────────────────────────────────────────────────────────
+function onLocTypeChange(){
+  const v=document.getElementById('p-loctype').value;
+  document.getElementById('p-pasture-fields').style.display=v==='pasture'?'block':'none';
+  document.getElementById('p-confinement-fields').style.display=v==='confinement'?'block':'none';
+}
+function onCaptureChange(){
+  const v=document.getElementById('p-capture').value;
+  document.getElementById('p-capture-fields').style.display=v==='yes'?'block':'none';
+}
+function addPasture(){
+  const name=document.getElementById('p-name').value.trim();if(!name){alert('Enter a name');return;}
+  const locType=document.getElementById('p-loctype').value;
+  const loc={name,acres:parseFloat(document.getElementById('p-acres').value)||0,locationType:locType};
+  if(locType==='pasture'){
+    loc.soil=document.getElementById('p-soil').value;
+    loc.species=document.getElementById('p-species').value;
+  } else {
+    loc.description=document.getElementById('p-desc').value;
+    loc.captureManure=document.getElementById('p-capture').value==='yes';
+    if(loc.captureManure){
+      loc.capturePercent=parseFloat(document.getElementById('p-capture-pct').value)||80;
+      loc.batchMode=document.getElementById('p-batch-mode').value;
+      // Create accumulating batch if mode is accumulate
+      if(loc.batchMode==='accumulate'){
+        const batchId=Date.now();
+        S.manureBatches.push({id:batchId,label:name+' — running batch',locationName:name,mode:'accumulate',nLbs:0,pLbs:0,kLbs:0,estimatedVolumeLbs:0,events:[],createdAt:new Date().toISOString()});
+        loc.accumulatingBatchId=batchId;
+      }
+    }
+  }
+  S.pastures.push(loc);
+  save();renderPastures();renderManureInventory();
+  ['p-name','p-acres','p-species','p-desc'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('p-loctype').value='pasture';
+  onLocTypeChange();
+}
+function renderPastures(){
+  const el=document.getElementById('pasture-list');
+  const hasConfinement=S.pastures.some(p=>p.locationType==='confinement'&&p.captureManure);
+  document.getElementById('manure-inventory-section').style.display=hasConfinement?'block':'none';
+  if(hasConfinement)renderManureInventory();
+  if(!S.pastures.length){el.innerHTML='<div class="empty">No locations yet</div>';return;}
+  el.innerHTML=S.pastures.map((p,i)=>{
+    const isCon=p.locationType==='confinement';
+    const evs=S.events.filter(e=>e.pasture===p.name&&e.status==='closed');
+    const avg=!isCon&&evs.length?Math.round(evs.reduce((s,e)=>s+(e.totals?e.totals.pct||0:0),0)/evs.length):null;
+    const ae=getActive();const isActive=ae&&ae.pasture===p.name;
+    const openTasks=S.todos.filter(t=>t.paddock===p.name&&t.status!=='closed').length;
+    const typeBadge=isCon?`<span class="badge bb">${p.captureManure?Math.round(p.capturePercent||80)+'% cap':'no cap'}</span>`:'';
+    const detail=isCon?(p.description||'Confinement'):`${p.acres} ac · ${p.soil||''}${p.species?' · '+p.species:''}`;
+    // Calculate NPK totals for pasture locations
+    let npkLine='';
+    if(!isCon){
+      const gEvsClosed=S.events.filter(e=>e.pasture===p.name&&e.status==='closed'&&e.locationType!=='confinement'&&e.totals&&e.totals.npk);
+      const spreadEvs=S.events.filter(e=>e.pasture===p.name&&e.type==='amend'&&e.amendType==='manure');
+      const totalN=gEvsClosed.reduce((s,e)=>s+(e.totals.npk.n||0),0)+spreadEvs.reduce((s,e)=>s+(e.manureNLbs||0),0);
+      const totalP=gEvsClosed.reduce((s,e)=>s+(e.totals.npk.p||0),0)+spreadEvs.reduce((s,e)=>s+(e.manurePLbs||0),0);
+      const totalK=gEvsClosed.reduce((s,e)=>s+(e.totals.npk.k||0),0)+spreadEvs.reduce((s,e)=>s+(e.manureKLbs||0),0);
+      if(totalN>0.1||spreadEvs.length>0)npkLine=`<div style="font-size:11px;color:var(--text2);margin-top:3px;">NPK deposited: N${totalN.toFixed(1)} / P${totalP.toFixed(1)} / K${totalK.toFixed(1)} lbs${spreadEvs.length?' (incl. '+spreadEvs.length+' spread event'+( spreadEvs.length!==1?'s':'')+')':''}</div>`;
+    }
+    let manureLine='';
+    if(isCon&&p.captureManure){
+      const batches=S.manureBatches.filter(b=>b.locationName===p.name);
+      const remLbs=batches.reduce((s,b)=>s+getBatchRemaining(b),0);
+      if(remLbs>0){const vol=volLbsToDisplay(remLbs);manureLine=`<div style="font-size:11px;color:var(--amber-d);margin-top:3px;">~${vol.val} ${vol.unit} in storage</div>`;}
+    }
+    return `<div class="chip"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><div style="font-size:14px;font-weight:600;">${p.name} ${isActive?'<span class="badge bt">active</span>':''} ${isCon?'<span class="badge bb">confinement</span>':''}</div><div style="font-size:12px;color:var(--text2);margin-top:2px;">${detail}</div>${npkLine}${manureLine}</div><div style="display:flex;gap:6px;align-items:center;">${typeBadge}${avg!==null?`<span class="badge ${avg>=60?'bg':'ba'}">${avg}% avg</span>`:''} ${openTasks?`<span class="badge ba">${openTasks} task${openTasks!==1?'s':''}</span>`:''}<button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:20px;padding:2px 6px;" onclick="S.pastures.splice(${i},1);save();renderPastures();">×</button></div></div></div>`;
+  }).join('');
+}
+
+// ─── SETTINGS ─────────────────────────────────────────────────────────────────
+function saveSettings(){
+  S.herd={name:document.getElementById('s-name').value,type:document.getElementById('s-type').value,count:parseFloat(document.getElementById('s-count').value)||0,weight:parseFloat(document.getElementById('s-wt').value)||0,dmi:parseFloat(document.getElementById('s-dmi').value)||2.5};
+  S.settings={nPrice:parseFloat(document.getElementById('s-np').value)||0.55,pPrice:parseFloat(document.getElementById('s-pp').value)||0.65,kPrice:parseFloat(document.getElementById('s-kp').value)||0.42,nExc:parseFloat(document.getElementById('s-ne').value)||0.32,pExc:parseFloat(document.getElementById('s-pe').value)||0.09,kExc:parseFloat(document.getElementById('s-ke').value)||0.30,manureVolumeRate:parseFloat(document.getElementById('s-manure-rate').value)||65,manureLoadLbs:parseFloat(document.getElementById('s-load-lbs').value)||8000,manureVolumeUnit:document.getElementById('s-vol-unit').value||'loads'};
+  S.version=document.getElementById('s-ver').value||'v1.0';
+  S.testerName=document.getElementById('s-tester').value||'';
+  save();updateHeader();
+}
+function loadSettings(){
+  const h=S.herd,st=S.settings;
+  if(h.name)document.getElementById('s-name').value=h.name;if(h.type)document.getElementById('s-type').value=h.type;
+  if(h.count)document.getElementById('s-count').value=h.count;if(h.weight)document.getElementById('s-wt').value=h.weight;
+  if(h.dmi)document.getElementById('s-dmi').value=h.dmi;
+  document.getElementById('s-np').value=st.nPrice;document.getElementById('s-pp').value=st.pPrice;document.getElementById('s-kp').value=st.kPrice;
+  document.getElementById('s-ne').value=st.nExc;document.getElementById('s-pe').value=st.pExc;document.getElementById('s-ke').value=st.kExc;
+  if(st.manureVolumeRate&&document.getElementById('s-manure-rate'))document.getElementById('s-manure-rate').value=st.manureVolumeRate;
+  if(st.manureLoadLbs&&document.getElementById('s-load-lbs'))document.getElementById('s-load-lbs').value=st.manureLoadLbs;
+  if(st.manureVolumeUnit&&document.getElementById('s-vol-unit'))document.getElementById('s-vol-unit').value=st.manureVolumeUnit;
+  document.getElementById('s-ver').value=S.version||'v1.0';document.getElementById('s-tester').value=S.testerName||'';
+  if(driveState.clientId){const el=document.getElementById('oauth-client-id');if(el)el.value=driveState.clientId;}
+}
+function addFeedType(){
+  const name=document.getElementById('ft-name').value.trim();if(!name)return;
+  S.feedTypes.push({id:Date.now(),name,unit:document.getElementById('ft-unit').value,dm:parseFloat(document.getElementById('ft-dm').value)||85,cat:document.getElementById('ft-cat').value});
+  save();renderFeedTypes();populateBatchTypeSelect();document.getElementById('ft-name').value='';
+}
+function renderFeedTypes(){
+  const el=document.getElementById('ft-list');
+  if(!S.feedTypes.length){el.innerHTML='<div style="font-size:13px;color:var(--text2);margin-bottom:8px;">None yet</div>';populateBatchTypeSelect();return;}
+  el.innerHTML=S.feedTypes.map((ft,i)=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);font-size:13px;"><span>${ft.name} <span class="badge bb">${ft.unit}</span> <span class="badge bg">${ft.dm}% DM</span></span><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;" onclick="S.feedTypes.splice(${i},1);save();renderFeedTypes();">×</button></div>`).join('');
+  populateBatchTypeSelect();
+}
+function populateBatchTypeSelect(){document.getElementById('b-type').innerHTML='<option value="">— type —</option>'+S.feedTypes.map(ft=>`<option value="${ft.id}">${ft.name} (${ft.unit})</option>`).join('');}
+function calcBatch(){const q=parseFloat(document.getElementById('b-qty').value),c=parseFloat(document.getElementById('b-cpu').value);if(q&&c)document.getElementById('b-tcost').value=(q*c).toFixed(2);}
+function calcBatchFromTotal(){const q=parseFloat(document.getElementById('b-qty').value),t=parseFloat(document.getElementById('b-tcost').value);if(q&&t)document.getElementById('b-cpu').value=(t/q).toFixed(3);}
+function addBatch(){
+  const typeId=parseInt(document.getElementById('b-type').value);const ft=S.feedTypes.find(f=>f.id===typeId);
+  if(!ft){alert('Select a feed type');return;}
+  const qty=parseFloat(document.getElementById('b-qty').value);if(!qty){alert('Enter quantity');return;}
+  const label=document.getElementById('b-label').value.trim()||(ft.name+' '+new Date().toLocaleDateString('en-US',{month:'short',year:'numeric'}));
+  S.batches.push({id:Date.now(),typeId,typeName:ft.name,unit:ft.unit,dm:ft.dm,qty,remaining:qty,wt:parseFloat(document.getElementById('b-wt').value)||null,cpu:parseFloat(document.getElementById('b-cpu').value)||0,label,date:todayStr()});
+  save();renderBatchListS();['b-qty','b-wt','b-cpu','b-tcost','b-label'].forEach(id=>document.getElementById(id).value='');
+}
+function renderBatchListS(){
+  const el=document.getElementById('batch-list-s');
+  if(!S.batches.length){el.innerHTML='<div style="font-size:13px;color:var(--text2);">No batches yet</div>';return;}
+  el.innerHTML=S.batches.map(b=>{const pct=Math.round(b.remaining/b.qty*100);
+    return `<div style="margin-bottom:10px;"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;"><span style="font-weight:600;">${b.label}</span><span style="color:var(--text2);">${b.remaining.toFixed(1)}/${b.qty} ${b.unit}s · $${(b.cpu||0).toFixed(2)}/${b.unit}</span></div><div class="prog"><div class="prog-fill" style="width:${pct}%;background:${pct>30?'var(--green)':'var(--amber)'};"></div></div></div>`;
+  }).join('');
+}
+function updateHeader(){
+  const h=S.herd;
+  document.getElementById('hdr-sub').textContent=h.name&&h.count?h.name+' · '+h.count+' head · '+(h.type||''):'Set up your operation in Settings';
+  document.getElementById('ver-tag').textContent=S.version||'v1.0';
+}
+
+// ─── FEEDBACK ─────────────────────────────────────────────────────────────────
+const CAT={bug:{label:'Bug',cls:'br',pillCls:'cp-bug'},ux:{label:'UX friction',cls:'ba',pillCls:'cp-ux'},feature:{label:'Missing feature',cls:'bp',pillCls:'cp-feature'},calc:{label:'Calculation',cls:'bt',pillCls:'cp-calc'},idea:{label:'Idea',cls:'bg',pillCls:'cp-idea'}};
+let selCatVal='';
+function openFeedbackSheet(){
+  const ae=getActive();const ctx=[`Screen: ${curScreen}`];if(ae)ctx.push(`Event: ${ae.pasture} day ${daysBetween(ae.dateIn,todayStr())}`);
+  document.getElementById('fb-ctx-text').textContent=ctx.join(' · ');
+  document.getElementById('fb-note').value='';selCatVal='';document.querySelectorAll('.cat-pill').forEach(p=>p.classList.remove('sel'));
+  document.getElementById('fb-sheet-wrap').classList.add('open');setTimeout(()=>document.getElementById('fb-note').focus(),300);
+}
+function closeFeedbackSheet(){document.getElementById('fb-sheet-wrap').classList.remove('open');}
+function selCat(cat,btn){selCatVal=cat;document.querySelectorAll('.cat-pill').forEach(p=>p.classList.remove('sel'));btn.classList.add('sel');}
+function saveFeedbackItem(){
+  const note=document.getElementById('fb-note').value.trim();
+  if(!note){document.getElementById('fb-note').style.borderColor='var(--red)';setTimeout(()=>document.getElementById('fb-note').style.borderColor='',1500);return;}
+  const ae=getActive();
+  S.feedback.push({id:Date.now(),cat:selCatVal||'idea',note,tester:S.testerName||(getActiveUser()?getActiveUser().name:'anonymous'),version:S.version||'v1.0',status:'open',ctx:{screen:curScreen,activeEvent:ae?{pasture:ae.pasture,day:daysBetween(ae.dateIn,todayStr())}:null},ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:null});
+  save();closeFeedbackSheet();updateFeedbackBadge();if(curScreen==='feedback')renderFeedbackTab();
+}
+function renderFeedbackTab(){renderConfirmSection();renderFeedbackStats();renderFeedbackList();}
+function renderConfirmSection(){
+  const sec=document.getElementById('confirm-section');const pending=S.feedback.filter(f=>f.status==='resolved');
+  if(!pending.length){sec.style.display='none';return;}
+  sec.style.display='block';
+  document.getElementById('confirm-list').innerHTML=pending.map(f=>{const cfg=CAT[f.cat]||CAT.idea;
+    return `<div class="confirm-item"><div class="ci-tag"><span class="badge ${cfg.cls}">${cfg.label}</span> · ${f.version||'?'} · by ${f.tester}</div><div style="font-size:14px;margin-bottom:6px;line-height:1.5;">${escHtml(f.note)}</div><div style="font-size:12px;color:var(--teal-d);background:var(--teal-l);padding:6px 10px;border-radius:var(--radius);margin-bottom:8px;">Fix: ${escHtml(f.resolutionNote||'—')}</div><div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Resolved in ${f.resolvedInVersion||'?'}</div><div class="btn-row"><button class="btn btn-teal btn-sm" onclick="confirmFixed(${f.id})">This is fixed</button><button class="btn btn-outline btn-sm" style="color:var(--red);border-color:var(--red);" onclick="reopenIssue(${f.id})">Still broken</button></div></div>`;
+  }).join('');
+}
+function confirmFixed(id){const f=S.feedback.find(x=>x.id===id);if(!f)return;f.status='closed';f.confirmedBy=S.testerName||'anonymous';f.confirmedAt=new Date().toISOString();save();renderFeedbackTab();updateFeedbackBadge();}
+function reopenIssue(id){
+  const orig=S.feedback.find(x=>x.id===id);if(!orig)return;
+  orig.status='closed';orig.confirmedBy=S.testerName||'anonymous';orig.confirmedAt=new Date().toISOString();
+  S.feedback.push({id:Date.now(),cat:orig.cat,note:`[Regression] ${orig.note}`,tester:S.testerName||'anonymous',version:S.version||'v1.0',status:'open',ctx:orig.ctx,ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:orig.id});
+  save();renderFeedbackTab();updateFeedbackBadge();
+}
+function openResolveSheet(id){
+  document.getElementById('resolve-id').value=id;document.getElementById('resolve-note').value='';
+  document.getElementById('resolve-ver-label').textContent=S.version||'v1.0';
+  document.getElementById('resolve-sheet-wrap').classList.add('open');setTimeout(()=>document.getElementById('resolve-note').focus(),300);
+}
+function closeResolveSheet(){document.getElementById('resolve-sheet-wrap').classList.remove('open');}
+function saveResolve(){
+  const id=parseInt(document.getElementById('resolve-id').value);const note=document.getElementById('resolve-note').value.trim();
+  if(!note){alert('Describe what was changed');return;}
+  const f=S.feedback.find(x=>x.id===id);if(!f)return;
+  f.status='resolved';f.resolutionNote=note;f.resolvedInVersion=S.version||'v1.0';f.resolvedAt=new Date().toISOString();
+  save();closeResolveSheet();renderFeedbackTab();updateFeedbackBadge();
+}
+function renderFeedbackStats(){
+  const el=document.getElementById('fb-stats');if(!S.feedback.length){el.innerHTML='';return;}
+  const open=S.feedback.filter(f=>f.status==='open').length;const resolved=S.feedback.filter(f=>f.status==='resolved').length;const closed=S.feedback.filter(f=>f.status==='closed').length;
+  el.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;"><span class="badge ba">${open} open</span><span class="badge bt">${resolved} awaiting</span><span class="badge bb">${closed} closed</span></div>`;
+}
+function renderFeedbackList(){
+  const el=document.getElementById('fb-list');const filter=document.getElementById('fb-filter').value;
+  let items=[...S.feedback].reverse();
+  if(['open','resolved','closed'].includes(filter))items=items.filter(f=>f.status===filter);
+  else if(['bug','ux','feature','calc','idea'].includes(filter))items=items.filter(f=>f.cat===filter);
+  if(!items.length){el.innerHTML='<div class="empty">No feedback in this filter</div>';return;}
+  el.innerHTML=items.map(f=>{const cfg=CAT[f.cat]||CAT.idea;const d=new Date(f.ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+    const sb=f.status==='open'?'<span class="badge ba">open</span>':f.status==='resolved'?'<span class="badge bt">awaiting</span>':'<span class="badge bb">closed</span>';
+    const ctx=[`Screen: ${f.ctx.screen}`,f.ctx.activeEvent?`Event: ${f.ctx.activeEvent.pasture} day ${f.ctx.activeEvent.day}`:null].filter(Boolean).join(' · ');
+    return `<div class="row"><div class="row-head"><span><span class="badge ${cfg.cls}">${cfg.label}</span> ${sb}${f.linkedTo?' <span class="badge br">regression</span>':''}</span><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:20px;padding:2px 6px;" onclick="S.feedback=S.feedback.filter(x=>x.id!==${f.id});save();renderFeedbackTab();updateFeedbackBadge();">×</button></div><div style="font-size:14px;margin-top:4px;line-height:1.5;">${escHtml(f.note)}</div>${f.resolutionNote?`<div style="font-size:12px;color:var(--teal-d);background:var(--teal-l);padding:4px 8px;border-radius:var(--radius);margin-top:4px;">Fix (${f.resolvedInVersion}): ${escHtml(f.resolutionNote)}</div>`:''}${f.confirmedBy?`<div style="font-size:11px;color:var(--text2);margin-top:3px;">Confirmed: ${f.confirmedBy}</div>`:''}<div class="row-detail" style="margin-top:4px;">${ctx} · ${f.tester} · ${f.version||'?'} · ${d}</div>${f.status==='open'?`<button class="btn btn-outline btn-xs" style="margin-top:8px;" onclick="openResolveSheet(${f.id})">Mark resolved</button>`:''}</div>`;
+  }).join('');
+}
+function updateFeedbackBadge(){
+  const n=S.feedback.filter(f=>f.status==='open'||f.status==='resolved').length;
+  const badge=document.getElementById('fb-badge');badge.style.display=n>0?'':'none';badge.textContent=n;
+}
+
+// ─── DEV BRIEF ────────────────────────────────────────────────────────────────
+function generateBrief(){
+  if(!S.feedback.length){alert('No feedback yet');return;}
+  const now=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+  const testers=[...new Set(S.feedback.map(f=>f.tester).filter(t=>t&&t!=='anonymous'))];
+  const open=S.feedback.filter(f=>f.status==='open');const resolved=S.feedback.filter(f=>f.status==='resolved');const closed=S.feedback.filter(f=>f.status==='closed');
+  const catOrder=['bug','calc','ux','feature','idea'];
+  let b=`GET THE HAY OUT — DEV SESSION BRIEF\nGenerated: ${now}\nVersion: ${S.version||'v1.0'}\nTesters: ${testers.length?testers.join(', '):'anonymous'}\nOpen: ${open.length} · Awaiting: ${resolved.length} · Closed: ${closed.length}\n${'═'.repeat(52)}\n`;
+  if(open.length){b+=`\nOPEN ITEMS (${open.length})\n${'─'.repeat(52)}\n`;catOrder.forEach(cat=>{const items=open.filter(f=>f.cat===cat);if(!items.length)return;b+=`\n[${(CAT[cat]||CAT.idea).label.toUpperCase()}]\n`;items.forEach((f,i)=>{const d=new Date(f.ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});const ctx=f.ctx.activeEvent?`screen:${f.ctx.screen} event:${f.ctx.activeEvent.pasture} day${f.ctx.activeEvent.day}`:`screen:${f.ctx.screen}`;b+=`${i+1}. ${f.note}\n   [${ctx}] — ${f.tester}, ${f.version||'?'}, ${d}${f.linkedTo?' ⚠ regression':''}\n`;});});}
+  if(resolved.length){b+=`\n${'═'.repeat(52)}\nAWAITING CONFIRMATION (${resolved.length})\n${'─'.repeat(52)}\n`;resolved.forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fix in ${f.resolvedInVersion}: ${f.resolutionNote}\n`;});}
+  if(closed.length){b+=`\n${'═'.repeat(52)}\nCLOSED (last 10)\n${'─'.repeat(52)}\n`;closed.slice(-10).forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fixed in ${f.resolvedInVersion||'?'}: ${f.resolutionNote||'—'}. Confirmed: ${f.confirmedBy||'?'}\n`;});}
+  b+=`\n${'═'.repeat(52)}\nCONTEXT\nOperation: ${S.herd.name||'not set'}, ${S.herd.count||0} head ${S.herd.type||''}\nUsers: ${S.users.length} · Paddocks: ${S.pastures.length} · Feed types: ${S.feedTypes.length}\nEvents: ${S.events.length} total · Open todos: ${S.todos.filter(t=>t.status!=='closed').length}\nDrive: ${driveState.connected?'connected ('+driveState.userEmail+')':'not connected'}\n\nPlease review open items first (bugs then calculations then UX). Note which version testers need to load to confirm each fix.
+
+App: Get The Hay Out · getthehayout.com`;
+  document.getElementById('brief-text').textContent=b;document.getElementById('brief-out').style.display='block';document.getElementById('copy-btn').style.display='';
+}
+function copyBrief(){
+  navigator.clipboard.writeText(document.getElementById('brief-text').textContent).then(()=>{const btn=document.getElementById('copy-btn');btn.textContent='Copied!';btn.style.color='var(--green)';setTimeout(()=>{btn.textContent='Copy';btn.style.color='';},2000);});
+}
+
+// ─── EXPORT CSV ───────────────────────────────────────────────────────────────
+function exportCSV(){
+  const closed=S.events.filter(e=>e.status==='closed');if(!closed.length){alert('No closed events');return;}
+  const rows=[['Paddock','Date in','Date out','Days','Head','Stored DMI','Pasture DMI','Pasture %','Feed cost','NPK N','NPK P','NPK K','NPK value','Pre-graze ht','Residual ht','Feed residual %']];
+  closed.forEach(e=>{const t=e.totals||{};rows.push([e.pasture,e.dateIn,e.dateOut,t.days||'',e.head||'',Math.round(t.storedDMI||0),Math.round(t.pastureDMI||0),t.pct||'',(t.cost||0).toFixed(2),t.npk?t.npk.n.toFixed(2):'',t.npk?t.npk.p.toFixed(2):'',t.npk?t.npk.k.toFixed(2):'',(t.npkVal||0).toFixed(2),e.heightIn||'',e.heightOut||'',e.feedResidual||0]);});
+  dlCSV(rows,'pasture-events.csv');
+}
+function exportFeedbackCSV(){
+  if(!S.feedback.length){alert('No feedback');return;}
+  const rows=[['Category','Status','Note','Tester','Version','Resolved in','Resolution','Confirmed by','Screen','Date']];
+  S.feedback.forEach(f=>rows.push([f.cat,f.status,f.note,f.tester,f.version||'',f.resolvedInVersion||'',f.resolutionNote||'',f.confirmedBy||'',f.ctx.screen,new Date(f.ts).toLocaleDateString()]));
+  dlCSV(rows,'pasture-feedback.csv');
+}
+function dlCSV(rows,fname){
+  const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=fname;a.click();
+}
+
+
+// ─── MANURE SYSTEM ───────────────────────────────────────────────────────────
+function addToManureBatch(loc,event,nLbs,pLbs,kLbs,volLbs,date){
+  const entry={type:'input',date,eventId:event.id,locationName:loc.name,nLbs,pLbs,kLbs,volumeLbs:volLbs};
+  if(loc.batchMode==='accumulate'&&loc.accumulatingBatchId){
+    const b=S.manureBatches.find(x=>x.id===loc.accumulatingBatchId);
+    if(b){b.nLbs+=nLbs;b.pLbs+=pLbs;b.kLbs+=kLbs;b.estimatedVolumeLbs+=volLbs;b.events.push(entry);}
+  } else {
+    const batchId=Date.now();
+    const label=loc.name+' — '+new Date(date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+' event';
+    S.manureBatches.push({id:batchId,label,locationName:loc.name,mode:'event',nLbs,pLbs,kLbs,estimatedVolumeLbs:volLbs,remainingLbs:volLbs,events:[entry],createdAt:new Date().toISOString()});
+    event.totals.manureBatchId=batchId;
+  }
+}
+
+function volLbsToDisplay(lbs){
+  const st=S.settings;const unit=st.manureVolumeUnit||'loads';
+  if(unit==='tons')return{val:(lbs/2000).toFixed(1),unit:'tons'};
+  if(unit==='gallons')return{val:(lbs/8.34).toFixed(0),unit:'gal'};
+  if(unit==='cu_yards')return{val:(lbs/1685).toFixed(1),unit:'cu yd'};
+  const loadLbs=st.manureLoadLbs||8000;
+  return{val:(lbs/loadLbs).toFixed(1),unit:'loads'};
+}
+
+function getBatchRemaining(batch){
+  const applied=batch.events.filter(e=>e.type==='application').reduce((s,e)=>s+(e.volumeLbs||0),0);
+  return Math.max(0,batch.estimatedVolumeLbs-applied);
+}
+
+function getBatchRemainingNPK(batch){
+  const remaining=getBatchRemaining(batch);
+  const total=batch.estimatedVolumeLbs;
+  if(!total)return{n:0,p:0,k:0};
+  const ratio=remaining/total;
+  return{n:batch.nLbs*ratio,p:batch.pLbs*ratio,k:batch.kLbs*ratio};
+}
+
+function renderManureInventory(){
+  const el=document.getElementById('manure-batch-list');
+  if(!el)return;
+  const active=S.manureBatches.filter(b=>getBatchRemaining(b)>0);
+  const depleted=S.manureBatches.filter(b=>getBatchRemaining(b)<=0);
+  if(!S.manureBatches.length){el.innerHTML='<div class="empty">No manure storage batches yet.<br>Close a confinement event with capture enabled to begin.</div>';return;}
+  let out='';
+  if(active.length){
+    out+=active.map(b=>{
+      const rem=getBatchRemaining(b);const pct=Math.round(rem/b.estimatedVolumeLbs*100);
+      const remNPK=getBatchRemainingNPK(b);const st=S.settings;
+      const fertVal=(remNPK.n*st.nPrice+remNPK.p*st.pPrice+remNPK.k*st.kPrice).toFixed(2);
+      const vol=volLbsToDisplay(rem);const totalVol=volLbsToDisplay(b.estimatedVolumeLbs);
+      const inputs=b.events.filter(e=>e.type==='input').length;
+      const apps=b.events.filter(e=>e.type==='application').length;
+      return `<div class="chip" style="margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
+          <div><div style="font-size:14px;font-weight:600;">${b.label}</div><div style="font-size:12px;color:var(--text2);">${b.locationName} · ${inputs} input${inputs!==1?'s':''} · ${apps} application${apps!==1?'s':''}</div></div>
+          <span class="badge bg">in stock</span>
+        </div>
+        <div class="prog"><div class="prog-fill" style="width:${pct}%;background:var(--amber);"></div></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-top:4px;">
+          <span style="color:var(--text2);">${vol.val} / ${totalVol.val} ${totalVol.unit} remaining</span>
+          <span style="color:var(--green-d);">$${fertVal} fert. value</span>
+        </div>
+        <div style="font-size:12px;color:var(--text2);margin-top:3px;">Remaining NPK: N${remNPK.n.toFixed(1)} / P${remNPK.p.toFixed(1)} / K${remNPK.k.toFixed(1)} lbs</div>
+      </div>`;
+    }).join('');
+  }
+  if(depleted.length){out+=`<div style="font-size:12px;color:var(--text2);margin-bottom:4px;">${depleted.length} depleted batch${depleted.length!==1?'es':''} — fully applied</div>`;}
+  el.innerHTML=out;
+}
+
+// Spread sheet
+function openSpreadSheet(){
+  document.getElementById('sp-date').value=todayStr();
+  // populate batch selector
+  const active=S.manureBatches.filter(b=>getBatchRemaining(b)>0);
+  document.getElementById('sp-batch').innerHTML='<option value="">— select batch —</option>'+active.map(b=>`<option value="${b.id}">${b.label}</option>`).join('');
+  // populate paddock selector (pastures only)
+  document.getElementById('sp-paddock').innerHTML='<option value="">— select paddock —</option>'+S.pastures.filter(p=>p.locationType!=='confinement').map(p=>`<option value="${p.name}">${p.name}</option>`).join('');
+  document.getElementById('sp-batch-info').style.display='none';
+  document.getElementById('sp-preview').style.display='none';
+  document.getElementById('sp-sheet-wrap').classList.add('open');
+}
+function closeSpreadSheet(){document.getElementById('sp-sheet-wrap').classList.remove('open');}
+
+function onSpreadBatchChange(){
+  const id=parseInt(document.getElementById('sp-batch').value);
+  const b=S.manureBatches.find(x=>x.id===id);
+  const info=document.getElementById('sp-batch-info');
+  if(!b){info.style.display='none';calcSpreadPreview();return;}
+  const rem=getBatchRemaining(b);const vol=volLbsToDisplay(rem);const total=volLbsToDisplay(b.estimatedVolumeLbs);
+  info.style.display='block';
+  info.innerHTML=`<div style="font-size:12px;color:var(--text2);">${vol.val} of ${total.val} ${total.unit} remaining · N${b.nLbs.toFixed(1)}/P${b.pLbs.toFixed(1)}/K${b.kLbs.toFixed(1)} lbs total</div>`;
+  const volLabel=document.getElementById('sp-vol-label');
+  if(volLabel)volLabel.textContent='Volume ('+vol.unit+')';
+  calcSpreadPreview();
+}
+
+function onSpreadAmountTypeChange(){
+  const v=document.getElementById('sp-amount-type').value;
+  document.getElementById('sp-pct-field').style.display=v==='pct'?'block':'none';
+  document.getElementById('sp-vol-field').style.display=v==='vol'?'block':'none';
+  calcSpreadPreview();
+}
+
+function calcSpreadPreview(){
+  const id=parseInt(document.getElementById('sp-batch').value);
+  const b=S.manureBatches.find(x=>x.id===id);
+  const prev=document.getElementById('sp-preview');
+  if(!b){prev.style.display='none';return;}
+  const remNPK=getBatchRemainingNPK(b);const rem=getBatchRemaining(b);
+  const amtType=document.getElementById('sp-amount-type').value;
+  let ratio=0;
+  if(amtType==='pct'){
+    ratio=parseInt(document.getElementById('sp-pct').value)/100;
+  } else {
+    const volVal=parseFloat(document.getElementById('sp-vol').value)||0;
+    const st=S.settings;const unit=st.manureVolumeUnit||'loads';
+    let lbs=0;
+    if(unit==='tons')lbs=volVal*2000;
+    else if(unit==='gallons')lbs=volVal*8.34;
+    else if(unit==='cu_yards')lbs=volVal*1685;
+    else lbs=volVal*(st.manureLoadLbs||8000);
+    ratio=rem>0?Math.min(1,lbs/rem):0;
+  }
+  const nApp=remNPK.n*ratio,pApp=remNPK.p*ratio,kApp=remNPK.k*ratio;
+  const st=S.settings;
+  const fertVal=(nApp*st.nPrice+pApp*st.pPrice+kApp*st.kPrice).toFixed(2);
+  prev.style.display='block';
+  document.getElementById('sp-n').textContent=nApp.toFixed(1);
+  document.getElementById('sp-p').textContent=pApp.toFixed(1);
+  document.getElementById('sp-k').textContent=kApp.toFixed(1);
+  document.getElementById('sp-fert-value').textContent='≈ $'+fertVal+' equivalent commercial fertilizer value';
+  return{ratio,nApp,pApp,kApp};
+}
+
+function saveSpreadEvent(){
+  const id=parseInt(document.getElementById('sp-batch').value);
+  const b=S.manureBatches.find(x=>x.id===id);
+  if(!b){alert('Select a manure batch');return;}
+  const paddock=document.getElementById('sp-paddock').value;
+  if(!paddock){alert('Select a destination paddock');return;}
+  const date=document.getElementById('sp-date').value;
+  const calc=calcSpreadPreview();if(!calc){alert('Enter an amount');return;}
+  const rem=getBatchRemaining(b);
+  const volApplied=rem*calc.ratio;
+  // Add application entry to batch
+  b.events.push({type:'application',date,paddock,volumeLbs:volApplied,nLbs:calc.nApp,pLbs:calc.pApp,kLbs:calc.kApp,notes:document.getElementById('sp-notes').value});
+  // Add amendment event to pasture event ledger
+  S.events.push({id:Date.now(),type:'amend',pasture:paddock,date,amendType:'manure',product:b.label+' (manure)',source:'manure-batch',sourceBatchId:id,totalCost:0,lifeDays:365,lifeDisplay:'1 year',nPct:0,pPct:0,kPct:0,manureNLbs:calc.nApp,manurePLbs:calc.pApp,manureKLbs:calc.kApp,notes:document.getElementById('sp-notes').value});
+  save();closeSpreadSheet();
+  if(curScreen==='pastures')renderPastures();
+  alert('Manure application recorded. '+calc.nApp.toFixed(1)+' lbs N · '+calc.pApp.toFixed(1)+' lbs P · '+calc.kApp.toFixed(1)+' lbs K credited to '+paddock+'.');
+}
+
+// ─── END MANURE SYSTEM ────────────────────────────────────────────────────────
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+document.getElementById('w-out-date').value=todayStr();
+document.getElementById('w-in-date').value=todayStr();
+document.getElementById('w-feed-res').addEventListener('input',calcClosePreview);
+document.getElementById('w-out-date').addEventListener('change',calcClosePreview);
+// Init color picker default
+document.querySelector('#color-picker div').style.border='2px solid var(--text)';
+updateHeader();
+updateDriveUI();
+updateHeaderAvatar();
+renderHome();
+updateFeedbackBadge();
+updateTodoBadge();
+maybePromptUserSelect();
+if(driveState.connected&&driveState.accessToken&&Date.now()<(driveState.tokenExpiry||0)){driveSync();}
+</script>
+
+<!-- SPREAD MANURE SHEET -->
+<div class="sheet-wrap" id="spread-sheet-wrap">
+  <div class="sheet-backdrop" onclick="closeSpreadSheet()"></div>
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:14px;">Spread manure</div>
+    <div class="field"><label>Date applied</label><input type="date" id="sp-date"/></div>
+    <div class="field"><label>Manure batch</label>
+      <select id="sp-batch" onchange="onSpreadBatchChange()"><option value="">— select batch —</option></select>
+    </div>
+    <div id="sp-batch-info" style="display:none;" class="card-inset" style="margin-bottom:12px;"></div>
+    <div class="field"><label>Apply to paddock</label>
+      <select id="sp-paddock"><option value="">— select paddock —</option></select>
+    </div>
+    <div class="field"><label>Amount to spread</label>
+      <select id="sp-amount-type" onchange="onSpreadAmountTypeChange()">
+        <option value="pct">Percentage of batch (%)</option>
+        <option value="vol">Volume</option>
+      </select>
+    </div>
+    <div id="sp-pct-field">
+      <div class="slider-row">
+        <input type="range" id="sp-pct" min="1" max="100" step="1" value="25" oninput="document.getElementById('sp-pct-out').textContent=this.value+'%';calcSpreadPreview();"/>
+        <span class="slider-out" id="sp-pct-out">25%</span>
+      </div>
+    </div>
+    <div id="sp-vol-field" style="display:none;">
+      <div class="two">
+        <div class="field"><label id="sp-vol-label">Volume (loads)</label><input type="number" id="sp-vol" min="0" step="0.5" placeholder="3" oninput="calcSpreadPreview()"/></div>
+      </div>
+    </div>
+    <div id="sp-preview" style="display:none;" class="card-inset">
+      <div class="sec" style="margin-bottom:6px;">NPK to be applied</div>
+      <div class="three">
+        <div><div style="font-size:11px;color:var(--text2);">N (lbs)</div><div style="font-size:17px;font-weight:600;" id="sp-n">--</div></div>
+        <div><div style="font-size:11px;color:var(--text2);">P (lbs)</div><div style="font-size:17px;font-weight:600;" id="sp-p">--</div></div>
+        <div><div style="font-size:11px;color:var(--text2);">K (lbs)</div><div style="font-size:17px;font-weight:600;" id="sp-k">--</div></div>
+      </div>
+      <div style="font-size:12px;color:var(--green-d);margin-top:6px;" id="sp-fert-value"></div>
+    </div>
+    <div class="field"><label>Notes (optional)</label><input type="text" id="sp-notes" placeholder="Application method, conditions..."/></div>
+    <div class="btn-row">
+      <button class="btn btn-green" onclick="saveSpreadEvent()">Record application</button>
+      <button class="btn btn-outline" onclick="closeSpreadSheet()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
