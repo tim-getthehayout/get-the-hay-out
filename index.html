@@ -4071,17 +4071,31 @@ const STAT_METRICS = {
     desc:  'NPK deposited per acre (grazing only)',
     calc(events, periodKey){
       const {start,end} = getPeriodDates(periodKey);
+      const st = S.settings;
       let totalN=0,totalP=0,totalK=0;
       const paddockAcres={};
-      events.filter(e=>e.locationType!=='confinement'&&e.status==='closed'&&e.totals&&e.totals.npk).forEach(ev=>{
-        const evDays   = daysBetween(ev.dateIn, ev.dateOut||ev.dateIn);
+      events.filter(e=>e.locationType!=='confinement').forEach(ev=>{
+        const evDays   = daysBetween(ev.dateIn, ev.dateOut||todayStr());
         const inPeriod = eventDaysInPeriod(ev, start, end);
         const ratio    = evDays>0 ? inPeriod/evDays : 0;
-        totalN += (ev.totals.npk.n||0)*ratio;
-        totalP += (ev.totals.npk.p||0)*ratio;
-        totalK += (ev.totals.npk.k||0)*ratio;
-        const p = S.pastures.find(x=>x.name===ev.pasture);
-        if(p&&p.acres&&!paddockAcres[ev.pasture]) paddockAcres[ev.pasture]=p.acres;
+        let n,p,k;
+        if(ev.status==='closed'&&ev.totals&&ev.totals.npk&&ev.totals.npk.n!=null){
+          // Use stored totals for closed events
+          n=(ev.totals.npk.n||0)*ratio;
+          p=(ev.totals.npk.p||0)*ratio;
+          k=(ev.totals.npk.k||0)*ratio;
+        } else {
+          // Live estimate for open events — calculate from head/wt/days
+          const bw=(ev.head||0)*(ev.wt||0);
+          if(!bw){return;}
+          const daysInPeriod=inPeriod;
+          n=bw/1000*(st.nExc||0.32)*daysInPeriod;
+          p=bw/1000*(st.pExc||0.09)*daysInPeriod;
+          k=bw/1000*(st.kExc||0.30)*daysInPeriod;
+        }
+        totalN+=n; totalP+=p; totalK+=k;
+        const pad=S.pastures.find(x=>x.name===ev.pasture);
+        if(pad&&pad.acres&&!paddockAcres[ev.pasture]) paddockAcres[ev.pasture]=pad.acres;
       });
       const acres = Object.values(paddockAcres).reduce((s,a)=>s+a,0)||1;
       const totalNPK = totalN+totalP+totalK;
@@ -4105,15 +4119,24 @@ const STAT_METRICS = {
       const st = S.settings;
       let totalVal=0;
       const paddockAcres={};
-      events.filter(e=>e.locationType!=='confinement'&&e.status==='closed'&&e.totals&&e.totals.npk).forEach(ev=>{
-        const evDays   = daysBetween(ev.dateIn, ev.dateOut||ev.dateIn);
+      events.filter(e=>e.locationType!=='confinement').forEach(ev=>{
+        const evDays   = daysBetween(ev.dateIn, ev.dateOut||todayStr());
         const inPeriod = eventDaysInPeriod(ev, start, end);
         const ratio    = evDays>0 ? inPeriod/evDays : 0;
-        const n=(ev.totals.npk.n||0)*ratio;
-        const p=(ev.totals.npk.p||0)*ratio;
-        const k=(ev.totals.npk.k||0)*ratio;
+        let n,p,k;
+        if(ev.status==='closed'&&ev.totals&&ev.totals.npk&&ev.totals.npk.n!=null){
+          n=(ev.totals.npk.n||0)*ratio;
+          p=(ev.totals.npk.p||0)*ratio;
+          k=(ev.totals.npk.k||0)*ratio;
+        } else {
+          const bw=(ev.head||0)*(ev.wt||0);
+          if(!bw){return;}
+          n=bw/1000*(st.nExc||0.32)*inPeriod;
+          p=bw/1000*(st.pExc||0.09)*inPeriod;
+          k=bw/1000*(st.kExc||0.30)*inPeriod;
+        }
         totalVal += n*st.nPrice + p*st.pPrice + k*st.kPrice;
-        const pad = S.pastures.find(x=>x.name===ev.pasture);
+        const pad=S.pastures.find(x=>x.name===ev.pasture);
         if(pad&&pad.acres&&!paddockAcres[ev.pasture]) paddockAcres[ev.pasture]=pad.acres;
       });
       const acres = Object.values(paddockAcres).reduce((s,a)=>s+a,0)||1;
