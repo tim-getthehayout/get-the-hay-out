@@ -4776,29 +4776,41 @@ function openResetSheet(){
 function closeResetSheet(){
   document.getElementById('reset-sheet-wrap').classList.remove('open');
 }
-function executeReset(){
+async function executeReset(){
   if(document.getElementById('reset-confirm-input').value!=='YES')return;
-  // Wipe S back to empty state, preserving nothing
+  const ver=S.version||'v1.0';
+  // Wipe S to empty state
   S={
-    pastures:[],events:[],feedTypes:[],batches:[],herd:{name:'',type:'',count:0,weight:0,dmi:2.5},
+    pastures:[],events:[],feedTypes:[],batches:[],
+    herd:{name:'',type:'',count:0,weight:0,dmi:2.5},
     settings:{nPrice:0.55,pPrice:0.65,kPrice:0.42,nExc:0.32,pExc:0.09,kExc:0.30,
               manureVolumeRate:65,manureLoadLbs:8000,manureVolumeUnit:'loads'},
-    feedback:[],version:S.version||'v1.0',testerName:'',
+    feedback:[],version:ver,testerName:'',
     users:[],todos:[],manureBatches:[],inputProducts:[],inputApplications:[],
     animalClasses:[],animalGroups:[],animals:[],
-    _herdMigrated:true,  // prevent phantom group creation on reload
+    _herdMigrated:true,
   };
+  // Save to localStorage first
   saveLocal();
-  // If Drive connected, force an immediate sync to overwrite remote too
-  if(driveState.connected&&driveState.accessToken){
-    driveSync();
-  }
   closeResetSheet();
+  // Write empty data directly to Drive — bypass driveSync() which would
+  // fetch+merge the old remote data back and undo the reset entirely
+  if(driveState.connected&&driveState.accessToken&&driveState.fileId){
+    setSyncStatus('pending','Resetting Drive...');
+    try{
+      await driveWriteFile(JSON.stringify(S,null,2));
+      driveState.lastSync=new Date().toISOString();
+      saveDriveState();
+      setSyncStatus('ok','Drive reset');
+    }catch(e){
+      console.error('Drive reset write failed:',e);
+      setSyncStatus('error','Local reset done — Drive write failed, reconnect and sync manually');
+    }
+  }
   // Full re-render
   updateHeader();
   renderHome();
   renderCurrentScreen();
-  setSyncStatus('ok','Data reset');
   alert('All data has been erased. You can now reimport your template.');
 }
 // ─── END RESET DATA ───────────────────────────────────────────────────────────
