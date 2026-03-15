@@ -162,6 +162,20 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 /* Checkbox */
 .cb-wrap{display:flex;align-items:center;gap:8px;padding:8px 0;cursor:pointer;}
 .cb-wrap input[type=checkbox]{width:18px;height:18px;accent-color:var(--green);cursor:pointer;}
+
+/* ── Home group cards ───────────────────────────────── */
+.grp-card{background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius-l);margin-bottom:10px;overflow:hidden;}
+.grp-card-hdr{display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;}
+.grp-card-hdr:active{background:var(--bg2);}
+.grp-color-bar{width:4px;border-radius:2px;flex-shrink:0;align-self:stretch;min-height:36px;}
+.grp-card-body{display:none;border-top:0.5px solid var(--border);padding:12px 14px;}
+.grp-card.expanded .grp-card-body{display:block;}
+.grp-card.expanded .grp-chevron{transform:rotate(180deg);}
+.grp-chevron{transition:transform 0.2s;flex-shrink:0;color:var(--text3);}
+.grp-loc-bar{background:var(--bg2);border-radius:var(--radius);padding:9px 12px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.grp-actions{display:flex;gap:6px;flex-wrap:wrap;}
+.grp-actions .btn{flex:1;min-width:80px;padding:10px 8px;font-size:13px;}
+
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
@@ -182,7 +196,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
       <span class="ver-tag" id="ver-tag">v1.0</span>
       <!-- Active user avatar -->
       <div id="hdr-avatar" style="cursor:pointer;" onclick="openUserPicker()"></div>
-      <button id="move-btn" class="btn btn-teal btn-sm" onclick="openMoveWizard()" style="display:none;">Move herd</button>
+      <!-- move-btn removed: actions now live in group cards on Home -->
     </div>
   </div>
 
@@ -190,12 +204,16 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 
     <!-- HOME -->
     <div id="s-home" class="scr active">
-      <div id="home-active"></div>
-      <div id="home-none" style="display:none;">
+
+      <!-- Groups (primary) -->
+      <div id="home-groups"></div>
+
+      <!-- No groups yet -->
+      <div id="home-no-groups" style="display:none;">
         <div class="card" style="text-align:center;padding:24px 16px;">
-          <div style="font-size:16px;font-weight:600;margin-bottom:6px;">No active grazing event</div>
-          <div style="font-size:13px;color:var(--text2);margin-bottom:16px;">Tap "Move herd" to open your first grazing event.</div>
-          <button class="btn btn-teal btn-sm" onclick="openMoveWizard()">Start grazing event</button>
+          <div style="font-size:16px;font-weight:600;margin-bottom:6px;">No groups set up yet</div>
+          <div style="font-size:13px;color:var(--text2);margin-bottom:16px;">Add your animal classes and groups in Settings to get started.</div>
+          <button class="btn btn-teal btn-sm" onclick="nav('settings',document.getElementById('bn-settings'))">Go to Settings</button>
         </div>
       </div>
 
@@ -209,14 +227,13 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
         <button class="btn btn-outline btn-sm" style="margin-top:8px;" onclick="openTodoSheet(null)">+ Add task</button>
       </div>
 
-      <div class="card">
-        <div class="sec">Season at a glance</div>
-        <div class="m-grid">
-          <div class="m-cell"><div class="ml">Pasture DMI</div><div class="mv" id="h-pdmi" style="color:var(--green);">--</div><div style="font-size:11px;color:var(--text2);">lbs, closed events</div></div>
-          <div class="m-cell"><div class="ml">Feed cost</div><div class="mv" id="h-cost" style="color:var(--amber);">--</div></div>
-          <div class="m-cell"><div class="ml">Avg pasture %</div><div class="mv" id="h-pct" style="color:var(--teal);">--</div></div>
-          <div class="m-cell"><div class="ml">Events closed</div><div class="mv" id="h-evs">0</div></div>
+      <div class="card" id="home-stats-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <div class="sec" style="margin:0;">At a glance</div>
+          <div id="home-period-pills" style="display:flex;gap:4px;"></div>
         </div>
+        <div id="home-stats-grid" class="m-grid"></div>
+        <div id="home-stats-empty" style="display:none;font-size:13px;color:var(--text2);text-align:center;padding:8px 0;">No events in this period</div>
       </div>
       <div class="card">
         <div class="sec">Recent events</div>
@@ -464,6 +481,10 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 
     <!-- SETTINGS -->
     <div id="s-settings" class="scr">
+      <div style="position:sticky;top:0;z-index:50;background:var(--bg);padding:8px 0 10px;border-bottom:0.5px solid var(--border);margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;">
+        <div style="font-size:15px;font-weight:600;">Settings</div>
+        <button class="btn btn-green btn-sm" onclick="saveSettings()">Save settings</button>
+      </div>
 
       <!-- Google Drive Sync -->
       <div class="card">
@@ -658,6 +679,22 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
         </div>
         <div class="field"><label>Notes (optional)</label><input type="text" id="a-notes" placeholder="Dam, sire, breed notes…"/></div>
         <button class="btn btn-green btn-sm" onclick="addAnimal()">Add animal</button>
+      </div>
+
+      <!-- Stats settings -->
+      <div class="card">
+        <div class="sec">Home screen stats</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.6;">Choose which metrics appear on the Home screen. Changes take effect after saving.</div>
+        <div id="stats-metric-list"></div>
+        <div class="field" style="margin-top:10px;">
+          <label>Default time period</label>
+          <select id="s-stat-period">
+            <option value="24h">Last 24 hours</option>
+            <option value="7d">Last 7 days</option>
+            <option value="30d">Last 30 days</option>
+            <option value="season">All time</option>
+          </select>
+        </div>
       </div>
 
       <!-- NPK -->
@@ -885,6 +922,8 @@ if(!S.manureBatches)S.manureBatches=[];
 if(!S.settings.manureVolumeRate)S.settings.manureVolumeRate=65;
 if(!S.settings.manureLoadLbs)S.settings.manureLoadLbs=8000;
 if(!S.settings.manureVolumeUnit)S.settings.manureVolumeUnit='loads';
+if(!S.settings.homeStats)S.settings.homeStats=['pasture_dmi','feed_cost','pasture_pct','npk_lbs_acre','npk_val_acre'];
+if(!S.settings.homeStatPeriod)S.settings.homeStatPeriod='7d';
 
 let driveState = JSON.parse(localStorage.getItem('gthy-drive')||'{}');
 if(!driveState.clientId)driveState.clientId='520206017987-2o679cboufc1f486i0hentj0kktdkut6.apps.googleusercontent.com';
@@ -1235,32 +1274,21 @@ function maybePromptUserSelect(){
 
 // ─── HOME ─────────────────────────────────────────────────────────────────────
 function renderHome(){
-  const activeEvs=getActiveEvents();
-  document.getElementById('move-btn').style.display=activeEvs.length>0?'':'none';
-  if(activeEvs.length>0){
-    document.getElementById('home-active').innerHTML=activeEvs.map(ae=>{
-      const g=getGroupById(ae.groupId);
-      const gColor=g?g.color:'#639922';
-      const gName=g?g.name:(ae.groupName||'Herd');
-      const days=daysBetween(ae.dateIn,todayStr());
-      const cost=calcEntryCost(ae.feedEntries);
-      const isConEv=ae.locationType==='confinement';
-      const splitBtn=g?`<button class="btn btn-outline btn-xs" onclick="openSplitSheet(${g.id})" style="margin-top:6px;">Split group</button>`:'';
-      return `<div class="banner ban-green" style="border-left:3px solid ${gColor};margin-bottom:6px;">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-          <div>
-            <div style="font-size:14px;font-weight:600;color:var(--green-d);">${gName} → ${ae.pasture}${isConEv?' <span class="badge bb" style="font-size:10px;">confinement</span>':''} — Day ${days}</div>
-            <div style="font-size:12px;color:var(--green-d);opacity:0.85;margin-top:2px;">In ${dLabel(ae.dateIn)} · ${(ae.feedEntries||[]).length} feedings · $${cost.toFixed(2)} feed</div>
-          </div>
-          <div>${splitBtn}</div>
-        </div>
-      </div>`;
-    }).join('');
-    document.getElementById('home-none').style.display='none';
+  // ── Remove stale move-btn reference (button was relocated) ────────────────
+  const mvBtn=document.getElementById('move-btn');if(mvBtn)mvBtn.style.display='none';
+
+  const groups=S.animalGroups||[];
+  const grpsEl=document.getElementById('home-groups');
+  const noneEl=document.getElementById('home-no-groups');
+
+  if(!groups.length){
+    grpsEl.innerHTML='';
+    noneEl.style.display='block';
   } else {
-    document.getElementById('home-active').innerHTML='';
-    document.getElementById('home-none').style.display='block';
+    noneEl.style.display='none';
+    grpsEl.innerHTML=groups.map(g=>renderGroupCard(g)).join('');
   }
+
   // My open tasks
   const myTodos=S.todos.filter(t=>t.status!=='closed'&&(t.assignedTo||[]).includes(activeUserId));
   const homeTodos=document.getElementById('home-todos');
@@ -1269,23 +1297,112 @@ function renderHome(){
   } else {
     homeTodos.innerHTML=myTodos.slice(0,4).map(t=>todoCardHtml(t,true)).join('');
   }
-  // Season stats
-  const closed=S.events.filter(e=>e.status==='closed');
-  const pdmi=closed.reduce((s,e)=>s+(e.totals?e.totals.pastureDMI||0:0),0);
-  const cost=closed.reduce((s,e)=>s+(e.totals?e.totals.cost||0:0),0);
-  const avgPct=closed.length?Math.round(closed.reduce((s,e)=>s+(e.totals?e.totals.pct||0:0),0)/closed.length):null;
-  document.getElementById('h-pdmi').textContent=pdmi?Math.round(pdmi).toLocaleString()+' lbs':'--';
-  document.getElementById('h-cost').textContent=cost?'$'+cost.toFixed(2):'--';
-  document.getElementById('h-pct').textContent=avgPct!==null?avgPct+'%':'--';
-  document.getElementById('h-evs').textContent=closed.length;
+
+  // Season stats rendered via metric registry
+  renderStats();
+
   const el=document.getElementById('h-event-list');
-  if(!closed.length){el.innerHTML='<div class="empty">No closed events yet</div>';return;}
-  el.innerHTML=closed.slice().reverse().slice(0,5).map(e=>{
-    const t=e.totals||{};const pc=t.pct>=60?'bg':t.pct>=30?'ba':'br';
-    return `<div class="row"><div class="row-head"><span style="font-size:14px;font-weight:600;">${e.pasture}</span><span class="badge ${pc}">${t.pct!==undefined?t.pct+'%':'--'} pasture</span></div><div class="row-detail">${dLabel(e.dateIn)} → ${dLabel(e.dateOut)} · ${t.days||'?'} days · $${(t.cost||0).toFixed(2)} · ${Math.round(t.pastureDMI||0).toLocaleString()} lbs pasture DMI</div></div>`;
-  }).join('');
+  if(!allClosed.length){el.innerHTML='<div class="empty">No closed events yet</div>';}
+  else{
+    el.innerHTML=allClosed.slice().reverse().slice(0,5).map(e=>{
+      const t=e.totals||{};const g=getGroupById(e.groupId);
+      const pc=t.pct>=60?'bg':t.pct>=30?'ba':'br';
+      const isCon=e.locationType==='confinement';
+      return `<div class="row"><div class="row-head"><span style="font-size:14px;font-weight:600;">${e.pasture}</span><span class="badge ${isCon?'bb':pc}">${isCon?'confinement':t.pct!==undefined?t.pct+'% pasture':'--'}</span></div><div class="row-detail">${g?g.name+' · ':''}${dLabel(e.dateIn)} → ${dLabel(e.dateOut||'')} · ${t.days||'?'} days · $${(t.cost||0).toFixed(2)}</div></div>`;
+    }).join('');
+  }
   updateTodoBadge();
 }
+
+// ── Render a single group card ────────────────────────────────────────────────
+function renderGroupCard(g){
+  const ae=getActiveEventForGroup(g.id);
+  const t=getGroupTotals(g);
+  const color=g.color||'#639922';
+  const animals=getGroupAnimals(g.id);
+  // Composition line
+  const bySex={};
+  animals.forEach(a=>{const k=a.sex||'other';bySex[k]=(bySex[k]||0)+1;});
+  const comp=Object.entries(bySex).map(([s,n])=>n+' '+s).join(', ')||
+    (g.classes?g.classes.map(c=>{const cls=S.animalClasses.find(x=>x.id===c.classId);return c.count+' '+(cls?cls.name:'?');}).join(', '):'');
+
+  // Location status bar
+  let locBar='';
+  if(ae){
+    const days=daysBetween(ae.dateIn,todayStr());
+    const cost=calcEntryCost(ae.feedEntries||[]);
+    const isCon=ae.locationType==='confinement';
+    const locIcon=isCon?'🏚':'🌿';
+    const locBadge=isCon?'<span class="badge bb" style="font-size:10px;">confinement</span>':'<span class="badge bg" style="font-size:10px;">grazing</span>';
+    locBar=`<div class="grp-loc-bar">
+      <div>
+        <div style="font-size:13px;font-weight:600;">${locIcon} ${ae.pasture} ${locBadge}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px;">Day ${days} · in ${dLabel(ae.dateIn)} · ${(ae.feedEntries||[]).length} feeding${(ae.feedEntries||[]).length!==1?'s':''} · $${cost.toFixed(2)} feed</div>
+      </div>
+    </div>`;
+  } else {
+    locBar=`<div class="grp-loc-bar" style="opacity:0.6;">
+      <div style="font-size:13px;color:var(--text2);">Not currently placed</div>
+    </div>`;
+  }
+
+  // DMI summary if active
+  let dmiLine='';
+  if(ae&&t.dmiTarget>0){
+    const sdmi=calcConsumedDMI(ae.feedEntries||[],0);
+    const days=daysBetween(ae.dateIn,todayStr());
+    const totalTarget=t.dmiTarget*days;
+    const pastureDmi=Math.max(0,totalTarget-sdmi);
+    const pct=totalTarget>0?Math.round((pastureDmi/totalTarget)*100):null;
+    dmiLine=`<div style="font-size:12px;color:var(--text2);margin-bottom:10px;">DMI target ${Math.round(t.dmiTarget).toLocaleString()} lbs/day · ${pct!==null?pct+'% from pasture this event':''}`;
+    if(totalTarget>0){
+      const fill=Math.min(100,Math.round((sdmi/totalTarget)*100));
+      dmiLine+=`<div class="prog" style="margin-top:4px;"><div class="prog-fill" style="width:${fill}%;background:var(--amber);"></div></div>
+        <div style="font-size:10px;color:var(--text2);margin-top:2px;">${fill}% stored feed · ${100-fill}% estimated pasture</div>`;
+    }
+    dmiLine+='</div>';
+  }
+
+  // Action buttons
+  const feedBtn=ae?`<button class="btn btn-green" onclick="goFeedGroup(${g.id})">Feed</button>`:'';
+  const moveBtn=`<button class="btn btn-teal" onclick="moveGroup(${g.id})">${ae?'Move':'Place'}</button>`;
+  const splitBtn=ae?`<button class="btn btn-outline" onclick="openSplitSheet(${g.id})">Split</button>`:'';
+  const wtBtn=`<button class="btn btn-outline" onclick="openWtSheet(${g.id})">Weights</button>`;
+
+  return `<div class="grp-card" id="grp-card-${g.id}">
+    <div class="grp-card-hdr" onclick="toggleGroupCard(${g.id})">
+      <div class="grp-color-bar" style="background:${color};"></div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:15px;font-weight:600;line-height:1.3;">${g.name}</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:2px;">${t.totalHead} head · avg ${t.avgWeight} lbs${ae?' · '+ae.pasture:' · not placed'}</div>
+      </div>
+      <svg class="grp-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="grp-card-body">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">${comp}</div>
+      ${locBar}
+      ${dmiLine}
+      <div class="grp-actions">${feedBtn}${moveBtn}${splitBtn}${wtBtn}</div>
+    </div>
+  </div>`;
+}
+
+function toggleGroupCard(gId){
+  const card=document.getElementById('grp-card-'+gId);
+  if(card)card.classList.toggle('expanded');
+}
+
+function goFeedGroup(gId){
+  ffActiveGroupId=gId;
+  nav('feed',document.getElementById('bn-feed'));
+}
+
+function moveGroup(gId){
+  wizGroupId=gId;
+  nav('move',document.getElementById('bn-home'));
+  initWizFromGroup();
+}
+
 
 // ─── TO-DO SYSTEM ─────────────────────────────────────────────────────────────
 let selectedAssignees=new Set();
@@ -1854,6 +1971,12 @@ function renderPastures(){
 function saveSettings(){
   S.herd={name:document.getElementById('s-name').value,type:'',count:0,weight:0,dmi:2.5};
   S.settings={nPrice:parseFloat(document.getElementById('s-np').value)||0.55,pPrice:parseFloat(document.getElementById('s-pp').value)||0.65,kPrice:parseFloat(document.getElementById('s-kp').value)||0.42,nExc:parseFloat(document.getElementById('s-ne').value)||0.32,pExc:parseFloat(document.getElementById('s-pe').value)||0.09,kExc:parseFloat(document.getElementById('s-ke').value)||0.30,manureVolumeRate:parseFloat(document.getElementById('s-manure-rate').value)||65,manureLoadLbs:parseFloat(document.getElementById('s-load-lbs').value)||8000,manureVolumeUnit:document.getElementById('s-vol-unit').value||'loads'};
+  // Persist stat settings
+  const statPeriodEl=document.getElementById('s-stat-period');
+  if(statPeriodEl)S.settings.homeStatPeriod=statPeriodEl.value;
+  const checkedStats=[];
+  document.querySelectorAll('.stat-metric-cb:checked').forEach(cb=>checkedStats.push(cb.value));
+  if(checkedStats.length)S.settings.homeStats=checkedStats;
   S.version=document.getElementById('s-ver').value||'v1.0';
   S.testerName=document.getElementById('s-tester').value||'';
   save();updateHeader();
@@ -1867,6 +1990,10 @@ function loadSettings(){
   if(st.manureLoadLbs&&document.getElementById('s-load-lbs'))document.getElementById('s-load-lbs').value=st.manureLoadLbs;
   if(st.manureVolumeUnit&&document.getElementById('s-vol-unit'))document.getElementById('s-vol-unit').value=st.manureVolumeUnit;
   document.getElementById('s-ver').value=S.version||'v1.0';document.getElementById('s-tester').value=S.testerName||'';
+  // Stat settings
+  const spEl=document.getElementById('s-stat-period');
+  if(spEl)spEl.value=S.settings.homeStatPeriod||'7d';
+  renderStatsMetricList();
   // Client ID is hardcoded — no input field to populate
 }
 function addFeedType(){
@@ -3388,6 +3515,269 @@ function showImportStatus(type,msg){
 }
 
 // ─── END SETUP IMPORT / EXPORT ───────────────────────────────────────────────
+
+
+// ─── STATS ENGINE ─────────────────────────────────────────────────────────────
+
+// ── Time period helpers ────────────────────────────────────────────────────────
+const PERIODS = [
+  {key:'24h',  label:'24h'},
+  {key:'7d',   label:'7d'},
+  {key:'30d',  label:'30d'},
+  {key:'season',label:'All'},
+];
+
+function getPeriodDates(key){
+  const now = new Date();
+  const endDate = todayStr();
+  if(key==='season') return {start:null, end:null}; // all time
+  const days = key==='24h'?1 : key==='7d'?7 : 30;
+  const start = new Date(now);
+  start.setDate(start.getDate() - days + 1);
+  return {
+    start: start.toISOString().slice(0,10),
+    end:   endDate
+  };
+}
+
+// How many days of an event fall within [periodStart, periodEnd]?
+// Returns a value 0..eventDays. Used for pro-rating DMI/NPK on partial events.
+function eventDaysInPeriod(ev, periodStart, periodEnd){
+  const evStart = ev.dateIn;
+  const evEnd   = ev.dateOut || todayStr();
+  if(!periodStart) return daysBetween(evStart, evEnd); // all-time: use full event
+  const overlapStart = evStart > periodStart ? evStart : periodStart;
+  const overlapEnd   = evEnd   < periodEnd   ? evEnd   : periodEnd;
+  if(overlapStart > overlapEnd) return 0;
+  return daysBetween(overlapStart, overlapEnd);
+}
+
+function eventsInPeriod(periodKey){
+  const {start, end} = getPeriodDates(periodKey);
+  return S.events.filter(ev => {
+    if(ev.status==='open'){
+      if(!start) return true;
+      // Open event: overlaps if it started before or on end date
+      return ev.dateIn <= end;
+    } else {
+      if(!start) return true;
+      const evEnd = ev.dateOut || ev.dateIn;
+      return ev.dateIn <= end && evEnd >= start;
+    }
+  });
+}
+
+// ── Metric registry ─────────────────────────────────────────────────────────
+// Each metric: { key, label, unit, color, desc, calc(events, periodKey) → {value, display, sub} }
+const STAT_METRICS = {
+
+  pasture_dmi: {
+    key:   'pasture_dmi',
+    label: 'Pasture DMI',
+    unit:  'lbs',
+    color: 'var(--green)',
+    desc:  'Dry matter from pasture (lbs)',
+    calc(events, periodKey){
+      const {start,end} = getPeriodDates(periodKey);
+      let total = 0;
+      events.filter(e=>e.locationType!=='confinement').forEach(ev=>{
+        if(!ev.totals && ev.status==='open'){
+          // Live calc for open events
+          const days = eventDaysInPeriod(ev, start, end);
+          const g = getGroupById(ev.groupId);
+          const t = g ? getGroupTotals(g) : null;
+          const dmiTarget = t ? t.dmiTarget : (ev.head||0)*(ev.wt||0)*0.025;
+          const sdmi = calcConsumedDMI(ev.feedEntries||[], 0);
+          total += Math.max(0, dmiTarget*days - sdmi);
+        } else if(ev.totals && ev.totals.pastureDMI!=null){
+          const evDays   = daysBetween(ev.dateIn, ev.dateOut||ev.dateIn);
+          const inPeriod = eventDaysInPeriod(ev, start, end);
+          const ratio    = evDays>0 ? inPeriod/evDays : 0;
+          total += (ev.totals.pastureDMI||0) * ratio;
+        }
+      });
+      const v = Math.round(total);
+      return {value:v, display: v>=1000?(v/1000).toFixed(1)+'k':v.toString(), sub:'lbs DM'};
+    }
+  },
+
+  feed_cost: {
+    key:   'feed_cost',
+    label: 'Feed Cost',
+    unit:  '$',
+    color: 'var(--amber)',
+    desc:  'Stored feed cost ($)',
+    calc(events, periodKey){
+      const {start,end} = getPeriodDates(periodKey);
+      let total = 0;
+      events.forEach(ev=>{
+        if(ev.totals && ev.totals.cost){
+          const evDays   = daysBetween(ev.dateIn, ev.dateOut||ev.dateIn);
+          const inPeriod = eventDaysInPeriod(ev, start, end);
+          const ratio    = evDays>0 ? inPeriod/evDays : 0;
+          total += (ev.totals.cost||0) * ratio;
+        } else if(ev.status==='open'){
+          total += calcEntryCost(ev.feedEntries||[]);
+        }
+      });
+      return {value:total, display:'$'+total.toFixed(2), sub:'stored feed'};
+    }
+  },
+
+  pasture_pct: {
+    key:   'pasture_pct',
+    label: 'Pasture %',
+    unit:  '%',
+    color: 'var(--teal)',
+    desc:  'Avg % of DMI from pasture',
+    calc(events, periodKey){
+      const grazingEvs = events.filter(e=>e.locationType!=='confinement');
+      const closed = grazingEvs.filter(e=>e.status==='closed'&&e.totals&&e.totals.pct!=null);
+      if(!closed.length){
+        // Try open event estimate
+        const open = grazingEvs.filter(e=>e.status==='open');
+        if(!open.length) return {value:null, display:'--', sub:'no grazing events'};
+        let sumPct=0, cnt=0;
+        open.forEach(ev=>{
+          const g=getGroupById(ev.groupId);
+          const t=g?getGroupTotals(g):null;
+          const dmiTarget=t?t.dmiTarget:(ev.head||0)*(ev.wt||0)*0.025;
+          const days=daysBetween(ev.dateIn,todayStr());
+          const sdmi=calcConsumedDMI(ev.feedEntries||[],0);
+          const total=dmiTarget*days;
+          if(total>0){sumPct+=Math.max(0,Math.round((1-sdmi/total)*100));cnt++;}
+        });
+        if(!cnt) return {value:null, display:'--', sub:'calculating'};
+        const avg=Math.round(sumPct/cnt);
+        return {value:avg, display:avg+'%', sub:'estimated, open events'};
+      }
+      const avg = Math.round(closed.reduce((s,e)=>s+e.totals.pct,0)/closed.length);
+      return {value:avg, display:avg+'%', sub:'avg, '+closed.length+' closed event'+(closed.length!==1?'s':'')};
+    }
+  },
+
+  npk_lbs_acre: {
+    key:   'npk_lbs_acre',
+    label: 'NPK / Acre',
+    unit:  'lbs/ac',
+    color: 'var(--purple-d)',
+    desc:  'NPK deposited per acre (grazing only)',
+    calc(events, periodKey){
+      const {start,end} = getPeriodDates(periodKey);
+      let totalN=0,totalP=0,totalK=0;
+      const paddockAcres={};
+      events.filter(e=>e.locationType!=='confinement'&&e.status==='closed'&&e.totals&&e.totals.npk).forEach(ev=>{
+        const evDays   = daysBetween(ev.dateIn, ev.dateOut||ev.dateIn);
+        const inPeriod = eventDaysInPeriod(ev, start, end);
+        const ratio    = evDays>0 ? inPeriod/evDays : 0;
+        totalN += (ev.totals.npk.n||0)*ratio;
+        totalP += (ev.totals.npk.p||0)*ratio;
+        totalK += (ev.totals.npk.k||0)*ratio;
+        const p = S.pastures.find(x=>x.name===ev.pasture);
+        if(p&&p.acres&&!paddockAcres[ev.pasture]) paddockAcres[ev.pasture]=p.acres;
+      });
+      const acres = Object.values(paddockAcres).reduce((s,a)=>s+a,0)||1;
+      const totalNPK = totalN+totalP+totalK;
+      const perAcre = totalNPK/acres;
+      return {
+        value: perAcre,
+        display: perAcre.toFixed(1),
+        sub: `N${totalN.toFixed(0)}/P${totalP.toFixed(0)}/K${totalK.toFixed(0)} lbs total`
+      };
+    }
+  },
+
+  npk_val_acre: {
+    key:   'npk_val_acre',
+    label: 'NPK Value',
+    unit:  '$/ac',
+    color: 'var(--blue)',
+    desc:  'Fertilizer value per acre (grazing only)',
+    calc(events, periodKey){
+      const {start,end} = getPeriodDates(periodKey);
+      const st = S.settings;
+      let totalVal=0;
+      const paddockAcres={};
+      events.filter(e=>e.locationType!=='confinement'&&e.status==='closed'&&e.totals&&e.totals.npk).forEach(ev=>{
+        const evDays   = daysBetween(ev.dateIn, ev.dateOut||ev.dateIn);
+        const inPeriod = eventDaysInPeriod(ev, start, end);
+        const ratio    = evDays>0 ? inPeriod/evDays : 0;
+        const n=(ev.totals.npk.n||0)*ratio;
+        const p=(ev.totals.npk.p||0)*ratio;
+        const k=(ev.totals.npk.k||0)*ratio;
+        totalVal += n*st.nPrice + p*st.pPrice + k*st.kPrice;
+        const pad = S.pastures.find(x=>x.name===ev.pasture);
+        if(pad&&pad.acres&&!paddockAcres[ev.pasture]) paddockAcres[ev.pasture]=pad.acres;
+      });
+      const acres = Object.values(paddockAcres).reduce((s,a)=>s+a,0)||1;
+      const perAcre = totalVal/acres;
+      return {
+        value: perAcre,
+        display: '$'+perAcre.toFixed(2),
+        sub: '$'+totalVal.toFixed(2)+' total fert. value'
+      };
+    }
+  },
+};
+
+// ── Render stats on home screen ─────────────────────────────────────────────
+let currentStatPeriod = null;
+
+function renderStats(){
+  currentStatPeriod = currentStatPeriod || S.settings.homeStatPeriod || '7d';
+
+  // Period pills
+  const pillsEl = document.getElementById('home-period-pills');
+  if(pillsEl){
+    pillsEl.innerHTML = PERIODS.map(p=>
+      `<button style="padding:3px 9px;font-size:11px;border-radius:20px;border:0.5px solid ${currentStatPeriod===p.key?'var(--green)':'var(--border2)'};background:${currentStatPeriod===p.key?'var(--green)':'transparent'};color:${currentStatPeriod===p.key?'white':'var(--text2)'};cursor:pointer;font-family:inherit;" onclick="currentStatPeriod='${p.key}';renderStats();">${p.label}</button>`
+    ).join('');
+  }
+
+  const selectedKeys = S.settings.homeStats || ['pasture_dmi','feed_cost','pasture_pct','npk_lbs_acre','npk_val_acre'];
+  const events = eventsInPeriod(currentStatPeriod);
+  const grid = document.getElementById('home-stats-grid');
+  const empty = document.getElementById('home-stats-empty');
+
+  if(!grid) return;
+
+  const cells = selectedKeys.map(key=>{
+    const metric = STAT_METRICS[key];
+    if(!metric) return '';
+    const {display, sub} = metric.calc(events, currentStatPeriod);
+    return `<div class="m-cell">
+      <div class="ml">${metric.label}</div>
+      <div class="mv" style="color:${metric.color};">${display}</div>
+      <div style="font-size:10px;color:var(--text2);margin-top:2px;line-height:1.3;">${sub}</div>
+    </div>`;
+  }).filter(Boolean);
+
+  if(cells.length){
+    grid.innerHTML = cells.join('');
+    grid.style.display = '';
+    if(empty) empty.style.display = 'none';
+  } else {
+    grid.style.display = 'none';
+    if(empty) empty.style.display = 'block';
+  }
+}
+
+// ── Render metric picker in Settings ────────────────────────────────────────
+function renderStatsMetricList(){
+  const el = document.getElementById('stats-metric-list');
+  if(!el) return;
+  const selected = new Set(S.settings.homeStats || Object.keys(STAT_METRICS));
+  el.innerHTML = Object.values(STAT_METRICS).map(m=>`
+    <label class="cb-wrap">
+      <input type="checkbox" class="stat-metric-cb" value="${m.key}" ${selected.has(m.key)?'checked':''}>
+      <div>
+        <div style="font-size:13px;font-weight:500;">${m.label}</div>
+        <div style="font-size:11px;color:var(--text2);">${m.desc}</div>
+      </div>
+    </label>`).join('');
+}
+
+// ─── END STATS ENGINE ─────────────────────────────────────────────────────────
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 document.getElementById('w-out-date').value=todayStr();
