@@ -1440,9 +1440,15 @@ function mergeData(local,remote){
       else{
         const ex=m[x[key]];
         if(x.status==='closed'&&ex.status==='open')m[x[key]]=x;
-        else if(x.updatedAt&&ex.updatedAt){
-          // Use most recently modified version (respects deletes)
+        else if(ex.updatedAt&&x.updatedAt){
+          // Both timestamped — newer wins (handles deletes)
           if(x.updatedAt>ex.updatedAt)m[x[key]]=x;
+          // else local is newer, keep ex (no assignment needed)
+        } else if(ex.updatedAt&&!x.updatedAt){
+          // Local has timestamp, remote doesn't — local is newer write, keep ex
+        } else if(!ex.updatedAt&&x.updatedAt){
+          // Remote has timestamp, local doesn't — remote is newer
+          m[x[key]]=x;
         } else if((x.feedEntries||[]).length>(ex.feedEntries||[]).length)m[x[key]]=x;
         else if((x.subMoves||[]).length>(ex.subMoves||[]).length)m[x[key]]=x;
       }
@@ -1454,8 +1460,23 @@ function mergeData(local,remote){
   function mergeObj(loc,rem){
     if(!rem)return loc||{};
     if(!loc)return rem||{};
+    // If both have updatedAt, use the newer version wholesale
+    if(loc.updatedAt&&rem.updatedAt){
+      const winner=loc.updatedAt>=rem.updatedAt?loc:rem;
+      // Still merge in any keys the loser has that winner lacks
+      const loser=loc.updatedAt>=rem.updatedAt?rem:loc;
+      return Object.assign({},loser,winner);
+    }
+    // If only local has updatedAt, local is the newer write
+    if(loc.updatedAt&&!rem.updatedAt){
+      return Object.assign({},rem,loc);
+    }
+    // If only remote has updatedAt, remote is newer
+    if(!loc.updatedAt&&rem.updatedAt){
+      return Object.assign({},loc,rem);
+    }
+    // Neither has timestamp — remote wins on conflicts (legacy behaviour)
     return Object.assign({},rem,
-      // keep any local keys not present in remote
       Object.fromEntries(Object.entries(loc).filter(([k])=>rem[k]==null))
     );
   }
@@ -2395,6 +2416,7 @@ function saveSettings(){
   if(checkedStats.length)S.settings.homeStats=checkedStats;
   S.version=document.getElementById('s-ver').value||'v1.0';
   S.testerName=document.getElementById('s-tester').value||'';
+  S.settings.updatedAt=new Date().toISOString();
   save();updateHeader();
 }
 function loadSettings(){
@@ -5791,6 +5813,7 @@ function recalcNpkValues(){
   // Save updated rates and prices to settings
   S.settings.nPrice=nPrice; S.settings.pPrice=pPrice; S.settings.kPrice=kPrice;
   S.settings.nExc=nExc; S.settings.pExc=pExc; S.settings.kExc=kExc;
+  S.settings.updatedAt=new Date().toISOString();
 
   save();
 
