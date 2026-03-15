@@ -3102,7 +3102,8 @@ function openAnimalEdit(animalId){
     document.getElementById('ae-calving-list').innerHTML=calves.length
       ? calves.slice().reverse().map(c=>{
           const calf=getAnimalById(c.calfId);
-          const calfLabel=calf?(calf.systemId+(calf.tagNum?' · '+calf.tagNum:'')+' · '+calf.sex):'Calf not found';
+          const stillborn=c.stillbirth||calf?.active===false&&calf?.cullRecord?.reason==='Stillbirth';
+          const calfLabel=calf?(calf.systemId+(calf.tagNum?' · '+calf.tagNum:'')+' · '+calf.sex+(stillborn?' · <span class="badge br" style="font-size:10px;">stillborn</span>':'')):'Calf not found';
           return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:0.5px solid var(--border);">
             <div><div style="font-size:13px;font-weight:500;">${c.date} — ${calfLabel}</div>${c.sireTag?`<div style="font-size:11px;color:var(--text2);">Sire: ${c.sireTag}</div>`:''}</div>
             ${calf?`<button class="btn btn-outline btn-xs" onclick="closeAnimalEdit();setTimeout(()=>openAnimalEdit(${calf.id}),200);">View calf</button>`:''}
@@ -3999,6 +4000,8 @@ function openCalvingSheet(){
   document.getElementById('calving-wt').value='';
   document.getElementById('calving-sire').value=dam.sireTag||'';
   document.getElementById('calving-notes').value='';
+  document.getElementById('calving-stillbirth').checked=false;
+  document.getElementById('calving-group-note').style.display='block';
   const grp=getAnimalGroup(damId);
   document.getElementById('calving-group-note').textContent=
     grp?'Calf will be added to: '+grp.name:'Dam has no group assigned — calf will be unassigned';
@@ -4007,6 +4010,23 @@ function openCalvingSheet(){
   document.getElementById('calving-sheet-wrap').classList.add('open');
 }
 function closeCalvingSheet(){document.getElementById('calving-sheet-wrap').classList.remove('open');}
+
+function onCalvingStillbirthChange(){
+  const dead = document.getElementById('calving-stillbirth').checked;
+  const noteEl = document.getElementById('calving-group-note');
+  if(dead){
+    noteEl.style.background='var(--red-l)';
+    noteEl.style.color='var(--red-d)';
+    noteEl.textContent='Calf will be recorded as stillborn and marked inactive.';
+  } else {
+    noteEl.style.background='';
+    noteEl.style.color='';
+    // restore original group note text
+    const damId=parseInt(document.getElementById('ae-id').value);
+    const grp=getAnimalGroup(damId);
+    noteEl.textContent=grp?'Calf will be added to: '+grp.name:'Dam has no group assigned — calf will be unassigned';
+  }
+}
 
 function saveCalving(){
   const damId=parseInt(document.getElementById('ae-id').value);
@@ -4036,13 +4056,20 @@ function saveCalving(){
     calvingRecords:[],
     createdAt:new Date().toISOString()
   };
+  const isStillbirth=document.getElementById('calving-stillbirth').checked;
+  if(isStillbirth){
+    calf.active=false;
+    calf.cullRecord={date:calvDate,reason:'Stillbirth',notes:notes};
+  }
   S.animals.push(calf);
   // Add calving record to dam
   if(!dam.calvingRecords)dam.calvingRecords=[];
-  dam.calvingRecords.push({date:calvDate,calfId,sireTag});
-  // Assign calf to same group as dam
-  const grp=getAnimalGroup(damId);
-  if(grp){if(!grp.animalIds)grp.animalIds=[];grp.animalIds.push(calfId);}
+  dam.calvingRecords.push({date:calvDate,calfId,sireTag,stillbirth:isStillbirth});
+  // Assign calf to same group as dam (skip if stillbirth)
+  if(!isStillbirth){
+    const grp=getAnimalGroup(damId);
+    if(grp){if(!grp.animalIds)grp.animalIds=[];grp.animalIds.push(calfId);}
+  }
   save();
   closeCalvingSheet();
   // Re-open dam's edit sheet to show updated calving history
@@ -4985,6 +5012,13 @@ if(driveState.connected&&driveState.accessToken&&Date.now()<(driveState.tokenExp
       <input type="text" id="calving-sire" placeholder="Bull tag or name"/>
     </div>
     <div class="field"><label>Notes</label><input type="text" id="calving-notes" placeholder="Difficult birth, twins, etc."/></div>
+    <label style="display:flex;align-items:center;gap:10px;padding:10px 0;cursor:pointer;border-top:0.5px solid var(--border);margin-bottom:10px;">
+      <input type="checkbox" id="calving-stillbirth" onchange="onCalvingStillbirthChange()" style="width:18px;height:18px;accent-color:var(--red);flex-shrink:0;">
+      <div>
+        <div style="font-size:14px;font-weight:500;">Born dead (stillbirth)</div>
+        <div style="font-size:11px;color:var(--text2);">Calf record will be created and marked inactive — not added to group</div>
+      </div>
+    </label>
     <div class="banner ban-teal" id="calving-group-note" style="margin-bottom:12px;font-size:12px;"></div>
     <div class="btn-row">
       <button class="btn btn-teal" onclick="saveCalving()">Create calf record</button>
