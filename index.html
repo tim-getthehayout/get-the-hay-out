@@ -243,8 +243,9 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
     </div>
 
     <!-- FEED -->
-    <div id="s-feed" class="scr">
-      <div id="feed-no-event" style="display:none;"><div class="card"><div class="empty">No active grazing event.<br>Use Move Herd to open one.</div></div></div>
+    <div id="s-feed" class="scr" style="display:none!important;">
+      <!-- Feed screen kept for goFeedGroup() navigation from home cards -->
+      <div id="feed-no-event" style="display:none;"><div class="card"><div class="empty">No active grazing event.</div></div></div>
       <div id="feed-form">
         <div id="feed-banner"></div>
         <div id="feed-group-tabs" style="display:none;margin-bottom:10px;"></div>
@@ -267,6 +268,70 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
           <div class="sec">Feedings this event</div>
           <div id="ff-history"></div>
           <div id="ff-running" style="display:none;padding-top:10px;border-top:0.5px solid var(--border);font-size:12px;color:var(--text2);margin-top:4px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ANIMALS SCREEN -->
+    <div id="s-animals" class="scr">
+      <!-- Group filter -->
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+        <select id="animals-group-filter" onchange="renderAnimalsScreen()"
+          style="flex:1;padding:9px 12px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:14px;background:var(--bg);color:var(--text);font-family:inherit;">
+          <option value="">All groups</option>
+        </select>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);cursor:pointer;white-space:nowrap;">
+          <input type="checkbox" id="animals-show-culled" onchange="renderAnimalsScreen()" style="accent-color:var(--amber);">
+          Show culled
+        </label>
+      </div>
+      <!-- Selection action bar (hidden until animals selected) -->
+      <div id="animals-action-bar" style="display:none;position:sticky;top:0;z-index:30;background:var(--green);color:white;padding:10px 14px;border-radius:var(--radius);margin-bottom:10px;display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+          <div style="font-size:13px;font-weight:600;" id="animals-sel-count">0 selected</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button class="btn btn-sm" style="background:white;color:var(--green-d);padding:6px 12px;"
+              onclick="openAnimalMoveSheet('existing')">Move to group</button>
+            <button class="btn btn-sm" style="background:white;color:var(--green-d);padding:6px 12px;"
+              onclick="openAnimalMoveSheet('new')">New group</button>
+            <button class="btn btn-sm" style="background:transparent;border:1px solid rgba(255,255,255,0.5);color:white;padding:6px 12px;"
+              onclick="clearAnimalSelection()">Cancel</button>
+          </div>
+        </div>
+      </div>
+      <!-- Animal list -->
+      <div id="animals-screen-list"></div>
+
+      <!-- Add animal inline -->
+      <div class="card" style="margin-top:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <div class="sec" style="margin:0;">Add animal</div>
+          <button class="btn btn-outline btn-xs" onclick="toggleAddAnimalForm()" id="toggle-add-animal-btn">+ Add</button>
+        </div>
+        <div id="add-animal-form-inline" style="display:none;">
+          <div class="field"><label>Ear tag # <span style="font-size:10px;color:var(--text2);">optional</span></label>
+            <input type="text" id="ani-tag" placeholder="T-006"/>
+          </div>
+          <div class="two">
+            <div class="field"><label>Sex</label>
+              <select id="ani-sex"><option value="female">Female</option><option value="male">Male</option></select>
+            </div>
+            <div class="field"><label>Class</label>
+              <select id="ani-class"><option value="">— class —</option></select>
+            </div>
+          </div>
+          <div class="two">
+            <div class="field"><label>Weight (lbs)</label>
+              <input type="number" id="ani-wt" placeholder="1200" step="1"/>
+            </div>
+            <div class="field"><label>Group</label>
+              <select id="ani-group"><option value="">— unassigned —</option></select>
+            </div>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-green btn-sm" onclick="addAnimalFromScreen()">Add animal</button>
+            <button class="btn btn-outline btn-sm" onclick="toggleAddAnimalForm()">Cancel</button>
+          </div>
         </div>
       </div>
     </div>
@@ -311,6 +376,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
               </div>
             </div>
             <button class="btn btn-amber" onclick="wizCloseEvent()">Close event &amp; continue</button>
+            <button class="btn btn-outline" onclick="nav('home',document.getElementById('bn-home'))" style="margin-top:6px;">Cancel — back to home</button>
           </div>
           <!-- Open tasks on this paddock -->
           <div class="card" id="w-paddock-tasks" style="display:none;">
@@ -319,13 +385,13 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
           </div>
         </div>
         <div id="ws0-none" style="display:none;">
-          <div class="card"><div style="font-size:14px;color:var(--text2);margin-bottom:14px;">No active event. Opening your first.</div><button class="btn btn-teal" onclick="wizGo(2)">Set up first paddock</button></div>
+          <div class="card"><div style="font-size:14px;color:var(--text2);margin-bottom:14px;">No active event. Opening your first.</div><div class="btn-row"><button class="btn btn-teal" onclick="wizGo(2)">Set up first paddock</button><button class="btn btn-outline" onclick="nav('home',document.getElementById('bn-home'))">Cancel</button></div></div>
         </div>
       </div>
       <!-- Step 1 -->
       <div class="wiz-step" id="ws1">
         <div class="card" style="border-left:3px solid var(--green);" id="ws1-summary"></div>
-        <div class="card"><div style="font-size:14px;color:var(--text2);margin-bottom:14px;">Ready to move to the next paddock.</div><button class="btn btn-teal" onclick="wizGo(2)">Open new grazing event</button></div>
+        <div class="card"><div style="font-size:14px;color:var(--text2);margin-bottom:14px;">Ready to move to the next paddock.</div><div class="btn-row"><button class="btn btn-teal" onclick="wizGo(2)">Open new grazing event</button><button class="btn btn-outline" onclick="nav('home',document.getElementById('bn-home'))">Done — back to home</button></div></div>
       </div>
       <!-- Step 2 -->
       <div class="wiz-step" id="ws2">
@@ -355,7 +421,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
           <div style="margin-bottom:12px;">
             <button class="btn btn-outline btn-sm" onclick="openTodoSheet(null,true)">+ Add task for this paddock</button>
           </div>
-          <button class="btn btn-teal" onclick="wizSaveNew()">Open event on this paddock</button>
+          <div class="btn-row"><button class="btn btn-teal" onclick="wizSaveNew()">Open event on this paddock</button><button class="btn btn-outline" onclick="nav('home',document.getElementById('bn-home'))">Cancel</button></div>
         </div>
       </div>
     </div>
@@ -883,9 +949,9 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
       <svg class="bnav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
       Home
     </button>
-    <button class="bnav-btn" id="bn-feed" onclick="nav('feed',this)">
-      <svg class="bnav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-      Feed
+    <button class="bnav-btn" id="bn-animals" onclick="nav('animals',this)">
+      <svg class="bnav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+      Animals
     </button>
     <button class="bnav-btn" id="bn-todos" onclick="nav('todos',this)">
       <svg class="bnav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
@@ -1371,7 +1437,10 @@ function mergeData(local,remote){
       else{
         const ex=m[x[key]];
         if(x.status==='closed'&&ex.status==='open')m[x[key]]=x;
-        else if((x.feedEntries||[]).length>(ex.feedEntries||[]).length)m[x[key]]=x;
+        else if(x.updatedAt&&ex.updatedAt){
+          // Use most recently modified version (respects deletes)
+          if(x.updatedAt>ex.updatedAt)m[x[key]]=x;
+        } else if((x.feedEntries||[]).length>(ex.feedEntries||[]).length)m[x[key]]=x;
         else if((x.subMoves||[]).length>(ex.subMoves||[]).length)m[x[key]]=x;
       }
     });
@@ -1466,6 +1535,7 @@ function nav(screen,btn){
 function renderCurrentScreen(){
   if(curScreen==='home')renderHome();
   else if(curScreen==='feed')renderFeedScreen();
+  else if(curScreen==='animals')renderAnimalsScreen();
   else if(curScreen==='events')renderEventsLog();
   else if(curScreen==='todos')renderTodos();
   else if(curScreen==='pastures')renderPastures();
@@ -1559,7 +1629,20 @@ function renderHome(){
     noneEl.style.display='block';
   } else {
     noneEl.style.display='none';
+    // Preserve existing expanded states across re-renders
+    const wasExpanded=new Set();
+    document.querySelectorAll('.grp-card.expanded').forEach(el=>{
+      const gid=el.id.replace('grp-card-','');if(gid)wasExpanded.add(parseInt(gid));
+    });
     grpsEl.innerHTML=groups.map(g=>renderGroupCard(g)).join('');
+    // Re-apply expanded state: auto-expand cards with active events, restore others
+    groups.forEach(g=>{
+      const hasActive=!!getActiveEventForGroup(g.id);
+      if(hasActive||wasExpanded.has(g.id)){
+        const card=document.getElementById('grp-card-'+g.id);
+        if(card)card.classList.add('expanded');
+      }
+    });
   }
 
   // My open tasks
@@ -1627,21 +1710,44 @@ function renderGroupCard(g){
     </div>`;
   }
 
-  // DMI summary if active
+  // DMI + NPK summary if active
   let dmiLine='';
-  if(ae&&t.dmiTarget>0){
-    const sdmi=calcConsumedDMI(ae.feedEntries||[],0);
+  if(ae){
     const days=daysBetween(ae.dateIn,todayStr());
-    const totalTarget=t.dmiTarget*days;
-    const pastureDmi=Math.max(0,totalTarget-sdmi);
-    const pct=totalTarget>0?Math.round((pastureDmi/totalTarget)*100):null;
-    dmiLine=`<div style="font-size:12px;color:var(--text2);margin-bottom:10px;">DMI target ${Math.round(t.dmiTarget).toLocaleString()} lbs/day · ${pct!==null?pct+'% from pasture this event':''}`;
-    if(totalTarget>0){
-      const fill=Math.min(100,Math.round((sdmi/totalTarget)*100));
-      dmiLine+=`<div class="prog" style="margin-top:4px;"><div class="prog-fill" style="width:${fill}%;background:var(--amber);"></div></div>
-        <div style="font-size:10px;color:var(--text2);margin-top:2px;">${fill}% stored feed · ${100-fill}% estimated pasture</div>`;
+    const allEntries=allFeedEntries(ae);
+    const sdmi=calcConsumedDMI(allEntries,ae.feedResidual||0);
+    const st=S.settings;
+    // Running NPK based on time elapsed and pasture fraction
+    const pFrac=pastureFraction(ae);
+    const bw=(ae.head||0)*(ae.wt||0);
+    const runNPK={
+      n:bw/1000*(st.nExc||0.32)*days*pFrac,
+      p:bw/1000*(st.pExc||0.09)*days*pFrac,
+      k:bw/1000*(st.kExc||0.30)*days*pFrac,
+    };
+    const runNPKVal=runNPK.n*(st.nPrice||0.55)+runNPK.p*(st.pPrice||0.65)+runNPK.k*(st.kPrice||0.42);
+    const npkLine=bw>0?
+      `<div style="font-size:11px;color:var(--purple-d);margin-top:3px;">` +
+      `NPK deposited: N${runNPK.n.toFixed(1)} / P${runNPK.p.toFixed(1)} / K${runNPK.k.toFixed(1)} lbs` +
+      (pFrac<1?` (${Math.round(pFrac*100)}% pasture time)`:'') +
+      ` · <strong>$${runNPKVal.toFixed(2)}</strong> fert value</div>`:''
+    ;
+    if(t.dmiTarget>0){
+      const totalTarget=t.dmiTarget*days;
+      const pastureDmi=ae.noPasture?0:Math.max(0,totalTarget-sdmi);
+      const pct=ae.noPasture?0:(totalTarget>0?Math.round((pastureDmi/totalTarget)*100):null);
+      dmiLine=`<div style="font-size:12px;color:var(--text2);margin-bottom:10px;">` +
+        `DMI target ${Math.round(t.dmiTarget).toLocaleString()} lbs/day` +
+        (ae.noPasture?' · <span style="color:var(--amber-d);">100% stored feed</span>':(pct!==null?` · ${pct}% from pasture this event`:''));
+      if(totalTarget>0&&!ae.noPasture){
+        const fill=Math.min(100,Math.round((sdmi/totalTarget)*100));
+        dmiLine+=`<div class="prog" style="margin-top:4px;"><div class="prog-fill" style="width:${fill}%;background:var(--amber);"></div></div>` +
+          `<div style="font-size:10px;color:var(--text2);margin-top:2px;">${fill}% stored feed · ${100-fill}% estimated pasture</div>`;
+      }
+      dmiLine+=npkLine+'</div>';
+    } else if(npkLine){
+      dmiLine=`<div style="margin-bottom:10px;">${npkLine}</div>`;
     }
-    dmiLine+='</div>';
   }
 
   // Action buttons
@@ -1676,7 +1782,12 @@ function toggleGroupCard(gId){
 
 function goFeedGroup(gId){
   ffActiveGroupId=gId;
-  nav('feed',document.getElementById('bn-feed'));
+  // Feed screen is no longer in nav — show it directly
+  document.querySelectorAll('.scr').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.bnav-btn').forEach(b=>b.classList.remove('active'));
+  const feedScr=document.getElementById('s-feed');
+  if(feedScr){feedScr.style.removeProperty('display');feedScr.classList.add('active');}
+  curScreen='feed';renderFeedScreen();
 }
 
 function moveGroup(gId){
@@ -1917,6 +2028,7 @@ function saveFeedEntry(){
   if(!ae.feedEntries)ae.feedEntries=[];
   const entry={id:Date.now(),date:document.getElementById('ff-date').value,lines:[...ffLines]};
   ae.feedEntries.push(entry);
+  ae.updatedAt=new Date().toISOString();
   // Decrement batch inventory
   entry.lines.forEach(l=>{
     const b=S.batches.find(x=>x.id===l.batchId);
@@ -2263,7 +2375,7 @@ function renderPastures(){
       const remLbs=batches.reduce((s,b)=>s+getBatchRemaining(b),0);
       if(remLbs>0){const vol=volLbsToDisplay(remLbs);manureLine=`<div style="font-size:11px;color:var(--amber-d);margin-top:3px;">~${vol.val} ${vol.unit} in storage</div>`;}
     }
-    return `<div class="chip"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><div style="font-size:14px;font-weight:600;">${p.name} ${isActive?'<span class="badge bt">active</span>':''} ${isCon?'<span class="badge bb">confinement</span>':''}</div><div style="font-size:12px;color:var(--text2);margin-top:2px;">${detail}</div>${npkLine}${manureLine}</div><div style="display:flex;gap:6px;align-items:center;">${typeBadge}${avg!==null?`<span class="badge ${avg>=60?'bg':'ba'}">${avg}% avg</span>`:''} ${openTasks?`<span class="badge ba">${openTasks} task${openTasks!==1?'s':''}</span>`:''}<button class="btn btn-outline btn-xs" onclick="openLocEdit(${i})">Edit</button><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:20px;padding:2px 6px;" onclick="S.pastures.splice(${i},1);save();renderPastures();">×</button></div></div></div>`;
+    return `<div class="chip"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><div style="font-size:14px;font-weight:600;">${p.name} ${isActive?'<span class="badge bt">active</span>':''} ${isCon?'<span class="badge bb">confinement</span>':''}</div><div style="font-size:12px;color:var(--text2);margin-top:2px;">${detail}</div>${npkLine}${manureLine}</div><div style="display:flex;gap:6px;align-items:center;">${typeBadge}${avg!==null?`<span class="badge ${avg>=60?'bg':'ba'}">${avg}% avg</span>`:''} ${openTasks?`<span class="badge ba">${openTasks} task${openTasks!==1?'s':''}</span>`:''}<button class="btn btn-outline btn-xs" onclick="openLocEdit(${i})">Edit</button><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:20px;padding:2px 6px;" onclick="if(confirm('Delete '+S.pastures[${i}].name+'?')){S.pastures.splice(${i},1);save();renderPastures();}">×</button></div></div></div>`;
   }).join('');
 }
 
@@ -2306,7 +2418,7 @@ function addFeedType(){
 function renderFeedTypes(){
   const el=document.getElementById('ft-list');
   if(!S.feedTypes.length){el.innerHTML='<div style="font-size:13px;color:var(--text2);margin-bottom:8px;">None yet</div>';populateBatchTypeSelect();return;}
-  el.innerHTML=S.feedTypes.map((ft,i)=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);font-size:13px;"><span>${ft.name} <span class="badge bb">${ft.unit}</span> <span class="badge bg">${ft.dm}% DM</span></span><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;" onclick="S.feedTypes.splice(${i},1);save();renderFeedTypes();">×</button></div>`).join('');
+  el.innerHTML=S.feedTypes.map((ft,i)=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);font-size:13px;"><span>${ft.name} <span class="badge bb">${ft.unit}</span> <span class="badge bg">${ft.dm}% DM</span></span><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;" onclick="if(confirm('Delete feed type '+S.feedTypes[${i}].name+'?')){S.feedTypes.splice(${i},1);save();renderFeedTypes();}">×</button></div>`).join('');
   populateBatchTypeSelect();
 }
 function populateBatchTypeSelect(){document.getElementById('b-type').innerHTML='<option value="">— type —</option>'+S.feedTypes.map(ft=>`<option value="${ft.id}">${ft.name} (${ft.unit})</option>`).join('');}
@@ -2694,7 +2806,7 @@ function renderClassesList(){
   el.innerHTML=S.animalClasses.map((c,i)=>`
     <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);font-size:13px;">
       <span><strong>${c.name}</strong> <span class="badge bb">${c.species}</span> <span class="badge bt">${c.defaultWeightLbs} lbs</span> <span class="badge bg">${c.dmiPct}% DMI</span></span>
-      <button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;" onclick="S.animalClasses.splice(${i},1);save();renderClassesList();">×</button>
+      <button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;" onclick="if(confirm('Delete class '+S.animalClasses[${i}].name+'?')){S.animalClasses.splice(${i},1);save();renderClassesList();}">×</button>
     </div>`).join('');
 }
 
@@ -2778,7 +2890,8 @@ function renderGroupsList(){
 function removeGroup(i){
   const g=S.animalGroups[i];
   if(getActiveEventForGroup(g.id)){alert('Cannot remove a group with an active event. Close the event first.');return;}
-  S.animalGroups.splice(i,1);save();renderGroupsList();
+  if(!confirm('Delete group "'+g.name+'"? Animals will become unassigned.'))return;
+  S.animalGroups.splice(i,1);save();renderGroupsList();renderHome();
 }
 
 // ── Split group ───────────────────────────────────────────────────────────────
@@ -4511,7 +4624,7 @@ function renderInputProductsList(){
         <div style="font-size:11px;color:var(--text2);">$${p.cpu.toFixed(2)}/${p.unit}${npkLine}</div>
       </div>
       <button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;padding:2px 6px;"
-        onclick="S.inputProducts.splice(${i},1);save();renderInputProductsList();">×</button>
+        onclick="if(confirm('Delete product '+S.inputProducts[${i}].name+'?')){S.inputProducts.splice(${i},1);save();renderInputProductsList();}">×</button>
     </div>`;
   }).join('');
 }
@@ -5230,7 +5343,11 @@ window.onunhandledrejection=function(ev){
 let eeFeedLines=[];
 
 function openEventEdit(eventId){
-  const ev=S.events.find(e=>e.id===eventId);if(!ev)return;
+  const ev=S.events.find(e=>e.id===eventId);
+  if(!ev){logError('openEventEdit','Event not found: '+eventId,'');return;}
+  // Guard: amend/ledger events are not editable via this sheet
+  if(ev.type==='amend'){logError('openEventEdit','Tried to edit amend event: '+eventId,'');return;}
+  try{
   document.getElementById('ee-id').value=eventId;
   eeFeedLines=[];
   // Paddock selector
@@ -5265,6 +5382,10 @@ function openEventEdit(eventId){
   if(isClosed)updateEventEditPreview(ev);
   else document.getElementById('ee-preview').style.display='none';
   document.getElementById('event-edit-wrap').classList.add('open');
+  }catch(err){
+    logError('openEventEdit',err.message,err.stack);
+    alert('Could not open event editor: '+err.message);
+  }
 }
 
 function renderEeFeedList(ev){
@@ -5377,6 +5498,7 @@ function saveEeFeedEntry(){
     if(b&&l.qty>0)b.remaining=Math.max(0,+(b.remaining-l.qty).toFixed(2));
   });
   // Recalculate totals if closed
+  ev.updatedAt=new Date().toISOString();
   if(ev.status==='closed')recalcEventTotals(ev);
   save();
   renderEeFeedList(ev);
@@ -5405,6 +5527,7 @@ function deleteEeFeedEntry(entryId){
       if(b&&l.qty>0)b.remaining=+(b.remaining+l.qty).toFixed(2);
     });
   }
+  ev.updatedAt=new Date().toISOString();
   if(ev.status==='closed')recalcEventTotals(ev);
   save();renderEeFeedList(ev);updateEventEditPreview(ev);
   if(curScreen==='feed')renderFeedScreen();
@@ -5578,31 +5701,49 @@ function recalcNpkValues(){
   let updated=0;
   let totalOldVal=0, totalNewVal=0;
 
+  // Also read updated excretion rates from the settings form
+  const nExc=parseFloat(document.getElementById('s-ne').value)||S.settings.nExc||0.32;
+  const pExc=parseFloat(document.getElementById('s-pe').value)||S.settings.pExc||0.09;
+  const kExc=parseFloat(document.getElementById('s-ke').value)||S.settings.kExc||0.30;
+  let recalcedNPK=0;
+
   eligible.forEach(ev=>{
-    const npk=ev.totals.npk;
+    const days=ev.totals.days||Math.max(1,Math.round(
+      (new Date((ev.dateOut||ev.dateIn)+'T12:00:00')-new Date(ev.dateIn+'T12:00:00'))/86400000));
+    const bw=(ev.head||0)*(ev.wt||0);
+    const pFrac=(ev.totals.pFraction!=null?ev.totals.pFraction:100)/100;
+    // Recalculate NPK lbs using current excretion rates
+    const newNPK={
+      n:bw/1000*nExc*days*pFrac,
+      p:bw/1000*pExc*days*pFrac,
+      k:bw/1000*kExc*days*pFrac,
+    };
+    const changed=Math.abs((newNPK.n-(ev.totals.npk?.n||0)))>0.01;
+    if(changed)recalcedNPK++;
     const oldVal=ev.totals.npkVal||0;
-    const newVal=npk.n*nPrice + npk.p*pPrice + npk.k*kPrice;
+    const newVal=newNPK.n*nPrice + newNPK.p*pPrice + newNPK.k*kPrice;
     totalOldVal+=oldVal;
     totalNewVal+=newVal;
+    ev.totals.npk=newNPK;
     ev.totals.npkVal=newVal;
-    // Also recalc capturedNPK value if confinement
+    // Recalc capturedNPK for confinement events
     if(ev.totals.capturedNPK){
-      const cn=ev.totals.capturedNPK;
-      ev.totals.capturedNPKVal=cn.n*nPrice + cn.p*pPrice + cn.k*kPrice;
+      const capPct=(ev.totals.capturePercent||80)/100;
+      ev.totals.capturedNPK={n:newNPK.n*capPct,p:newNPK.p*capPct,k:newNPK.k*capPct};
+      ev.totals.capturedNPKVal=ev.totals.capturedNPK.n*nPrice+ev.totals.capturedNPK.p*pPrice+ev.totals.capturedNPK.k*kPrice;
     }
     updated++;
   });
 
-  // Also update S.settings with new prices so they're saved
-  S.settings.nPrice=nPrice;
-  S.settings.pPrice=pPrice;
-  S.settings.kPrice=kPrice;
+  // Save updated rates and prices to settings
+  S.settings.nPrice=nPrice; S.settings.pPrice=pPrice; S.settings.kPrice=kPrice;
+  S.settings.nExc=nExc; S.settings.pExc=pExc; S.settings.kExc=kExc;
 
   save();
 
   const diff=totalNewVal-totalOldVal;
   const diffStr=(diff>=0?'+':'')+diff.toFixed(2);
-  const msg=`Updated ${updated} event${updated!==1?'s':''}. `+
+  const msg=`Updated ${updated} event${updated!==1?'s':''}${recalcedNPK?' ('+recalcedNPK+' NPK lbs recalculated)':''}. `+
     `Total NPK value: $${totalOldVal.toFixed(2)} → $${totalNewVal.toFixed(2)} `+
     `(${diffStr} change over ${days} days).`;
   showNpkRecalcResult('ok', msg);
@@ -5627,6 +5768,261 @@ function showNpkRecalcResult(type, msg){
 }
 
 // ─── END NPK VALUE RECALCULATION ─────────────────────────────────────────────
+
+
+// ─── ANIMALS SCREEN ───────────────────────────────────────────────────────────
+
+let animalScreenSelected = new Set(); // ids of selected animals
+
+function renderAnimalsScreen(){
+  // Populate group filter
+  const gf = document.getElementById('animals-group-filter');
+  if(gf){
+    const cur = gf.value;
+    gf.innerHTML = '<option value="">All groups</option>' +
+      S.animalGroups.map(g=>`<option value="${g.id}"${String(g.id)===cur?' selected':''}>${g.name}</option>`).join('') +
+      `<option value="unassigned"${cur==='unassigned'?' selected':''}>Unassigned</option>`;
+  }
+
+  const el = document.getElementById('animals-screen-list');
+  if(!el) return;
+
+  const groupFilter = document.getElementById('animals-group-filter')?.value || '';
+  const showCulled  = document.getElementById('animals-show-culled')?.checked || false;
+
+  let animals = [...S.animals];
+  if(!showCulled) animals = animals.filter(a=>a.active!==false);
+
+  if(groupFilter === 'unassigned'){
+    const assigned = new Set(S.animalGroups.flatMap(g=>g.animalIds||[]));
+    animals = animals.filter(a=>!assigned.has(a.id));
+  } else if(groupFilter){
+    const gId = parseInt(groupFilter);
+    const g = S.animalGroups.find(x=>x.id===gId);
+    const ids = new Set(g ? g.animalIds||[] : []);
+    animals = animals.filter(a=>ids.has(a.id));
+  }
+
+  // Sort: active first, then by tag
+  animals.sort((a,b)=>{
+    if(a.active===false && b.active!==false) return 1;
+    if(a.active!==false && b.active===false) return -1;
+    return (a.tagNum||a.systemId||'').localeCompare(b.tagNum||b.systemId||'');
+  });
+
+  if(!animals.length){
+    el.innerHTML = '<div class="empty">No animals match this filter</div>';
+    updateAnimalActionBar();
+    return;
+  }
+
+  el.innerHTML = animals.map(a=>{
+    const cls = S.animalClasses.find(c=>c.id===a.classId);
+    const grp = getAnimalGroup(a.id);
+    const isCulled = a.active===false;
+    const isSelected = animalScreenSelected.has(a.id);
+    const displayWt = a.weightLbs||(cls?cls.defaultWeightLbs:null);
+    const sexIcon = a.sex==='male'?'♂':'♀';
+    const primaryLabel = a.tagNum||a.systemId||'—';
+    const ae = grp ? getActiveEventForGroup(grp.id) : null;
+
+    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:0.5px solid var(--border);opacity:${isCulled?'0.5':'1'};">
+      <!-- Checkbox for multi-select -->
+      <div onclick="toggleAnimalScreenSelect(${a.id})" style="width:22px;height:22px;border-radius:6px;border:1.5px solid ${isSelected?'var(--green)':'var(--border2)'};background:${isSelected?'var(--green)':'transparent'};display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;">
+        ${isSelected?'<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>':''}
+      </div>
+      <!-- Main row taps to edit -->
+      <div style="flex:1;min-width:0;cursor:pointer;" onclick="openAnimalEdit(${a.id})">
+        <div style="font-size:13px;font-weight:600;">${primaryLabel}
+          <span style="font-size:11px;color:var(--text2);font-weight:400;">${sexIcon}</span>
+          ${isCulled?`<span class="badge br" style="font-size:10px;">${a.cullRecord?a.cullRecord.reason:'culled'}</span>`:''}
+          ${ae?`<span class="badge bt" style="font-size:10px;">${ae.pasture}</span>`:''}
+        </div>
+        <div style="font-size:11px;color:var(--text2);">${cls?cls.name:'No class'} · ${grp?grp.name:'unassigned'}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;display:flex;align-items:center;gap:6px;">
+        <div style="cursor:pointer;" onclick="openAnimalEdit(${a.id})">
+          <div style="font-size:13px;font-weight:600;">${displayWt?displayWt+' lbs':'no wt'}</div>
+        </div>
+        <button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:18px;padding:2px 6px;flex-shrink:0;"
+          onclick="deleteAnimalFromScreen(${a.id})">×</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  updateAnimalActionBar();
+}
+
+function toggleAnimalScreenSelect(id){
+  if(animalScreenSelected.has(id)) animalScreenSelected.delete(id);
+  else animalScreenSelected.add(id);
+  renderAnimalsScreen();
+}
+
+function clearAnimalSelection(){
+  animalScreenSelected.clear();
+  renderAnimalsScreen();
+}
+
+function updateAnimalActionBar(){
+  const bar = document.getElementById('animals-action-bar');
+  if(!bar) return;
+  const n = animalScreenSelected.size;
+  bar.style.display = n > 0 ? 'block' : 'none';
+  const countEl = document.getElementById('animals-sel-count');
+  if(countEl) countEl.textContent = n + ' animal' + (n!==1?'s':'') + ' selected';
+}
+
+// ── Animal move/split sheet ───────────────────────────────────────────────────
+let animalMoveMode = 'existing'; // 'existing' | 'new'
+
+function openAnimalMoveSheet(mode){
+  animalMoveMode = mode;
+  const ids = [...animalScreenSelected];
+  if(!ids.length) return;
+  // Build summary
+  const animals = ids.map(id=>S.animals.find(a=>a.id===id)).filter(Boolean);
+  document.getElementById('am-animal-count').textContent =
+    animals.length + ' animal' + (animals.length!==1?'s':'') + ' selected';
+  document.getElementById('am-animal-list').textContent =
+    animals.slice(0,8).map(a=>a.tagNum||a.systemId).join(', ') +
+    (animals.length>8?' + '+(animals.length-8)+' more':'');
+
+  // Show relevant section
+  document.getElementById('am-existing-section').style.display = mode==='existing'?'block':'none';
+  document.getElementById('am-new-section').style.display = mode==='new'?'block':'none';
+
+  if(mode==='existing'){
+    // Populate group selector (exclude groups these animals already belong to)
+    const currentGroups = new Set(ids.map(id=>getAnimalGroup(id)?.id).filter(Boolean));
+    document.getElementById('am-group-select').innerHTML =
+      '<option value="">— select group —</option>' +
+      S.animalGroups.map(g=>
+        `<option value="${g.id}">${g.name} (${getGroupTotals(g).totalHead} head)</option>`
+      ).join('');
+  } else {
+    document.getElementById('am-new-name').value = '';
+    // Set color default
+    amNewColor = '#1D9E75';
+    document.querySelectorAll('#am-color-picker div').forEach((d,i)=>{
+      d.style.border = i===0 ? '2px solid var(--text)' : '2px solid transparent';
+    });
+  }
+
+  document.getElementById('animal-move-wrap').classList.add('open');
+}
+function closeAnimalMoveSheet(){document.getElementById('animal-move-wrap').classList.remove('open');}
+
+let amNewColor = '#1D9E75';
+function selAmColor(el, color){
+  amNewColor = color;
+  document.querySelectorAll('#am-color-picker div').forEach(d=>d.style.border='2px solid transparent');
+  el.style.border = '2px solid var(--text)';
+}
+
+function saveAnimalMove(){
+  const ids = [...animalScreenSelected];
+  if(!ids.length) return;
+
+  if(animalMoveMode === 'existing'){
+    const targetId = parseInt(document.getElementById('am-group-select').value);
+    if(!targetId){alert('Select a group');return;}
+    const targetGrp = S.animalGroups.find(g=>g.id===targetId);
+    if(!targetGrp){alert('Group not found');return;}
+    // Remove from current groups
+    ids.forEach(id=>{
+      S.animalGroups.forEach(g=>{
+        if((g.animalIds||[]).includes(id)) g.animalIds = g.animalIds.filter(x=>x!==id);
+      });
+    });
+    // Add to target
+    if(!targetGrp.animalIds) targetGrp.animalIds = [];
+    ids.forEach(id=>{ if(!targetGrp.animalIds.includes(id)) targetGrp.animalIds.push(id); });
+    save();
+    closeAnimalMoveSheet();
+    clearAnimalSelection();
+    renderAnimalsScreen();
+    renderGroupsList();
+    renderHome();
+    alert(`${ids.length} animal${ids.length!==1?'s':''} moved to ${targetGrp.name}.`);
+
+  } else {
+    // New group
+    const name = document.getElementById('am-new-name').value.trim();
+    if(!name){alert('Enter a name for the new group');return;}
+    // Remove from current groups
+    ids.forEach(id=>{
+      S.animalGroups.forEach(g=>{
+        if((g.animalIds||[]).includes(id)) g.animalIds = g.animalIds.filter(x=>x!==id);
+      });
+    });
+    const newId = Date.now();
+    S.animalGroups.push({id:newId, name, color:amNewColor, animalIds:[...ids]});
+    save();
+    closeAnimalMoveSheet();
+    clearAnimalSelection();
+    renderAnimalsScreen();
+    renderGroupsList();
+    renderHome();
+    alert(`New group "${name}" created with ${ids.length} animal${ids.length!==1?'s':''}.`);
+  }
+}
+
+// ─── END ANIMALS SCREEN ───────────────────────────────────────────────────────
+
+
+function toggleAddAnimalForm(){
+  const form = document.getElementById('add-animal-form-inline');
+  const btn  = document.getElementById('toggle-add-animal-btn');
+  if(!form) return;
+  const open = form.style.display === 'none' || !form.style.display;
+  form.style.display = open ? 'block' : 'none';
+  if(btn) btn.textContent = open ? '− Close' : '+ Add';
+  if(open){
+    // Populate selects
+    const cls = document.getElementById('ani-class');
+    if(cls) cls.innerHTML = '<option value="">— class —</option>' +
+      S.animalClasses.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+    const grp = document.getElementById('ani-group');
+    if(grp) grp.innerHTML = '<option value="">— unassigned —</option>' +
+      S.animalGroups.map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
+  }
+}
+
+function addAnimalFromScreen(){
+  const tag = document.getElementById('ani-tag').value.trim() || null;
+  if(tag && S.animals.find(a=>a.tagNum===tag)){alert('Ear tag '+tag+' already exists');return;}
+  const classId = parseInt(document.getElementById('ani-class').value)||null;
+  const wt = parseFloat(document.getElementById('ani-wt').value)||null;
+  const groupId = parseInt(document.getElementById('ani-group').value)||null;
+  const newId = Date.now();
+  S.animals.push({
+    id:newId, systemId:generateSystemId(), tagNum:tag,
+    eid:null, sex:document.getElementById('ani-sex').value,
+    classId, weightLbs:wt,
+    weightHistory:wt?[{date:todayStr(),weightLbs:wt,note:'Initial weight'}]:[],
+    notes:'', active:true, cullRecord:null, damId:null, sireTag:null, calvingRecords:[],
+    createdAt:new Date().toISOString()
+  });
+  if(groupId){
+    const g=S.animalGroups.find(x=>x.id===groupId);
+    if(g){if(!g.animalIds)g.animalIds=[];g.animalIds.push(newId);}
+  }
+  save();
+  ['ani-tag','ani-wt'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  toggleAddAnimalForm();
+  renderAnimalsScreen();
+  renderGroupsList();
+}
+
+function deleteAnimalFromScreen(animalId){
+  const a = getAnimalById(animalId); if(!a) return;
+  const label = a.tagNum || a.systemId || 'this animal';
+  if(!confirm('Delete '+label+'? This permanently removes the animal and all associated records.'))return;
+  S.animalGroups.forEach(g=>{g.animalIds=(g.animalIds||[]).filter(x=>x!==animalId);});
+  S.animals = S.animals.filter(x=>x.id!==animalId);
+  save(); renderAnimalsScreen(); renderGroupsList();
+}
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 const _wout=document.getElementById('w-out-date');if(_wout)_wout.value=todayStr();
@@ -6250,6 +6646,52 @@ if(driveState.connected&&driveState.accessToken&&Date.now()<(driveState.tokenExp
       <button class="btn btn-green" onclick="saveEventEdit()">Save &amp; recalculate</button>
       <button class="btn btn-red btn-sm" onclick="deleteEvent()" style="width:auto;padding:12px 14px;">Delete</button>
       <button class="btn btn-outline" onclick="closeEventEdit()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ANIMAL MOVE / NEW GROUP SHEET -->
+<div class="sheet-wrap" id="animal-move-wrap">
+  <div class="sheet-backdrop" onclick="closeAnimalMoveSheet()"></div>
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:4px;" id="am-title">Move animals</div>
+    <div style="font-size:13px;font-weight:600;margin-bottom:2px;" id="am-animal-count"></div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:14px;" id="am-animal-list"></div>
+
+    <!-- Move to existing group -->
+    <div id="am-existing-section">
+      <div class="field"><label>Move to group</label>
+        <select id="am-group-select">
+          <option value="">— select group —</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Create new group -->
+    <div id="am-new-section" style="display:none;">
+      <div class="field"><label>New group name</label>
+        <input type="text" id="am-new-name" placeholder="e.g. Yearlings, Dry cows…"/>
+      </div>
+      <div class="field"><label>Color</label>
+        <div style="display:flex;gap:8px;margin-top:4px;" id="am-color-picker">
+          <div onclick="selAmColor(this,'#1D9E75')" style="width:28px;height:28px;border-radius:50%;background:#1D9E75;cursor:pointer;border:2px solid var(--text);"></div>
+          <div onclick="selAmColor(this,'#639922')" style="width:28px;height:28px;border-radius:50%;background:#639922;cursor:pointer;border:2px solid transparent;"></div>
+          <div onclick="selAmColor(this,'#185FA5')" style="width:28px;height:28px;border-radius:50%;background:#185FA5;cursor:pointer;border:2px solid transparent;"></div>
+          <div onclick="selAmColor(this,'#BA7517')" style="width:28px;height:28px;border-radius:50%;background:#BA7517;cursor:pointer;border:2px solid transparent;"></div>
+          <div onclick="selAmColor(this,'#534AB7')" style="width:28px;height:28px;border-radius:50%;background:#534AB7;cursor:pointer;border:2px solid transparent;"></div>
+          <div onclick="selAmColor(this,'#E24B4A')" style="width:28px;height:28px;border-radius:50%;background:#E24B4A;cursor:pointer;border:2px solid transparent;"></div>
+        </div>
+      </div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">
+        Selected animals will be removed from their current groups. Use Move Herd on the Home screen to place the new group.
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-green" onclick="saveAnimalMove()">Confirm</button>
+      <button class="btn btn-outline" onclick="closeAnimalMoveSheet()">Cancel</button>
     </div>
   </div>
 </div>
