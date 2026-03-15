@@ -470,14 +470,8 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
         <div id="drive-disconnected">
           <div class="drive-dashed">
             <div style="font-size:15px;font-weight:600;margin-bottom:6px;">Connect Google Drive</div>
-            <div style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6;">Your farm data saves to your own Google Drive. Access from any device. You own the data — it never touches our servers.</div>
+            <div style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6;">Your farm data saves to your own Google Drive. Access it from any device. You own the data — it never touches our servers.</div>
             <button class="btn btn-blue btn-sm" onclick="driveConnect()">Connect Google Drive</button>
-          </div>
-          <div class="card-inset">
-            <div style="font-size:12px;font-weight:600;margin-bottom:8px;">One-time setup</div>
-            <div style="font-size:12px;color:var(--text2);line-height:1.75;">1. Go to <strong>console.cloud.google.com</strong><br>2. Create project → Enable <strong>Google Drive API</strong><br>3. Credentials → OAuth 2.0 → Web application<br>4. Add your app URL to <em>Authorized JS origins</em><br>5. Copy the Client ID below</div>
-            <div class="field" style="margin-top:10px;margin-bottom:6px;"><label>OAuth Client ID</label><input type="text" id="oauth-client-id" placeholder="xxxx.apps.googleusercontent.com"/></div>
-            <button class="btn btn-green btn-sm" onclick="saveClientId()">Save Client ID</button>
           </div>
         </div>
         <div id="drive-connected" style="display:none;">
@@ -873,6 +867,7 @@ if(!S.settings.manureLoadLbs)S.settings.manureLoadLbs=8000;
 if(!S.settings.manureVolumeUnit)S.settings.manureVolumeUnit='loads';
 
 let driveState = JSON.parse(localStorage.getItem('gthy-drive')||'{}');
+if(!driveState.clientId)driveState.clientId='520206017987-2o679cboufc1f486i0hentj0kktdkut6.apps.googleusercontent.com';
 let activeUserId = localStorage.getItem('gthy-user')||null;
 if(activeUserId)activeUserId=parseInt(activeUserId);
 
@@ -908,12 +903,7 @@ const DRIVE_SCOPE='https://www.googleapis.com/auth/drive.file';
 const DATA_FILENAME='gthy-data.json';
 let syncTimer=null;
 
-function saveClientId(){
-  const id=document.getElementById('oauth-client-id').value.trim();
-  if(!id){alert('Paste your OAuth Client ID first');return;}
-  driveState.clientId=id;saveDriveState();
-  alert('Client ID saved. Now tap "Connect Google Drive".');
-}
+function saveClientId(){driveState.clientId='520206017987-2o679cboufc1f486i0hentj0kktdkut6.apps.googleusercontent.com';saveDriveState();}
 
 function driveConnect(){
   if(!driveState.clientId){alert('Enter your OAuth Client ID first.');return;}
@@ -1055,7 +1045,7 @@ function updateDriveUI(){
       document.getElementById('farm-code-display').textContent=code?formatFarmCode(code):'Syncing...';
     } else {farmCodeSection.style.display='none';}
   }
-  if(driveState.clientId){const el=document.getElementById('oauth-client-id');if(el)el.value=driveState.clientId;}
+  // Client ID is hardcoded — no input field to populate
 }
 
 // ─── EXPORT / IMPORT ──────────────────────────────────────────────────────────
@@ -1840,7 +1830,7 @@ function loadSettings(){
   if(st.manureLoadLbs&&document.getElementById('s-load-lbs'))document.getElementById('s-load-lbs').value=st.manureLoadLbs;
   if(st.manureVolumeUnit&&document.getElementById('s-vol-unit'))document.getElementById('s-vol-unit').value=st.manureVolumeUnit;
   document.getElementById('s-ver').value=S.version||'v1.0';document.getElementById('s-tester').value=S.testerName||'';
-  if(driveState.clientId){const el=document.getElementById('oauth-client-id');if(el)el.value=driveState.clientId;}
+  // Client ID is hardcoded — no input field to populate
 }
 function addFeedType(){
   const name=document.getElementById('ft-name').value.trim();if(!name)return;
