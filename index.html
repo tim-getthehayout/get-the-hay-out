@@ -1759,6 +1759,7 @@ function renderGroupCard(g){
   const moveBtn=`<button class="btn btn-teal" onclick="moveGroup(${g.id})">${ae?'Move':'Place'}</button>`;
   const splitBtn=ae?`<button class="btn btn-outline" onclick="openSplitSheet(${g.id})">Split</button>`:'';
   const wtBtn=`<button class="btn btn-outline" onclick="openWtSheet(${g.id})">Weights</button>`;
+  const editEventBtn=ae?`<button class="btn btn-outline" onclick="openEventEdit(${ae.id})">Edit event</button>`:'';
 
   return `<div class="grp-card" id="grp-card-${g.id}">
     <div class="grp-card-hdr" onclick="toggleGroupCard(${g.id})">
@@ -1773,7 +1774,7 @@ function renderGroupCard(g){
       <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">${comp}</div>
       ${locBar}
       ${dmiLine}
-      <div class="grp-actions">${feedBtn}${subMoveBtn}${moveBtn}${splitBtn}${wtBtn}</div>
+      <div class="grp-actions">${feedBtn}${subMoveBtn}${moveBtn}${splitBtn}${wtBtn}${editEventBtn}</div>
     </div>
   </div>`;
 }
@@ -2305,7 +2306,7 @@ function renderEventsLog(){
           <button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openEventEdit(${e.id})">Edit</button>
         </div>
       </div>
-      <div class="row-detail">${isClosed?`${dLabel(e.dateIn)} → ${dLabel(e.dateOut)} · ${days} days · $${(t.cost||0).toFixed(2)} · ${e.noPasture?'<span style="color:var(--amber-d);">100% stored feed</span>':(t.pct!==undefined?t.pct+'% pasture':'--')}`:dLabel(e.dateIn)+' → ongoing · '+days+' · '+(e.feedEntries||[]).length+' feedings'}${isClosed&&t.npkVal?`<br>NPK: N${t.npk?t.npk.n.toFixed(1):0}/P${t.npk?t.npk.p.toFixed(1):0}/K${t.npk?t.npk.k.toFixed(1):0} lbs · $${t.npkVal.toFixed(2)} fert value`:''}</div>
+      <div class="row-detail">${isClosed?`${dLabel(e.dateIn)} → ${dLabel(e.dateOut)} · ${days} days · $${(t.cost||0).toFixed(2)} · ${e.noPasture?'<span style="color:var(--amber-d);">100% stored feed</span>':(t.pct!==undefined?t.pct+'% pasture':'--')}`:dLabel(e.dateIn)+' → ongoing · '+days+' · '+(e.feedEntries||[]).length+' feedings'}${isClosed&&t.npkVal?`<br>NPK: N${t.npk?t.npk.n.toFixed(1):0}/P${t.npk?t.npk.p.toFixed(1):0}/K${t.npk?t.npk.k.toFixed(1):0} lbs · $${t.npkVal.toFixed(2)} fert value`:''}${isClosed&&e.noPasture&&t.dmiVariance?`<br><span style="color:${Math.abs(t.dmiVariance.variancePct)<5?'var(--green-d)':t.dmiVariance.variancePct>0?'var(--amber-d)':'var(--blue-d)'};">DMI: ${Math.round(t.dmiVariance.actualDMI).toLocaleString()} fed vs ${Math.round(t.dmiVariance.expectedDMI).toLocaleString()} expected (${t.dmiVariance.variancePct>0?'+':''}${t.dmiVariance.variancePct}%)</span>`:''}</div>
     </div>`;
   }).join('');
 }
@@ -5370,9 +5371,10 @@ function openEventEdit(eventId){
   document.getElementById('ee-ht-out').value=ev.heightOut||'';
   document.getElementById('ee-notes').value=ev.notes||'';
   const isClosed=ev.status==='closed';
+  // noPasture flag always visible
+  document.getElementById('ee-no-pasture').checked=ev.noPasture||false;
   // Closed-only fields
   document.getElementById('ee-closed-fields').style.display=isClosed?'block':'none';
-  document.getElementById('ee-no-pasture').checked=ev.noPasture||false;
   const resSlider=document.getElementById('ee-feed-res');
   const resPct=document.getElementById('ee-res-pct');
   if(resSlider){resSlider.value=ev.feedResidual||0;resPct.textContent=(ev.feedResidual||0)+'%';}
@@ -5382,8 +5384,8 @@ function openEventEdit(eventId){
   const badge=document.getElementById('ee-status-badge');
   badge.textContent=isClosed?'closed':'active';
   badge.className='badge '+(isClosed?'bb':'bt');
-  if(isClosed)updateEventEditPreview(ev);
-  else document.getElementById('ee-preview').style.display='none';
+  if(isClosed){updateEventEditPreview(ev);renderDmiVariance(ev);}
+  else{document.getElementById('ee-preview').style.display='none';document.getElementById('ee-dmi-variance').style.display='none';}
   document.getElementById('event-edit-wrap').classList.add('open');
   }catch(err){
     logError('openEventEdit',err.message,err.stack);
@@ -5573,10 +5575,20 @@ function editEeFeedEntry(entryId){
   renderEeFeedList(ev);
 }
 
+function onEeNoPastureChange(){
+  updateEventEditPreview();
+  // Show/hide variance panel
+  const evId=parseInt(document.getElementById('ee-id').value);
+  const ev=S.events.find(e=>e.id===evId);
+  if(ev&&ev.status==='closed') renderDmiVariance(ev);
+}
+
 function updateEventEditPreview(ev){
   const evId=parseInt(document.getElementById('ee-id').value);
   if(!ev) ev=S.events.find(e=>e.id===evId);
-  if(!ev||ev.status!=='closed'){document.getElementById('ee-preview').style.display='none';return;}
+  if(!ev){document.getElementById('ee-preview').style.display='none';return;}
+  const isClosed=ev.status==='closed';
+  if(!isClosed){document.getElementById('ee-preview').style.display='none';return;}
   const dateIn=document.getElementById('ee-date-in').value||ev.dateIn;
   const dateOut=document.getElementById('ee-date-out').value||ev.dateOut;
   const head=parseFloat(document.getElementById('ee-head').value)||ev.head||0;
@@ -5630,10 +5642,11 @@ function saveEventEdit(){
   ev.heightIn=parseFloat(document.getElementById('ee-ht-in').value)||null;
   ev.heightOut=parseFloat(document.getElementById('ee-ht-out').value)||null;
   ev.notes=document.getElementById('ee-notes').value.trim();
+  // Always persist noPasture flag (applies to open events too)
+  ev.noPasture=document.getElementById('ee-no-pasture')?.checked||false;
   // Recalculate totals for closed events
   if(ev.status==='closed'){
     ev.feedResidual=parseInt(document.getElementById('ee-feed-res')?.value)||0;
-    ev.noPasture=document.getElementById('ee-no-pasture')?.checked||false;
     recalcEventTotals(ev);
   }
   save();closeEventEdit();
@@ -5676,7 +5689,14 @@ function recalcEventTotals(ev){
   const pFraction=ev.totals?ev.totals.pFraction:100;
   const npk={n:bw/1000*(st.nExc||0.32)*days,p:bw/1000*(st.pExc||0.09)*days,k:bw/1000*(st.kExc||0.30)*days};
   const npkVal=npk.n*(st.nPrice||0.55)+npk.p*(st.pPrice||0.65)+npk.k*(st.kPrice||0.42);
-  ev.totals={...ev.totals,days,storedDMI,pastureDMI,cost:feedCost,pct,npk,npkVal};
+  // Compute and store DMI variance for noPasture events
+  let dmiVariance=null;
+  if(ev.noPasture&&dmiTarget>0){
+    const varLbs=storedDMI-dmiTarget*days;
+    dmiVariance={expectedDMI:dmiTarget*days,actualDMI:storedDMI,
+                 varianceLbs:varLbs,variancePct:Math.round((varLbs/(dmiTarget*days))*100)};
+  }
+  ev.totals={...ev.totals,days,storedDMI,pastureDMI,cost:feedCost,pct,npk,npkVal,dmiVariance};
 }
 // ─── END RECALCULATE ──────────────────────────────────────────────────────────
 
@@ -5719,12 +5739,14 @@ function recalcNpkValues(){
     const days=ev.totals.days||Math.max(1,Math.round(
       (new Date((ev.dateOut||ev.dateIn)+'T12:00:00')-new Date(ev.dateIn+'T12:00:00'))/86400000));
     const bw=(ev.head||0)*(ev.wt||0);
-    const pFrac=(ev.totals.pFraction!=null?ev.totals.pFraction:100)/100;
-    // Recalculate NPK lbs using current excretion rates
+    // NOTE: do NOT multiply by pFraction here — pFraction adjustment is only
+    // for sub-move NPK routing at close time. recalcEventTotals also omits it.
+    // Applying pFraction in a price recalc would zero out events where
+    // pFraction was stored as 0.
     const newNPK={
-      n:bw/1000*nExc*days*pFrac,
-      p:bw/1000*pExc*days*pFrac,
-      k:bw/1000*kExc*days*pFrac,
+      n:bw/1000*nExc*days,
+      p:bw/1000*pExc*days,
+      k:bw/1000*kExc*days,
     };
     const changed=Math.abs((newNPK.n-(ev.totals.npk?.n||0)))>0.01;
     if(changed)recalcedNPK++;
@@ -6031,6 +6053,54 @@ function deleteAnimalFromScreen(animalId){
   S.animals = S.animals.filter(x=>x.id!==animalId);
   save(); renderAnimalsScreen(); renderGroupsList();
 }
+
+
+// ─── DMI VARIANCE (stored feed actual vs expected) ───────────────────────────
+
+function calcDmiVariance(ev){
+  // Only meaningful for noPasture closed events with feed data
+  if(!ev.noPasture || ev.status!=='closed') return null;
+  const days = ev.totals?.days || Math.max(1, Math.round(
+    (new Date(ev.dateOut+'T12:00:00') - new Date(ev.dateIn+'T12:00:00')) / 86400000));
+  const head = ev.head||0, wt = ev.wt||0;
+  if(!head || !wt) return null;
+  const g = getGroupById(ev.groupId);
+  const t = g ? getGroupTotals(g) : null;
+  const dmiPct = t&&t.totalHead>0 ? (t.dmiTarget/(t.totalLiveWeight||head*wt)) : 0.025;
+  const expectedDMI = head * wt * dmiPct * days;
+  const allEntries = allFeedEntries(ev);
+  const actualDMI = calcConsumedDMI(allEntries, ev.feedResidual||0);
+  const varianceLbs = actualDMI - expectedDMI;
+  const variancePct = expectedDMI > 0 ? Math.round((varianceLbs / expectedDMI) * 100) : 0;
+  return { expectedDMI, actualDMI, varianceLbs, variancePct, days, dmiPct };
+}
+
+function renderDmiVariance(ev){
+  const panel = document.getElementById('ee-dmi-variance');
+  const content = document.getElementById('ee-dmi-variance-content');
+  if(!panel||!content) return;
+  const noPasture = document.getElementById('ee-no-pasture')?.checked || ev.noPasture;
+  if(!noPasture || ev.status!=='closed'){panel.style.display='none';return;}
+  const v = calcDmiVariance(ev);
+  if(!v){panel.style.display='none';return;}
+  panel.style.display='block';
+  const sign = v.varianceLbs >= 0 ? '+' : '';
+  const color = Math.abs(v.variancePct) < 5 ? 'var(--green-d)' :
+                Math.abs(v.variancePct) < 15 ? 'var(--amber-d)' : 'var(--red-d)';
+  content.innerHTML =
+    `Expected DMI: ${Math.round(v.expectedDMI).toLocaleString()} lbs `+
+    `(${(v.dmiPct*100).toFixed(1)}% BW × ${v.days} days)<br>`+
+    `Actual fed: ${Math.round(v.actualDMI).toLocaleString()} lbs<br>`+
+    `<span style="color:${color};font-weight:600;">Variance: ${sign}${Math.round(v.varianceLbs).toLocaleString()} lbs `+
+    `(${sign}${v.variancePct}%)</span><br>`+
+    `<span style="font-size:11px;color:var(--text2);">`+
+    (Math.abs(v.variancePct) < 5 ? 'Within 5% — DMI estimate looks accurate.' :
+     v.variancePct > 0 ? 'Animals consumed more than expected — consider raising DMI%.' :
+                         'Animals consumed less than expected — consider lowering DMI%.')+
+    `</span>`;
+}
+
+// ─── END DMI VARIANCE ─────────────────────────────────────────────────────────
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 const _wout=document.getElementById('w-out-date');if(_wout)_wout.value=todayStr();
@@ -6605,16 +6675,16 @@ if(driveState.connected&&driveState.accessToken&&Date.now()<(driveState.tokenExp
       <div class="field"><label>Post-graze ht (in) <span style="font-size:10px;color:var(--text2);">opt</span></label>
         <input type="number" id="ee-ht-out" step="0.5"/></div>
     </div>
+    <!-- 100% stored feed flag — visible for all events (open and closed) -->
+    <label style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:0.5px solid var(--border);border-bottom:0.5px solid var(--border);cursor:pointer;margin-bottom:10px;">
+      <input type="checkbox" id="ee-no-pasture" style="width:18px;height:18px;accent-color:var(--amber);flex-shrink:0;" onchange="onEeNoPastureChange()">
+      <div>
+        <div style="font-size:13px;font-weight:500;">100% stored feed (no pasture available)</div>
+        <div style="font-size:11px;color:var(--text2);">Bale grazing, drought feeding, winter lot — pasture DMI set to zero</div>
+      </div>
+    </label>
     <!-- Closed event fields -->
     <div id="ee-closed-fields">
-      <!-- No-pasture flag -->
-      <label style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:0.5px solid var(--border);border-bottom:0.5px solid var(--border);cursor:pointer;margin-bottom:10px;">
-        <input type="checkbox" id="ee-no-pasture" style="width:18px;height:18px;accent-color:var(--amber);flex-shrink:0;" onchange="updateEventEditPreview()">
-        <div>
-          <div style="font-size:13px;font-weight:500;">100% stored feed (no pasture available)</div>
-          <div style="font-size:11px;color:var(--text2);">Bale grazing, drought feeding, winter confinement — pasture DMI set to zero, stored feed IS total intake</div>
-        </div>
-      </label>
       <!-- Feed residual -->
       <div class="field">
         <label>Feed residual — % of last feeding left uneaten</label>
@@ -6624,6 +6694,11 @@ if(driveState.connected&&driveState.accessToken&&Date.now()<(driveState.tokenExp
           <span class="slider-out" id="ee-res-pct">0%</span>
         </div>
         <div style="font-size:11px;color:var(--text2);margin-top:2px;">Reduces DMI of the most recent feeding to account for waste / leftover</div>
+      </div>
+      <!-- DMI variance display (noPasture events only) -->
+      <div id="ee-dmi-variance" style="display:none;" class="card-inset">
+        <div style="font-size:12px;font-weight:600;margin-bottom:6px;">DMI actual vs expected</div>
+        <div id="ee-dmi-variance-content" style="font-size:12px;color:var(--text2);line-height:1.8;"></div>
       </div>
     </div>
     <!-- Feed log (all events) -->
