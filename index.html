@@ -299,10 +299,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
               <div class="slider-row"><input type="range" id="w-feed-res" min="0" max="100" step="5" value="0" oninput="document.getElementById('w-res-pct').textContent=this.value+'%';calcClosePreview();"/><span class="slider-out" id="w-res-pct">0%</span></div>
               <div style="font-size:11px;color:var(--text2);margin-top:2px;">Reduces DMI of last feeding — accounts for waste / leftover feed remaining</div>
             </div>
-            <label style="display:flex;align-items:center;gap:10px;padding:8px 0;cursor:pointer;">
-              <input type="checkbox" id="w-no-pasture" onchange="calcClosePreview()" style="width:16px;height:16px;accent-color:var(--amber);flex-shrink:0;">
-              <div style="font-size:13px;">100% stored feed — no pasture available <span style="font-size:11px;color:var(--text2);">(bale grazing, drought, winter)</span></div>
-            </label>
+
             <div id="close-preview" style="display:none;"><div class="div"></div><div class="sec">Event totals preview</div>
               <div class="m-grid">
                 <div class="m-cell"><div class="ml">Days</div><div class="mv" id="cp-days">--</div></div>
@@ -741,6 +738,24 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
           <div class="field"><label>N</label><input type="number" id="s-np" step="0.01" placeholder="0.55"/></div>
           <div class="field"><label>P</label><input type="number" id="s-pp" step="0.01" placeholder="0.65"/></div>
           <div class="field"><label>K</label><input type="number" id="s-kp" step="0.01" placeholder="0.42"/></div>
+        </div>
+        <div style="background:var(--bg2);border-radius:var(--radius);padding:12px;margin-top:8px;">
+          <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Recalculate NPK values on past events</div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.6;">When fertilizer prices change, update the dollar value of manure deposited on past events. NPK quantities (lbs) are not changed — only the $/acre value.</div>
+          <div style="display:flex;gap:10px;align-items:flex-end;">
+            <div class="field" style="flex:1;margin-bottom:0;">
+              <label>Recalculate events from last</label>
+              <div style="display:flex;gap:8px;align-items:center;margin-top:4px;">
+                <input type="number" id="s-recalc-days" min="1" max="3650" step="1" placeholder="365"
+                       style="width:80px;padding:7px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:14px;background:var(--bg);color:var(--text);font-family:inherit;"/>
+                <span style="font-size:13px;color:var(--text2);">days</span>
+              </div>
+            </div>
+            <button class="btn btn-amber btn-sm" onclick="recalcNpkValues()" style="white-space:nowrap;margin-bottom:0;">
+              Recalculate values
+            </button>
+          </div>
+          <div id="npk-recalc-result" style="display:none;font-size:12px;margin-top:8px;padding:6px 10px;border-radius:var(--radius);"></div>
         </div>
       </div>
       <div class="card">
@@ -1592,7 +1607,7 @@ function renderGroupCard(g){
     const cost=calcEntryCost(ae.feedEntries||[]);
     const isCon=ae.locationType==='confinement';
     const locIcon=isCon?'🏚':'🌿';
-    const locBadge=isCon?'<span class="badge bb" style="font-size:10px;">confinement</span>':'<span class="badge bg" style="font-size:10px;">grazing</span>';
+    const locBadge=isCon?'<span class="badge bb" style="font-size:10px;">confinement</span>':ae.noPasture?'<span class="badge ba" style="font-size:10px;">stored feed</span>':'<span class="badge bg" style="font-size:10px;">grazing</span>';
     const subMoves = ae.subMoves||[];
     const subHrsTotal = subMoves.reduce((s,sm)=>s+(sm.durationHours||0),0);
     const totalHrs = eventTotalHours(ae);
@@ -1978,6 +1993,7 @@ function initWizFromGroup(){
   }
   const _wout=document.getElementById('w-out-date');if(_wout)_wout.value=todayStr();
   const _win=document.getElementById('w-in-date');if(_win)_win.value=todayStr();
+  const _wnp=document.getElementById('w-no-pasture');if(_wnp)_wnp.checked=false;
   const g=wizGroupId?getGroupById(wizGroupId):null;
   const t=g?getGroupTotals(g):null;
   if(t&&t.totalHead)document.getElementById('w-new-head').value=t.totalHead;
@@ -2038,7 +2054,6 @@ function wizCloseEvent(){
   const {days,sdmi,cost,npk,npkVal,pdmi,pct,pFraction,subHrs,totalHrs,subMoveNPK} = totals;
   ae.dateOut=outDate;ae.heightOut=parseFloat(document.getElementById('w-res-h').value)||null;
   ae.feedResidual=feedRes;
-  ae.noPasture=document.getElementById('w-no-pasture')?.checked||false;
   ae.status='closed';
   ae.totals={days,storedDMI:sdmi,pastureDMI:pdmi,cost,pct,npk,npkVal,
              pFraction:Math.round(pFraction*100),subMoveHours:subHrs,totalHours:totalHrs};
@@ -2146,7 +2161,8 @@ function wizSaveNew(){
   if(wizFeedLines.some(l=>l.qty>0))feedEntries.push({id:Date.now(),date:inDate,lines:[...wizFeedLines]});
   const g=wizGroupId?getGroupById(wizGroupId):null;
   const t=g?getGroupTotals(g):{totalHead:0,avgWeight:0};
-  S.events.push({id:Date.now()+1,status:'open',pasture:locName,locationType:isCon?'confinement':'pasture',groupId:wizGroupId||null,groupName:g?g.name:'',dateIn:inDate,head:parseFloat(document.getElementById('w-new-head').value)||t.totalHead||0,wt:parseFloat(document.getElementById('w-new-wt').value)||t.avgWeight||0,heightIn:(!isCon&&parseFloat(document.getElementById('w-new-h').value))||null,feedEntries});
+  const noPastureFlag=document.getElementById('w-no-pasture')?.checked||false;
+  S.events.push({id:Date.now()+1,status:'open',pasture:locName,locationType:isCon?'confinement':'pasture',groupId:wizGroupId||null,groupName:g?g.name:'',dateIn:inDate,noPasture:noPastureFlag,head:parseFloat(document.getElementById('w-new-head').value)||t.totalHead||0,wt:parseFloat(document.getElementById('w-new-wt').value)||t.avgWeight||0,heightIn:(!isCon&&parseFloat(document.getElementById('w-new-h').value))||null,feedEntries});
   wizFeedLines=[];save();nav('home',document.getElementById('bn-home'));
 }
 
@@ -2156,7 +2172,7 @@ function renderEventsLog(){
   const ab=document.getElementById('ev-active-banner');
   ab.innerHTML=ae?`<div class="banner ban-green"><div style="font-size:14px;font-weight:600;color:var(--green-d);">Active: ${ae.pasture} — Day ${daysBetween(ae.dateIn,todayStr())}</div><div style="font-size:12px;color:var(--green-d);opacity:0.85;">In ${dLabel(ae.dateIn)} · ${(ae.feedEntries||[]).length} feedings</div></div>`:'';
   const filter=document.getElementById('ev-filter').value;
-  let evs=[...S.events].reverse();
+  let evs=[...S.events].filter(e=>e.type!=='amend').reverse();
   if(filter==='open')evs=evs.filter(e=>e.status==='open');
   if(filter==='closed')evs=evs.filter(e=>e.status==='closed');
   const el=document.getElementById('ev-list');
@@ -5274,6 +5290,7 @@ function renderEeFeedList(ev){
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
         <div style="text-align:right;font-size:12px;color:var(--text2);">${Math.round(dmi)} lbs DMI<br>$${cost.toFixed(2)}</div>
+        <button class="btn btn-outline btn-xs" onclick="editEeFeedEntry('${entry.id}')">Edit</button>
         <button class="btn btn-outline btn-xs" style="color:var(--red-d);border-color:var(--red-d);"
           onclick="deleteEeFeedEntry('${entry.id}')">×</button>
       </div>
@@ -5293,6 +5310,14 @@ function openEeFeedEntry(){
   document.getElementById('ee-feed-form').style.display='block';
 }
 function closeEeFeedEntry(){
+  // If editing was in progress and cancelled, we need to restore the entry
+  if(eeEditingEntryId){
+    const evId=parseInt(document.getElementById('ee-id').value);
+    const ev=S.events.find(e=>e.id===evId);
+    // Entry was already restored to inventory in editEeFeedEntry, nothing else to do
+    eeEditingEntryId=null;
+    if(ev){renderEeFeedList(ev);updateEventEditPreview(ev);}
+  }
   document.getElementById('ee-feed-form').style.display='none';
   eeFeedLines=[];
 }
@@ -5342,7 +5367,8 @@ function saveEeFeedEntry(){
   // Date validation — must be within event window
   if(ev.dateOut&&date>ev.dateOut){alert('Feed date is after event close date ('+ev.dateOut+')');return;}
   if(date<ev.dateIn){alert('Feed date is before event start date ('+ev.dateIn+')');return;}
-  const entry={id:Date.now(),date,lines:eeFeedLines.filter(l=>l.qty>0).map(l=>({...l}))};
+  const entry={id:eeEditingEntryId?parseInt(eeEditingEntryId):Date.now(),date,lines:eeFeedLines.filter(l=>l.qty>0).map(l=>({...l}))};
+  eeEditingEntryId=null;
   if(!ev.feedEntries)ev.feedEntries=[];
   ev.feedEntries.push(entry);
   // Decrement inventory
@@ -5382,6 +5408,43 @@ function deleteEeFeedEntry(entryId){
   if(ev.status==='closed')recalcEventTotals(ev);
   save();renderEeFeedList(ev);updateEventEditPreview(ev);
   if(curScreen==='feed')renderFeedScreen();
+}
+
+let eeEditingEntryId=null;
+
+function editEeFeedEntry(entryId){
+  const evId=parseInt(document.getElementById('ee-id').value);
+  const ev=S.events.find(e=>e.id===evId);if(!ev)return;
+  // Find the entry
+  let entry=(ev.feedEntries||[]).find(e=>String(e.id)===String(entryId));
+  if(!entry){
+    for(const sm of (ev.subMoves||[])){
+      entry=(sm.feedEntries||[]).find(e=>String(e.id)===String(entryId));
+      if(entry)break;
+    }
+  }
+  if(!entry)return;
+  eeEditingEntryId=String(entryId);
+  // Restore inventory before re-editing (will be re-decremented on save)
+  entry.lines.forEach(l=>{
+    const b=S.batches.find(x=>x.id===l.batchId);
+    if(b&&l.qty>0)b.remaining=+(b.remaining+l.qty).toFixed(2);
+  });
+  // Pre-populate the feed form
+  document.getElementById('ee-feed-date').value=entry.date;
+  eeFeedLines=entry.lines.map(l=>({...l}));
+  renderEeFeedBatches();
+  document.getElementById('ee-feed-form').style.display='block';
+  // Temporarily remove entry so it doesn't show as duplicate
+  const mainIdx=(ev.feedEntries||[]).findIndex(e=>String(e.id)===String(entryId));
+  if(mainIdx>=0)ev.feedEntries.splice(mainIdx,1);
+  else{
+    for(const sm of (ev.subMoves||[])){
+      const smIdx=(sm.feedEntries||[]).findIndex(e=>String(e.id)===String(entryId));
+      if(smIdx>=0){sm.feedEntries.splice(smIdx,1);break;}
+    }
+  }
+  renderEeFeedList(ev);
 }
 
 function updateEventEditPreview(ev){
@@ -5485,6 +5548,85 @@ function recalcEventTotals(ev){
   ev.totals={...ev.totals,days,storedDMI,pastureDMI,cost:feedCost,pct,npk,npkVal};
 }
 // ─── END RECALCULATE ──────────────────────────────────────────────────────────
+
+
+// ─── NPK VALUE RECALCULATION ──────────────────────────────────────────────────
+
+function recalcNpkValues(){
+  // Save current price settings first
+  const nPrice=parseFloat(document.getElementById('s-np').value)||S.settings.nPrice||0.55;
+  const pPrice=parseFloat(document.getElementById('s-pp').value)||S.settings.pPrice||0.65;
+  const kPrice=parseFloat(document.getElementById('s-kp').value)||S.settings.kPrice||0.42;
+  const days=parseInt(document.getElementById('s-recalc-days').value)||365;
+  const cutoff=new Date();
+  cutoff.setDate(cutoff.getDate()-days);
+  const cutoffStr=cutoff.toISOString().slice(0,10);
+
+  // Find all closed grazing events within the window that have NPK data
+  const eligible=S.events.filter(e=>
+    e.status==='closed' &&
+    e.type!=='amend' &&
+    e.totals && e.totals.npk &&
+    (e.dateOut||e.dateIn) >= cutoffStr
+  );
+
+  if(!eligible.length){
+    showNpkRecalcResult('warn',`No closed events with NPK data in the last ${days} days.`);
+    return;
+  }
+
+  let updated=0;
+  let totalOldVal=0, totalNewVal=0;
+
+  eligible.forEach(ev=>{
+    const npk=ev.totals.npk;
+    const oldVal=ev.totals.npkVal||0;
+    const newVal=npk.n*nPrice + npk.p*pPrice + npk.k*kPrice;
+    totalOldVal+=oldVal;
+    totalNewVal+=newVal;
+    ev.totals.npkVal=newVal;
+    // Also recalc capturedNPK value if confinement
+    if(ev.totals.capturedNPK){
+      const cn=ev.totals.capturedNPK;
+      ev.totals.capturedNPKVal=cn.n*nPrice + cn.p*pPrice + cn.k*kPrice;
+    }
+    updated++;
+  });
+
+  // Also update S.settings with new prices so they're saved
+  S.settings.nPrice=nPrice;
+  S.settings.pPrice=pPrice;
+  S.settings.kPrice=kPrice;
+
+  save();
+
+  const diff=totalNewVal-totalOldVal;
+  const diffStr=(diff>=0?'+':'')+diff.toFixed(2);
+  const msg=`Updated ${updated} event${updated!==1?'s':''}. `+
+    `Total NPK value: $${totalOldVal.toFixed(2)} → $${totalNewVal.toFixed(2)} `+
+    `(${diffStr} change over ${days} days).`;
+  showNpkRecalcResult('ok', msg);
+
+  // Refresh stats if visible
+  if(curScreen==='home')renderStats();
+  if(curScreen==='pastures')renderPastures();
+}
+
+function showNpkRecalcResult(type, msg){
+  const el=document.getElementById('npk-recalc-result');
+  if(!el)return;
+  const colors={
+    ok:  ['var(--teal-l)','var(--teal-d)'],
+    warn:['var(--amber-l)','var(--amber-d)'],
+  };
+  const [bg,col]=colors[type]||colors.ok;
+  el.style.background=bg; el.style.color=col;
+  el.textContent=msg;
+  el.style.display='block';
+  if(type==='ok')setTimeout(()=>{el.style.display='none';},8000);
+}
+
+// ─── END NPK VALUE RECALCULATION ─────────────────────────────────────────────
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 const _wout=document.getElementById('w-out-date');if(_wout)_wout.value=todayStr();
