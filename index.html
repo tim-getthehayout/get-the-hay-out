@@ -569,7 +569,10 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
         <div class="div"></div>
         <div style="margin-top:12px;">
           <div style="font-size:12px;color:var(--red-d);margin-bottom:8px;font-weight:500;">Danger zone</div>
-          <button class="btn btn-sm" style="background:transparent;border:1px solid var(--red-d);color:var(--red-d);" onclick="openResetSheet()">Reset all data…</button>
+          <div class="btn-row">
+            <button class="btn btn-sm" style="background:transparent;border:1px solid var(--red-d);color:var(--red-d);" onclick="openResetSheet('events')">Reset events only…</button>
+            <button class="btn btn-sm" style="background:transparent;border:1px solid var(--red-d);color:var(--red-d);" onclick="openResetSheet('all')">Reset all data…</button>
+          </div>
         </div>
         <input type="file" id="import-file" accept=".json" style="display:none;" onchange="importDataJSON(event)"/>
         <div id="import-status" style="font-size:12px;color:var(--teal-d);margin-top:8px;display:none;"></div>
@@ -1556,6 +1559,7 @@ function renderHome(){
   // Season stats rendered via metric registry
   renderStats();
 
+  const allClosed=S.events.filter(e=>e.status==='closed');
   const el=document.getElementById('h-event-list');
   if(!allClosed.length){el.innerHTML='<div class="empty">No closed events yet</div>';}
   else{
@@ -4815,9 +4819,35 @@ function reactivateAnimal(animalId){
 
 
 // ─── RESET DATA ───────────────────────────────────────────────────────────────
-function openResetSheet(){
+function openResetSheet(mode='all'){
   document.getElementById('reset-confirm-input').value='';
   document.getElementById('reset-confirm-btn').disabled=true;
+  document.getElementById('reset-confirm-btn').dataset.mode=mode;
+  // Update warning text based on mode
+  const warningEl=document.getElementById('reset-warning-content');
+  if(warningEl){
+    if(mode==='events'){
+      warningEl.innerHTML=`<div style="font-size:13px;font-weight:600;color:var(--red-d);margin-bottom:4px;">This will erase all event data:</div>
+        <div style="font-size:12px;color:var(--red-d);line-height:1.8;">
+          · All grazing events (open and closed)<br>
+          · All feed entries and history<br>
+          · All manure batches and inventory<br>
+          · All input applications<br>
+          · All tasks<br>
+          <strong>Preserved:</strong> Animals, groups, locations, feed types &amp; batches, settings, users, feedback
+        </div>`;
+    } else {
+      warningEl.innerHTML=`<div style="font-size:13px;font-weight:600;color:var(--red-d);margin-bottom:4px;">This will permanently erase everything:</div>
+        <div style="font-size:12px;color:var(--red-d);line-height:1.8;">
+          · All animals, groups, and classes<br>
+          · All pasture events and locations<br>
+          · All feed types, batches, and inventory<br>
+          · All manure batches and input applications<br>
+          · All tasks, users, and feedback<br>
+          · All settings and operation name
+        </div>`;
+    }
+  }
   document.getElementById('reset-sheet-wrap').classList.add('open');
   setTimeout(()=>document.getElementById('reset-confirm-input').focus(),300);
 }
@@ -4826,7 +4856,30 @@ function closeResetSheet(){
 }
 async function executeReset(){
   if(document.getElementById('reset-confirm-input').value!=='YES')return;
+  const mode=document.getElementById('reset-confirm-btn').dataset.mode||'all';
   const ver=S.version||'v1.0';
+  if(mode==='events'){
+    // Events-only reset — preserve setup data
+    S.events=[];
+    S.manureBatches=[];
+    S.inputApplications=[];
+    S.todos=[];
+    // Reset batch inventory to original quantities (since events consumed them)
+    S.batches.forEach(b=>b.remaining=b.qty);
+    saveLocal();
+    closeResetSheet();
+    if(driveState.connected&&driveState.accessToken&&driveState.fileId){
+      setSyncStatus('pending','Resetting Drive...');
+      driveWriteFile(JSON.stringify(S,null,2)).then(()=>{
+        driveState.lastSync=new Date().toISOString();saveDriveState();
+        setSyncStatus('ok','Events reset');
+      }).catch(e=>setSyncStatus('error','Local reset done — Drive write failed'));
+    }
+    updateHeader();renderHome();renderCurrentScreen();
+    alert('All event data erased. Setup data (animals, locations, feed inventory) preserved. Batch inventory restored to original quantities.');
+    return;
+  }
+  // Full reset
   // Wipe S to empty state
   S={
     pastures:[],events:[],feedTypes:[],batches:[],
@@ -5308,11 +5361,18 @@ function saveEeFeedEntry(){
 function deleteEeFeedEntry(entryId){
   const evId=parseInt(document.getElementById('ee-id').value);
   const ev=S.events.find(e=>e.id===evId);if(!ev)return;
-  // Find entry in main feedEntries or subMove feedEntries
+  if(!confirm('Delete this feed entry? Batch inventory will be restored.'))return;
+  // Search main feedEntries and all subMove feedEntries
   let entry=null;
-  const idx=(ev.feedEntries||[]).findIndex(e=>String(e.id)===String(entryId));
-  if(idx>=0){entry=ev.feedEntries[idx];ev.feedEntries.splice(idx,1);}
-  // Restore inventory when deleting
+  const mainIdx=(ev.feedEntries||[]).findIndex(e=>String(e.id)===String(entryId));
+  if(mainIdx>=0){entry=ev.feedEntries[mainIdx];ev.feedEntries.splice(mainIdx,1);}
+  else {
+    for(const sm of (ev.subMoves||[])){
+      const smIdx=(sm.feedEntries||[]).findIndex(e=>String(e.id)===String(entryId));
+      if(smIdx>=0){entry=sm.feedEntries[smIdx];sm.feedEntries.splice(smIdx,1);break;}
+    }
+  }
+  // Restore inventory
   if(entry){
     entry.lines.forEach(l=>{
       const b=S.batches.find(x=>x.id===l.batchId);
@@ -5321,6 +5381,7 @@ function deleteEeFeedEntry(entryId){
   }
   if(ev.status==='closed')recalcEventTotals(ev);
   save();renderEeFeedList(ev);updateEventEditPreview(ev);
+  if(curScreen==='feed')renderFeedScreen();
 }
 
 function updateEventEditPreview(ev){
@@ -5328,8 +5389,6 @@ function updateEventEditPreview(ev){
   const dateOut=document.getElementById('ee-date-out').value||ev.dateOut;
   const head=parseFloat(document.getElementById('ee-head').value)||ev.head||0;
   const wt=parseFloat(document.getElementById('ee-wt').value)||ev.wt||0;
-  const storedDMI=parseFloat(document.getElementById('ee-stored-dmi').value)||0;
-  const feedCost=parseFloat(document.getElementById('ee-feed-cost').value)||0;
   if(!dateIn||!dateOut||!head||!wt){
     document.getElementById('ee-preview').style.display='none';return;
   }
@@ -5933,7 +5992,7 @@ if(driveState.connected&&driveState.accessToken&&Date.now()<(driveState.tokenExp
       </div>
       <div style="font-size:17px;font-weight:600;color:var(--red-d);">Reset all data</div>
     </div>
-    <div class="banner ban-red" style="margin-bottom:16px;">
+    <div class="banner ban-red" style="margin-bottom:16px;" id="reset-warning-content">
       <div style="font-size:13px;font-weight:600;color:var(--red-d);margin-bottom:4px;">This will permanently erase everything:</div>
       <div style="font-size:12px;color:var(--red-d);line-height:1.8;">
         · All animals, groups, and classes<br>
