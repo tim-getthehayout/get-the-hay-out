@@ -1360,6 +1360,7 @@ function mergeData(local,remote){
     feedback:         ma(local.feedback||[],      remote.feedback||[]),
     // Scalar / object fields
     herd:    remote.herd&&remote.herd.name ? remote.herd : (local.herd||{}),
+    _herdMigrated: local._herdMigrated||remote._herdMigrated||false,
     settings:mergeObj(local.settings,remote.settings),
     version:     local.version||remote.version||'v1.0',
     testerName:  local.testerName||remote.testerName||'',
@@ -1373,6 +1374,7 @@ function ensureDataArrays(){
                 'animals','users','todos','feedback'];
   arrays.forEach(k=>{if(!Array.isArray(S[k]))S[k]=[];});
   if(!S.herd)S.herd={name:'',type:'',count:0,weight:0,dmi:2.5};
+  if(S._herdMigrated===undefined)S._herdMigrated=S.animalGroups&&S.animalGroups.length>0;
   if(!S.settings)S.settings={};
 }
 
@@ -2547,22 +2549,38 @@ const DEFAULT_CLASSES = [
 ];
 
 function migrateHerdToGroups(){
-  // Already migrated if groups exist
-  if(S.animalGroups&&S.animalGroups.length>0)return;
-  // Seed default classes
-  if(!S.animalClasses||!S.animalClasses.length){S.animalClasses=DEFAULT_CLASSES.map(c=>({...c}));}
-  if(!S.animalGroups)S.animalGroups=[];
-  // Create default group from legacy S.herd
-  if(S.herd&&(S.herd.count||S.herd.name)){
+  // Use a persistent flag so this runs exactly once, ever.
+  // Checking animalGroups.length alone is not safe — the array can be empty
+  // legitimately (new user) or transiently (post-sync before re-render) and
+  // we must not create phantom groups in either case.
+  if(S._herdMigrated)return;
+
+  // Seed default animal classes if none exist yet
+  if(!S.animalClasses||!S.animalClasses.length){
+    S.animalClasses=DEFAULT_CLASSES.map(c=>({...c}));
+  }
+  if(!Array.isArray(S.animalGroups))S.animalGroups=[];
+
+  // Only create a group from legacy S.herd if there was real legacy data
+  // (count > 0 means an actual herd was configured, not just an operation name)
+  if(S.herd&&S.herd.count>0){
     let classes=[];
-    const cnt=S.herd.count||10;const wt=S.herd.weight||1000;
-    if(S.herd.type&&S.herd.type.includes('Sheep'))classes=[{classId:105,count:cnt,avgWeightLbs:wt}];
-    else if(S.herd.type&&S.herd.type.includes('Goat'))classes=[{classId:108,count:cnt,avgWeightLbs:wt}];
-    else classes=[{classId:101,count:Math.ceil(cnt*0.8),avgWeightLbs:wt},{classId:102,count:Math.floor(cnt*0.2),avgWeightLbs:Math.round(wt*0.7)}].filter(c=>c.count>0);
+    const cnt=S.herd.count;const wt=S.herd.weight||1000;
+    if(S.herd.type&&S.herd.type.includes('Sheep'))
+      classes=[{classId:105,count:cnt,avgWeightLbs:wt}];
+    else if(S.herd.type&&S.herd.type.includes('Goat'))
+      classes=[{classId:108,count:cnt,avgWeightLbs:wt}];
+    else
+      classes=[
+        {classId:101,count:Math.ceil(cnt*0.8),avgWeightLbs:wt},
+        {classId:102,count:Math.floor(cnt*0.2),avgWeightLbs:Math.round(wt*0.7)}
+      ].filter(c=>c.count>0);
     const grpId=Date.now();
-    S.animalGroups.push({id:grpId,name:S.herd.name||'Main herd',color:'#639922',classes});
+    S.animalGroups.push({id:grpId,name:'Main herd',color:'#639922',classes});
     S.events.filter(e=>!e.groupId).forEach(e=>{e.groupId=grpId;});
   }
+
+  S._herdMigrated=true;  // permanent flag — never run again
   saveLocal();
 }
 
