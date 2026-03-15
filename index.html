@@ -297,7 +297,12 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
             <div class="sec">Feed residual — left uneaten</div>
             <div class="field"><label>% of last feeding left behind</label>
               <div class="slider-row"><input type="range" id="w-feed-res" min="0" max="100" step="5" value="0" oninput="document.getElementById('w-res-pct').textContent=this.value+'%';calcClosePreview();"/><span class="slider-out" id="w-res-pct">0%</span></div>
+              <div style="font-size:11px;color:var(--text2);margin-top:2px;">Reduces DMI of last feeding — accounts for waste / leftover feed remaining</div>
             </div>
+            <label style="display:flex;align-items:center;gap:10px;padding:8px 0;cursor:pointer;">
+              <input type="checkbox" id="w-no-pasture" onchange="calcClosePreview()" style="width:16px;height:16px;accent-color:var(--amber);flex-shrink:0;">
+              <div style="font-size:13px;">100% stored feed — no pasture available <span style="font-size:11px;color:var(--text2);">(bale grazing, drought, winter)</span></div>
+            </label>
             <div id="close-preview" style="display:none;"><div class="div"></div><div class="sec">Event totals preview</div>
               <div class="m-grid">
                 <div class="m-cell"><div class="ml">Days</div><div class="mv" id="cp-days">--</div></div>
@@ -1891,7 +1896,13 @@ function saveFeedEntry(){
   if(!ae){alert('No active event');return;}
   if(!ffLines.length){alert('Select a feed batch');return;}
   if(!ae.feedEntries)ae.feedEntries=[];
-  ae.feedEntries.push({id:Date.now(),date:document.getElementById('ff-date').value,lines:[...ffLines]});
+  const entry={id:Date.now(),date:document.getElementById('ff-date').value,lines:[...ffLines]};
+  ae.feedEntries.push(entry);
+  // Decrement batch inventory
+  entry.lines.forEach(l=>{
+    const b=S.batches.find(x=>x.id===l.batchId);
+    if(b&&l.qty>0)b.remaining=Math.max(0,+(b.remaining-l.qty).toFixed(2));
+  });
   ffLines=[];save();renderFFBatches();renderFFHistory(ae);
 }
 function renderFFHistory(ae){
@@ -2022,7 +2033,9 @@ function wizCloseEvent(){
   const totals = calcEventTotalsWithSubMoves(ae, outDate, feedRes);
   const {days,sdmi,cost,npk,npkVal,pdmi,pct,pFraction,subHrs,totalHrs,subMoveNPK} = totals;
   ae.dateOut=outDate;ae.heightOut=parseFloat(document.getElementById('w-res-h').value)||null;
-  ae.feedResidual=feedRes;ae.status='closed';
+  ae.feedResidual=feedRes;
+  ae.noPasture=document.getElementById('w-no-pasture')?.checked||false;
+  ae.status='closed';
   ae.totals={days,storedDMI:sdmi,pastureDMI:pdmi,cost,pct,npk,npkVal,
              pFraction:Math.round(pFraction*100),subMoveHours:subHrs,totalHours:totalHrs};
   // Credit NPK to each sub-move location
@@ -2157,7 +2170,7 @@ function renderEventsLog(){
           <button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openEventEdit(${e.id})">Edit</button>
         </div>
       </div>
-      <div class="row-detail">${isClosed?`${dLabel(e.dateIn)} → ${dLabel(e.dateOut)} · ${days} days · $${(t.cost||0).toFixed(2)} · ${t.pct!==undefined?t.pct+'% pasture':'--'}`:dLabel(e.dateIn)+' → ongoing · '+days+' · '+(e.feedEntries||[]).length+' feedings'}${isClosed&&t.npkVal?`<br>NPK: N${t.npk?t.npk.n.toFixed(1):0}/P${t.npk?t.npk.p.toFixed(1):0}/K${t.npk?t.npk.k.toFixed(1):0} lbs · $${t.npkVal.toFixed(2)} fert value`:''}</div>
+      <div class="row-detail">${isClosed?`${dLabel(e.dateIn)} → ${dLabel(e.dateOut)} · ${days} days · $${(t.cost||0).toFixed(2)} · ${e.noPasture?'<span style="color:var(--amber-d);">100% stored feed</span>':(t.pct!==undefined?t.pct+'% pasture':'--')}`:dLabel(e.dateIn)+' → ongoing · '+days+' · '+(e.feedEntries||[]).length+' feedings'}${isClosed&&t.npkVal?`<br>NPK: N${t.npk?t.npk.n.toFixed(1):0}/P${t.npk?t.npk.p.toFixed(1):0}/K${t.npk?t.npk.k.toFixed(1):0} lbs · $${t.npkVal.toFixed(2)} fert value`:''}</div>
     </div>`;
   }).join('');
 }
@@ -4422,8 +4435,8 @@ function calcEventTotalsWithSubMoves(ae, outDate, feedRes){
   const g = getGroupById(ae.groupId);
   const t = g ? getGroupTotals(g) : null;
   const dmiTarget = t ? t.dmiTarget : (head*wt*0.025);
-  const pdmi = dmiTarget ? Math.max(0, dmiTarget*days - sdmi) : null;
-  const pct  = dmiTarget&&dmiTarget*days>0 ? Math.round((pdmi/(dmiTarget*days))*100) : null;
+  const pdmi = ae.noPasture ? 0 : (dmiTarget ? Math.max(0, dmiTarget*days - sdmi) : null);
+  const pct  = ae.noPasture ? 0 : (dmiTarget&&dmiTarget*days>0 ? Math.round((pdmi/(dmiTarget*days))*100) : null);
 
   // Sub-move NPK allocations (for crediting to those locations on close)
   const subMoveNPK = totalHrs>0 ? (ae.subMoves||[]).map(sm=>({
@@ -5145,9 +5158,12 @@ window.onunhandledrejection=function(ev){
 
 // ─── EVENT EDIT ───────────────────────────────────────────────────────────────
 
+let eeFeedLines=[];
+
 function openEventEdit(eventId){
   const ev=S.events.find(e=>e.id===eventId);if(!ev)return;
   document.getElementById('ee-id').value=eventId;
+  eeFeedLines=[];
   // Paddock selector
   const padSel=document.getElementById('ee-paddock');
   padSel.innerHTML='<option value="">— select —</option>'+
@@ -5156,7 +5172,7 @@ function openEventEdit(eventId){
   const grpSel=document.getElementById('ee-group');
   grpSel.innerHTML='<option value="">— none —</option>'+
     S.animalGroups.map(g=>`<option value="${g.id}"${g.id===ev.groupId?' selected':''}>${g.name}</option>`).join('');
-  // Fields
+  // Core fields
   document.getElementById('ee-date-in').value=ev.dateIn||'';
   document.getElementById('ee-date-out').value=ev.dateOut||'';
   document.getElementById('ee-head').value=ev.head||'';
@@ -5165,19 +5181,146 @@ function openEventEdit(eventId){
   document.getElementById('ee-ht-out').value=ev.heightOut||'';
   document.getElementById('ee-notes').value=ev.notes||'';
   const isClosed=ev.status==='closed';
-  const closedFields=document.getElementById('ee-closed-fields');
-  closedFields.style.display=isClosed?'block':'none';
-  if(isClosed){
-    document.getElementById('ee-stored-dmi').value=ev.totals?ev.totals.storedDMI||'':'';
-    document.getElementById('ee-feed-cost').value=ev.totals?ev.totals.cost||'':'';
-  }
+  // Closed-only fields
+  document.getElementById('ee-closed-fields').style.display=isClosed?'block':'none';
+  document.getElementById('ee-no-pasture').checked=ev.noPasture||false;
+  const resSlider=document.getElementById('ee-feed-res');
+  const resPct=document.getElementById('ee-res-pct');
+  if(resSlider){resSlider.value=ev.feedResidual||0;resPct.textContent=(ev.feedResidual||0)+'%';}
+  // Feed log (all events)
+  renderEeFeedList(ev);
+  closeEeFeedEntry();
   const badge=document.getElementById('ee-status-badge');
   badge.textContent=isClosed?'closed':'active';
   badge.className='badge '+(isClosed?'bb':'bt');
-  // Show preview if closed
   if(isClosed)updateEventEditPreview(ev);
   else document.getElementById('ee-preview').style.display='none';
   document.getElementById('event-edit-wrap').classList.add('open');
+}
+
+function renderEeFeedList(ev){
+  const el=document.getElementById('ee-feed-list');if(!el)return;
+  const entries=allFeedEntries(ev);
+  if(!entries.length){el.innerHTML='<div style="font-size:13px;color:var(--text2);">No feed entries yet</div>';return;}
+  el.innerHTML=entries.map((entry,ei)=>{
+    let dmi=0,cost=0;
+    entry.lines.forEach(l=>{
+      const b=S.batches.find(x=>x.id===l.batchId);
+      if(!b||!l.qty)return;
+      const af=b.wt?l.qty*b.wt:l.qty;
+      dmi+=af*(b.dm/100);cost+=l.qty*(b.cpu||0);
+    });
+    const desc=entry.lines.filter(l=>l.qty>0).map(l=>{
+      const b=S.batches.find(x=>x.id===l.batchId);
+      return b?l.qty+' '+b.unit+' '+b.label:'';
+    }).filter(Boolean).join(', ');
+    return `<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:7px 0;border-bottom:0.5px solid var(--border);">
+      <div>
+        <div style="font-size:13px;font-weight:500;">${dLabel(entry.date)}</div>
+        <div style="font-size:11px;color:var(--text2);">${desc||'—'}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+        <div style="text-align:right;font-size:12px;color:var(--text2);">${Math.round(dmi)} lbs DMI<br>$${cost.toFixed(2)}</div>
+        <button class="btn btn-outline btn-xs" style="color:var(--red-d);border-color:var(--red-d);"
+          onclick="deleteEeFeedEntry('${entry.id}')">×</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openEeFeedEntry(){
+  const evId=parseInt(document.getElementById('ee-id').value);
+  const ev=S.events.find(e=>e.id===evId);if(!ev)return;
+  eeFeedLines=[];
+  // Default date to today clamped within event window
+  const today=todayStr();
+  const defaultDate=ev.dateOut&&today>ev.dateOut?ev.dateOut:today<ev.dateIn?ev.dateIn:today;
+  document.getElementById('ee-feed-date').value=defaultDate;
+  renderEeFeedBatches();
+  document.getElementById('ee-feed-form').style.display='block';
+}
+function closeEeFeedEntry(){
+  document.getElementById('ee-feed-form').style.display='none';
+  eeFeedLines=[];
+}
+
+function renderEeFeedBatches(){
+  const el=document.getElementById('ee-feed-batch-sel');if(!el)return;
+  const active=S.batches.filter(b=>b.remaining>0||S.batches.some(x=>x.id===b.id));
+  // Show all batches (including near-empty — historical adds don't require remaining)
+  el.innerHTML=S.batches.map(b=>{
+    const on=eeFeedLines.find(l=>l.batchId===b.id);
+    return `<div class="batch-sel${on?' on':''}" onclick="toggleEeFeedBatch(${b.id})">
+      <div><div style="font-size:13px;font-weight:600;">${b.label}</div>
+      <div style="font-size:11px;color:var(--text2);">${b.remaining.toFixed(1)} ${b.unit}s remaining</div></div>
+      <div class="chk">${on?'<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>':''}</div>
+    </div>`;
+  }).join('');
+  renderEeFeedQtyLines();
+}
+
+function toggleEeFeedBatch(id){
+  const i=eeFeedLines.findIndex(l=>l.batchId===id);
+  if(i>=0)eeFeedLines.splice(i,1);else eeFeedLines.push({batchId:id,qty:0});
+  renderEeFeedBatches();
+}
+function renderEeFeedQtyLines(){
+  const el=document.getElementById('ee-feed-qty-lines');if(!el)return;
+  if(!eeFeedLines.length){el.innerHTML='';return;}
+  el.innerHTML=eeFeedLines.map((l,i)=>{
+    const b=S.batches.find(x=>x.id===l.batchId);
+    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+      <div style="flex:1;font-size:14px;font-weight:500;">${b.label} <span style="font-size:11px;color:var(--text2);">${b.unit}s</span></div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button class="qty-btn" onclick="adjEeFeed(${i},-0.5)">−</button>
+        <span class="qty-val">${l.qty}</span>
+        <button class="qty-btn" onclick="adjEeFeed(${i},0.5)">+</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function adjEeFeed(i,d){eeFeedLines[i].qty=Math.max(0,+(eeFeedLines[i].qty+d).toFixed(1));renderEeFeedQtyLines();}
+
+function saveEeFeedEntry(){
+  const evId=parseInt(document.getElementById('ee-id').value);
+  const ev=S.events.find(e=>e.id===evId);if(!ev)return;
+  if(!eeFeedLines.some(l=>l.qty>0)){alert('Enter a quantity for at least one batch');return;}
+  const date=document.getElementById('ee-feed-date').value;
+  // Date validation — must be within event window
+  if(ev.dateOut&&date>ev.dateOut){alert('Feed date is after event close date ('+ev.dateOut+')');return;}
+  if(date<ev.dateIn){alert('Feed date is before event start date ('+ev.dateIn+')');return;}
+  const entry={id:Date.now(),date,lines:eeFeedLines.filter(l=>l.qty>0).map(l=>({...l}))};
+  if(!ev.feedEntries)ev.feedEntries=[];
+  ev.feedEntries.push(entry);
+  // Decrement inventory
+  entry.lines.forEach(l=>{
+    const b=S.batches.find(x=>x.id===l.batchId);
+    if(b&&l.qty>0)b.remaining=Math.max(0,+(b.remaining-l.qty).toFixed(2));
+  });
+  // Recalculate totals if closed
+  if(ev.status==='closed')recalcEventTotals(ev);
+  save();
+  renderEeFeedList(ev);
+  closeEeFeedEntry();
+  updateEventEditPreview(ev);
+}
+
+function deleteEeFeedEntry(entryId){
+  const evId=parseInt(document.getElementById('ee-id').value);
+  const ev=S.events.find(e=>e.id===evId);if(!ev)return;
+  // Find entry in main feedEntries or subMove feedEntries
+  let entry=null;
+  const idx=(ev.feedEntries||[]).findIndex(e=>String(e.id)===String(entryId));
+  if(idx>=0){entry=ev.feedEntries[idx];ev.feedEntries.splice(idx,1);}
+  // Restore inventory when deleting
+  if(entry){
+    entry.lines.forEach(l=>{
+      const b=S.batches.find(x=>x.id===l.batchId);
+      if(b&&l.qty>0)b.remaining=+(b.remaining+l.qty).toFixed(2);
+    });
+  }
+  if(ev.status==='closed')recalcEventTotals(ev);
+  save();renderEeFeedList(ev);updateEventEditPreview(ev);
 }
 
 function updateEventEditPreview(ev){
@@ -5236,19 +5379,9 @@ function saveEventEdit(){
   ev.notes=document.getElementById('ee-notes').value.trim();
   // Recalculate totals for closed events
   if(ev.status==='closed'){
-    const storedDMI=parseFloat(document.getElementById('ee-stored-dmi').value)||0;
-    const feedCost=parseFloat(document.getElementById('ee-feed-cost').value)||0;
-    const days=Math.max(1,Math.round((new Date(dateOut+'T12:00:00')-new Date(dateIn+'T12:00:00'))/86400000));
-    const g=grpId?getGroupById(grpId):null;
-    const t=g?getGroupTotals(g):null;
-    const dmiPct=t&&t.totalHead>0?(t.dmiTarget/(t.totalLiveWeight||head*wt)):0.025;
-    const dmiTarget=head*wt*dmiPct;
-    const pastureDMI=Math.max(0,dmiTarget*days-storedDMI);
-    const pct=dmiTarget>0?Math.round((pastureDMI/(dmiTarget*days))*100):null;
-    const st=S.settings;const bw=head*wt;
-    const npk={n:bw/1000*(st.nExc||0.32)*days,p:bw/1000*(st.pExc||0.09)*days,k:bw/1000*(st.kExc||0.30)*days};
-    const npkVal=npk.n*(st.nPrice||0.55)+npk.p*(st.pPrice||0.65)+npk.k*(st.kPrice||0.42);
-    ev.totals={days,storedDMI,pastureDMI,cost:feedCost,pct,npk,npkVal};
+    ev.feedResidual=parseInt(document.getElementById('ee-feed-res')?.value)||0;
+    ev.noPasture=document.getElementById('ee-no-pasture')?.checked||false;
+    recalcEventTotals(ev);
   }
   save();closeEventEdit();
   renderEventsLog();renderHome();
@@ -5264,6 +5397,35 @@ function deleteEvent(){
 }
 
 // ─── END EVENT EDIT ───────────────────────────────────────────────────────────
+
+
+// ─── RECALCULATE EVENT TOTALS ─────────────────────────────────────────────────
+function recalcEventTotals(ev){
+  if(ev.status!=='closed')return;
+  const days=Math.max(1,Math.round((new Date(ev.dateOut+'T12:00:00')-new Date(ev.dateIn+'T12:00:00'))/86400000));
+  const allEntries=allFeedEntries(ev);
+  const storedDMI=calcConsumedDMI(allEntries,ev.feedResidual||0);
+  const feedCost=calcEntryCost(allEntries);
+  const head=ev.head||0,wt=ev.wt||0;
+  const g=getGroupById(ev.groupId);
+  const t=g?getGroupTotals(g):null;
+  const dmiPct=t&&t.totalHead>0?(t.dmiTarget/(t.totalLiveWeight||head*wt)):0.025;
+  const dmiTarget=head*wt*dmiPct;
+  let pastureDMI,pct;
+  if(ev.noPasture){
+    // 100% stored feed — no pasture estimation
+    pastureDMI=0;pct=0;
+  } else {
+    pastureDMI=dmiTarget?Math.max(0,dmiTarget*days-storedDMI):null;
+    pct=dmiTarget&&dmiTarget*days>0?Math.round((pastureDMI/(dmiTarget*days))*100):null;
+  }
+  const st=S.settings;const bw=head*wt;
+  const pFraction=ev.totals?ev.totals.pFraction:100;
+  const npk={n:bw/1000*(st.nExc||0.32)*days,p:bw/1000*(st.pExc||0.09)*days,k:bw/1000*(st.kExc||0.30)*days};
+  const npkVal=npk.n*(st.nPrice||0.55)+npk.p*(st.pPrice||0.65)+npk.k*(st.kPrice||0.42);
+  ev.totals={...ev.totals,days,storedDMI,pastureDMI,cost:feedCost,pct,npk,npkVal};
+}
+// ─── END RECALCULATE ──────────────────────────────────────────────────────────
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 const _wout=document.getElementById('w-out-date');if(_wout)_wout.value=todayStr();
@@ -5840,11 +6002,40 @@ if(driveState.connected&&driveState.accessToken&&Date.now()<(driveState.tokenExp
     </div>
     <!-- Closed event fields -->
     <div id="ee-closed-fields">
-      <div class="two">
-        <div class="field"><label>Stored feed DMI (lbs)</label>
-          <input type="number" id="ee-stored-dmi" step="1" min="0"/></div>
-        <div class="field"><label>Feed cost ($)</label>
-          <input type="number" id="ee-feed-cost" step="0.01" min="0"/></div>
+      <!-- No-pasture flag -->
+      <label style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:0.5px solid var(--border);border-bottom:0.5px solid var(--border);cursor:pointer;margin-bottom:10px;">
+        <input type="checkbox" id="ee-no-pasture" style="width:18px;height:18px;accent-color:var(--amber);flex-shrink:0;" onchange="updateEventEditPreview()">
+        <div>
+          <div style="font-size:13px;font-weight:500;">100% stored feed (no pasture available)</div>
+          <div style="font-size:11px;color:var(--text2);">Bale grazing, drought feeding, winter confinement — pasture DMI set to zero, stored feed IS total intake</div>
+        </div>
+      </label>
+      <!-- Feed residual -->
+      <div class="field">
+        <label>Feed residual — % of last feeding left uneaten</label>
+        <div class="slider-row">
+          <input type="range" id="ee-feed-res" min="0" max="100" step="5" value="0"
+                 oninput="document.getElementById('ee-res-pct').textContent=this.value+'%';updateEventEditPreview()"/>
+          <span class="slider-out" id="ee-res-pct">0%</span>
+        </div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px;">Reduces DMI of the most recent feeding to account for waste / leftover</div>
+      </div>
+    </div>
+    <!-- Feed log (all events) -->
+    <div class="div"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <div class="sec" style="margin:0;">Feed entries</div>
+      <button class="btn btn-green btn-xs" onclick="openEeFeedEntry()">+ Add feed</button>
+    </div>
+    <div id="ee-feed-list" style="margin-bottom:10px;"></div>
+    <!-- Inline feed entry form -->
+    <div id="ee-feed-form" style="display:none;" class="card-inset">
+      <div class="field"><label>Date</label><input type="date" id="ee-feed-date"/></div>
+      <div id="ee-feed-batch-sel" style="margin-bottom:8px;"></div>
+      <div id="ee-feed-qty-lines"></div>
+      <div class="btn-row">
+        <button class="btn btn-green btn-xs" onclick="saveEeFeedEntry()">Add to event</button>
+        <button class="btn btn-outline btn-xs" onclick="closeEeFeedEntry()">Cancel</button>
       </div>
     </div>
     <div class="field"><label>Notes <span style="font-size:10px;color:var(--text2);">optional</span></label>
