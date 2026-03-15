@@ -1172,6 +1172,7 @@ async function driveSync(){
     setSyncStatus('error','Session expired — tap to reconnect','reconnect');
     return;
   }
+  ensureDataArrays();  // guard before any operation that might render
   setSyncStatus('pending','Syncing...');
   try{
     if(!driveState.fileId)await driveFindOrCreateFile();
@@ -1185,7 +1186,7 @@ async function driveSync(){
         console.warn('Remote JSON parse failed — writing local data over corrupt remote',parseErr);
         remote=null;
       }
-      if(remote){S=mergeData(S,remote);saveLocal();}
+      if(remote){S=mergeData(S,remote);ensureDataArrays();saveLocal();}
     }
     // Write merged data back
     await driveWriteFile(JSON.stringify(S,null,2));
@@ -1213,7 +1214,7 @@ async function driveSync(){
     else if(code==='SERVER_ERROR'){msg='Drive unavailable — retrying in 60s';action='retry';scheduleRetry(60000);}
     else if(code==='FORBIDDEN'){msg='Drive access denied — check permissions';}
     else if(e.name==='TypeError'&&(e.message.toLowerCase().includes('network')||e.message.toLowerCase().includes('fetch')||e.message.toLowerCase().includes('failed to fetch')||e.message.toLowerCase().includes('load failed'))){msg='No internet connection';action='retry';}
-    else if(e.name==='TypeError'){msg='Sync error — try reconnecting Drive';action='reconnect';}
+    else if(e.name==='TypeError'){msg='Sync error ('+e.message.slice(0,50)+')';action='reconnect';console.error('Sync TypeError detail:',e.message,e.stack);}
     else{msg='Sync failed: '+e.message.slice(0,40);}
     setSyncStatus('error',msg,action);
   }
@@ -1312,34 +1313,67 @@ function updateDriveUI(){
 
 // ─── EXPORT / IMPORT ──────────────────────────────────────────────────────────
 function mergeData(local,remote){
+  // Merge two arrays by key — last-write wins on conflict, with special cases
+  // for events (closed beats open, more feed entries beats fewer)
   function ma(a,b,key='id'){
     const m={};
-    (a||[]).forEach(x=>m[x[key]]=x);
+    (a||[]).forEach(x=>{if(x&&x[key]!=null)m[x[key]]=x;});
     (b||[]).forEach(x=>{
+      if(!x||x[key]==null)return;
       if(!m[x[key]]){m[x[key]]=x;}
-      else{const ex=m[x[key]];
+      else{
+        const ex=m[x[key]];
         if(x.status==='closed'&&ex.status==='open')m[x[key]]=x;
         else if((x.feedEntries||[]).length>(ex.feedEntries||[]).length)m[x[key]]=x;
+        else if((x.subMoves||[]).length>(ex.subMoves||[]).length)m[x[key]]=x;
       }
     });
     return Object.values(m);
   }
+  // For objects (herd, settings): prefer whichever was more recently modified
+  // Simple rule: remote wins unless local has data remote lacks
+  function mergeObj(loc,rem){
+    if(!rem)return loc||{};
+    if(!loc)return rem||{};
+    return Object.assign({},rem,
+      // keep any local keys not present in remote
+      Object.fromEntries(Object.entries(loc).filter(([k])=>rem[k]==null))
+    );
+  }
   return{
-    pastures:ma(local.pastures,remote.pastures,'name'),
-    events:ma(local.events,remote.events),
-    feedTypes:ma(local.feedTypes,remote.feedTypes),
-    batches:ma(local.batches,remote.batches),
-    feedback:ma(local.feedback,remote.feedback),
-    todos:ma(local.todos,remote.todos),
-    manureBatches:ma(local.manureBatches||[],remote.manureBatches||[]),
-    inputProducts:ma(local.inputProducts||[],remote.inputProducts||[]),
+    // Lookup arrays — merge by name (unique identifier)
+    pastures:         ma(local.pastures,         remote.pastures,         'name'),
+    feedTypes:        ma(local.feedTypes,         remote.feedTypes),
+    // Transactional arrays — merge by id
+    events:           ma(local.events,            remote.events),
+    batches:          ma(local.batches,           remote.batches),
+    manureBatches:    ma(local.manureBatches||[], remote.manureBatches||[]),
+    inputProducts:    ma(local.inputProducts||[], remote.inputProducts||[]),
     inputApplications:ma(local.inputApplications||[],remote.inputApplications||[]),
-    users:ma(local.users,remote.users),
-    herd:remote.herd&&remote.herd.name?remote.herd:local.herd,
-    settings:remote.settings||local.settings,
-    version:local.version||remote.version||'v1.0',
-    testerName:local.testerName||remote.testerName||'',
+    // Animal system
+    animalClasses:    ma(local.animalClasses||[], remote.animalClasses||[]),
+    animalGroups:     ma(local.animalGroups||[],  remote.animalGroups||[]),
+    animals:          ma(local.animals||[],       remote.animals||[]),
+    // Collaboration
+    users:            ma(local.users||[],         remote.users||[]),
+    todos:            ma(local.todos||[],         remote.todos||[]),
+    feedback:         ma(local.feedback||[],      remote.feedback||[]),
+    // Scalar / object fields
+    herd:    remote.herd&&remote.herd.name ? remote.herd : (local.herd||{}),
+    settings:mergeObj(local.settings,remote.settings),
+    version:     local.version||remote.version||'v1.0',
+    testerName:  local.testerName||remote.testerName||'',
   };
+}
+
+// Validate S has all required arrays after any merge or load
+function ensureDataArrays(){
+  const arrays=['pastures','events','feedTypes','batches','manureBatches',
+                'inputProducts','inputApplications','animalClasses','animalGroups',
+                'animals','users','todos','feedback'];
+  arrays.forEach(k=>{if(!Array.isArray(S[k]))S[k]=[];});
+  if(!S.herd)S.herd={name:'',type:'',count:0,weight:0,dmi:2.5};
+  if(!S.settings)S.settings={};
 }
 
 function exportDataJSON(){
@@ -2810,7 +2844,7 @@ function getGroupTotals(group){
   if(!group)return{totalHead:0,totalLiveWeight:0,avgWeight:0,dmiTarget:0};
   // New model: individual animals
   if(group.animalIds&&group.animalIds.length>0){
-    const animals=getGroupAnimals(group.id);
+    const animals=getGroupAnimals(group.id).filter(a=>a.active!==false);
     if(!animals.length)return{totalHead:0,totalLiveWeight:0,avgWeight:0,dmiTarget:0};
     let liveWt=0,dmi=0;
     animals.forEach(a=>{
@@ -2837,11 +2871,12 @@ function getGroupTotals(group){
 
 // Migration: convert class-based groups to individual placeholder animals
 function migrateAnimalSystemIds(){
-  // Assign systemIds to any animal that doesn't have one yet
   let changed=false;
   S.animals.forEach(a=>{
     if(!a.systemId){a.systemId=generateSystemId();changed=true;}
     if(!a.calvingRecords)a.calvingRecords=[];
+    if(a.active===undefined){a.active=true;changed=true;}  // default all existing to active
+    if(!a.cullRecord)a.cullRecord=null;
     // Normalise legacy sex values
     if(a.sex&&!['male','female'].includes(a.sex)){
       a.sex=['bull','steer','ram','buck','calf-m'].includes(a.sex)?'male':'female';
@@ -2933,7 +2968,7 @@ function addAnimal(){
     weightLbs:wt,
     weightHistory:wt?[{date:new Date().toISOString().slice(0,10),weightLbs:wt,note:'Initial weight'}]:[],
     notes:document.getElementById('a-notes').value.trim(),
-    damId:null,sireTag:null,calvingRecords:[],
+    active:true,cullRecord:null,damId:null,sireTag:null,calvingRecords:[],
     createdAt:new Date().toISOString()
   });
   if(groupId){
@@ -2968,8 +3003,10 @@ function renderAnimalList(){
   // Filter
   const search=(document.getElementById('animal-search')||{value:''}).value.toLowerCase();
   const gFilter=document.getElementById('animal-filter-group')?.value||'';
+  const showInactive=document.getElementById('animal-show-inactive')?.checked||false;
   let animals=[...S.animals];
-  if(search)animals=animals.filter(a=>a.tagNum.toLowerCase().includes(search)||(a.eid||'').toLowerCase().includes(search));
+  if(!showInactive)animals=animals.filter(a=>a.active!==false);
+  if(search)animals=animals.filter(a=>(a.tagNum||'').toLowerCase().includes(search)||(a.eid||'').toLowerCase().includes(search)||(a.systemId||'').toLowerCase().includes(search));
   if(gFilter==='unassigned'){
     const assigned=new Set(S.animalGroups.flatMap(g=>g.animalIds||[]));
     animals=animals.filter(a=>!assigned.has(a.id));
@@ -2980,7 +3017,15 @@ function renderAnimalList(){
     animals=animals.filter(a=>ids.has(a.id));
   }
   const total=animals.length;
-  el.innerHTML=`<div style="font-size:12px;color:var(--text2);margin-bottom:8px;">${total} animal${total!==1?'s':''} shown of ${S.animals.length} total</div>`+
+  const culledCount=S.animals.filter(a=>a.active===false).length;
+  const showInactiveChecked=document.getElementById('animal-show-inactive')?.checked||false;
+  el.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+    <span style="font-size:12px;color:var(--text2);">${total} animal${total!==1?'s':''} shown${culledCount>0?' ('+culledCount+' culled)':''}</span>
+    ${culledCount>0?`<label style="font-size:12px;color:var(--text2);display:flex;align-items:center;gap:4px;cursor:pointer;">
+      <input type="checkbox" id="animal-show-inactive" ${showInactiveChecked?'checked':''} onchange="renderAnimalList()" style="accent-color:var(--amber);">
+      Show culled
+    </label>`:''}
+  </div>`+
     animals.slice(0,50).map(a=>{
       const cls=S.animalClasses.find(c=>c.id===a.classId);
       const grp=getAnimalGroup(a.id);
@@ -2989,10 +3034,12 @@ function renderAnimalList(){
       const sysLabel=a.systemId||'—';
       const tagLabel=a.tagNum?' · '+a.tagNum:'';
       const hasDam=a.damId&&getAnimalById(a.damId);
-      return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--border);cursor:pointer;" onclick="openAnimalEdit(${a.id})">
+      const isCulled=a.active===false;
+      const cullBadge=isCulled?`<span class="badge br" style="font-size:10px;">${a.cullRecord?a.cullRecord.reason:'culled'}</span>`:'';
+      return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--border);cursor:pointer;opacity:${isCulled?'0.55':'1'};" onclick="openAnimalEdit(${a.id})">
         <div style="flex:1;min-width:0;">
-          <div style="font-size:13px;font-weight:600;">${sysLabel}${tagLabel} <span style="font-size:12px;color:var(--text2);">${sexIcon}</span></div>
-          <div style="font-size:11px;color:var(--text2);">${cls?cls.name:'No class'}${hasDam?' · dam recorded':''}</div>
+          <div style="font-size:13px;font-weight:600;">${sysLabel}${tagLabel} <span style="font-size:12px;color:var(--text2);">${sexIcon}</span> ${cullBadge}</div>
+          <div style="font-size:11px;color:var(--text2);">${cls?cls.name:'No class'}${hasDam?' · dam recorded':''}${isCulled&&a.cullRecord?' · '+a.cullRecord.date:''}</div>
         </div>
         <div style="text-align:right;flex-shrink:0;">
           <div style="font-size:13px;font-weight:600;">${a.weightLbs?a.weightLbs+' lbs':'no wt'}</div>
@@ -3055,6 +3102,17 @@ function openAnimalEdit(animalId){
   } else {histEl.style.display='none';}
   const displayName=a.systemId+(a.tagNum?' · '+a.tagNum:'');
   document.getElementById('ae-title').textContent=displayName;
+  // Cull section
+  const cullEl=document.getElementById('ae-cull-section');
+  if(a.active===false&&a.cullRecord){
+    cullEl.innerHTML=`<div class="banner ban-red" style="margin-bottom:0;">
+      <div style="font-size:13px;font-weight:600;color:var(--red-d);">Culled — ${a.cullRecord.reason}</div>
+      <div style="font-size:12px;color:var(--red-d);">${a.cullRecord.date}${a.cullRecord.notes?' · '+a.cullRecord.notes:''}</div>
+      <button class="btn btn-outline btn-xs" style="margin-top:6px;" onclick="reactivateAnimal(${a.id})">Reactivate</button>
+    </div>`;
+  } else {
+    cullEl.innerHTML=`<button class="btn btn-amber btn-sm" onclick="openCullSheet(${a.id})" style="width:auto;">Cull animal…</button>`;
+  }
   document.getElementById('ae-sheet-wrap').classList.add('open');
 }
 function closeAnimalEdit(){document.getElementById('ae-sheet-wrap').classList.remove('open');}
@@ -3590,6 +3648,7 @@ function importSetupFile(event){
             weightLbs:wt,
             weightHistory:wt?[{date:new Date().toISOString().slice(0,10),weightLbs:wt,note:'Imported'}]:[],
             notes:String(row['Notes']||'').trim(),
+            active:true,cullRecord:null,calvingRecords:[],
             createdAt:new Date().toISOString(),
           });
           // Assign to group
@@ -4597,6 +4656,57 @@ function saveApplyInput(){
 
 // ─── END INPUT PRODUCTS & APPLICATIONS ───────────────────────────────────────
 
+
+// ─── CULL SYSTEM ─────────────────────────────────────────────────────────────
+
+function openCullSheet(animalId){
+  const a=getAnimalById(animalId);if(!a)return;
+  document.getElementById('cull-animal-id').value=animalId;
+  document.getElementById('cull-date').value=todayStr();
+  document.getElementById('cull-reason').value='Sold';
+  document.getElementById('cull-notes').value='';
+  const label=a.systemId+(a.tagNum?' · '+a.tagNum:'')+(a.weightLbs?' · '+a.weightLbs+' lbs':'');
+  document.getElementById('cull-animal-label').textContent=label;
+  document.getElementById('cull-sheet-wrap').classList.add('open');
+}
+function closeCullSheet(){document.getElementById('cull-sheet-wrap').classList.remove('open');}
+
+function saveCull(){
+  const id=parseInt(document.getElementById('cull-animal-id').value);
+  const a=getAnimalById(id);if(!a)return;
+  const date=document.getElementById('cull-date').value||todayStr();
+  const reason=document.getElementById('cull-reason').value;
+  const notes=document.getElementById('cull-notes').value.trim();
+  // Mark inactive with cull record
+  a.active=false;
+  a.cullRecord={date,reason,notes};
+  // Remove from group (group DMI recalculates immediately)
+  S.animalGroups.forEach(g=>{
+    if((g.animalIds||[]).includes(id)){
+      g.animalIds=g.animalIds.filter(x=>x!==id);
+    }
+  });
+  save();
+  closeCullSheet();
+  closeAnimalEdit();
+  renderAnimalList();renderGroupsList();renderHome();
+  const grpNote=' Removed from group — DMI targets updated.';
+  alert(`${a.systemId+(a.tagNum?' ('+a.tagNum+')':'')} marked as culled (${reason}).${grpNote}`);
+}
+
+function reactivateAnimal(animalId){
+  const a=getAnimalById(animalId);if(!a)return;
+  if(!confirm('Reactivate '+a.systemId+(a.tagNum?' ('+a.tagNum+')':'')+'? You can reassign them to a group after reactivation.'))return;
+  a.active=true;
+  a.cullRecord=null;
+  save();
+  closeAnimalEdit();
+  renderAnimalList();renderGroupsList();
+  alert('Animal reactivated. Assign them to a group in Settings → Animal groups or via the animal edit screen.');
+}
+
+// ─── END CULL SYSTEM ─────────────────────────────────────────────────────────
+
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 const _wout=document.getElementById('w-out-date');if(_wout)_wout.value=todayStr();
 const _win=document.getElementById('w-in-date');if(_win)_win.value=todayStr();
@@ -4604,6 +4714,7 @@ const _wfr=document.getElementById('w-feed-res');if(_wfr)_wfr.addEventListener('
 const _wod=document.getElementById('w-out-date');if(_wod)_wod.addEventListener('change',calcClosePreview);
 // Init color picker default (guard against null — Settings screen not in DOM at load)
 const _cpFirst=document.querySelector('#color-picker div');if(_cpFirst)_cpFirst.style.border='2px solid var(--text)';
+ensureDataArrays();
 migrateHerdToGroups();
 migrateGroupsToAnimals();
 migrateAnimalSystemIds();
@@ -4818,7 +4929,9 @@ if(driveState.connected&&driveState.accessToken&&Date.now()<(driveState.tokenExp
       <div class="sec" style="margin-bottom:6px;">Weight history</div>
       <div id="ae-wt-history-list" style="font-size:12px;color:var(--text2);max-height:120px;overflow-y:auto;"></div>
     </div>
-    <div class="btn-row" style="margin-top:14px;">
+    <!-- Cull/reactivate section -->
+    <div id="ae-cull-section" style="margin-top:10px;"></div>
+    <div class="btn-row" style="margin-top:10px;">
       <button class="btn btn-green" onclick="saveAnimalEdit()">Save</button>
       <button class="btn btn-red" onclick="deleteAnimal()" style="width:auto;padding:12px 16px;">Delete</button>
       <button class="btn btn-outline" onclick="closeAnimalEdit()">Cancel</button>
@@ -5035,6 +5148,48 @@ if(driveState.connected&&driveState.accessToken&&Date.now()<(driveState.tokenExp
     <div class="btn-row">
       <button class="btn btn-green" onclick="saveApplyInput()">Record application</button>
       <button class="btn btn-outline" onclick="closeApplyInputSheet()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- CULL SHEET -->
+<div class="sheet-wrap" id="cull-sheet-wrap">
+  <div class="sheet-backdrop" onclick="closeCullSheet()"></div>
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:4px;">Cull animal</div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:14px;" id="cull-animal-label"></div>
+    <input type="hidden" id="cull-animal-id"/>
+    <div class="two">
+      <div class="field"><label>Date</label>
+        <input type="date" id="cull-date"/>
+      </div>
+      <div class="field"><label>Reason</label>
+        <select id="cull-reason">
+          <option value="Sold">Sold</option>
+          <option value="Died (natural)">Died (natural)</option>
+          <option value="Died (injury)">Died (injury/accident)</option>
+          <option value="Euthanized">Euthanized</option>
+          <option value="Culled (production)">Culled — poor production</option>
+          <option value="Culled (health)">Culled — health / chronic</option>
+          <option value="Culled (age)">Culled — age</option>
+          <option value="Culled (temperament)">Culled — temperament</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+    </div>
+    <div class="field"><label>Notes <span style="font-size:10px;color:var(--text2);">optional</span></label>
+      <input type="text" id="cull-notes" placeholder="Buyer name, cause of death, price received…"/>
+    </div>
+    <div class="banner ban-amber" style="margin-bottom:12px;font-size:12px;color:var(--amber-d);">
+      Animal will be removed from its group and marked inactive. 
+      All history (weight, calving, lineage) is preserved. 
+      You can reactivate from the animal record if needed.
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-amber" onclick="saveCull()">Confirm cull</button>
+      <button class="btn btn-outline" onclick="closeCullSheet()">Cancel</button>
     </div>
   </div>
 </div>
