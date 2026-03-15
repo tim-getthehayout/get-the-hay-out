@@ -3047,7 +3047,7 @@ function renderAnimalList(){
     animals.slice(0,50).map(a=>{
       const cls=S.animalClasses.find(c=>c.id===a.classId);
       const grp=getAnimalGroup(a.id);
-      const isAuto=a.tagNum.startsWith('AUTO-');
+      const isAuto=(a.tagNum||'').startsWith('AUTO-');
       const sexIcon=a.sex==='male'?'♂':'♀';
       const sysLabel=a.systemId||'—';
       const tagLabel=a.tagNum?' · '+a.tagNum:'';
@@ -3651,9 +3651,14 @@ function importSetupFile(event){
       // ── Import Animals (last — needs classes + groups resolved) ──────────
       if(wb.SheetNames.includes('Animals')){
         getRows('Animals').forEach(row=>{
-          const tag=String(row['Ear Tag *']||row['Ear Tag']||row['EarTag *']||row['EarTag']||'').trim();
-          if(!tag||tag.length>30)return;
-          if(S.animals.find(a=>a.tagNum===tag)){results.skipped++;return;}
+          const tag=String(row['Ear Tag *']||row['Ear Tag']||row['EarTag *']||row['EarTag']||'').trim()||null;
+          if(tag&&tag.length>30)return;
+          // If no tag, require at least a class or sex to avoid importing empty rows
+          const hasSex=String(row['Sex *']||row['Sex']||'').trim();
+          const hasCls=String(row['Class Name *']||row['Class Name']||'').trim();
+          if(!tag&&!hasSex&&!hasCls)return;
+          // Tag uniqueness check only if tag provided
+          if(tag&&S.animals.find(a=>a.tagNum===tag)){results.skipped++;return;}
           const clsName=String(row['Class Name *']||row['Class Name']||row['ClassName *']||row['ClassName']||'').trim();
           const cls=clsName?S.animalClasses.find(c=>c.name.toLowerCase()===clsName.toLowerCase()):null;
           const wt=parseFloat(row['Weight (lbs)']||row['WeightLbs'])||null;
