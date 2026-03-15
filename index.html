@@ -163,6 +163,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 .cb-wrap{display:flex;align-items:center;gap:8px;padding:8px 0;cursor:pointer;}
 .cb-wrap input[type=checkbox]{width:18px;height:18px;accent-color:var(--green);cursor:pointer;}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 <div class="app">
@@ -482,10 +483,16 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
           <div style="font-size:13px;color:var(--text2);margin-bottom:6px;" id="drive-file-label"></div>
           <!-- Farm Code -->
           <div class="card-inset" id="farm-code-section" style="display:none;">
-            <div style="font-size:12px;font-weight:600;margin-bottom:4px;">Farm Code — share with your team</div>
-            <div style="font-size:12px;color:var(--text2);margin-bottom:8px;line-height:1.6;">Give this code to workers. They enter it in Settings under "Join a Farm" to access your farm data.</div>
-            <div style="font-family:Menlo,monospace;font-size:14px;font-weight:700;background:var(--bg3);padding:10px;border-radius:var(--radius);letter-spacing:2px;text-align:center;margin-bottom:8px;" id="farm-code-display">—</div>
-            <button class="btn btn-outline btn-xs" onclick="copyFarmCode()">Copy Farm Code</button>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+              <div style="font-size:13px;font-weight:600;">Farm Code</div>
+              <span class="badge bg">owner</span>
+            </div>
+            <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.6;">Share this code with workers so they can access your farm data. They paste it under "Join a farm" below, then connect their own Google account.<br><strong style="color:var(--amber-d);">Also share the Drive file:</strong> go to drive.google.com, right-click <code>gthy-data.json</code> → Share → add each worker's Google email with Editor access.</div>
+            <div style="font-family:Menlo,monospace;font-size:15px;font-weight:700;background:var(--bg3);padding:12px;border-radius:var(--radius);text-align:center;margin-bottom:10px;letter-spacing:1px;word-break:break-all;" id="farm-code-display">—</div>
+            <div class="btn-row">
+              <button class="btn btn-green btn-sm" onclick="copyFarmCode()">Copy Farm Code</button>
+              <button class="btn btn-outline btn-sm" onclick="shareFarmCode()">Share…</button>
+            </div>
           </div>
           <div class="btn-row" style="margin-top:10px;">
             <button class="btn btn-outline btn-sm" onclick="driveSync()">Sync now</button>
@@ -538,6 +545,19 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
         </div>
         <input type="hidden" id="u-color" value="#639922"/>
         <button class="btn btn-green btn-sm" onclick="addUser()">Add user</button>
+      </div>
+
+      <!-- Setup Import / Export -->
+      <div class="card">
+        <div class="sec">Setup import &amp; export</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.6;">Download a pre-formatted Excel template, fill it in (or paste data from your existing system), then import it to populate your setup automatically.</div>
+        <div class="btn-row" style="margin-bottom:10px;">
+          <button class="btn btn-blue" onclick="exportSetupTemplate()">Download template</button>
+          <button class="btn btn-outline" onclick="triggerSetupImport()">Import template</button>
+        </div>
+        <input type="file" id="setup-import-file" accept=".xlsx,.xls" style="display:none;" onchange="importSetupFile(event)"/>
+        <div id="import-setup-status" style="display:none;padding:8px 12px;border-radius:var(--radius);font-size:13px;"></div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.65;margin-top:6px;">6 sheets: <strong>Animals</strong> · <strong>Animal_Classes</strong> · <strong>Animal_Groups</strong> · <strong>Locations</strong> · <strong>Feed_Types</strong> · <strong>Feed_Batches</strong>. Fill only what you need — empty sheets are skipped. Imports add new records and skip exact duplicates.</div>
       </div>
 
       <!-- Herd -->
@@ -959,8 +979,25 @@ function copyFarmCode(){
   if(!code){alert('Connect Drive first to generate a Farm Code');return;}
   navigator.clipboard.writeText(code).then(()=>{
     const el=document.getElementById('farm-code-display');
-    el.textContent='Copied!';setTimeout(()=>{el.textContent=formatFarmCode(code);},2000);
+    const prev=el.textContent;
+    el.textContent='Copied!';
+    el.style.color='var(--green-d)';
+    setTimeout(()=>{el.textContent=prev;el.style.color='';},2000);
+  }).catch(()=>{
+    // Fallback for browsers that block clipboard without HTTPS
+    prompt('Copy this Farm Code and share it with your workers:',code);
   });
+}
+
+function shareFarmCode(){
+  const code=generateFarmCode();
+  if(!code){alert('Connect Drive first');return;}
+  const text='Your Farm Code for Get The Hay Out:\n\n'+code+'\n\nSteps:\n1. Open getthehayout.com\n2. Go to Settings → Join a farm\n3. Paste this code\n4. Connect your Google account\n\n(The farm owner must also share the gthy-data.json Drive file with your Google email.)';
+  if(navigator.share){
+    navigator.share({title:'Get The Hay Out — Farm Code',text}).catch(()=>{});
+  } else {
+    prompt('Copy this message to share with your workers:',text);
+  }
 }
 
 function formatFarmCode(code){
@@ -1042,7 +1079,7 @@ function updateDriveUI(){
     if(driveState.isOwner&&driveState.fileId){
       farmCodeSection.style.display='block';
       const code=generateFarmCode();
-      document.getElementById('farm-code-display').textContent=code?formatFarmCode(code):'Syncing...';
+      document.getElementById('farm-code-display').textContent=code||'Sync to generate…';
     } else {farmCodeSection.style.display='none';}
   }
   // Client ID is hardcoded — no input field to populate
@@ -2800,6 +2837,510 @@ function addAnimalGroup(){
 }
 
 // ─── END INDIVIDUAL ANIMALS ───────────────────────────────────────────────────
+
+
+// ─── SETUP TEMPLATE EXPORT / IMPORT ─────────────────────────────────────────
+
+function exportSetupTemplate(){
+  if(typeof XLSX==='undefined'){alert('Spreadsheet library not loaded yet — please try again in a moment.');return;}
+  const wb=XLSX.utils.book_new();
+
+  // ── Build live option lists from current app data ─────────────────────────
+  const classNames = S.animalClasses.length
+    ? S.animalClasses.map(c=>c.name)
+    : ['Cow','Steer','Bull','Calf','Heifer','Ewe','Ram','Lamb'];
+  const groupNames = S.animalGroups.length
+    ? S.animalGroups.map(g=>g.name)
+    : ['Cow herd','Yearlings','Bulls'];
+  const ftNames = S.feedTypes.length
+    ? S.feedTypes.map(f=>f.name)
+    : ['Round bale','Square bale','Haylage','Corn silage','Range cube','Mineral'];
+  const sexOpts   = ['Cow','Heifer','Bull','Steer','Calf (male)','Calf (female)','Ewe','Ram','Lamb','Doe','Buck','Other'];
+  const specOpts  = ['Beef cattle','Dairy cattle','Sheep','Goats','Other'];
+  const unitOpts  = ['bale','sq bale','ton','lb','bag','gallon'];
+  const catOpts   = ['hay','silage','grain'];
+  const soilOpts  = ['Loam','Clay','Sandy','Silt'];
+  const locOpts   = ['pasture','confinement'];
+  const ynOpts    = ['yes','no'];
+
+  // ── Helper: build a lists sheet and return col-letter lookup ─────────────
+  // Each list occupies one column. Row 1 = list name header, rows 2+ = values.
+  const listCols = {};  // { listName: 'A' | 'B' | ... }
+  const listData = {};  // { col: [header, v1, v2, ...] }
+  let colIdx = 0;
+
+  function registerList(name, values){
+    const col = XLSX.utils.encode_col(colIdx);
+    listCols[name] = col;
+    listData[col] = [name, ...values];
+    colIdx++;
+  }
+
+  registerList('ClassName',  classNames);
+  registerList('GroupName',  groupNames);
+  registerList('FeedType',   ftNames);
+  registerList('Sex',        sexOpts);
+  registerList('Species',    specOpts);
+  registerList('Unit',       unitOpts);
+  registerList('Category',   catOpts);
+  registerList('SoilType',   soilOpts);
+  registerList('LocType',    locOpts);
+  registerList('YesNo',      ynOpts);
+
+  // Build the Lists worksheet
+  const maxRows = Math.max(...Object.values(listData).map(a=>a.length));
+  const listsWs = {};
+  Object.entries(listData).forEach(([col, values])=>{
+    values.forEach((v,r)=>{
+      listsWs[col+(r+1)] = {v, t:'s'};
+    });
+  });
+  listsWs['!cols'] = Object.keys(listData).map(()=>({wch:22}));
+  listsWs['!ref']  = 'A1:'+XLSX.utils.encode_col(colIdx-1)+(maxRows+1);
+  // Mark as hidden (Excel respects this)
+  listsWs['!sheetPr'] = {state:'hidden'};
+
+  // ── Validation helper ─────────────────────────────────────────────────────
+  // Returns a data validation object pointing at the Lists sheet column
+  function dv(listName, startRow, endRow){
+    const col = listCols[listName];
+    const nRows = listData[col].length; // header + values
+    return {
+      type:'list',
+      formula1:`Lists!$${col}$2:$${col}$${nRows}`,
+      sqref:`${startRow}:${endRow}`,
+      showDropDown:false,
+      showErrorMessage:true,
+      error:'Please select a value from the dropdown list.',
+      errorTitle:'Invalid entry'
+    };
+  }
+
+  // ── Shared style helpers ──────────────────────────────────────────────────
+  const HDR = {font:{bold:true,color:{rgb:'FFFFFFFF'},sz:11},
+               fill:{fgColor:{rgb:'FF27500A'}},
+               alignment:{horizontal:'center',wrapText:true}};
+  const REQ = {font:{bold:true,color:{rgb:'FFFFFFFF'},sz:11},
+               fill:{fgColor:{rgb:'FF639922'}},
+               alignment:{horizontal:'center',wrapText:true}};  // required col = brighter green
+  const EX  = {font:{color:{rgb:'FF6B6B67'},sz:10,italic:true},
+               fill:{fgColor:{rgb:'FFF5F5F3'}}};
+  const NOTE= {font:{color:{rgb:'FF854F0B'},sz:10,italic:true},
+               fill:{fgColor:{rgb:'FFFAEEDA'}},
+               alignment:{wrapText:true}};
+
+  function buildSheet(cols, examples, note, validations){
+    const ws={};
+    const numCols = cols.length;
+    // Row 0: note bar (merged)
+    ws['A1']={v:note, t:'s', s:NOTE};
+    if(!ws['!merges']) ws['!merges']=[];
+    ws['!merges'].push({s:{r:0,c:0},e:{r:0,c:numCols-1}});
+    // Row 1: headers
+    cols.forEach((col,c)=>{
+      ws[XLSX.utils.encode_cell({r:1,c})]={
+        v: col.req ? col.label+' *' : col.label,
+        t:'s', s: col.req ? REQ : HDR
+      };
+    });
+    // Rows 2+: examples
+    examples.forEach((row,r)=>{
+      cols.forEach((col,c)=>{
+        const v = row[c]!==undefined ? row[c] : '';
+        ws[XLSX.utils.encode_cell({r:r+2,c})]={v, t:typeof v==='number'?'n':'s', s:EX};
+      });
+    });
+    ws['!cols'] = cols.map(c=>({wch:c.w||18}));
+    ws['!ref']  = XLSX.utils.encode_range({s:{r:0,c:0},e:{r:examples.length+2,c:numCols-1}});
+    // Apply data validations — convert col letter to sqref range
+    ws['!dataValidation'] = (validations||[]).map(v=>{
+      // v.col = 'A', v.list = 'ClassName', start data at row 3 (1-indexed), end at 1000
+      const colLetter = XLSX.utils.encode_col(cols.findIndex(c=>c.key===v.key));
+      return dv(v.list, colLetter+'3', colLetter+'1000');
+    });
+    return ws;
+  }
+
+  // ── Animals sheet ─────────────────────────────────────────────────────────
+  const animalCols=[
+    {label:'Ear Tag',    key:'EarTag',    req:true,  w:12},
+    {label:'EID',        key:'EID',       req:false, w:22},
+    {label:'Sex',        key:'Sex',       req:true,  w:14},
+    {label:'Class Name', key:'ClassName', req:true,  w:16},
+    {label:'Weight (lbs)',key:'WeightLbs',req:false, w:14},
+    {label:'Group Name', key:'GroupName', req:false, w:20},
+    {label:'Notes',      key:'Notes',     req:false, w:32},
+  ];
+  const animalEx=[
+    ['T-001','840-003722641234','Cow','Cow',1250,'Cow herd','Black baldy'],
+    ['T-002','840-003722641235','Calf (female)','Calf',320,'Cow herd','Born 2/14'],
+    ['T-003','','Steer','Steer',850,'',''],
+    ['T-004','840-003722641236','Bull','Bull',1850,'Cow herd','Angus bull'],
+    ['T-005','','Heifer','Heifer',750,'Yearlings',''],
+  ];
+  XLSX.utils.book_append_sheet(wb,
+    buildSheet(animalCols, animalEx,
+      'Animals: Ear Tag and Sex are required. Use dropdowns for Sex, Class Name, and Group Name. One row per animal.',
+      [{key:'Sex',list:'Sex'},{key:'ClassName',list:'ClassName'},{key:'GroupName',list:'GroupName'}]
+    ), 'Animals');
+
+  // ── Animal_Classes sheet ──────────────────────────────────────────────────
+  const classCols=[
+    {label:'Class Name',       key:'ClassName',       req:true,  w:16},
+    {label:'Species',          key:'Species',         req:true,  w:18},
+    {label:'Default Wt (lbs)', key:'DefaultWeightLbs',req:false, w:18},
+    {label:'DMI %',            key:'DMI_Pct',         req:false, w:10},
+  ];
+  const classEx=[
+    ['Cow','Beef cattle',1250,2.3],
+    ['Steer','Beef cattle',900,2.5],
+    ['Bull','Beef cattle',1800,2.0],
+    ['Calf','Beef cattle',400,3.0],
+    ['Heifer','Beef cattle',750,2.5],
+    ['Ewe','Sheep',150,2.8],
+    ['Ram','Sheep',200,2.5],
+    ['Lamb','Sheep',60,3.5],
+  ];
+  XLSX.utils.book_append_sheet(wb,
+    buildSheet(classCols, classEx,
+      'Animal_Classes: Define each class. DMI % = dry matter intake as % of body weight (typically 2.0–3.5). Species dropdown provided.',
+      [{key:'Species',list:'Species'}]
+    ), 'Animal_Classes');
+
+  // ── Animal_Groups sheet ───────────────────────────────────────────────────
+  const groupCols=[
+    {label:'Group Name',key:'GroupName',req:true, w:22},
+    {label:'Color',     key:'Color',    req:false,w:14},
+    {label:'Notes',     key:'Notes',    req:false,w:32},
+  ];
+  const groupEx=[
+    ['Cow herd','#639922','Main cow-calf pairs'],
+    ['Yearlings','#185FA5','2024 steers and heifers'],
+    ['Bulls','#E24B4A','Bull turnout group'],
+  ];
+  XLSX.utils.book_append_sheet(wb,
+    buildSheet(groupCols, groupEx,
+      'Animal_Groups: Define groups before filling Animals sheet. Color = hex code (e.g. #639922). Groups will appear as dropdowns in Animals sheet.',
+      []
+    ), 'Animal_Groups');
+
+  // ── Locations sheet ───────────────────────────────────────────────────────
+  const locCols=[
+    {label:'Name',           key:'Name',           req:true, w:22},
+    {label:'Acres',          key:'Acres',          req:false,w:10},
+    {label:'Type',           key:'LocType',        req:true, w:14},
+    {label:'Soil Type',      key:'SoilType',       req:false,w:12},
+    {label:'Forage Species', key:'ForageSpecies',  req:false,w:22},
+    {label:'Capture Manure', key:'CaptureManure',  req:false,w:16},
+    {label:'Capture %',      key:'CapturePercent', req:false,w:12},
+    {label:'Description',    key:'Description',    req:false,w:32},
+  ];
+  const locEx=[
+    ['North paddock',45,'pasture','Loam','Mixed grass/clover','','',''],
+    ['South paddock',32,'pasture','Clay','Fescue blend','','',''],
+    ['Winter barn',0,'confinement','','','yes',90,'Covered concrete floor'],
+    ['Drylot A',2,'confinement','','','yes',50,'Open drylot'],
+    ['Sacrifice paddock',3,'confinement','','','no',0,'Spring sacrifice area'],
+  ];
+  XLSX.utils.book_append_sheet(wb,
+    buildSheet(locCols, locEx,
+      'Locations: Type must be "pasture" or "confinement" — use the dropdown. Capture Manure (yes/no) only applies to confinement locations.',
+      [{key:'LocType',list:'LocType'},{key:'SoilType',list:'SoilType'},{key:'CaptureManure',list:'YesNo'}]
+    ), 'Locations');
+
+  // ── Feed_Types sheet ──────────────────────────────────────────────────────
+  const ftCols=[
+    {label:'Name',    key:'Name',    req:true, w:22},
+    {label:'Unit',    key:'Unit',    req:true, w:12},
+    {label:'DM %',    key:'DM_Pct', req:true, w:10},
+    {label:'Category',key:'Category',req:false,w:14},
+  ];
+  const ftEx=[
+    ['Round bale','bale',85,'hay'],
+    ['Square bale','sq bale',85,'hay'],
+    ['Haylage','ton',45,'silage'],
+    ['Corn silage','ton',35,'silage'],
+    ['Range cube','lb',90,'grain'],
+    ['Mineral','lb',98,'grain'],
+  ];
+  XLSX.utils.book_append_sheet(wb,
+    buildSheet(ftCols, ftEx,
+      'Feed_Types: Unit and Category dropdowns are provided. DM % = dry matter percentage (1–100). Feed type names will appear as dropdowns in Feed_Batches sheet.',
+      [{key:'Unit',list:'Unit'},{key:'Category',list:'Category'}]
+    ), 'Feed_Types');
+
+  // ── Feed_Batches sheet ────────────────────────────────────────────────────
+  const fbCols=[
+    {label:'Label',           key:'Label',          req:true, w:30},
+    {label:'Feed Type Name',  key:'FeedTypeName',   req:true, w:22},
+    {label:'Quantity',        key:'Quantity',       req:true, w:12},
+    {label:'Wt per Unit (lbs)',key:'WeightPerUnit_lbs',req:false,w:18},
+    {label:'Cost per Unit ($)',key:'CostPerUnit_$', req:false,w:18},
+    {label:'Date Received',   key:'DateReceived',   req:false,w:16},
+  ];
+  const fbEx=[
+    ['Hay barn – 1st cut June','Round bale',120,850,42,'2025-06-15'],
+    ['Hay barn – 2nd cut Aug','Round bale',80,820,40,'2025-08-20'],
+    ['Square bales – neighbor','Square bale',200,50,6,'2025-07-01'],
+    ['Corn silage pile','Corn silage',50,2000,35,'2025-09-10'],
+    ['Range cubes 50lb bags','Range cube',500,50,18,'2026-01-05'],
+  ];
+  XLSX.utils.book_append_sheet(wb,
+    buildSheet(fbCols, fbEx,
+      'Feed_Batches: Feed Type Name must match a name in Feed_Types sheet. Use the dropdown — it is pre-populated from Feed_Types. Date format: YYYY-MM-DD.',
+      [{key:'FeedTypeName',list:'FeedType'}]
+    ), 'Feed_Batches');
+
+  // ── Instructions sheet ────────────────────────────────────────────────────
+  const instrLines=[
+    'GET THE HAY OUT — Setup Import Template',
+    '',
+    'HOW TO USE THIS TEMPLATE',
+    '1. Fill in the sheets with your farm data.',
+    '   Recommended order: Animal_Classes → Animal_Groups → Animals → Locations → Feed_Types → Feed_Batches',
+    '2. Columns with a * are required. Others are optional.',
+    '3. Green headers = required field.  Dark green headers = optional field.',
+    '4. Dropdown cells are pre-populated — click the cell and use the dropdown arrow.',
+    '   The Lists sheet (hidden) drives all dropdowns. Do not delete it.',
+    '5. Example rows are shaded grey — delete them or overwrite with your data.',
+    '6. Save the file and import it: Settings → Setup import & export → Import template.',
+    '',
+    'IMPORT BEHAVIOR',
+    '• All sheets are optional — import only what you have filled in.',
+    '• Records are matched by name (classes, groups, locations, feed types) or ear tag (animals).',
+    '• Existing records with the same name/tag are skipped — no duplicates created.',
+    '• Feed Batches are always imported (multiple batches can share a feed type).',
+    '• Animals are assigned to groups based on the Group Name column.',
+    '',
+    'FIELD NOTES',
+    'Animals → Sex: use the dropdown (Cow, Heifer, Bull, Steer, Calf male/female, Ewe, Ram, Lamb, Doe, Buck)',
+    'Animals → Class Name: must match Animal_Classes sheet',
+    'Animals → Group Name: must match Animal_Groups sheet (or leave blank)',
+    'Locations → Type: pasture or confinement (use dropdown)',
+    'Locations → Capture Manure: yes/no (confinement only)',
+    'Locations → Capture %: 0-100 (what % of manure is collected)',
+    'Feed_Types → DM %: dry matter % (hay ~85, silage ~35-45, grain ~88-90)',
+    'Feed_Batches → Date Received: YYYY-MM-DD format',
+  ];
+  const instrWs={};
+  instrLines.forEach((line,r)=>{
+    instrWs['A'+(r+1)]={v:line,t:'s',
+      s:r===0?{font:{bold:true,sz:14,color:{rgb:'FF27500A'}}}:
+        (line.startsWith('HOW')||line.startsWith('IMPORT')||line.startsWith('FIELD'))
+          ?{font:{bold:true,sz:11}}:{font:{sz:10}}};
+  });
+  instrWs['!cols']=[{wch:90}];
+  instrWs['!ref']='A1:A'+(instrLines.length+1);
+  XLSX.utils.book_append_sheet(wb,instrWs,'Instructions');
+
+  // ── Add hidden Lists sheet ────────────────────────────────────────────────
+  XLSX.utils.book_append_sheet(wb, listsWs, 'Lists');
+
+  // Put Instructions first
+  wb.SheetNames=[
+    'Instructions',
+    ...wb.SheetNames.filter(n=>n!=='Instructions'&&n!=='Lists'),
+    'Lists'
+  ];
+
+  XLSX.writeFile(wb,'gthy-setup-template.xlsx');
+}
+
+// ── IMPORT ────────────────────────────────────────────────────────────────────
+function triggerSetupImport(){document.getElementById('setup-import-file').click();}
+
+function importSetupFile(event){
+  const file=event.target.files[0];if(!file)return;
+  if(typeof XLSX==='undefined'){showImportStatus('error','Spreadsheet library not loaded — try again.');return;}
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:'binary'});
+      const results={classes:0,groups:0,animals:0,locations:0,feedTypes:0,batches:0,skipped:0,errors:[]};
+
+      // ── Import Animal_Classes ──────────────────────────────────────────────
+      if(wb.SheetNames.includes('Animal_Classes')){
+        const rows=XLSX.utils.sheet_to_json(wb.Sheets['Animal_Classes'],{defval:''});
+        rows.forEach(row=>{
+          const name=String(row['ClassName *']||row['ClassName']||'').trim();
+          if(!name)return;
+          if(S.animalClasses.find(c=>c.name.toLowerCase()===name.toLowerCase())){results.skipped++;return;}
+          S.animalClasses.push({
+            id:Date.now()+Math.floor(Math.random()*999999),
+            name,
+            species:String(row['Species *']||row['Species']||'Beef cattle').trim(),
+            defaultWeightLbs:parseFloat(row['DefaultWeightLbs'])||1000,
+            dmiPct:parseFloat(row['DMI_Pct'])||2.5,
+          });
+          results.classes++;
+        });
+      }
+
+      // ── Import Animal_Groups ───────────────────────────────────────────────
+      if(wb.SheetNames.includes('Animal_Groups')){
+        const rows=XLSX.utils.sheet_to_json(wb.Sheets['Animal_Groups'],{defval:''});
+        rows.forEach(row=>{
+          const name=String(row['GroupName *']||row['GroupName']||'').trim();
+          if(!name)return;
+          if(S.animalGroups.find(g=>g.name.toLowerCase()===name.toLowerCase())){results.skipped++;return;}
+          S.animalGroups.push({
+            id:Date.now()+Math.floor(Math.random()*999999),
+            name,
+            color:String(row['Color']||'#639922').trim()||'#639922',
+            animalIds:[],
+          });
+          results.groups++;
+        });
+      }
+
+      // ── Import Locations ───────────────────────────────────────────────────
+      if(wb.SheetNames.includes('Locations')){
+        const rows=XLSX.utils.sheet_to_json(wb.Sheets['Locations'],{defval:''});
+        rows.forEach(row=>{
+          const name=String(row['Name *']||row['Name']||'').trim();
+          if(!name)return;
+          if(S.pastures.find(p=>p.name.toLowerCase()===name.toLowerCase())){results.skipped++;return;}
+          const locType=String(row['Type *']||row['Type']||'pasture').trim().toLowerCase();
+          const loc={
+            name,acres:parseFloat(row['Acres'])||0,
+            locationType:locType==='confinement'?'confinement':'pasture',
+          };
+          if(loc.locationType==='pasture'){
+            loc.soil=String(row['SoilType']||'Loam').trim();
+            loc.species=String(row['ForageSpecies']||'').trim();
+          } else {
+            loc.description=String(row['Description']||'').trim();
+            const capRaw=String(row['CaptureManure']||'').trim().toLowerCase();
+            loc.captureManure=capRaw==='yes'||capRaw==='true'||capRaw==='1';
+            loc.capturePercent=parseFloat(row['CapturePercent'])||80;
+            loc.batchMode='accumulate';
+          }
+          S.pastures.push(loc);
+          results.locations++;
+        });
+      }
+
+      // ── Import Feed_Types ──────────────────────────────────────────────────
+      if(wb.SheetNames.includes('Feed_Types')){
+        const rows=XLSX.utils.sheet_to_json(wb.Sheets['Feed_Types'],{defval:''});
+        rows.forEach(row=>{
+          const name=String(row['Name *']||row['Name']||'').trim();
+          if(!name)return;
+          if(S.feedTypes.find(f=>f.name.toLowerCase()===name.toLowerCase())){results.skipped++;return;}
+          const unitRaw=String(row['Unit *']||row['Unit']||'bale').trim().toLowerCase();
+          const validUnits=['bale','sq bale','ton','lb','bag','gallon'];
+          const unit=validUnits.includes(unitRaw)?unitRaw:'lb';
+          S.feedTypes.push({
+            id:Date.now()+Math.floor(Math.random()*999999),
+            name,unit,
+            dm:parseFloat(row['DM_Pct'])||85,
+            cat:String(row['Category']||'hay').trim().toLowerCase(),
+          });
+          results.feedTypes++;
+        });
+      }
+
+      // ── Import Feed_Batches ────────────────────────────────────────────────
+      if(wb.SheetNames.includes('Feed_Batches')){
+        const rows=XLSX.utils.sheet_to_json(wb.Sheets['Feed_Batches'],{defval:''});
+        rows.forEach(row=>{
+          const label=String(row['Label *']||row['Label']||'').trim();
+          const ftName=String(row['FeedTypeName *']||row['FeedTypeName']||'').trim();
+          if(!label||!ftName)return;
+          const ft=S.feedTypes.find(f=>f.name.toLowerCase()===ftName.toLowerCase());
+          if(!ft){results.errors.push('Feed batch "'+label+'": feed type "'+ftName+'" not found — add it first');return;}
+          const qty=parseFloat(row['Quantity *']||row['Quantity'])||0;
+          if(!qty)return;
+          S.batches.push({
+            id:Date.now()+Math.floor(Math.random()*999999),
+            typeId:ft.id,typeName:ft.name,unit:ft.unit,dm:ft.dm,
+            qty,remaining:qty,
+            wt:parseFloat(row['WeightPerUnit_lbs'])||null,
+            cpu:parseFloat(row['CostPerUnit_$'])||0,
+            label,
+            date:String(row['DateReceived']||new Date().toISOString().slice(0,10)).trim(),
+          });
+          results.batches++;
+        });
+      }
+
+      // ── Import Animals (last — needs classes and groups resolved) ──────────
+      if(wb.SheetNames.includes('Animals')){
+        const rows=XLSX.utils.sheet_to_json(wb.Sheets['Animals'],{defval:''});
+        rows.forEach(row=>{
+          const tag=String(row['EarTag *']||row['EarTag']||'').trim();
+          if(!tag)return;
+          if(S.animals.find(a=>a.tagNum===tag)){results.skipped++;return;}
+          const clsName=String(row['ClassName *']||row['ClassName']||'').trim();
+          const cls=clsName?S.animalClasses.find(c=>c.name.toLowerCase()===clsName.toLowerCase()):null;
+          const wt=parseFloat(row['WeightLbs'])||null;
+          const newId=Date.now()+Math.floor(Math.random()*999999);
+          const animal={
+            id:newId,
+            tagNum:tag,
+            eid:String(row['EID']||'').trim(),
+            sex:String(row['Sex *']||row['Sex']||'other').trim(),
+            classId:cls?cls.id:null,
+            weightLbs:wt,
+            weightHistory:wt?[{date:new Date().toISOString().slice(0,10),weightLbs:wt,note:'Imported'}]:[],
+            notes:String(row['Notes']||'').trim(),
+            createdAt:new Date().toISOString(),
+          };
+          S.animals.push(animal);
+          // Assign to group if specified
+          const grpName=String(row['GroupName']||'').trim();
+          if(grpName){
+            const grp=S.animalGroups.find(g=>g.name.toLowerCase()===grpName.toLowerCase());
+            if(grp){if(!grp.animalIds)grp.animalIds=[];grp.animalIds.push(newId);}
+            else results.errors.push('Animal '+tag+': group "'+grpName+'" not found — animal added but not assigned to group');
+          }
+          results.animals++;
+        });
+      }
+
+      save();
+
+      // Show results
+      const parts=[];
+      if(results.classes)parts.push(results.classes+' animal classes');
+      if(results.groups)parts.push(results.groups+' groups');
+      if(results.animals)parts.push(results.animals+' animals');
+      if(results.locations)parts.push(results.locations+' locations');
+      if(results.feedTypes)parts.push(results.feedTypes+' feed types');
+      if(results.batches)parts.push(results.batches+' feed batches');
+      if(results.skipped)parts.push(results.skipped+' skipped (duplicates)');
+
+      const msg=parts.length?'Imported: '+parts.join(', ')+'.'
+        :'Nothing was imported — check that your sheets have data and column headers match the template.';
+
+      showImportStatus(results.errors.length?'warn':'ok',
+        msg+(results.errors.length?'\n\nWarnings:\n'+results.errors.slice(0,5).join('\n'):''));
+
+      // Re-render settings sections
+      renderAnimalList();renderGroupsList();renderClassesList();renderPastures();renderFeedTypes();renderBatchListS();
+
+    }catch(err){
+      showImportStatus('error','Import failed: '+err.message);
+      console.error(err);
+    }
+    event.target.value='';
+  };
+  reader.readAsBinaryString(file);
+}
+
+function showImportStatus(type,msg){
+  const el=document.getElementById('import-setup-status');
+  if(!el)return;
+  el.style.display='block';
+  const colors={ok:['var(--teal-l)','var(--teal-d)'],warn:['var(--amber-l)','var(--amber-d)'],error:['var(--red-l)','var(--red-d)']};
+  const[bg,col]=colors[type]||colors.ok;
+  el.style.background=bg;el.style.color=col;
+  el.style.whiteSpace='pre-wrap';
+  el.textContent=msg;
+  setTimeout(()=>{if(type==='ok')el.style.display='none';},6000);
+}
+
+// ─── END SETUP IMPORT / EXPORT ───────────────────────────────────────────────
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 document.getElementById('w-out-date').value=todayStr();
