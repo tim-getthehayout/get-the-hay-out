@@ -1586,6 +1586,7 @@ function renderGroupCard(g){
     const locBadge=isCon?'<span class="badge bb" style="font-size:10px;">confinement</span>':'<span class="badge bg" style="font-size:10px;">grazing</span>';
     const subMoves = ae.subMoves||[];
     const subHrsTotal = subMoves.reduce((s,sm)=>s+(sm.durationHours||0),0);
+    const totalHrs = eventTotalHours(ae);
     const pastureHrsPct = totalHrs>0?Math.round(((totalHrs-subHrsTotal)/totalHrs)*100):100;
     const allEntries2 = allFeedEntries(ae);
     const costAll = calcEntryCost(ae.feedEntries||[]) + subMoves.reduce((s,sm)=>s+calcEntryCost(sm.feedEntries||[]),0);
