@@ -228,6 +228,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
       <div id="feed-no-event" style="display:none;"><div class="card"><div class="empty">No active grazing event.<br>Use Move Herd to open one.</div></div></div>
       <div id="feed-form">
         <div id="feed-banner"></div>
+        <div id="feed-group-tabs" style="display:none;margin-bottom:10px;"></div>
         <div class="card">
           <div class="sec">Add feeding entry</div>
           <div class="field"><label>Date fed</label><input type="date" id="ff-date"/></div>
@@ -253,7 +254,15 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 
     <!-- MOVE WIZARD -->
     <div id="s-move" class="scr">
-      <div class="wiz-dots"><div class="wiz-dot on" id="wd0"></div><div class="wiz-dot" id="wd1"></div><div class="wiz-dot" id="wd2"></div></div>
+      <div class="wiz-dots"><div class="wiz-dot on" id="wd-g"></div><div class="wiz-dot" id="wd0"></div><div class="wiz-dot" id="wd1"></div><div class="wiz-dot" id="wd2"></div></div>
+
+      <!-- Step G: Select group (auto-skip if only one) -->
+      <div class="wiz-step on" id="ws-g">
+        <div class="card">
+          <div class="sec">Which group is moving?</div>
+          <div id="wiz-group-list"></div>
+        </div>
+      </div>
       <!-- Step 0 -->
       <div class="wiz-step on" id="ws0">
         <div id="ws0-has">
@@ -539,16 +548,102 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 
       <!-- Herd -->
       <div class="card">
-        <div class="sec">Herd</div>
+        <div class="sec">Operation</div>
         <div class="field"><label>Operation name</label><input type="text" id="s-name" placeholder="e.g. Smith Angus Farm"/></div>
+      </div>
+
+      <!-- Animal Classes -->
+      <div class="card">
+        <div class="sec">Animal classes</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:10px;line-height:1.6;">Define the animal classes on your farm. Each class has its own default weight and DMI rate for accurate calculations.</div>
+        <div id="classes-list"></div>
+        <div class="div"></div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Add class</div>
         <div class="two">
-          <div class="field"><label>Animal type</label><select id="s-type"><option>Beef cattle</option><option>Dairy cattle</option><option>Sheep</option><option>Goats</option></select></div>
-          <div class="field"><label>Head count</label><input type="number" id="s-count" placeholder="50"/></div>
+          <div class="field"><label>Name</label><input type="text" id="cls-name" placeholder="Cow, Steer, Ewe…"/></div>
+          <div class="field"><label>Species</label>
+            <select id="cls-species"><option>Beef cattle</option><option>Dairy cattle</option><option>Sheep</option><option>Goats</option><option>Other</option></select>
+          </div>
         </div>
         <div class="two">
-          <div class="field"><label>Avg body weight (lbs)</label><input type="number" id="s-wt" placeholder="1200"/></div>
-          <div class="field"><label>DMI % of body weight</label><input type="number" id="s-dmi" step="0.1" placeholder="2.5"/></div>
+          <div class="field"><label>Default weight (lbs)</label><input type="number" id="cls-wt" placeholder="1200"/></div>
+          <div class="field"><label>DMI % of body weight</label><input type="number" id="cls-dmi" step="0.1" placeholder="2.5"/></div>
         </div>
+        <button class="btn btn-green btn-sm" onclick="addAnimalClass()">Add class</button>
+      </div>
+
+      <!-- Animal Groups -->
+      <div class="card">
+        <div class="sec">Animal groups</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:10px;line-height:1.6;">Groups are the units that move between locations. You can have multiple groups active in different paddocks simultaneously.</div>
+        <div id="groups-list"></div>
+        <div class="div"></div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Add group</div>
+        <div class="two">
+          <div class="field"><label>Group name</label><input type="text" id="grp-name" placeholder="Cow herd, Yearlings…"/></div>
+          <div class="field"><label>Color</label>
+            <div style="display:flex;gap:8px;margin-top:4px;" id="grp-color-picker">
+              <div onclick="selGroupColor(this,'#639922')" style="width:28px;height:28px;border-radius:50%;background:#639922;cursor:pointer;border:2px solid var(--text);" data-color="#639922"></div>
+              <div onclick="selGroupColor(this,'#1D9E75')" style="width:28px;height:28px;border-radius:50%;background:#1D9E75;cursor:pointer;border:2px solid transparent;" data-color="#1D9E75"></div>
+              <div onclick="selGroupColor(this,'#185FA5')" style="width:28px;height:28px;border-radius:50%;background:#185FA5;cursor:pointer;border:2px solid transparent;" data-color="#185FA5"></div>
+              <div onclick="selGroupColor(this,'#BA7517')" style="width:28px;height:28px;border-radius:50%;background:#BA7517;cursor:pointer;border:2px solid transparent;" data-color="#BA7517"></div>
+              <div onclick="selGroupColor(this,'#534AB7')" style="width:28px;height:28px;border-radius:50%;background:#534AB7;cursor:pointer;border:2px solid transparent;" data-color="#534AB7"></div>
+            </div>
+            <input type="hidden" id="grp-color" value="#639922"/>
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">Select animals to include (add animals above first, or add unassigned animals later)</div>
+        <div id="grp-animal-picker" style="max-height:200px;overflow-y:auto;margin-bottom:10px;"></div>
+        <button class="btn btn-green btn-sm" onclick="addAnimalGroup()">Add group</button>
+      </div>
+
+      <!-- Individual Animals -->
+      <div class="card">
+        <div class="sec">Individual animals</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:10px;line-height:1.6;">Add each animal with their tag number, EID, sex, class, and current weight. Animals are then assigned to groups.</div>
+        <!-- Search/filter bar -->
+        <div style="display:flex;gap:8px;margin-bottom:10px;">
+          <input type="text" id="animal-search" placeholder="Search by tag or EID…" oninput="renderAnimalList()" style="flex:1;padding:7px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:14px;background:var(--bg);color:var(--text);font-family:inherit;"/>
+          <select id="animal-filter-group" onchange="renderAnimalList()" style="padding:7px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;">
+            <option value="">All groups</option>
+          </select>
+        </div>
+        <div id="animal-list"></div>
+        <div class="div"></div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Add animal</div>
+        <div class="two">
+          <div class="field"><label>Ear tag #</label><input type="text" id="a-tag" placeholder="T-001"/></div>
+          <div class="field"><label>EID # (optional)</label><input type="text" id="a-eid" placeholder="840-…"/></div>
+        </div>
+        <div class="two">
+          <div class="field"><label>Sex</label>
+            <select id="a-sex">
+              <option value="cow">Cow</option>
+              <option value="heifer">Heifer</option>
+              <option value="bull">Bull</option>
+              <option value="steer">Steer</option>
+              <option value="calf-m">Calf (male)</option>
+              <option value="calf-f">Calf (female)</option>
+              <option value="ewe">Ewe</option>
+              <option value="ram">Ram</option>
+              <option value="lamb">Lamb</option>
+              <option value="doe">Doe</option>
+              <option value="buck">Buck</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="field"><label>Class</label>
+            <select id="a-class"><option value="">— select class —</option></select>
+          </div>
+        </div>
+        <div class="two">
+          <div class="field"><label>Current weight (lbs)</label><input type="number" id="a-wt" placeholder="1200" step="1"/></div>
+          <div class="field"><label>Assign to group (optional)</label>
+            <select id="a-group"><option value="">— unassigned —</option></select>
+          </div>
+        </div>
+        <div class="field"><label>Notes (optional)</label><input type="text" id="a-notes" placeholder="Dam, sire, breed notes…"/></div>
+        <button class="btn btn-green btn-sm" onclick="addAnimal()">Add animal</button>
       </div>
 
       <!-- NPK -->
@@ -788,7 +883,7 @@ function save(){saveLocal();if(driveState.connected&&driveState.accessToken)driv
 function todayStr(){return new Date().toISOString().slice(0,10);}
 function dLabel(d){return d?new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}):'--';}
 function daysBetween(a,b){return Math.max(1,Math.round((new Date(b+'T12:00:00')-new Date(a+'T12:00:00'))/86400000)+1);}
-function getActive(){return S.events.find(e=>e.status==='open')||null;}
+// getActive: see override in animal groups section
 function getDMITarget(){const h=S.herd;if(!h.count||!h.weight||!h.dmi)return null;return h.count*h.weight*(h.dmi/100);}
 function calcNPK(head,wt,days){const st=S.settings;const bw=head*wt;return{n:bw/1000*st.nExc*days,p:bw/1000*st.pExc*days,k:bw/1000*st.kExc*days};}
 function calcConsumedDMI(entries,resid){
@@ -1036,7 +1131,7 @@ function renderCurrentScreen(){
   else if(curScreen==='todos')renderTodos();
   else if(curScreen==='pastures')renderPastures();
   else if(curScreen==='feedback')renderFeedbackTab();
-  else if(curScreen==='settings'){loadSettings();renderFeedTypes();renderBatchListS();renderUsersList();updateDriveUI();}
+  else if(curScreen==='settings'){loadSettings();renderFeedTypes();renderBatchListS();renderUsersList();renderClassesList();renderGroupsList();renderAnimalList();renderGrpAnimalPicker();updateDriveUI();}
 }
 
 // ─── USER SYSTEM ──────────────────────────────────────────────────────────────
@@ -1113,12 +1208,27 @@ function maybePromptUserSelect(){
 
 // ─── HOME ─────────────────────────────────────────────────────────────────────
 function renderHome(){
-  const ae=getActive();
-  document.getElementById('move-btn').style.display=ae?'':'none';
-  if(ae){
-    const days=daysBetween(ae.dateIn,todayStr());
-    const cost=calcEntryCost(ae.feedEntries);
-    document.getElementById('home-active').innerHTML=`<div class="banner ban-green"><div style="font-size:14px;font-weight:600;color:var(--green-d);">Active: ${ae.pasture} — Day ${days}</div><div style="font-size:12px;color:var(--green-d);opacity:0.85;margin-top:2px;">In ${dLabel(ae.dateIn)} · ${(ae.feedEntries||[]).length} feedings · $${cost.toFixed(2)} feed</div></div>`;
+  const activeEvs=getActiveEvents();
+  document.getElementById('move-btn').style.display=activeEvs.length>0?'':'none';
+  if(activeEvs.length>0){
+    document.getElementById('home-active').innerHTML=activeEvs.map(ae=>{
+      const g=getGroupById(ae.groupId);
+      const gColor=g?g.color:'#639922';
+      const gName=g?g.name:(ae.groupName||'Herd');
+      const days=daysBetween(ae.dateIn,todayStr());
+      const cost=calcEntryCost(ae.feedEntries);
+      const isConEv=ae.locationType==='confinement';
+      const splitBtn=g?`<button class="btn btn-outline btn-xs" onclick="openSplitSheet(${g.id})" style="margin-top:6px;">Split group</button>`:'';
+      return `<div class="banner ban-green" style="border-left:3px solid ${gColor};margin-bottom:6px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <div>
+            <div style="font-size:14px;font-weight:600;color:var(--green-d);">${gName} → ${ae.pasture}${isConEv?' <span class="badge bb" style="font-size:10px;">confinement</span>':''} — Day ${days}</div>
+            <div style="font-size:12px;color:var(--green-d);opacity:0.85;margin-top:2px;">In ${dLabel(ae.dateIn)} · ${(ae.feedEntries||[]).length} feedings · $${cost.toFixed(2)} feed</div>
+          </div>
+          <div>${splitBtn}</div>
+        </div>
+      </div>`;
+    }).join('');
     document.getElementById('home-none').style.display='none';
   } else {
     document.getElementById('home-active').innerHTML='';
@@ -1315,12 +1425,30 @@ function showPaddockTasksInWiz(paddock,containerId,listId){
 
 // ─── FEED SCREEN ──────────────────────────────────────────────────────────────
 let ffLines=[];
+let ffActiveGroupId=null;
+
 function renderFeedScreen(){
-  const ae=getActive();
-  document.getElementById('feed-no-event').style.display=ae?'none':'block';
-  document.getElementById('feed-form').style.display=ae?'block':'none';
-  if(!ae)return;
-  document.getElementById('feed-banner').innerHTML=`<div class="banner ban-green"><div style="font-size:14px;font-weight:600;color:var(--green-d);">Feeding: ${ae.pasture}</div><div style="font-size:12px;color:var(--green-d);opacity:0.85;">Day ${daysBetween(ae.dateIn,todayStr())} · in since ${dLabel(ae.dateIn)}</div></div>`;
+  const active=getActiveEvents();
+  document.getElementById('feed-no-event').style.display=active.length?'none':'block';
+  document.getElementById('feed-form').style.display=active.length?'block':'none';
+  if(!active.length)return;
+  // Build group tabs
+  const tabsEl=document.getElementById('feed-group-tabs');
+  if(active.length>1){
+    tabsEl.style.display='block';
+    if(!ffActiveGroupId||!active.find(e=>e.groupId===ffActiveGroupId))ffActiveGroupId=active[0].groupId;
+    tabsEl.innerHTML=active.map(ae=>{
+      const g=getGroupById(ae.groupId);const gName=g?g.name:(ae.groupName||'Herd');
+      const on=ae.groupId===ffActiveGroupId;
+      return `<button class="fp${on?' on':''}" onclick="ffActiveGroupId=${ae.groupId};renderFeedScreen();" style="border-left:3px solid ${g?g.color:'var(--green)'};">${gName}<br><span style="font-size:10px;font-weight:400;">${ae.pasture}</span></button>`;
+    }).join('');
+  } else {
+    tabsEl.style.display='none';
+    ffActiveGroupId=active[0].groupId;
+  }
+  const ae=active.find(e=>e.groupId===ffActiveGroupId)||active[0];
+  const g=getGroupById(ae.groupId);const gColor=g?g.color:'#639922';const gName=g?g.name:(ae.groupName||'Herd');
+  document.getElementById('feed-banner').innerHTML=`<div class="banner ban-green" style="border-left:3px solid ${gColor};"><div style="font-size:14px;font-weight:600;color:var(--green-d);">Feeding: ${gName} at ${ae.pasture}</div><div style="font-size:12px;color:var(--green-d);opacity:0.85;">Day ${daysBetween(ae.dateIn,todayStr())} · in since ${dLabel(ae.dateIn)}</div></div>`;
   document.getElementById('ff-date').value=todayStr();
   ffLines=[];renderFFBatches();renderFFHistory(ae);
 }
@@ -1356,7 +1484,9 @@ function calcFFTotals(){
   document.getElementById('ff-cost-out').textContent='$'+cost.toFixed(2);
 }
 function saveFeedEntry(){
-  const ae=getActive();if(!ae){alert('No active event');return;}
+  const active=getActiveEvents();
+  const ae=(ffActiveGroupId?active.find(e=>e.groupId===ffActiveGroupId):null)||active[0];
+  if(!ae){alert('No active event');return;}
   if(!ffLines.length){alert('Select a feed batch');return;}
   if(!ae.feedEntries)ae.feedEntries=[];
   ae.feedEntries.push({id:Date.now(),date:document.getElementById('ff-date').value,lines:[...ffLines]});
@@ -1377,29 +1507,82 @@ function renderFFHistory(ae){
 
 // ─── MOVE WIZARD ──────────────────────────────────────────────────────────────
 let wizFeedLines=[];
-function openMoveWizard(){nav('move',document.getElementById('bn-home'));initWiz();}
+// openMoveWizard: see override in animal groups section
 function initWiz(){
-  wizFeedLines=[];wizGo(0);
-  const ae=getActive();
+  wizFeedLines=[];wizGroupId=null;
+  const active=getActiveEvents();
+  const groups=S.animalGroups||[];
+  if(!groups.length){wizGo(0);
+    const ae=getActive();
+    document.getElementById('ws0-has').style.display=ae?'block':'none';
+    document.getElementById('ws0-none').style.display=ae?'none':'block';
+    if(ae){document.getElementById('ws0-banner').innerHTML=`<div style="font-size:14px;font-weight:600;color:var(--amber-d);">Closing: ${ae.pasture}</div><div style="font-size:12px;color:var(--amber-d);opacity:0.85;margin-top:2px;">In ${dLabel(ae.dateIn)} · ${daysBetween(ae.dateIn,todayStr())} days · ${(ae.feedEntries||[]).length} feedings</div>`;if(ae.heightIn)document.getElementById('w-pregraze-disp').value=ae.heightIn;showPaddockTasksInWiz(ae.pasture,'w-paddock-tasks','w-paddock-tasks-list');}
+    document.getElementById('w-out-date').value=todayStr();document.getElementById('w-in-date').value=todayStr();
+    if(S.herd&&S.herd.count)document.getElementById('w-new-head').value=S.herd.count;
+    if(S.herd&&S.herd.weight)document.getElementById('w-new-wt').value=S.herd.weight;
+    populateNewPastureSelect();renderWizFeedSel();calcClosePreview();return;
+  }
+  if(active.length===1){wizGroupId=active[0].groupId;initWizFromGroup();return;}
+  if(active.length===0&&groups.length===1){wizGroupId=groups[0].id;initWizFromGroup();return;}
+  renderWizGroupSelector();
+  wizGoStep('g');
+}
+
+function renderWizGroupSelector(){
+  const el=document.getElementById('wiz-group-list');if(!el)return;
+  const active=getActiveEvents();
+  const hasActive=active.length>0;
+  el.innerHTML=`<div style="font-size:13px;color:var(--text2);margin-bottom:10px;">${hasActive?'Which group is moving?':'Which group to open an event for?'}</div>`+
+    S.animalGroups.map(g=>{
+      const ae=getActiveEventForGroup(g.id);
+      const t=getGroupTotals(g);
+      return `<div style="display:flex;align-items:center;gap:12px;padding:12px;border:0.5px solid var(--border);border-radius:var(--radius-l);margin-bottom:6px;cursor:pointer;" onclick="selectWizGroup(${g.id})">
+        <div style="width:10px;height:36px;border-radius:3px;background:${g.color||'var(--green)'};flex-shrink:0;"></div>
+        <div style="flex:1;"><div style="font-size:14px;font-weight:600;">${g.name}</div><div style="font-size:12px;color:var(--text2);">${t.totalHead} head ${ae?'· at '+ae.pasture:'· not grazing'}</div></div>
+        <div style="font-size:13px;color:var(--teal-d);">${ae?'Move →':'Start →'}</div>
+      </div>`;
+    }).join('');
+}
+
+function selectWizGroup(gId){
+  wizGroupId=gId;initWizFromGroup();
+}
+
+function initWizFromGroup(){
+  const ae=wizGroupId?getActiveEventForGroup(wizGroupId):null;
+  wizGo(0);
   document.getElementById('ws0-has').style.display=ae?'block':'none';
   document.getElementById('ws0-none').style.display=ae?'none':'block';
   if(ae){
-    document.getElementById('ws0-banner').innerHTML=`<div style="font-size:14px;font-weight:600;color:var(--amber-d);">Closing: ${ae.pasture}</div><div style="font-size:12px;color:var(--amber-d);opacity:0.85;margin-top:2px;">In ${dLabel(ae.dateIn)} · ${daysBetween(ae.dateIn,todayStr())} days · ${(ae.feedEntries||[]).length} feedings</div>`;
+    const g=getGroupById(ae.groupId);
+    document.getElementById('ws0-banner').innerHTML=`<div style="font-size:14px;font-weight:600;color:var(--amber-d);">Closing: ${ae.pasture}${g?' ('+g.name+')':''}</div><div style="font-size:12px;color:var(--amber-d);opacity:0.85;margin-top:2px;">In ${dLabel(ae.dateIn)} · ${daysBetween(ae.dateIn,todayStr())} days · ${(ae.feedEntries||[]).length} feedings</div>`;
     if(ae.heightIn)document.getElementById('w-pregraze-disp').value=ae.heightIn;
     showPaddockTasksInWiz(ae.pasture,'w-paddock-tasks','w-paddock-tasks-list');
   }
   document.getElementById('w-out-date').value=todayStr();
   document.getElementById('w-in-date').value=todayStr();
-  const h=S.herd;
-  if(h.count)document.getElementById('w-new-head').value=h.count;
-  if(h.weight)document.getElementById('w-new-wt').value=h.weight;
+  const g=wizGroupId?getGroupById(wizGroupId):null;
+  const t=g?getGroupTotals(g):null;
+  if(t&&t.totalHead)document.getElementById('w-new-head').value=t.totalHead;
+  if(t&&t.avgWeight)document.getElementById('w-new-wt').value=t.avgWeight;
   populateNewPastureSelect();renderWizFeedSel();calcClosePreview();
 }
+
+
 function wizGo(step){
-  [0,1,2].forEach(i=>{document.getElementById('ws'+i).classList.toggle('on',i===step);document.getElementById('wd'+i).classList.toggle('on',i===step);});
+  // Handle numeric steps 0,1,2 and also step 'g'
+  [0,1,2].forEach(i=>{
+    const ws=document.getElementById('ws'+i);const wd=document.getElementById('wd'+i);
+    if(ws)ws.classList.toggle('on',i===step);
+    if(wd)wd.classList.toggle('on',i===step);
+  });
+  // Hide group step
+  const wsg=document.getElementById('ws-g');const wdg=document.getElementById('wd-g');
+  if(wsg)wsg.classList.remove('on');if(wdg)wdg.classList.remove('on');
 }
 function calcClosePreview(){
-  const ae=getActive();const prev=document.getElementById('close-preview');
+  const ae=wizGroupId?getActiveEventForGroup(wizGroupId):getActive();
+  const prev=document.getElementById('close-preview');
   if(!ae){prev.style.display='none';return;}
   // For confinement events, show simplified preview
   if(ae.locationType==='confinement'){
@@ -1444,7 +1627,8 @@ function calcClosePreview(){
   document.getElementById('cp-pct').textContent=pct!==null?pct+'%':'--';document.getElementById('cp-npk').textContent='$'+npkVal;
 }
 function wizCloseEvent(){
-  const ae=getActive();
+  const ae=wizGroupId?getActiveEventForGroup(wizGroupId):getActive();
+  if(!ae){alert('No active event to close');return;}
   const outDate=document.getElementById('w-out-date').value;if(!outDate){alert('Enter move-out date');return;}
   const feedRes=parseInt(document.getElementById('w-feed-res').value)||0;
   const days=daysBetween(ae.dateIn,outDate);
@@ -1544,7 +1728,9 @@ function wizSaveNew(){
   const isCon=loc&&loc.locationType==='confinement';
   const feedEntries=[];
   if(wizFeedLines.some(l=>l.qty>0))feedEntries.push({id:Date.now(),date:inDate,lines:[...wizFeedLines]});
-  S.events.push({id:Date.now()+1,status:'open',pasture:locName,locationType:isCon?'confinement':'pasture',dateIn:inDate,head:parseFloat(document.getElementById('w-new-head').value)||S.herd.count||0,wt:parseFloat(document.getElementById('w-new-wt').value)||S.herd.weight||0,heightIn:(!isCon&&parseFloat(document.getElementById('w-new-h').value))||null,feedEntries});
+  const g=wizGroupId?getGroupById(wizGroupId):null;
+  const t=g?getGroupTotals(g):{totalHead:0,avgWeight:0};
+  S.events.push({id:Date.now()+1,status:'open',pasture:locName,locationType:isCon?'confinement':'pasture',groupId:wizGroupId||null,groupName:g?g.name:'',dateIn:inDate,head:parseFloat(document.getElementById('w-new-head').value)||t.totalHead||0,wt:parseFloat(document.getElementById('w-new-wt').value)||t.avgWeight||0,heightIn:(!isCon&&parseFloat(document.getElementById('w-new-h').value))||null,feedEntries});
   wizFeedLines=[];save();nav('home',document.getElementById('bn-home'));
 }
 
@@ -1633,23 +1819,21 @@ function renderPastures(){
       const remLbs=batches.reduce((s,b)=>s+getBatchRemaining(b),0);
       if(remLbs>0){const vol=volLbsToDisplay(remLbs);manureLine=`<div style="font-size:11px;color:var(--amber-d);margin-top:3px;">~${vol.val} ${vol.unit} in storage</div>`;}
     }
-    return `<div class="chip"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><div style="font-size:14px;font-weight:600;">${p.name} ${isActive?'<span class="badge bt">active</span>':''} ${isCon?'<span class="badge bb">confinement</span>':''}</div><div style="font-size:12px;color:var(--text2);margin-top:2px;">${detail}</div>${npkLine}${manureLine}</div><div style="display:flex;gap:6px;align-items:center;">${typeBadge}${avg!==null?`<span class="badge ${avg>=60?'bg':'ba'}">${avg}% avg</span>`:''} ${openTasks?`<span class="badge ba">${openTasks} task${openTasks!==1?'s':''}</span>`:''}<button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:20px;padding:2px 6px;" onclick="S.pastures.splice(${i},1);save();renderPastures();">×</button></div></div></div>`;
+    return `<div class="chip"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><div style="font-size:14px;font-weight:600;">${p.name} ${isActive?'<span class="badge bt">active</span>':''} ${isCon?'<span class="badge bb">confinement</span>':''}</div><div style="font-size:12px;color:var(--text2);margin-top:2px;">${detail}</div>${npkLine}${manureLine}</div><div style="display:flex;gap:6px;align-items:center;">${typeBadge}${avg!==null?`<span class="badge ${avg>=60?'bg':'ba'}">${avg}% avg</span>`:''} ${openTasks?`<span class="badge ba">${openTasks} task${openTasks!==1?'s':''}</span>`:''}<button class="btn btn-outline btn-xs" onclick="openLocEdit(${i})">Edit</button><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:20px;padding:2px 6px;" onclick="S.pastures.splice(${i},1);save();renderPastures();">×</button></div></div></div>`;
   }).join('');
 }
 
 // ─── SETTINGS ─────────────────────────────────────────────────────────────────
 function saveSettings(){
-  S.herd={name:document.getElementById('s-name').value,type:document.getElementById('s-type').value,count:parseFloat(document.getElementById('s-count').value)||0,weight:parseFloat(document.getElementById('s-wt').value)||0,dmi:parseFloat(document.getElementById('s-dmi').value)||2.5};
+  S.herd={name:document.getElementById('s-name').value,type:'',count:0,weight:0,dmi:2.5};
   S.settings={nPrice:parseFloat(document.getElementById('s-np').value)||0.55,pPrice:parseFloat(document.getElementById('s-pp').value)||0.65,kPrice:parseFloat(document.getElementById('s-kp').value)||0.42,nExc:parseFloat(document.getElementById('s-ne').value)||0.32,pExc:parseFloat(document.getElementById('s-pe').value)||0.09,kExc:parseFloat(document.getElementById('s-ke').value)||0.30,manureVolumeRate:parseFloat(document.getElementById('s-manure-rate').value)||65,manureLoadLbs:parseFloat(document.getElementById('s-load-lbs').value)||8000,manureVolumeUnit:document.getElementById('s-vol-unit').value||'loads'};
   S.version=document.getElementById('s-ver').value||'v1.0';
   S.testerName=document.getElementById('s-tester').value||'';
   save();updateHeader();
 }
 function loadSettings(){
-  const h=S.herd,st=S.settings;
-  if(h.name)document.getElementById('s-name').value=h.name;if(h.type)document.getElementById('s-type').value=h.type;
-  if(h.count)document.getElementById('s-count').value=h.count;if(h.weight)document.getElementById('s-wt').value=h.weight;
-  if(h.dmi)document.getElementById('s-dmi').value=h.dmi;
+  const st=S.settings;
+  if(S.herd&&S.herd.name)document.getElementById('s-name').value=S.herd.name;
   document.getElementById('s-np').value=st.nPrice;document.getElementById('s-pp').value=st.pPrice;document.getElementById('s-kp').value=st.kPrice;
   document.getElementById('s-ne').value=st.nExc;document.getElementById('s-pe').value=st.pExc;document.getElementById('s-ke').value=st.kExc;
   if(st.manureVolumeRate&&document.getElementById('s-manure-rate'))document.getElementById('s-manure-rate').value=st.manureVolumeRate;
@@ -1688,8 +1872,11 @@ function renderBatchListS(){
   }).join('');
 }
 function updateHeader(){
-  const h=S.herd;
-  document.getElementById('hdr-sub').textContent=h.name&&h.count?h.name+' · '+h.count+' head · '+(h.type||''):'Set up your operation in Settings';
+  const name=S.herd&&S.herd.name?S.herd.name:'';
+  const groups=S.animalGroups||[];
+  const totalHead=groups.reduce((s,g)=>s+getGroupTotals(g).totalHead,0);
+  const sub=name&&totalHead?name+' · '+totalHead+' head · '+groups.length+' group'+(groups.length!==1?'s':''):name||'Set up your operation in Settings';
+  document.getElementById('hdr-sub').textContent=sub;
   document.getElementById('ver-tag').textContent=S.version||'v1.0';
 }
 
@@ -1956,6 +2143,674 @@ function saveSpreadEvent(){
 
 // ─── END MANURE SYSTEM ────────────────────────────────────────────────────────
 
+
+// ─── ANIMAL CLASSES & GROUPS ────────────────────────────────────────────────
+
+const DEFAULT_CLASSES = [
+  {id:101,name:'Cow',species:'Beef cattle',defaultWeightLbs:1300,dmiPct:2.3},
+  {id:102,name:'Steer',species:'Beef cattle',defaultWeightLbs:900,dmiPct:2.5},
+  {id:103,name:'Bull',species:'Beef cattle',defaultWeightLbs:1800,dmiPct:2.0},
+  {id:104,name:'Calf',species:'Beef cattle',defaultWeightLbs:400,dmiPct:3.0},
+  {id:105,name:'Ewe',species:'Sheep',defaultWeightLbs:150,dmiPct:2.8},
+  {id:106,name:'Ram',species:'Sheep',defaultWeightLbs:200,dmiPct:2.5},
+  {id:107,name:'Lamb',species:'Sheep',defaultWeightLbs:60,dmiPct:3.5},
+  {id:108,name:'Doe',species:'Goats',defaultWeightLbs:120,dmiPct:3.0},
+  {id:109,name:'Buck',species:'Goats',defaultWeightLbs:160,dmiPct:2.8},
+];
+
+function migrateHerdToGroups(){
+  // Already migrated if groups exist
+  if(S.animalGroups&&S.animalGroups.length>0)return;
+  // Seed default classes
+  if(!S.animalClasses||!S.animalClasses.length){S.animalClasses=DEFAULT_CLASSES.map(c=>({...c}));}
+  if(!S.animalGroups)S.animalGroups=[];
+  // Create default group from legacy S.herd
+  if(S.herd&&(S.herd.count||S.herd.name)){
+    let classes=[];
+    const cnt=S.herd.count||10;const wt=S.herd.weight||1000;
+    if(S.herd.type&&S.herd.type.includes('Sheep'))classes=[{classId:105,count:cnt,avgWeightLbs:wt}];
+    else if(S.herd.type&&S.herd.type.includes('Goat'))classes=[{classId:108,count:cnt,avgWeightLbs:wt}];
+    else classes=[{classId:101,count:Math.ceil(cnt*0.8),avgWeightLbs:wt},{classId:102,count:Math.floor(cnt*0.2),avgWeightLbs:Math.round(wt*0.7)}].filter(c=>c.count>0);
+    const grpId=Date.now();
+    S.animalGroups.push({id:grpId,name:S.herd.name||'Main herd',color:'#639922',classes});
+    S.events.filter(e=>!e.groupId).forEach(e=>{e.groupId=grpId;});
+  }
+  saveLocal();
+}
+
+function getGroupById(id){return S.animalGroups.find(g=>g.id===id)||null;}
+
+function getGroupTotals(group){
+  if(!group||!group.classes||!group.classes.length)return{totalHead:0,totalLiveWeight:0,avgWeight:0,dmiTarget:0};
+  let head=0,liveWt=0,dmi=0;
+  group.classes.forEach(c=>{
+    const cls=S.animalClasses.find(x=>x.id===c.classId);
+    const wt=c.avgWeightLbs||(cls?cls.defaultWeightLbs:1000);
+    const d=(cls?cls.dmiPct:2.5)/100;
+    head+=c.count;liveWt+=c.count*wt;dmi+=c.count*wt*d;
+  });
+  return{totalHead:head,totalLiveWeight:liveWt,avgWeight:head>0?Math.round(liveWt/head):0,dmiTarget:dmi};
+}
+
+function getActiveEvents(){return S.events.filter(e=>e.status==='open');}
+function getActiveEventForGroup(gId){return S.events.find(e=>e.status==='open'&&e.groupId===gId)||null;}
+function getAnyActiveEvent(){return S.events.find(e=>e.status==='open')||null;}
+
+// Override legacy getActive() to return first open event (for backward compat in calcConsumedDMI etc)
+function getActive(){return getAnyActiveEvent();}
+
+function getDMITargetForGroup(gId){
+  const g=getGroupById(gId);return g?getGroupTotals(g).dmiTarget:null;
+}
+
+// ── Animal Classes UI ────────────────────────────────────────────────────────
+function addAnimalClass(){
+  const name=document.getElementById('cls-name').value.trim();
+  if(!name){alert('Enter a class name');return;}
+  S.animalClasses.push({
+    id:Date.now(),name,
+    species:document.getElementById('cls-species').value,
+    defaultWeightLbs:parseFloat(document.getElementById('cls-wt').value)||1000,
+    dmiPct:parseFloat(document.getElementById('cls-dmi').value)||2.5,
+  });
+  save();renderClassesList();
+  document.getElementById('cls-name').value='';
+  document.getElementById('cls-wt').value='';
+  document.getElementById('cls-dmi').value='';
+}
+
+function renderClassesList(){
+  const el=document.getElementById('classes-list');if(!el)return;
+  if(!S.animalClasses.length){el.innerHTML='<div style="font-size:13px;color:var(--text2);margin-bottom:8px;">No classes yet — add above or defaults will be seeded on first group creation</div>';return;}
+  el.innerHTML=S.animalClasses.map((c,i)=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);font-size:13px;">
+      <span><strong>${c.name}</strong> <span class="badge bb">${c.species}</span> <span class="badge bt">${c.defaultWeightLbs} lbs</span> <span class="badge bg">${c.dmiPct}% DMI</span></span>
+      <button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;" onclick="S.animalClasses.splice(${i},1);save();renderClassesList();">×</button>
+    </div>`).join('');
+}
+
+// ── Animal Groups UI ─────────────────────────────────────────────────────────
+let grpSelectedColor='#639922';
+let grpClassRows=[];
+
+function selGroupColor(el,color){
+  grpSelectedColor=color;
+  document.getElementById('grp-color').value=color;
+  document.querySelectorAll('#grp-color-picker div').forEach(d=>d.style.border='2px solid transparent');
+  el.style.border='2px solid var(--text)';
+}
+
+function addGroupClassRow(){
+  grpClassRows.push({classId:'',count:0,avgWeightLbs:''});
+  renderGrpClassRows();
+}
+
+function renderGrpClassRows(){
+  const el=document.getElementById('grp-class-rows');if(!el)return;
+  if(!grpClassRows.length){el.innerHTML='';return;}
+  el.innerHTML=grpClassRows.map((r,i)=>`
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
+      <select onchange="grpClassRows[${i}].classId=parseInt(this.value);updateGrpWtDefault(${i})" style="flex:2;padding:7px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);font-size:14px;font-family:inherit;">
+        <option value="">— class —</option>
+        ${S.animalClasses.map(c=>`<option value="${c.id}"${r.classId===c.id?' selected':''}>${c.name} (${c.species})</option>`).join('')}
+      </select>
+      <input type="number" placeholder="Count" value="${r.count||''}" min="1"
+        oninput="grpClassRows[${i}].count=parseInt(this.value)||0"
+        style="flex:1;padding:7px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);font-size:14px;font-family:inherit;"/>
+      <input type="number" placeholder="Avg wt" value="${r.avgWeightLbs||''}" min="1"
+        oninput="grpClassRows[${i}].avgWeightLbs=parseFloat(this.value)||''"
+        style="flex:1;padding:7px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);font-size:14px;font-family:inherit;"/>
+      <button onclick="grpClassRows.splice(${i},1);renderGrpClassRows();" style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:18px;padding:2px 6px;">×</button>
+    </div>`).join('');
+}
+
+function updateGrpWtDefault(i){
+  const cls=S.animalClasses.find(c=>c.id===grpClassRows[i].classId);
+  if(cls&&!grpClassRows[i].avgWeightLbs)grpClassRows[i].avgWeightLbs=cls.defaultWeightLbs;
+  renderGrpClassRows();
+}
+
+function addAnimalGroup(){
+  const name=document.getElementById('grp-name').value.trim();
+  if(!name){alert('Enter a group name');return;}
+  if(!grpClassRows.length||!grpClassRows.some(r=>r.classId&&r.count>0)){alert('Add at least one animal class with a count');return;}
+  S.animalGroups.push({
+    id:Date.now(),name,
+    color:document.getElementById('grp-color').value||'#639922',
+    classes:grpClassRows.filter(r=>r.classId&&r.count>0).map(r=>{
+      const cls=S.animalClasses.find(c=>c.id===r.classId);
+      return{classId:r.classId,count:r.count,avgWeightLbs:r.avgWeightLbs||(cls?cls.defaultWeightLbs:1000)};
+    }),
+  });
+  grpClassRows=[];
+  save();renderGroupsList();
+  document.getElementById('grp-name').value='';
+  document.getElementById('grp-class-rows').innerHTML='';
+}
+
+function renderGroupsList(){
+  const el=document.getElementById('groups-list');if(!el)return;
+  if(!S.animalGroups.length){el.innerHTML='<div style="font-size:13px;color:var(--text2);margin-bottom:8px;">No groups yet</div>';return;}
+  el.innerHTML=S.animalGroups.map((g,i)=>{
+    const t=getGroupTotals(g);
+    const ae=getActiveEventForGroup(g.id);
+    const loc=ae?ae.pasture:'—';
+    // Build breakdown from individual animals if available, else legacy classes
+    let breakdown='';
+    if(g.animalIds&&g.animalIds.length>0){
+      const animals=getGroupAnimals(g.id);
+      const bySex={};
+      animals.forEach(a=>{const k=a.sex||'other';bySex[k]=(bySex[k]||0)+1;});
+      breakdown=Object.entries(bySex).map(([s,n])=>n+' '+s).join(', ');
+    } else if(g.classes){
+      breakdown=g.classes.map(c=>{const cls=S.animalClasses.find(x=>x.id===c.classId);return`${c.count} ${cls?cls.name:'?'}`;}).join(', ');
+    }
+    return `<div class="chip" style="border-left:3px solid ${g.color||'var(--green)'};margin-bottom:6px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div>
+          <div style="font-size:14px;font-weight:600;">${g.name} ${ae?`<span class="badge bt">active · ${loc}</span>`:''}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px;">${breakdown}</div>
+          <div style="font-size:12px;color:var(--text2);">${t.totalHead} head · avg ${t.avgWeight} lbs · DMI target ${Math.round(t.dmiTarget).toLocaleString()} lbs/day</div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          ${ae?`<button class="btn btn-outline btn-xs" onclick="openSplitSheet(${g.id})">Split</button>`:''}
+          <button class="btn btn-outline btn-xs" onclick="openWtSheet(${g.id})">Weights</button>
+          <button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:18px;padding:2px 4px;" onclick="removeGroup(${i})">×</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function removeGroup(i){
+  const g=S.animalGroups[i];
+  if(getActiveEventForGroup(g.id)){alert('Cannot remove a group with an active event. Close the event first.');return;}
+  S.animalGroups.splice(i,1);save();renderGroupsList();
+}
+
+// ── Split group ───────────────────────────────────────────────────────────────
+let splitSrcColor='#1D9E75';
+
+function selSplitColor(el,color){
+  splitSrcColor=color;
+  document.getElementById('split-color').value=color;
+  document.querySelectorAll('#split-color-picker div').forEach(d=>d.style.border='2px solid transparent');
+  el.style.border='2px solid var(--text)';
+}
+
+function openSplitSheet(groupId){
+  const g=getGroupById(groupId);if(!g)return;
+  document.getElementById('split-source-id').value=groupId;
+  splitSrcColor='#1D9E75';
+  document.getElementById('split-source-info').innerHTML=
+    `<strong>${g.name}</strong> · ${g.classes.map(c=>{const cls=S.animalClasses.find(x=>x.id===c.classId);return`${c.count} ${cls?cls.name:'?'}`;}).join(', ')}`;
+  // Build class rows with max counts
+  document.getElementById('split-class-rows').innerHTML=g.classes.map((c,i)=>{
+    const cls=S.animalClasses.find(x=>x.id===c.classId);
+    return `<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
+      <div style="flex:2;font-size:13px;font-weight:500;">${cls?cls.name:'Unknown'} <span style="color:var(--text2);font-size:11px;">(${c.count} available)</span></div>
+      <input type="number" id="split-cls-${i}" placeholder="0" min="0" max="${c.count}" step="1" value="0"
+        oninput="calcSplitPreview()" style="flex:1;padding:7px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);font-size:14px;font-family:inherit;"/>
+      <div style="flex:0.5;font-size:11px;color:var(--text2);">to move</div>
+    </div>`;
+  }).join('');
+  document.getElementById('split-new-name').value='';
+  document.getElementById('split-preview').style.display='none';
+  document.getElementById('split-sheet-wrap').classList.add('open');
+}
+function closeSplitSheet(){document.getElementById('split-sheet-wrap').classList.remove('open');}
+
+function calcSplitPreview(){
+  const gId=parseInt(document.getElementById('split-source-id').value);
+  const g=getGroupById(gId);if(!g)return;
+  const movedCounts=g.classes.map((c,i)=>({...c,count:parseInt(document.getElementById('split-cls-'+i).value)||0}));
+  const remainCounts=g.classes.map((c,i)=>({...c,count:c.count-(parseInt(document.getElementById('split-cls-'+i).value)||0)}));
+  const movedTotal=movedCounts.reduce((s,c)=>s+c.count,0);
+  if(movedTotal<=0){document.getElementById('split-preview').style.display='none';return;}
+  const newGTotals=getGroupTotals({...g,classes:movedCounts.filter(c=>c.count>0)});
+  const remGTotals=getGroupTotals({...g,classes:remainCounts.filter(c=>c.count>0)});
+  document.getElementById('split-preview').style.display='block';
+  document.getElementById('split-preview-content').innerHTML=`
+    <div class="two" style="gap:8px;">
+      <div><div style="font-size:11px;color:var(--text2);">${g.name} (remaining)</div><div style="font-size:13px;font-weight:600;">${remGTotals.totalHead} head · ${Math.round(remGTotals.dmiTarget).toLocaleString()} lbs DMI/day</div></div>
+      <div><div style="font-size:11px;color:var(--text2);">New group</div><div style="font-size:13px;font-weight:600;">${newGTotals.totalHead} head · ${Math.round(newGTotals.dmiTarget).toLocaleString()} lbs DMI/day</div></div>
+    </div>`;
+}
+
+function saveSplit(){
+  const gId=parseInt(document.getElementById('split-source-id').value);
+  const g=getGroupById(gId);if(!g)return;
+  const newName=document.getElementById('split-new-name').value.trim();
+  if(!newName){alert('Name the new group');return;}
+  const movedCounts=g.classes.map((c,i)=>({...c,count:parseInt(document.getElementById('split-cls-'+i).value)||0}));
+  const movedTotal=movedCounts.reduce((s,c)=>s+c.count,0);
+  if(movedTotal<=0){alert('Enter at least 1 animal to move');return;}
+  // Validate not moving more than available
+  for(let i=0;i<g.classes.length;i++){
+    if(movedCounts[i].count>g.classes[i].count){alert('Cannot move more than available for '+S.animalClasses.find(c=>c.id===g.classes[i].classId)?.name);return;}
+  }
+  // Deduct from source
+  g.classes=g.classes.map((c,i)=>({...c,count:c.count-movedCounts[i].count})).filter(c=>c.count>0);
+  // Create new group
+  const newId=Date.now();
+  S.animalGroups.push({id:newId,name:newName,color:splitSrcColor,classes:movedCounts.filter(c=>c.count>0)});
+  // Update source group's open event snapshot
+  const ae=getActiveEventForGroup(gId);
+  if(ae){const t=getGroupTotals(g);ae.head=t.totalHead;ae.wt=t.avgWeight;}
+  save();closeSplitSheet();
+  renderGroupsList();renderHome();
+  alert(`Split complete. ${newName} has ${movedTotal} head. Use Move Herd to assign them to a location.`);
+}
+
+// ── Move wizard with group selection ─────────────────────────────────────────
+let wizGroupId = null;
+
+function wizGoStep(step){
+  ['g','0','1','2'].forEach(s=>{
+    const ws=document.getElementById('ws'+( s==='g'?'-g':s));const wd=document.getElementById('wd'+(s==='g'?'-g':s));
+    if(ws)ws.classList.toggle('on',s===String(step));
+    if(wd)wd.classList.toggle('on',s===String(step));
+  });
+}
+
+function openMoveWizard(){
+  nav('move',document.getElementById('bn-home'));
+  initWiz();
+}
+
+// ── Location edit ─────────────────────────────────────────────────────────────
+function openLocEdit(idx){
+  const p=S.pastures[idx];if(!p)return;
+  document.getElementById('loc-edit-idx').value=idx;
+  document.getElementById('le-name').value=p.name||'';
+  document.getElementById('le-acres').value=p.acres||'';
+  const isCon=p.locationType==='confinement';
+  document.getElementById('le-pasture-fields').style.display=isCon?'none':'block';
+  document.getElementById('le-confinement-fields').style.display=isCon?'block':'none';
+  if(!isCon){
+    document.getElementById('le-soil').value=p.soil||'Loam';
+    document.getElementById('le-species').value=p.species||'';
+  } else {
+    document.getElementById('le-desc').value=p.description||'';
+    document.getElementById('le-capture').value=p.captureManure?'yes':'no';
+    document.getElementById('le-cap-pct').value=p.capturePercent||80;
+    document.getElementById('le-batch-mode').value=p.batchMode||'accumulate';
+  }
+  document.getElementById('loc-edit-wrap').classList.add('open');
+}
+function closeLocEdit(){document.getElementById('loc-edit-wrap').classList.remove('open');}
+
+function saveLocEdit(){
+  const idx=parseInt(document.getElementById('loc-edit-idx').value);
+  const p=S.pastures[idx];if(!p)return;
+  const oldName=p.name;
+  p.name=document.getElementById('le-name').value.trim()||p.name;
+  p.acres=parseFloat(document.getElementById('le-acres').value)||p.acres;
+  if(p.locationType!=='confinement'){
+    p.soil=document.getElementById('le-soil').value;
+    p.species=document.getElementById('le-species').value;
+  } else {
+    p.description=document.getElementById('le-desc').value;
+    p.captureManure=document.getElementById('le-capture').value==='yes';
+    p.capturePercent=parseFloat(document.getElementById('le-cap-pct').value)||80;
+    p.batchMode=document.getElementById('le-batch-mode').value;
+  }
+  // Update name references in events if name changed
+  if(p.name!==oldName){
+    S.events.filter(e=>e.pasture===oldName).forEach(e=>e.pasture=p.name);
+    S.todos.filter(t=>t.paddock===oldName).forEach(t=>t.paddock=p.name);
+  }
+  save();closeLocEdit();renderPastures();
+}
+
+// ─── END ANIMAL GROUPS ────────────────────────────────────────────────────────
+
+
+// ─── INDIVIDUAL ANIMALS ────────────────────────────────────────────────────
+
+function getAnimalById(id){return S.animals.find(a=>a.id===id)||null;}
+function getAnimalGroup(animalId){return S.animalGroups.find(g=>(g.animalIds||[]).includes(animalId))||null;}
+function getGroupAnimals(groupId){
+  const g=S.animalGroups.find(x=>x.id===groupId);
+  if(!g||!g.animalIds)return[];
+  return g.animalIds.map(id=>S.animals.find(a=>a.id===id)).filter(Boolean);
+}
+
+// Rewrite getGroupTotals to use individual animals when animalIds present
+// (Override the earlier version)
+function getGroupTotals(group){
+  if(!group)return{totalHead:0,totalLiveWeight:0,avgWeight:0,dmiTarget:0};
+  // New model: individual animals
+  if(group.animalIds&&group.animalIds.length>0){
+    const animals=getGroupAnimals(group.id);
+    if(!animals.length)return{totalHead:0,totalLiveWeight:0,avgWeight:0,dmiTarget:0};
+    let liveWt=0,dmi=0;
+    animals.forEach(a=>{
+      const cls=S.animalClasses.find(c=>c.id===a.classId);
+      const wt=a.weightLbs||1000;
+      const dmiPct=(cls?cls.dmiPct:2.5)/100;
+      liveWt+=wt;dmi+=wt*dmiPct;
+    });
+    return{totalHead:animals.length,totalLiveWeight:liveWt,avgWeight:Math.round(liveWt/animals.length),dmiTarget:dmi};
+  }
+  // Legacy model: class-based counts
+  if(group.classes&&group.classes.length){
+    let head=0,liveWt=0,dmi=0;
+    group.classes.forEach(c=>{
+      const cls=S.animalClasses.find(x=>x.id===c.classId);
+      const wt=c.avgWeightLbs||(cls?cls.defaultWeightLbs:1000);
+      const d=(cls?cls.dmiPct:2.5)/100;
+      head+=c.count;liveWt+=c.count*wt;dmi+=c.count*wt*d;
+    });
+    return{totalHead:head,totalLiveWeight:liveWt,avgWeight:head>0?Math.round(liveWt/head):0,dmiTarget:dmi};
+  }
+  return{totalHead:0,totalLiveWeight:0,avgWeight:0,dmiTarget:0};
+}
+
+// Migration: convert class-based groups to individual placeholder animals
+function migrateGroupsToAnimals(){
+  let changed=false;
+  S.animalGroups.forEach(g=>{
+    if(!g.classes||!g.classes.length)return;
+    if(g.animalIds&&g.animalIds.length>0)return; // already migrated
+    const newIds=[];
+    let counter=1;
+    g.classes.forEach(c=>{
+      const cls=S.animalClasses.find(x=>x.id===c.classId);
+      for(let i=0;i<c.count;i++){
+        const autoTag='AUTO-'+String(S.animals.length+newIds.length+1).padStart(3,'0');
+        const aid=Date.now()+Math.floor(Math.random()*1000000);
+        const sex=cls?guessSexFromClass(cls.name):'other';
+        S.animals.push({
+          id:aid,tagNum:autoTag,eid:'',sex,
+          classId:c.classId,
+          weightLbs:c.avgWeightLbs||(cls?cls.defaultWeightLbs:1000),
+          weightHistory:[{date:new Date().toISOString().slice(0,10),weightLbs:c.avgWeightLbs||(cls?cls.defaultWeightLbs:1000),note:'Migrated from group average'}],
+          notes:'Auto-created from class count — update with real tag number',
+          createdAt:new Date().toISOString()
+        });
+        newIds.push(aid);counter++;
+      }
+    });
+    g.animalIds=newIds;
+    // Keep classes for reference but mark as migrated
+    g._migratedFromClasses=true;
+    changed=true;
+  });
+  if(changed)saveLocal();
+}
+
+function guessSexFromClass(className){
+  const n=className.toLowerCase();
+  if(n.includes('cow')||n.includes('heifer')||n.includes('ewe')||n.includes('doe'))return'cow';
+  if(n.includes('bull')||n.includes('ram')||n.includes('buck'))return'bull';
+  if(n.includes('steer'))return'steer';
+  if(n.includes('calf')||n.includes('lamb')||n.includes('kid'))return'calf-m';
+  return'other';
+}
+
+// ── Populate selects ─────────────────────────────────────────────────────────
+function populateAnimalClassSelect(selectId, selectedId){
+  const el=document.getElementById(selectId);if(!el)return;
+  el.innerHTML='<option value="">— class —</option>'+
+    S.animalClasses.map(c=>`<option value="${c.id}"${c.id===selectedId?' selected':''}>${c.name} (${c.species})</option>`).join('');
+}
+function populateAnimalGroupSelect(selectId, selectedId){
+  const el=document.getElementById(selectId);if(!el)return;
+  el.innerHTML='<option value="">— unassigned —</option>'+
+    S.animalGroups.map(g=>`<option value="${g.id}"${g.id===selectedId?' selected':''}>${g.name}</option>`).join('');
+}
+
+// ── Add animal ───────────────────────────────────────────────────────────────
+function addAnimal(){
+  const tag=document.getElementById('a-tag').value.trim();
+  if(!tag){alert('Enter an ear tag number');return;}
+  if(S.animals.find(a=>a.tagNum===tag)){alert('Ear tag '+tag+' already exists');return;}
+  const classId=parseInt(document.getElementById('a-class').value)||null;
+  const wt=parseFloat(document.getElementById('a-wt').value)||null;
+  const groupId=parseInt(document.getElementById('a-group').value)||null;
+  const newId=Date.now();
+  S.animals.push({
+    id:newId,
+    tagNum:tag,
+    eid:document.getElementById('a-eid').value.trim(),
+    sex:document.getElementById('a-sex').value,
+    classId,
+    weightLbs:wt,
+    weightHistory:wt?[{date:new Date().toISOString().slice(0,10),weightLbs:wt,note:'Initial weight'}]:[],
+    notes:document.getElementById('a-notes').value.trim(),
+    createdAt:new Date().toISOString()
+  });
+  // Add to group if selected
+  if(groupId){
+    const g=S.animalGroups.find(x=>x.id===groupId);
+    if(g){if(!g.animalIds)g.animalIds=[];g.animalIds.push(newId);}
+  }
+  save();renderAnimalList();renderGroupsList();
+  ['a-tag','a-eid','a-wt','a-notes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('a-sex').value='cow';
+  document.getElementById('a-group').value='';
+  document.getElementById('a-class').value='';
+}
+
+// ── Render animal list ────────────────────────────────────────────────────────
+function renderAnimalList(){
+  const el=document.getElementById('animal-list');if(!el)return;
+  // Populate selects
+  populateAnimalClassSelect('a-class');
+  populateAnimalGroupSelect('a-group');
+  // Update group filter options
+  const gf=document.getElementById('animal-filter-group');
+  if(gf){
+    const cur=gf.value;
+    gf.innerHTML='<option value="">All groups</option>'+
+      S.animalGroups.map(g=>`<option value="${g.id}"${String(g.id)===cur?' selected':''}>${g.name}</option>`).join('')+
+      '<option value="unassigned"'+(cur==='unassigned'?' selected':'')+'>Unassigned</option>';
+  }
+  if(!S.animals.length){
+    el.innerHTML='<div style="font-size:13px;color:var(--text2);margin-bottom:8px;">No animals yet — add above</div>';
+    return;
+  }
+  // Filter
+  const search=(document.getElementById('animal-search')||{value:''}).value.toLowerCase();
+  const gFilter=document.getElementById('animal-filter-group')?.value||'';
+  let animals=[...S.animals];
+  if(search)animals=animals.filter(a=>a.tagNum.toLowerCase().includes(search)||(a.eid||'').toLowerCase().includes(search));
+  if(gFilter==='unassigned'){
+    const assigned=new Set(S.animalGroups.flatMap(g=>g.animalIds||[]));
+    animals=animals.filter(a=>!assigned.has(a.id));
+  } else if(gFilter){
+    const gId=parseInt(gFilter);
+    const g=S.animalGroups.find(x=>x.id===gId);
+    const ids=new Set(g?g.animalIds||[]:[]);
+    animals=animals.filter(a=>ids.has(a.id));
+  }
+  const total=animals.length;
+  el.innerHTML=`<div style="font-size:12px;color:var(--text2);margin-bottom:8px;">${total} animal${total!==1?'s':''} shown of ${S.animals.length} total</div>`+
+    animals.slice(0,50).map(a=>{
+      const cls=S.animalClasses.find(c=>c.id===a.classId);
+      const grp=getAnimalGroup(a.id);
+      const isAuto=a.tagNum.startsWith('AUTO-');
+      return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--border);cursor:pointer;" onclick="openAnimalEdit(${a.id})">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:600;${isAuto?'color:var(--amber-d);':''}">${a.tagNum}${isAuto?' <span style="font-size:10px;">(placeholder)</span>':''} <span style="font-size:11px;color:var(--text2);">${a.sex||''}</span></div>
+          <div style="font-size:11px;color:var(--text2);">${cls?cls.name:'No class'}${a.eid?' · '+a.eid:''}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="font-size:13px;font-weight:600;">${a.weightLbs?a.weightLbs+' lbs':'no wt'}</div>
+          <div style="font-size:11px;color:var(--text2);">${grp?grp.name:'unassigned'}</div>
+        </div>
+      </div>`;
+    }).join('')+
+    (animals.length>50?`<div style="font-size:12px;color:var(--text2);padding:8px 0;">${animals.length-50} more — use search to filter</div>`:'');
+}
+
+// ── Animal edit ───────────────────────────────────────────────────────────────
+function openAnimalEdit(animalId){
+  const a=getAnimalById(animalId);if(!a)return;
+  document.getElementById('ae-id').value=animalId;
+  document.getElementById('ae-tag').value=a.tagNum||'';
+  document.getElementById('ae-eid').value=a.eid||'';
+  document.getElementById('ae-sex').value=a.sex||'cow';
+  document.getElementById('ae-wt').value=a.weightLbs||'';
+  document.getElementById('ae-notes').value=a.notes||'';
+  populateAnimalClassSelect('ae-class',a.classId);
+  const grp=getAnimalGroup(animalId);
+  populateAnimalGroupSelect('ae-group',grp?grp.id:null);
+  // Weight history
+  const hist=a.weightHistory||[];
+  const histEl=document.getElementById('ae-wt-history');
+  if(hist.length>1){
+    histEl.style.display='block';
+    document.getElementById('ae-wt-history-list').innerHTML=
+      hist.slice().reverse().map(e=>`<div style="display:flex;justify-content:space-between;padding:3px 0;"><span>${e.date}</span><span style="font-weight:500;">${e.weightLbs} lbs${e.note?' <span style="color:var(--text3);">'+e.note+'</span>':''}</span></div>`).join('');
+  } else {histEl.style.display='none';}
+  document.getElementById('ae-title').textContent='Edit: '+a.tagNum;
+  document.getElementById('ae-sheet-wrap').classList.add('open');
+}
+function closeAnimalEdit(){document.getElementById('ae-sheet-wrap').classList.remove('open');}
+
+function saveAnimalEdit(){
+  const id=parseInt(document.getElementById('ae-id').value);
+  const a=getAnimalById(id);if(!a)return;
+  const newWt=parseFloat(document.getElementById('ae-wt').value)||null;
+  const newTag=document.getElementById('ae-tag').value.trim();
+  // Check tag uniqueness
+  if(newTag!==a.tagNum&&S.animals.find(x=>x.tagNum===newTag&&x.id!==id)){alert('Tag '+newTag+' already exists');return;}
+  a.tagNum=newTag||a.tagNum;
+  a.eid=document.getElementById('ae-eid').value.trim();
+  a.sex=document.getElementById('ae-sex').value;
+  a.classId=parseInt(document.getElementById('ae-class').value)||null;
+  a.notes=document.getElementById('ae-notes').value.trim();
+  // Update weight if changed
+  if(newWt&&newWt!==a.weightLbs){
+    a.weightLbs=newWt;
+    if(!a.weightHistory)a.weightHistory=[];
+    a.weightHistory.push({date:new Date().toISOString().slice(0,10),weightLbs:newWt,note:'Manual edit'});
+  }
+  // Handle group assignment change
+  const newGrpId=parseInt(document.getElementById('ae-group').value)||null;
+  const oldGrp=getAnimalGroup(id);
+  if(oldGrp&&oldGrp.id!==newGrpId){
+    // Remove from old group
+    oldGrp.animalIds=(oldGrp.animalIds||[]).filter(x=>x!==id);
+  }
+  if(newGrpId&&(!oldGrp||oldGrp.id!==newGrpId)){
+    // Add to new group
+    const newGrp=S.animalGroups.find(g=>g.id===newGrpId);
+    if(newGrp){if(!newGrp.animalIds)newGrp.animalIds=[];if(!newGrp.animalIds.includes(id))newGrp.animalIds.push(id);}
+  }
+  save();closeAnimalEdit();renderAnimalList();renderGroupsList();
+}
+
+function deleteAnimal(){
+  const id=parseInt(document.getElementById('ae-id').value);
+  const a=getAnimalById(id);
+  if(!a)return;
+  if(!confirm('Delete '+a.tagNum+'? This cannot be undone.'))return;
+  // Remove from any group
+  S.animalGroups.forEach(g=>{g.animalIds=(g.animalIds||[]).filter(x=>x!==id);});
+  S.animals=S.animals.filter(x=>x.id!==id);
+  save();closeAnimalEdit();renderAnimalList();renderGroupsList();
+}
+
+// ── Update Group Weights routine ─────────────────────────────────────────────
+let wtGroupId=null;
+
+function openWtSheet(groupId){
+  wtGroupId=groupId;
+  const g=S.animalGroups.find(x=>x.id===groupId);if(!g)return;
+  const animals=getGroupAnimals(groupId);
+  document.getElementById('wt-sheet-subtitle').textContent=g.name+' · '+animals.length+' animals';
+  document.getElementById('wt-date').value=new Date().toISOString().slice(0,10);
+  const rows=document.getElementById('wt-animal-rows');
+  if(!animals.length){rows.innerHTML='<div class="empty">No animals in this group</div>';
+  } else {
+    rows.innerHTML=animals.map(a=>{
+      const cls=S.animalClasses.find(c=>c.id===a.classId);
+      return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--border);">
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:600;">${a.tagNum}</div>
+          <div style="font-size:11px;color:var(--text2);">${a.sex||''} · ${cls?cls.name:'No class'}</div>
+        </div>
+        <div style="text-align:right;font-size:12px;color:var(--text2);margin-right:4px;">Current:<br><strong>${a.weightLbs||'—'} lbs</strong></div>
+        <input type="number" id="wt-${a.id}" placeholder="New wt" step="1" style="width:90px;padding:7px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:14px;background:var(--bg);color:var(--text);font-family:inherit;text-align:right;"/>
+      </div>`;
+    }).join('');
+  }
+  document.getElementById('wt-sheet-wrap').classList.add('open');
+}
+function closeWtSheet(){document.getElementById('wt-sheet-wrap').classList.remove('open');}
+
+function commitWeightUpdates(){
+  const animals=getGroupAnimals(wtGroupId);
+  const date=document.getElementById('wt-date').value||new Date().toISOString().slice(0,10);
+  let updated=0;
+  animals.forEach(a=>{
+    const input=document.getElementById('wt-'+a.id);
+    if(!input)return;
+    const newWt=parseFloat(input.value);
+    if(!newWt||newWt===a.weightLbs)return;
+    a.weightLbs=newWt;
+    if(!a.weightHistory)a.weightHistory=[];
+    a.weightHistory.push({date,weightLbs:newWt,note:'Group weight update'});
+    updated++;
+  });
+  save();closeWtSheet();renderGroupsList();renderAnimalList();
+  if(updated>0){
+    const g=S.animalGroups.find(x=>x.id===wtGroupId);
+    const t=getGroupTotals(g);
+    alert(`${updated} weight${updated!==1?'s':''} updated. Group DMI target is now ${Math.round(t.dmiTarget).toLocaleString()} lbs/day.`);
+  } else {alert('No weights were changed.');}
+}
+
+// ── Group animal picker (for add group form) ──────────────────────────────────
+let grpSelectedAnimals=new Set();
+
+function renderGrpAnimalPicker(){
+  const el=document.getElementById('grp-animal-picker');if(!el)return;
+  const unassigned=S.animals.filter(a=>!getAnimalGroup(a.id));
+  if(!unassigned.length){
+    el.innerHTML='<div style="font-size:12px;color:var(--text2);">No unassigned animals — add animals above first, or you can assign animals to groups later via the animal edit screen.</div>';
+    return;
+  }
+  el.innerHTML=unassigned.map(a=>{
+    const cls=S.animalClasses.find(c=>c.id===a.classId);
+    const on=grpSelectedAnimals.has(a.id);
+    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:${on?'var(--green-l)':'var(--bg2)'};border-radius:var(--radius);margin-bottom:4px;cursor:pointer;border:0.5px solid ${on?'var(--green-l2)':'var(--border)'};" onclick="toggleGrpAnimal(${a.id})">
+      <div style="width:16px;height:16px;border-radius:50%;border:1.5px solid ${on?'var(--green)':'var(--border2)'};background:${on?'var(--green)':'transparent'};display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        ${on?'<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><polyline points="1.5,5 4,7.5 8.5,2" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>':''}
+      </div>
+      <div style="flex:1;font-size:13px;"><strong>${a.tagNum}</strong> <span style="color:var(--text2);font-size:11px;">${a.sex||''} · ${cls?cls.name:''} · ${a.weightLbs||'?'} lbs</span></div>
+    </div>`;
+  }).join('');
+}
+
+function toggleGrpAnimal(id){
+  if(grpSelectedAnimals.has(id))grpSelectedAnimals.delete(id);else grpSelectedAnimals.add(id);
+  renderGrpAnimalPicker();
+}
+
+// ── Override addAnimalGroup to use individual animals ─────────────────────────
+// (replaces the previous version which used class rows)
+function addAnimalGroup(){
+  const name=document.getElementById('grp-name').value.trim();
+  if(!name){alert('Enter a group name');return;}
+  const newId=Date.now();
+  const animalIds=[...grpSelectedAnimals];
+  S.animalGroups.push({
+    id:newId,name,
+    color:document.getElementById('grp-color').value||'#639922',
+    animalIds,
+  });
+  // Update animals' group assignment tracking (group references animals, not reverse)
+  grpSelectedAnimals.clear();
+  save();renderGroupsList();renderAnimalList();
+  document.getElementById('grp-name').value='';
+}
+
+// ─── END INDIVIDUAL ANIMALS ───────────────────────────────────────────────────
+
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 document.getElementById('w-out-date').value=todayStr();
 document.getElementById('w-in-date').value=todayStr();
@@ -1963,6 +2818,8 @@ document.getElementById('w-feed-res').addEventListener('input',calcClosePreview)
 document.getElementById('w-out-date').addEventListener('change',calcClosePreview);
 // Init color picker default
 document.querySelector('#color-picker div').style.border='2px solid var(--text)';
+migrateHerdToGroups();
+migrateGroupsToAnimals();
 updateHeader();
 updateDriveUI();
 updateHeaderAvatar();
@@ -2017,6 +2874,145 @@ if(driveState.connected&&driveState.accessToken&&Date.now()<(driveState.tokenExp
     <div class="btn-row">
       <button class="btn btn-green" onclick="saveSpreadEvent()">Record application</button>
       <button class="btn btn-outline" onclick="closeSpreadSheet()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- SPLIT GROUP SHEET -->
+<div class="sheet-wrap" id="split-sheet-wrap">
+  <div class="sheet-backdrop" onclick="closeSplitSheet()"></div>
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:4px;">Split group</div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:14px;">Move some animals from an existing group into a new group. Both groups' DMI and NPK will recalculate immediately.</div>
+    <input type="hidden" id="split-source-id"/>
+    <div class="field"><label>Source group</label>
+      <div id="split-source-info" style="padding:8px 12px;background:var(--bg2);border-radius:var(--radius);font-size:13px;"></div>
+    </div>
+    <div class="sec" style="margin-bottom:8px;">Animals to move to new group</div>
+    <div id="split-class-rows"></div>
+    <div class="field"><label>New group name</label><input type="text" id="split-new-name" placeholder="e.g. Yearlings, Dry cows…"/></div>
+    <div class="field"><label>New group color</label>
+      <div style="display:flex;gap:8px;margin-top:4px;" id="split-color-picker">
+        <div onclick="selSplitColor(this,'#1D9E75')" style="width:28px;height:28px;border-radius:50%;background:#1D9E75;cursor:pointer;border:2px solid var(--text);" data-color="#1D9E75"></div>
+        <div onclick="selSplitColor(this,'#185FA5')" style="width:28px;height:28px;border-radius:50%;background:#185FA5;cursor:pointer;border:2px solid transparent;" data-color="#185FA5"></div>
+        <div onclick="selSplitColor(this,'#BA7517')" style="width:28px;height:28px;border-radius:50%;background:#BA7517;cursor:pointer;border:2px solid transparent;" data-color="#BA7517"></div>
+        <div onclick="selSplitColor(this,'#534AB7')" style="width:28px;height:28px;border-radius:50%;background:#534AB7;cursor:pointer;border:2px solid transparent;" data-color="#534AB7"></div>
+        <div onclick="selSplitColor(this,'#E24B4A')" style="width:28px;height:28px;border-radius:50%;background:#E24B4A;cursor:pointer;border:2px solid transparent;" data-color="#E24B4A"></div>
+      </div>
+      <input type="hidden" id="split-color" value="#1D9E75"/>
+    </div>
+    <div id="split-preview" style="display:none;margin-bottom:12px;" class="card-inset">
+      <div class="sec" style="margin-bottom:6px;">After split</div>
+      <div id="split-preview-content"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-amber" onclick="saveSplit()">Split group</button>
+      <button class="btn btn-outline" onclick="closeSplitSheet()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- LOCATION EDIT SHEET -->
+<div class="sheet-wrap" id="loc-edit-wrap">
+  <div class="sheet-backdrop" onclick="closeLocEdit()"></div>
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:14px;">Edit location</div>
+    <input type="hidden" id="loc-edit-idx"/>
+    <div class="field"><label>Name</label><input type="text" id="le-name"/></div>
+    <div class="field"><label>Acres</label><input type="number" id="le-acres" step="0.5"/></div>
+    <div id="le-pasture-fields">
+      <div class="two">
+        <div class="field"><label>Soil type</label><select id="le-soil"><option>Loam</option><option>Clay</option><option>Sandy</option><option>Silt</option></select></div>
+        <div class="field"><label>Forage species</label><input type="text" id="le-species"/></div>
+      </div>
+    </div>
+    <div id="le-confinement-fields" style="display:none;">
+      <div class="field"><label>Description</label><input type="text" id="le-desc"/></div>
+      <div class="field"><label>Capture manure?</label>
+        <select id="le-capture">
+          <option value="yes">Yes — captured for storage</option>
+          <option value="no">No — not captured</option>
+        </select>
+      </div>
+      <div class="two">
+        <div class="field"><label>Capture %</label><input type="number" id="le-cap-pct" min="0" max="100" step="5"/></div>
+        <div class="field"><label>Batch mode</label>
+          <select id="le-batch-mode">
+            <option value="accumulate">Accumulate</option>
+            <option value="new">New per event</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-green" onclick="saveLocEdit()">Save changes</button>
+      <button class="btn btn-outline" onclick="closeLocEdit()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- UPDATE WEIGHTS SHEET -->
+<div class="sheet-wrap" id="wt-sheet-wrap">
+  <div class="sheet-backdrop" onclick="closeWtSheet()"></div>
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+      <div style="font-size:16px;font-weight:600;">Update group weights</div>
+      <button class="btn btn-green btn-sm" onclick="commitWeightUpdates()">Commit all</button>
+    </div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:4px;" id="wt-sheet-subtitle"></div>
+    <div class="field"><label>Weigh date</label><input type="date" id="wt-date"/></div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">Enter new weights below. Leave blank to keep current weight unchanged.</div>
+    <div id="wt-animal-rows"></div>
+    <div class="btn-row" style="margin-top:8px;">
+      <button class="btn btn-green" onclick="commitWeightUpdates()">Commit all changes</button>
+      <button class="btn btn-outline" onclick="closeWtSheet()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ANIMAL EDIT SHEET -->
+<div class="sheet-wrap" id="ae-sheet-wrap">
+  <div class="sheet-backdrop" onclick="closeAnimalEdit()"></div>
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:14px;" id="ae-title">Edit animal</div>
+    <input type="hidden" id="ae-id"/>
+    <div class="two">
+      <div class="field"><label>Ear tag #</label><input type="text" id="ae-tag"/></div>
+      <div class="field"><label>EID #</label><input type="text" id="ae-eid"/></div>
+    </div>
+    <div class="two">
+      <div class="field"><label>Sex</label>
+        <select id="ae-sex">
+          <option value="cow">Cow</option><option value="heifer">Heifer</option>
+          <option value="bull">Bull</option><option value="steer">Steer</option>
+          <option value="calf-m">Calf (male)</option><option value="calf-f">Calf (female)</option>
+          <option value="ewe">Ewe</option><option value="ram">Ram</option>
+          <option value="lamb">Lamb</option><option value="doe">Doe</option>
+          <option value="buck">Buck</option><option value="other">Other</option>
+        </select>
+      </div>
+      <div class="field"><label>Class</label><select id="ae-class"></select></div>
+    </div>
+    <div class="two">
+      <div class="field"><label>Current weight (lbs)</label><input type="number" id="ae-wt" step="1"/></div>
+      <div class="field"><label>Group</label><select id="ae-group"></select></div>
+    </div>
+    <div class="field"><label>Notes</label><input type="text" id="ae-notes"/></div>
+    <!-- Weight history -->
+    <div id="ae-wt-history" style="display:none;">
+      <div class="sec" style="margin-bottom:6px;">Weight history</div>
+      <div id="ae-wt-history-list" style="font-size:12px;color:var(--text2);max-height:120px;overflow-y:auto;"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-green" onclick="saveAnimalEdit()">Save</button>
+      <button class="btn btn-red" onclick="deleteAnimal()" style="width:auto;padding:12px 16px;">Delete</button>
+      <button class="btn btn-outline" onclick="closeAnimalEdit()">Cancel</button>
     </div>
   </div>
 </div>
