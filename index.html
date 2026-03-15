@@ -3155,33 +3155,83 @@ function importSetupFile(event){
   const reader=new FileReader();
   reader.onload=e=>{
     try{
-      const wb=XLSX.read(e.target.result,{type:'binary'});
+      // ── Ensure all data arrays exist before we touch them ────────────────
+      if(!S.animalClasses)S.animalClasses=[];
+      if(!S.animalGroups)S.animalGroups=[];
+      if(!S.animals)S.animals=[];
+      if(!S.pastures)S.pastures=[];
+      if(!S.feedTypes)S.feedTypes=[];
+      if(!S.batches)S.batches=[];
+
+      const wb=XLSX.read(e.target.result,{type:'binary',cellDates:true});
       const results={classes:0,groups:0,animals:0,locations:0,feedTypes:0,batches:0,skipped:0,errors:[]};
 
-      // ── Import Animal_Classes ──────────────────────────────────────────────
+      // Helper: convert various date forms to YYYY-MM-DD string
+      function toDateStr(val){
+        if(!val)return new Date().toISOString().slice(0,10);
+        if(val instanceof Date){
+          // Adjust for timezone offset so date doesn't shift
+          const d=new Date(val.getTime()-val.getTimezoneOffset()*60000);
+          return d.toISOString().slice(0,10);
+        }
+        const s=String(val).trim();
+        // Already YYYY-MM-DD
+        if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
+        // Try parsing
+        const d=new Date(s);
+        if(!isNaN(d)){const adj=new Date(d.getTime()-d.getTimezoneOffset()*60000);return adj.toISOString().slice(0,10);}
+        return new Date().toISOString().slice(0,10);
+      }
+
+      // Helper: get sheet rows, skipping note row (row 0) and using row 1 as header
+      function getRows(sheetName){
+        if(!wb.SheetNames.includes(sheetName))return[];
+        const ws=wb.Sheets[sheetName];
+        const raw=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false});
+        // sheet_to_json uses row 1 as header — but our sheets have a note in row 1
+        // and headers in row 2. With raw sheet_to_json, first data row IS the note row.
+        // We need to skip the note row by checking if first row looks like a note
+        // (i.e. first key contains long text, not a column header).
+        if(!raw.length)return[];
+        // Check if first row is the note bar (merged cell spanning all cols)
+        const firstRowKeys=Object.keys(raw[0]);
+        const firstRowVal=String(raw[0][firstRowKeys[0]]||'');
+        // Note rows are long sentences; header rows are short label strings
+        // If the first row has only one non-empty value and it's >40 chars, it's the note row
+        const nonEmpty=firstRowKeys.filter(k=>raw[0][k]&&String(raw[0][k]).trim());
+        if(nonEmpty.length===1&&firstRowVal.length>40){
+          // Row 0 = note, row 1 = actual headers — re-parse skipping first row
+          // Use sheet_to_json with header offset
+          const range=XLSX.utils.decode_range(ws['!ref']||'A1');
+          range.s.r=2; // skip to row index 2 (0-based) = row 3 in sheet = first data row
+          const headerRow=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false,range:{s:{r:1,c:0},e:range.e}});
+          return headerRow;
+        }
+        return raw;
+      }
+
+      // ── Import Animal_Classes ────────────────────────────────────────────
       if(wb.SheetNames.includes('Animal_Classes')){
-        const rows=XLSX.utils.sheet_to_json(wb.Sheets['Animal_Classes'],{defval:''});
-        rows.forEach(row=>{
-          const name=String(row['ClassName *']||row['ClassName']||'').trim();
-          if(!name)return;
+        getRows('Animal_Classes').forEach(row=>{
+          const name=String(row['Class Name *']||row['Class Name']||row['ClassName *']||row['ClassName']||'').trim();
+          if(!name||name.length>60)return;
           if(S.animalClasses.find(c=>c.name.toLowerCase()===name.toLowerCase())){results.skipped++;return;}
+          const species=String(row['Species *']||row['Species']||'Beef cattle').trim();
+          const wt=parseFloat(row['Default Wt (lbs)']||row['DefaultWeightLbs'])||1000;
+          const dmi=parseFloat(row['DMI %']||row['DMI_Pct'])||2.5;
           S.animalClasses.push({
             id:Date.now()+Math.floor(Math.random()*999999),
-            name,
-            species:String(row['Species *']||row['Species']||'Beef cattle').trim(),
-            defaultWeightLbs:parseFloat(row['DefaultWeightLbs'])||1000,
-            dmiPct:parseFloat(row['DMI_Pct'])||2.5,
+            name,species,defaultWeightLbs:wt,dmiPct:dmi,
           });
           results.classes++;
         });
       }
 
-      // ── Import Animal_Groups ───────────────────────────────────────────────
+      // ── Import Animal_Groups ─────────────────────────────────────────────
       if(wb.SheetNames.includes('Animal_Groups')){
-        const rows=XLSX.utils.sheet_to_json(wb.Sheets['Animal_Groups'],{defval:''});
-        rows.forEach(row=>{
-          const name=String(row['GroupName *']||row['GroupName']||'').trim();
-          if(!name)return;
+        getRows('Animal_Groups').forEach(row=>{
+          const name=String(row['Group Name *']||row['Group Name']||row['GroupName *']||row['GroupName']||'').trim();
+          if(!name||name.length>60)return;
           if(S.animalGroups.find(g=>g.name.toLowerCase()===name.toLowerCase())){results.skipped++;return;}
           S.animalGroups.push({
             id:Date.now()+Math.floor(Math.random()*999999),
@@ -3193,26 +3243,23 @@ function importSetupFile(event){
         });
       }
 
-      // ── Import Locations ───────────────────────────────────────────────────
+      // ── Import Locations ─────────────────────────────────────────────────
       if(wb.SheetNames.includes('Locations')){
-        const rows=XLSX.utils.sheet_to_json(wb.Sheets['Locations'],{defval:''});
-        rows.forEach(row=>{
+        getRows('Locations').forEach(row=>{
           const name=String(row['Name *']||row['Name']||'').trim();
-          if(!name)return;
+          if(!name||name.length>80)return;
           if(S.pastures.find(p=>p.name.toLowerCase()===name.toLowerCase())){results.skipped++;return;}
-          const locType=String(row['Type *']||row['Type']||'pasture').trim().toLowerCase();
-          const loc={
-            name,acres:parseFloat(row['Acres'])||0,
-            locationType:locType==='confinement'?'confinement':'pasture',
-          };
-          if(loc.locationType==='pasture'){
-            loc.soil=String(row['SoilType']||'Loam').trim();
-            loc.species=String(row['ForageSpecies']||'').trim();
+          const rawType=String(row['Type *']||row['Type']||row['LocType']||'pasture').trim().toLowerCase();
+          const locType=rawType==='confinement'?'confinement':'pasture';
+          const loc={name,acres:parseFloat(row['Acres'])||0,locationType:locType};
+          if(locType==='pasture'){
+            loc.soil=String(row['Soil Type']||row['SoilType']||'Loam').trim();
+            loc.species=String(row['Forage Species']||row['ForageSpecies']||'').trim();
           } else {
             loc.description=String(row['Description']||'').trim();
-            const capRaw=String(row['CaptureManure']||'').trim().toLowerCase();
+            const capRaw=String(row['Capture Manure']||row['CaptureManure']||'').trim().toLowerCase();
             loc.captureManure=capRaw==='yes'||capRaw==='true'||capRaw==='1';
-            loc.capturePercent=parseFloat(row['CapturePercent'])||80;
+            loc.capturePercent=parseFloat(row['Capture %']||row['CapturePercent'])||80;
             loc.batchMode='accumulate';
           }
           S.pastures.push(loc);
@@ -3220,62 +3267,62 @@ function importSetupFile(event){
         });
       }
 
-      // ── Import Feed_Types ──────────────────────────────────────────────────
+      // ── Import Feed_Types ────────────────────────────────────────────────
       if(wb.SheetNames.includes('Feed_Types')){
-        const rows=XLSX.utils.sheet_to_json(wb.Sheets['Feed_Types'],{defval:''});
-        rows.forEach(row=>{
+        getRows('Feed_Types').forEach(row=>{
           const name=String(row['Name *']||row['Name']||'').trim();
-          if(!name)return;
+          if(!name||name.length>60)return;
           if(S.feedTypes.find(f=>f.name.toLowerCase()===name.toLowerCase())){results.skipped++;return;}
           const unitRaw=String(row['Unit *']||row['Unit']||'bale').trim().toLowerCase();
           const validUnits=['bale','sq bale','ton','lb','bag','gallon'];
           const unit=validUnits.includes(unitRaw)?unitRaw:'lb';
+          const dm=parseFloat(row['DM %']||row['DM_Pct']||row['DM% *']||'85')||85;
           S.feedTypes.push({
             id:Date.now()+Math.floor(Math.random()*999999),
             name,unit,
-            dm:parseFloat(row['DM_Pct'])||85,
+            dm:Math.min(100,Math.max(1,dm)),
             cat:String(row['Category']||'hay').trim().toLowerCase(),
           });
           results.feedTypes++;
         });
       }
 
-      // ── Import Feed_Batches ────────────────────────────────────────────────
+      // ── Import Feed_Batches ──────────────────────────────────────────────
       if(wb.SheetNames.includes('Feed_Batches')){
-        const rows=XLSX.utils.sheet_to_json(wb.Sheets['Feed_Batches'],{defval:''});
-        rows.forEach(row=>{
+        getRows('Feed_Batches').forEach(row=>{
           const label=String(row['Label *']||row['Label']||'').trim();
-          const ftName=String(row['FeedTypeName *']||row['FeedTypeName']||'').trim();
+          const ftName=String(row['Feed Type Name *']||row['Feed Type Name']||row['FeedTypeName *']||row['FeedTypeName']||'').trim();
           if(!label||!ftName)return;
           const ft=S.feedTypes.find(f=>f.name.toLowerCase()===ftName.toLowerCase());
-          if(!ft){results.errors.push('Feed batch "'+label+'": feed type "'+ftName+'" not found — add it first');return;}
+          if(!ft){results.errors.push('Batch "'+label+'": feed type "'+ftName+'" not found');return;}
           const qty=parseFloat(row['Quantity *']||row['Quantity'])||0;
           if(!qty)return;
           S.batches.push({
             id:Date.now()+Math.floor(Math.random()*999999),
             typeId:ft.id,typeName:ft.name,unit:ft.unit,dm:ft.dm,
             qty,remaining:qty,
-            wt:parseFloat(row['WeightPerUnit_lbs'])||null,
-            cpu:parseFloat(row['CostPerUnit_$'])||0,
+            wt:parseFloat(row['Wt per Unit (lbs)']||row['WeightPerUnit_lbs'])||null,
+            cpu:parseFloat(row['Cost per Unit ($)']||row['CostPerUnit_$'])||0,
             label,
-            date:String(row['DateReceived']||new Date().toISOString().slice(0,10)).trim(),
+            date:toDateStr(row['Date Received']||row['DateReceived']),
           });
           results.batches++;
         });
       }
 
-      // ── Import Animals (last — needs classes and groups resolved) ──────────
+      // ── Import Animals (last — needs classes + groups resolved) ──────────
       if(wb.SheetNames.includes('Animals')){
-        const rows=XLSX.utils.sheet_to_json(wb.Sheets['Animals'],{defval:''});
-        rows.forEach(row=>{
-          const tag=String(row['EarTag *']||row['EarTag']||'').trim();
-          if(!tag)return;
+        getRows('Animals').forEach(row=>{
+          const tag=String(row['Ear Tag *']||row['Ear Tag']||row['EarTag *']||row['EarTag']||'').trim();
+          if(!tag||tag.length>30)return;
+          // Skip example rows
+          if(tag==='T-001'||tag==='T-002'||tag==='T-003'||tag==='T-004'||tag==='T-005')return;
           if(S.animals.find(a=>a.tagNum===tag)){results.skipped++;return;}
-          const clsName=String(row['ClassName *']||row['ClassName']||'').trim();
+          const clsName=String(row['Class Name *']||row['Class Name']||row['ClassName *']||row['ClassName']||'').trim();
           const cls=clsName?S.animalClasses.find(c=>c.name.toLowerCase()===clsName.toLowerCase()):null;
-          const wt=parseFloat(row['WeightLbs'])||null;
+          const wt=parseFloat(row['Weight (lbs)']||row['WeightLbs'])||null;
           const newId=Date.now()+Math.floor(Math.random()*999999);
-          const animal={
+          S.animals.push({
             id:newId,
             tagNum:tag,
             eid:String(row['EID']||'').trim(),
@@ -3285,14 +3332,13 @@ function importSetupFile(event){
             weightHistory:wt?[{date:new Date().toISOString().slice(0,10),weightLbs:wt,note:'Imported'}]:[],
             notes:String(row['Notes']||'').trim(),
             createdAt:new Date().toISOString(),
-          };
-          S.animals.push(animal);
-          // Assign to group if specified
-          const grpName=String(row['GroupName']||'').trim();
+          });
+          // Assign to group
+          const grpName=String(row['Group Name']||row['GroupName']||'').trim();
           if(grpName){
             const grp=S.animalGroups.find(g=>g.name.toLowerCase()===grpName.toLowerCase());
             if(grp){if(!grp.animalIds)grp.animalIds=[];grp.animalIds.push(newId);}
-            else results.errors.push('Animal '+tag+': group "'+grpName+'" not found — animal added but not assigned to group');
+            else results.errors.push('Animal '+tag+': group "'+grpName+'" not found — added unassigned');
           }
           results.animals++;
         });
@@ -3300,9 +3346,8 @@ function importSetupFile(event){
 
       save();
 
-      // Show results
       const parts=[];
-      if(results.classes)parts.push(results.classes+' animal classes');
+      if(results.classes)parts.push(results.classes+' classes');
       if(results.groups)parts.push(results.groups+' groups');
       if(results.animals)parts.push(results.animals+' animals');
       if(results.locations)parts.push(results.locations+' locations');
@@ -3310,14 +3355,15 @@ function importSetupFile(event){
       if(results.batches)parts.push(results.batches+' feed batches');
       if(results.skipped)parts.push(results.skipped+' skipped (duplicates)');
 
-      const msg=parts.length?'Imported: '+parts.join(', ')+'.'
-        :'Nothing was imported — check that your sheets have data and column headers match the template.';
+      const msg=parts.length
+        ?'Imported: '+parts.join(', ')+'.'
+        :'Nothing imported — check that your sheets have data rows below the header.';
 
       showImportStatus(results.errors.length?'warn':'ok',
         msg+(results.errors.length?'\n\nWarnings:\n'+results.errors.slice(0,5).join('\n'):''));
 
-      // Re-render settings sections
-      renderAnimalList();renderGroupsList();renderClassesList();renderPastures();renderFeedTypes();renderBatchListS();
+      renderAnimalList();renderGroupsList();renderClassesList();
+      renderPastures();renderFeedTypes();renderBatchListS();
 
     }catch(err){
       showImportStatus('error','Import failed: '+err.message);
