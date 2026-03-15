@@ -544,7 +544,25 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
           <button class="btn btn-outline" onclick="exportDataJSON()">Export backup</button>
           <button class="btn btn-outline" onclick="triggerImport()">Import backup</button>
         </div>
-        <div style="margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border);">
+        <div class="div"></div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:6px;">Historical events</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:10px;line-height:1.6;">Import past grazing events to populate your fertility ledger and stats from day one.</div>
+        <div class="btn-row">
+          <button class="btn btn-outline" onclick="downloadEventsTemplate()">Download template</button>
+          <button class="btn btn-outline" onclick="triggerEventsImport()">Import historical events</button>
+        </div>
+        <input type="file" id="events-import-file" accept=".xlsx,.xls" style="display:none;" onchange="importEventsFile(event)"/>
+        <div id="events-import-status" style="display:none;padding:10px;border-radius:var(--radius);margin-top:8px;font-size:13px;"></div>
+        <div class="div"></div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:6px;">Error log</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:10px;line-height:1.6;">Export a log of any errors the app has encountered. Share with the developer for analysis.</div>
+        <div id="error-log-count" style="font-size:12px;color:var(--text2);margin-bottom:8px;"></div>
+        <div class="btn-row">
+          <button class="btn btn-outline btn-sm" onclick="exportErrorLog()">Export error log</button>
+          <button class="btn btn-outline btn-sm" onclick="clearErrorLog()">Clear log</button>
+        </div>
+        <div class="div"></div>
+        <div style="margin-top:12px;">
           <div style="font-size:12px;color:var(--red-d);margin-bottom:8px;font-weight:500;">Danger zone</div>
           <button class="btn btn-sm" style="background:transparent;border:1px solid var(--red-d);color:var(--red-d);" onclick="openResetSheet()">Reset all data…</button>
         </div>
@@ -973,6 +991,7 @@ if(!S.users)S.users=[];
 if(!S.todos)S.todos=[];
 if(!S.manureBatches)S.manureBatches=[];
 if(!S.inputProducts)S.inputProducts=[];
+if(!S.errorLog)S.errorLog=[];
 if(!S.inputApplications)S.inputApplications=[];
 if(!S.settings.manureVolumeRate)S.settings.manureVolumeRate=65;
 if(!S.settings.manureLoadLbs)S.settings.manureLoadLbs=8000;
@@ -1366,6 +1385,7 @@ function mergeData(local,remote){
     // Scalar / object fields
     herd:    remote.herd&&remote.herd.name ? remote.herd : (local.herd||{}),
     _herdMigrated: local._herdMigrated||remote._herdMigrated||false,
+    errorLog: [...(local.errorLog||[]),...(remote.errorLog||[])].slice(-200),
     settings:mergeObj(local.settings,remote.settings),
     version:     local.version||remote.version||'v1.0',
     testerName:  local.testerName||remote.testerName||'',
@@ -1380,6 +1400,7 @@ function ensureDataArrays(){
   arrays.forEach(k=>{if(!Array.isArray(S[k]))S[k]=[];});
   if(!S.herd)S.herd={name:'',type:'',count:0,weight:0,dmi:2.5};
   if(S._herdMigrated===undefined)S._herdMigrated=S.animalGroups&&S.animalGroups.length>0;
+  if(!Array.isArray(S.errorLog))S.errorLog=[];
   if(!S.settings)S.settings={};
 }
 
@@ -2125,7 +2146,18 @@ function renderEventsLog(){
   el.innerHTML=evs.map(e=>{
     const isClosed=e.status==='closed';const t=e.totals||{};
     const days=e.dateIn&&e.dateOut?daysBetween(e.dateIn,e.dateOut):e.dateIn?daysBetween(e.dateIn,todayStr())+'+ (open)':'?';
-    return `<div class="row"><div class="row-head"><span style="font-size:14px;font-weight:600;">${e.pasture}</span><span class="badge ${isClosed?'bb':'bt'}">${isClosed?'closed':'active'}</span></div><div class="row-detail">${isClosed?`${dLabel(e.dateIn)} → ${dLabel(e.dateOut)} · ${days} days · $${(t.cost||0).toFixed(2)} · ${t.pct!==undefined?t.pct+'% pasture':'--'}`:dLabel(e.dateIn)+' → ongoing · '+days+' · '+(e.feedEntries||[]).length+' feedings'}${isClosed&&t.npkVal?`<br>NPK: N${t.npk?t.npk.n.toFixed(1):0}/P${t.npk?t.npk.p.toFixed(1):0}/K${t.npk?t.npk.k.toFixed(1):0} lbs · $${t.npkVal.toFixed(2)} fert value`:''}</div></div>`;
+    const g=getGroupById(e.groupId);
+    return `<div class="row" style="cursor:pointer;" onclick="openEventEdit(${e.id})">
+      <div class="row-head">
+        <span style="font-size:14px;font-weight:600;">${e.pasture}</span>
+        <div style="display:flex;gap:6px;align-items:center;">
+          ${g?`<span style="font-size:11px;color:var(--text2);">${g.name}</span>`:''}
+          <span class="badge ${isClosed?'bb':'bt'}">${isClosed?'closed':'active'}</span>
+          <button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openEventEdit(${e.id})">Edit</button>
+        </div>
+      </div>
+      <div class="row-detail">${isClosed?`${dLabel(e.dateIn)} → ${dLabel(e.dateOut)} · ${days} days · $${(t.cost||0).toFixed(2)} · ${t.pct!==undefined?t.pct+'% pasture':'--'}`:dLabel(e.dateIn)+' → ongoing · '+days+' · '+(e.feedEntries||[]).length+' feedings'}${isClosed&&t.npkVal?`<br>NPK: N${t.npk?t.npk.n.toFixed(1):0}/P${t.npk?t.npk.p.toFixed(1):0}/K${t.npk?t.npk.k.toFixed(1):0} lbs · $${t.npkVal.toFixed(2)} fert value`:''}</div>
+    </div>`;
   }).join('');
 }
 
@@ -2228,6 +2260,8 @@ function loadSettings(){
   const spEl=document.getElementById('s-stat-period');
   if(spEl)spEl.value=S.settings.homeStatPeriod||'7d';
   renderStatsMetricList();
+  const elCount=document.getElementById('error-log-count');
+  if(elCount)elCount.textContent=(S.errorLog||[]).length+' error'+((S.errorLog||[]).length!==1?'s':'')+' recorded';
   // Client ID is hardcoded — no input field to populate
 }
 function addFeedType(){
@@ -4391,13 +4425,13 @@ function calcEventTotalsWithSubMoves(ae, outDate, feedRes){
   const pct  = dmiTarget&&dmiTarget*days>0 ? Math.round((pdmi/(dmiTarget*days))*100) : null;
 
   // Sub-move NPK allocations (for crediting to those locations on close)
-  const subMoveNPK = (ae.subMoves||[]).map(sm=>({
+  const subMoveNPK = totalHrs>0 ? (ae.subMoves||[]).map(sm=>({
     locationName: sm.locationName,
     n: totalNPK.n*(sm.durationHours/totalHrs),
     p: totalNPK.p*(sm.durationHours/totalHrs),
     k: totalNPK.k*(sm.durationHours/totalHrs),
     durationHours: sm.durationHours
-  }));
+  })) : [];
 
   return {days, sdmi, cost, npk, npkVal, pdmi, pct, pFraction, subHrs, totalHrs, subMoveNPK};
 }
@@ -4814,6 +4848,421 @@ async function executeReset(){
   alert('All data has been erased. You can now reimport your template.');
 }
 // ─── END RESET DATA ───────────────────────────────────────────────────────────
+
+
+// ─── HISTORICAL EVENTS IMPORT ─────────────────────────────────────────────────
+
+function triggerEventsImport(){document.getElementById('events-import-file').click();}
+
+function downloadEventsTemplate(){
+  if(typeof XLSX==='undefined'){alert('Spreadsheet library not loaded — try again.');return;}
+  // Build a minimal events template pre-populated with user's existing locations and groups
+  const wb=XLSX.utils.book_new();
+  const locs=S.pastures.filter(p=>p.locationType!=='confinement').map(p=>p.name);
+  const grps=S.animalGroups.map(g=>g.name);
+  // Named ranges for live dropdowns
+  if(!wb.Workbook)wb.Workbook={};if(!wb.Workbook.Names)wb.Workbook.Names=[];
+  wb.Workbook.Names.push({Name:'ev_paddock',Ref:"'Locations'!$A$3:$A$500"});
+  wb.Workbook.Names.push({Name:'ev_group',Ref:"'Groups'!$A$3:$A$500"});
+  const dvPaddock={type:'list',formula1:'ev_paddock',sqref:'A3:A2000',showDropDown:false,showErrorMessage:true,error:'Select from list',errorTitle:'Invalid'};
+  const dvGroup={type:'list',formula1:'ev_group',sqref:'B3:B2000',showDropDown:false,showErrorMessage:true,error:'Select from list',errorTitle:'Invalid'};
+  const GRN={font:{bold:true,color:{rgb:'FFFFFFFF'},sz:10},fill:{fgColor:{rgb:'FF639922'}},alignment:{horizontal:'center',wrapText:true}};
+  const DRK={font:{bold:true,color:{rgb:'FFFFFFFF'},sz:10},fill:{fgColor:{rgb:'FF27500A'}},alignment:{horizontal:'center',wrapText:true}};
+  const EX={font:{color:{rgb:'FF6B6B67'},sz:10,italic:true},fill:{fgColor:{rgb:'FFF5F5F3'}}};
+  const NOTE={font:{color:{rgb:'FF854F0B'},sz:10,italic:true},fill:{fgColor:{rgb:'FFFAEEDA'}},alignment:{wrapText:true}};
+  // Events sheet
+  const evWs={};
+  const cols=[
+    {h:'Paddock',r:true,w:20},{h:'Group',r:false,w:18},{h:'Date In',r:true,w:13},{h:'Date Out',r:true,w:13},
+    {h:'Head',r:true,w:8},{h:'Avg Weight (lbs)',r:true,w:16},{h:'Pre-graze Ht (in)',r:false,w:16},
+    {h:'Post-graze Ht (in)',r:false,w:17},{h:'Stored Feed DMI (lbs)',r:false,w:20},{h:'Stored Feed Cost ($)',r:false,w:19},{h:'Notes',r:false,w:32}
+  ];
+  evWs['A1']={v:'Pasture_Events: One row per grazing event. Dates must be YYYY-MM-DD. Paddock and Group pull from their sheets.',t:'s',s:NOTE};
+  evWs['!merges']=[{s:{r:0,c:0},e:{r:0,c:cols.length-1}}];
+  cols.forEach((c,i)=>{evWs[XLSX.utils.encode_cell({r:1,c:i})]={v:c.r?c.h+' *':c.h,t:'s',s:c.r?GRN:DRK};});
+  const exRows=[
+    [locs[0]||'North paddock',grps[0]||'Cow herd','2024-05-01','2024-05-04',52,1250,10,4,0,0,'First rotation'],
+    [locs[1]||'South paddock',grps[0]||'Cow herd','2024-05-04','2024-05-08',52,1255,11,4.5,0,0,''],
+  ];
+  exRows.forEach((row,r)=>cols.forEach((_,c)=>{evWs[XLSX.utils.encode_cell({r:r+2,c})]={v:row[c]!==undefined?row[c]:'',t:typeof row[c]==='number'?'n':'s',s:EX};}));
+  evWs['!cols']=cols.map(c=>({wch:c.w}));
+  evWs['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:exRows.length+2,c:cols.length-1}});
+  evWs['!dataValidation']=[dvPaddock,dvGroup];
+  XLSX.utils.book_append_sheet(wb,evWs,'Pasture_Events');
+  // Locations sheet — pre-populated with user's existing pasture locations
+  const locWs={};
+  locWs['A1']={v:'Locations: Must include every paddock referenced in Pasture_Events. Acres used for NPK/acre calculation.',t:'s',s:NOTE};
+  locWs['!merges']=[{s:{r:0,c:0},e:{r:0,c:4}}];
+  ['Name *','Acres','Soil Type','Forage Species','Description'].forEach((h,i)=>{locWs[XLSX.utils.encode_cell({r:1,c:i})]={v:h,t:'s',s:i===0?GRN:DRK};});
+  const locRows=S.pastures.filter(p=>p.locationType!=='confinement').map(p=>[p.name,p.acres||'',p.soil||'',p.species||'',p.description||'']);
+  if(!locRows.length)locRows.push(['North paddock',45,'Loam','Mixed grass/clover',''],['South paddock',32,'Clay','Fescue blend','']);
+  locRows.forEach((row,r)=>row.forEach((v,c)=>{locWs[XLSX.utils.encode_cell({r:r+2,c})]={v,t:typeof v==='number'?'n':'s',s:EX};}));
+  locWs['!cols']=[{wch:22},{wch:10},{wch:12},{wch:22},{wch:30}];
+  locWs['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:locRows.length+2,c:4}});
+  XLSX.utils.book_append_sheet(wb,locWs,'Locations');
+  // Groups sheet — pre-populated with user's existing groups
+  const grpWs={};
+  grpWs['A1']={v:'Groups: Must include every group referenced in Pasture_Events.',t:'s',s:NOTE};
+  grpWs['!merges']=[{s:{r:0,c:0},e:{r:0,c:2}}];
+  ['Group Name *','Color','Notes'].forEach((h,i)=>{grpWs[XLSX.utils.encode_cell({r:1,c:i})]={v:h,t:'s',s:i===0?GRN:DRK};});
+  const grpRows=S.animalGroups.map(g=>[g.name,g.color||'','' ]);
+  if(!grpRows.length)grpRows.push(['Cow herd','#639922','Main herd'],['Yearlings','#185FA5','']);
+  grpRows.forEach((row,r)=>row.forEach((v,c)=>{grpWs[XLSX.utils.encode_cell({r:r+2,c})]={v,t:'s',s:EX};}));
+  grpWs['!cols']=[{wch:24},{wch:14},{wch:30}];
+  grpWs['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:grpRows.length+2,c:2}});
+  XLSX.utils.book_append_sheet(wb,grpWs,'Groups');
+  wb.SheetNames=['Pasture_Events','Locations','Groups'];
+  const wbout=XLSX.write(wb,{bookType:'xlsx',type:'binary'});
+  const buf=new ArrayBuffer(wbout.length);const view=new Uint8Array(buf);
+  for(let i=0;i<wbout.length;i++)view[i]=wbout.charCodeAt(i)&0xFF;
+  const blob=new Blob([buf],{type:'application/octet-stream'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download='gthy-events-template.xlsx';
+  document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(url);document.body.removeChild(a);},1000);
+}
+
+function importEventsFile(event){
+  const file=event.target.files[0];if(!file)return;
+  if(typeof XLSX==='undefined'){alert('Spreadsheet library not loaded — try again.');return;}
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:'binary',cellDates:true});
+      const results={imported:0,skipped:0,errors:[]};
+
+      function toDateStr(val){
+        if(!val)return null;
+        if(val instanceof Date){
+          const d=new Date(val.getTime()-val.getTimezoneOffset()*60000);
+          return d.toISOString().slice(0,10);
+        }
+        const s=String(val).trim();
+        if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
+        const d=new Date(s);
+        if(!isNaN(d)){const adj=new Date(d.getTime()-d.getTimezoneOffset()*60000);return adj.toISOString().slice(0,10);}
+        return null;
+      }
+
+      function getRows(sheetName){
+        if(!wb.SheetNames.includes(sheetName))return[];
+        const ws=wb.Sheets[sheetName];
+        if(!ws['!ref'])return[];
+        return XLSX.utils.sheet_to_json(ws,{defval:'',raw:false,range:1})
+          .filter(row=>Object.values(row).some(v=>v!==null&&v!==undefined&&String(v).trim()!==''));
+      }
+
+      // ── Import Locations (create any new ones) ───────────────────────────
+      if(wb.SheetNames.includes('Locations')){
+        getRows('Locations').forEach(row=>{
+          const name=String(row['Name *']||row['Name']||'').trim();
+          if(!name)return;
+          if(S.pastures.find(p=>p.name===name))return; // already exists
+          S.pastures.push({
+            name,
+            acres:parseFloat(row['Acres'])||0,
+            locationType:'pasture',
+            soil:String(row['Soil Type']||'Loam').trim(),
+            species:String(row['Forage Species']||'').trim(),
+          });
+        });
+      }
+
+      // ── Import Groups (create any new ones) ──────────────────────────────
+      if(wb.SheetNames.includes('Groups')){
+        getRows('Groups').forEach(row=>{
+          const name=String(row['Group Name *']||row['Group Name']||'').trim();
+          if(!name)return;
+          if(S.animalGroups.find(g=>g.name===name))return;
+          S.animalGroups.push({
+            id:Date.now()+Math.floor(Math.random()*999999),
+            name,
+            color:String(row['Color']||'#639922').trim()||'#639922',
+            animalIds:[],
+          });
+        });
+      }
+
+      // ── Import Pasture Events ────────────────────────────────────────────
+      getRows('Pasture_Events').forEach((row,i)=>{
+        const paddock=String(row['Paddock *']||row['Paddock']||'').trim();
+        const dateIn=toDateStr(row['Date In *']||row['Date In']||row['DateIn']);
+        const dateOut=toDateStr(row['Date Out *']||row['Date Out']||row['DateOut']);
+        const head=parseInt(row['Head *']||row['Head'])||0;
+        const wt=parseFloat(row['Avg Weight (lbs) *']||row['Avg Weight (lbs)']||row['AvgWeight'])||0;
+
+        // Validate required fields
+        if(!paddock){results.errors.push('Row '+(i+3)+': missing paddock');return;}
+        if(!dateIn||!dateOut){results.errors.push('Row '+(i+3)+' ('+paddock+'): invalid dates');return;}
+        if(!head||!wt){results.errors.push('Row '+(i+3)+' ('+paddock+'): missing head count or weight');return;}
+        if(dateIn>=dateOut){results.errors.push('Row '+(i+3)+' ('+paddock+'): date out must be after date in');return;}
+
+        // Skip duplicates (same paddock + dateIn)
+        if(S.events.find(e=>e.pasture===paddock&&e.dateIn===dateIn&&e.status==='closed')){
+          results.skipped++;return;
+        }
+
+        const days=Math.max(1,Math.round((new Date(dateOut+'T12:00:00')-new Date(dateIn+'T12:00:00'))/86400000));
+        const storedDMI=parseFloat(row['Stored Feed DMI (lbs)']||row['StoredFeedDMI'])||0;
+        const feedCost=parseFloat(row['Stored Feed Cost ($)']||row['StoredFeedCost'])||0;
+
+        // DMI calc — use group's class data if available, else default 2.5%
+        const groupName=String(row['Group']||row['Group Name']||'').trim();
+        const grp=groupName?S.animalGroups.find(g=>g.name===groupName):null;
+        const grpTotals=grp?getGroupTotals(grp):null;
+        // Fall back to head×wt×2.5% if no group/class data
+        const dmiPct=grpTotals&&grpTotals.totalHead>0?(grpTotals.dmiTarget/(grpTotals.totalLiveWeight||head*wt)):0.025;
+        const dmiTarget=head*wt*dmiPct;
+        const pastureDMI=Math.max(0,dmiTarget*days-storedDMI);
+        const pct=dmiTarget>0?Math.round((pastureDMI/(dmiTarget*days))*100):null;
+
+        // NPK calc using settings excretion rates
+        const st=S.settings;
+        const bw=head*wt;
+        const npk={
+          n:bw/1000*(st.nExc||0.32)*days,
+          p:bw/1000*(st.pExc||0.09)*days,
+          k:bw/1000*(st.kExc||0.30)*days,
+        };
+        const npkVal=npk.n*(st.nPrice||0.55)+npk.p*(st.pPrice||0.65)+npk.k*(st.kPrice||0.42);
+
+        const evId=Date.now()+Math.floor(Math.random()*999999);
+        S.events.push({
+          id:evId,
+          status:'closed',
+          pasture:paddock,
+          locationType:'pasture',
+          groupId:grp?grp.id:null,
+          groupName:groupName||'',
+          dateIn,dateOut,
+          head,wt,
+          heightIn:parseFloat(row['Pre-graze Ht (in)']||row['PregrazeHt'])||null,
+          heightOut:parseFloat(row['Post-graze Ht (in)']||row['PostgrazeHt'])||null,
+          feedResidual:0,
+          feedEntries:[],
+          notes:String(row['Notes']||'').trim(),
+          totals:{
+            days,
+            storedDMI,
+            pastureDMI,
+            cost:feedCost,
+            pct,
+            npk,
+            npkVal,
+          }
+        });
+        results.imported++;
+      });
+
+      save();
+
+      const msg=`Imported ${results.imported} event${results.imported!==1?'s':''}${results.skipped?' · '+results.skipped+' skipped (duplicates)':''}${results.errors.length?' · '+results.errors.length+' error'+( results.errors.length!==1?'s':''):''}`;
+      const detail=results.errors.length?'\n\nErrors:\n'+results.errors.slice(0,5).join('\n'):'';
+      showEventsImportStatus(results.errors.length&&!results.imported?'error':results.errors.length?'warn':'ok',msg+detail);
+      renderHome();
+      if(curScreen==='pastures')renderPastures();
+      if(curScreen==='events')renderEventsLog();
+    }catch(err){
+      showEventsImportStatus('error','Import failed: '+err.message);
+      console.error(err);
+    }
+    event.target.value='';
+  };
+  reader.readAsBinaryString(file);
+}
+
+function showEventsImportStatus(type,msg){
+  const el=document.getElementById('events-import-status');
+  if(!el)return;
+  el.style.display='block';
+  const colors={ok:['var(--teal-l)','var(--teal-d)'],warn:['var(--amber-l)','var(--amber-d)'],error:['var(--red-l)','var(--red-d)']};
+  const[bg,col]=colors[type]||colors.ok;
+  el.style.background=bg;el.style.color=col;
+  el.style.whiteSpace='pre-wrap';el.textContent=msg;
+  setTimeout(()=>{if(type==='ok')el.style.display='none';},8000);
+}
+
+// ─── END HISTORICAL EVENTS IMPORT ─────────────────────────────────────────────
+
+
+// ─── ERROR LOG ────────────────────────────────────────────────────────────────
+
+function logError(source, message, stack){
+  if(!Array.isArray(S.errorLog))S.errorLog=[];
+  S.errorLog.push({
+    ts: new Date().toISOString(),
+    source, message: String(message).slice(0,300),
+    stack: String(stack||'').slice(0,600),
+    screen: typeof curScreen!=='undefined'?curScreen:'',
+    version: S.version||'?',
+  });
+  // Keep last 200 entries, save quietly without triggering sync loop
+  S.errorLog=S.errorLog.slice(-200);
+  try{localStorage.setItem('gthy',JSON.stringify(S));}catch(e){}
+  // Update count display if visible
+  const el=document.getElementById('error-log-count');
+  if(el)el.textContent=S.errorLog.length+' error'+(S.errorLog.length!==1?'s':'')+' recorded';
+}
+
+function exportErrorLog(){
+  if(!S.errorLog||!S.errorLog.length){alert('No errors logged yet.');return;}
+  const lines=['GET THE HAY OUT — Error Log','Generated: '+new Date().toISOString(),'Version: '+(S.version||'?'),'Entries: '+S.errorLog.length,'','─'.repeat(60)];
+  S.errorLog.slice().reverse().forEach((e,i)=>{
+    lines.push('');
+    lines.push('['+(i+1)+'] '+e.ts);
+    lines.push('Source:  '+e.source);
+    lines.push('Screen:  '+e.screen);
+    lines.push('Message: '+e.message);
+    if(e.stack&&e.stack.trim())lines.push('Stack:\n'+e.stack);
+    lines.push('─'.repeat(60));
+  });
+  const txt=lines.join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([txt],{type:'text/plain'}));
+  a.download='gthy-errors-'+new Date().toISOString().slice(0,10)+'.txt';
+  a.click();
+}
+
+function clearErrorLog(){
+  if(!confirm('Clear all '+S.errorLog.length+' error log entries?'))return;
+  S.errorLog=[];saveLocal();
+  const el=document.getElementById('error-log-count');
+  if(el)el.textContent='0 errors recorded';
+}
+
+// Wire up global error capture
+window.onerror=function(msg,src,line,col,err){
+  logError(src+'@'+line+':'+col, msg, err?err.stack:'');
+  return false;
+};
+window.onunhandledrejection=function(ev){
+  logError('Promise', ev.reason, ev.reason&&ev.reason.stack?ev.reason.stack:'');
+};
+
+// ─── END ERROR LOG ────────────────────────────────────────────────────────────
+
+
+// ─── EVENT EDIT ───────────────────────────────────────────────────────────────
+
+function openEventEdit(eventId){
+  const ev=S.events.find(e=>e.id===eventId);if(!ev)return;
+  document.getElementById('ee-id').value=eventId;
+  // Paddock selector
+  const padSel=document.getElementById('ee-paddock');
+  padSel.innerHTML='<option value="">— select —</option>'+
+    S.pastures.map(p=>`<option value="${p.name}"${p.name===ev.pasture?' selected':''}>${p.name}</option>`).join('');
+  // Group selector
+  const grpSel=document.getElementById('ee-group');
+  grpSel.innerHTML='<option value="">— none —</option>'+
+    S.animalGroups.map(g=>`<option value="${g.id}"${g.id===ev.groupId?' selected':''}>${g.name}</option>`).join('');
+  // Fields
+  document.getElementById('ee-date-in').value=ev.dateIn||'';
+  document.getElementById('ee-date-out').value=ev.dateOut||'';
+  document.getElementById('ee-head').value=ev.head||'';
+  document.getElementById('ee-wt').value=ev.wt||'';
+  document.getElementById('ee-ht-in').value=ev.heightIn||'';
+  document.getElementById('ee-ht-out').value=ev.heightOut||'';
+  document.getElementById('ee-notes').value=ev.notes||'';
+  const isClosed=ev.status==='closed';
+  const closedFields=document.getElementById('ee-closed-fields');
+  closedFields.style.display=isClosed?'block':'none';
+  if(isClosed){
+    document.getElementById('ee-stored-dmi').value=ev.totals?ev.totals.storedDMI||'':'';
+    document.getElementById('ee-feed-cost').value=ev.totals?ev.totals.cost||'':'';
+  }
+  const badge=document.getElementById('ee-status-badge');
+  badge.textContent=isClosed?'closed':'active';
+  badge.className='badge '+(isClosed?'bb':'bt');
+  // Show preview if closed
+  if(isClosed)updateEventEditPreview(ev);
+  else document.getElementById('ee-preview').style.display='none';
+  document.getElementById('event-edit-wrap').classList.add('open');
+}
+
+function updateEventEditPreview(ev){
+  const dateIn=document.getElementById('ee-date-in').value||ev.dateIn;
+  const dateOut=document.getElementById('ee-date-out').value||ev.dateOut;
+  const head=parseFloat(document.getElementById('ee-head').value)||ev.head||0;
+  const wt=parseFloat(document.getElementById('ee-wt').value)||ev.wt||0;
+  const storedDMI=parseFloat(document.getElementById('ee-stored-dmi').value)||0;
+  const feedCost=parseFloat(document.getElementById('ee-feed-cost').value)||0;
+  if(!dateIn||!dateOut||!head||!wt){
+    document.getElementById('ee-preview').style.display='none';return;
+  }
+  const days=Math.max(1,Math.round((new Date(dateOut+'T12:00:00')-new Date(dateIn+'T12:00:00'))/86400000));
+  const grpId=parseInt(document.getElementById('ee-group').value)||null;
+  const g=grpId?getGroupById(grpId):null;
+  const t=g?getGroupTotals(g):null;
+  const dmiPct=t&&t.totalHead>0?(t.dmiTarget/(t.totalLiveWeight||head*wt)):0.025;
+  const dmiTarget=head*wt*dmiPct;
+  const pastureDMI=Math.max(0,dmiTarget*days-storedDMI);
+  const pct=dmiTarget>0?Math.round((pastureDMI/(dmiTarget*days))*100):null;
+  const st=S.settings;
+  const bw=head*wt;
+  const n=bw/1000*(st.nExc||0.32)*days;
+  const p2=bw/1000*(st.pExc||0.09)*days;
+  const k=bw/1000*(st.kExc||0.30)*days;
+  const npkVal=n*(st.nPrice||0.55)+p2*(st.pPrice||0.65)+k*(st.kPrice||0.42);
+  document.getElementById('ee-preview').style.display='block';
+  document.getElementById('ee-preview-content').innerHTML=
+    `${days} days · Pasture DMI: ${Math.round(pastureDMI).toLocaleString()} lbs · ${pct!==null?pct+'% pasture':'--'}<br>`+
+    `NPK: N${n.toFixed(1)} / P${p2.toFixed(1)} / K${k.toFixed(1)} lbs · $${npkVal.toFixed(2)} fert value`;
+}
+
+function closeEventEdit(){document.getElementById('event-edit-wrap').classList.remove('open');}
+
+function saveEventEdit(){
+  const id=parseInt(document.getElementById('ee-id').value);
+  const ev=S.events.find(e=>e.id===id);if(!ev)return;
+  const dateIn=document.getElementById('ee-date-in').value;
+  const dateOut=document.getElementById('ee-date-out').value;
+  const head=parseFloat(document.getElementById('ee-head').value)||ev.head;
+  const wt=parseFloat(document.getElementById('ee-wt').value)||ev.wt;
+  if(!dateIn){alert('Date in is required');return;}
+  if(ev.status==='closed'&&!dateOut){alert('Date out is required for closed events');return;}
+  if(ev.status==='closed'&&dateIn>=dateOut){alert('Date out must be after date in');return;}
+  // Update core fields
+  const grpId=parseInt(document.getElementById('ee-group').value)||null;
+  const oldGrpId=ev.groupId;
+  ev.pasture=document.getElementById('ee-paddock').value||ev.pasture;
+  ev.groupId=grpId;
+  ev.groupName=grpId?(getGroupById(grpId)||{}).name||ev.groupName:ev.groupName;
+  ev.dateIn=dateIn;
+  if(ev.status==='closed')ev.dateOut=dateOut;
+  ev.head=head;ev.wt=wt;
+  ev.heightIn=parseFloat(document.getElementById('ee-ht-in').value)||null;
+  ev.heightOut=parseFloat(document.getElementById('ee-ht-out').value)||null;
+  ev.notes=document.getElementById('ee-notes').value.trim();
+  // Recalculate totals for closed events
+  if(ev.status==='closed'){
+    const storedDMI=parseFloat(document.getElementById('ee-stored-dmi').value)||0;
+    const feedCost=parseFloat(document.getElementById('ee-feed-cost').value)||0;
+    const days=Math.max(1,Math.round((new Date(dateOut+'T12:00:00')-new Date(dateIn+'T12:00:00'))/86400000));
+    const g=grpId?getGroupById(grpId):null;
+    const t=g?getGroupTotals(g):null;
+    const dmiPct=t&&t.totalHead>0?(t.dmiTarget/(t.totalLiveWeight||head*wt)):0.025;
+    const dmiTarget=head*wt*dmiPct;
+    const pastureDMI=Math.max(0,dmiTarget*days-storedDMI);
+    const pct=dmiTarget>0?Math.round((pastureDMI/(dmiTarget*days))*100):null;
+    const st=S.settings;const bw=head*wt;
+    const npk={n:bw/1000*(st.nExc||0.32)*days,p:bw/1000*(st.pExc||0.09)*days,k:bw/1000*(st.kExc||0.30)*days};
+    const npkVal=npk.n*(st.nPrice||0.55)+npk.p*(st.pPrice||0.65)+npk.k*(st.kPrice||0.42);
+    ev.totals={days,storedDMI,pastureDMI,cost:feedCost,pct,npk,npkVal};
+  }
+  save();closeEventEdit();
+  renderEventsLog();renderHome();
+}
+
+function deleteEvent(){
+  const id=parseInt(document.getElementById('ee-id').value);
+  const ev=S.events.find(e=>e.id===id);if(!ev)return;
+  const label=ev.pasture+(ev.dateIn?' · '+dLabel(ev.dateIn):'');
+  if(!confirm('Delete event: '+label+'?\n\nThis cannot be undone. NPK credits for this event will be removed.'))return;
+  S.events=S.events.filter(e=>e.id!==id);
+  save();closeEventEdit();renderEventsLog();renderHome();
+}
+
+// ─── END EVENT EDIT ───────────────────────────────────────────────────────────
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 const _wout=document.getElementById('w-out-date');if(_wout)_wout.value=todayStr();
@@ -5347,6 +5796,67 @@ if(driveState.connected&&driveState.accessToken&&Date.now()<(driveState.tokenExp
         Erase all data
       </button>
       <button class="btn btn-outline" onclick="closeResetSheet()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- EVENT EDIT SHEET -->
+<div class="sheet-wrap" id="event-edit-wrap">
+  <div class="sheet-backdrop" onclick="closeEventEdit()"></div>
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div style="font-size:16px;font-weight:600;">Edit event</div>
+      <span id="ee-status-badge" class="badge"></span>
+    </div>
+    <input type="hidden" id="ee-id"/>
+    <div class="two">
+      <div class="field"><label>Paddock</label>
+        <select id="ee-paddock">
+          <option value="">— select —</option>
+        </select>
+      </div>
+      <div class="field"><label>Group</label>
+        <select id="ee-group">
+          <option value="">— none —</option>
+        </select>
+      </div>
+    </div>
+    <div class="two">
+      <div class="field"><label>Date in</label><input type="date" id="ee-date-in"/></div>
+      <div class="field"><label>Date out</label><input type="date" id="ee-date-out"/></div>
+    </div>
+    <div class="two">
+      <div class="field"><label>Head</label><input type="number" id="ee-head" step="1" min="1"/></div>
+      <div class="field"><label>Avg weight (lbs)</label><input type="number" id="ee-wt" step="1" min="1"/></div>
+    </div>
+    <div class="two">
+      <div class="field"><label>Pre-graze ht (in) <span style="font-size:10px;color:var(--text2);">opt</span></label>
+        <input type="number" id="ee-ht-in" step="0.5"/></div>
+      <div class="field"><label>Post-graze ht (in) <span style="font-size:10px;color:var(--text2);">opt</span></label>
+        <input type="number" id="ee-ht-out" step="0.5"/></div>
+    </div>
+    <!-- Closed event fields -->
+    <div id="ee-closed-fields">
+      <div class="two">
+        <div class="field"><label>Stored feed DMI (lbs)</label>
+          <input type="number" id="ee-stored-dmi" step="1" min="0"/></div>
+        <div class="field"><label>Feed cost ($)</label>
+          <input type="number" id="ee-feed-cost" step="0.01" min="0"/></div>
+      </div>
+    </div>
+    <div class="field"><label>Notes <span style="font-size:10px;color:var(--text2);">optional</span></label>
+      <input type="text" id="ee-notes"/></div>
+    <!-- Recalc preview -->
+    <div id="ee-preview" class="card-inset" style="display:none;margin-bottom:10px;">
+      <div style="font-size:12px;font-weight:600;margin-bottom:4px;">Recalculated totals</div>
+      <div id="ee-preview-content" style="font-size:12px;color:var(--text2);line-height:1.8;"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-green" onclick="saveEventEdit()">Save &amp; recalculate</button>
+      <button class="btn btn-red btn-sm" onclick="deleteEvent()" style="width:auto;padding:12px 14px;">Delete</button>
+      <button class="btn btn-outline" onclick="closeEventEdit()">Cancel</button>
     </div>
   </div>
 </div>
