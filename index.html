@@ -1048,21 +1048,85 @@ function driveDisconnect(){
   driveState={clientId:driveState.clientId};saveDriveState();updateDriveUI();setSyncStatus('off','Drive');
 }
 
+let syncRetryTimer=null;
+
 async function driveSync(){
   if(!driveState.connected||!driveState.accessToken)return;
-  if(Date.now()>(driveState.tokenExpiry||0)){setSyncStatus('error','Token expired — reconnect');return;}
+  // Token expiry check
+  if(Date.now()>(driveState.tokenExpiry||0)){
+    setSyncStatus('error','Session expired — tap to reconnect','reconnect');
+    return;
+  }
   setSyncStatus('pending','Syncing...');
   try{
     if(!driveState.fileId)await driveFindOrCreateFile();
+    // Fetch remote
     const remoteRaw=await driveFetchFile();
-    if(remoteRaw){const remote=JSON.parse(remoteRaw);S=mergeData(S,remote);saveLocal();}
+    if(remoteRaw){
+      let remote;
+      try{remote=JSON.parse(remoteRaw);}
+      catch(parseErr){
+        // Remote file is corrupt — log but don't overwrite with bad data
+        console.warn('Remote JSON parse failed — writing local data over corrupt remote',parseErr);
+        remote=null;
+      }
+      if(remote){S=mergeData(S,remote);saveLocal();}
+    }
+    // Write merged data back
     await driveWriteFile(JSON.stringify(S,null,2));
-    driveState.lastSync=new Date().toISOString();saveDriveState();
+    driveState.lastSync=new Date().toISOString();
+    driveState.lastSyncOk=true;
+    driveState.consecutiveErrors=0;
+    saveDriveState();
     const code=generateFarmCode();
-    if(code&&document.getElementById('farm-code-display'))document.getElementById('farm-code-display').textContent=formatFarmCode(code);
+    if(code&&document.getElementById('farm-code-display'))document.getElementById('farm-code-display').textContent=code;
     setSyncStatus('ok','Synced '+new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}));
     renderCurrentScreen();
-  }catch(e){console.error(e);setSyncStatus('error','Sync failed');}
+  }catch(e){
+    console.error('Drive sync error:',e);
+    driveState.consecutiveErrors=(driveState.consecutiveErrors||0)+1;
+    driveState.lastSyncOk=false;
+    saveDriveState();
+    // Map error codes to user-friendly messages + actions
+    const code=e.code||'';
+    let msg='Sync failed';
+    let action=null; // 'reconnect' | 'retry' | null
+    if(code==='AUTH_REVOKED'){msg='Drive access revoked — reconnect';action='reconnect';}
+    else if(code==='QUOTA'){msg='Google Drive storage full';}
+    else if(code==='FILE_NOT_FOUND'){msg='Data file missing — tap to recreate';action='recreate';}
+    else if(code==='RATE_LIMIT'){msg='Rate limited — retrying in 30s';action='retry';scheduleRetry(30000);}
+    else if(code==='SERVER_ERROR'){msg='Drive unavailable — retrying in 60s';action='retry';scheduleRetry(60000);}
+    else if(code==='FORBIDDEN'){msg='Drive access denied — check permissions';}
+    else if(e.name==='TypeError'||e.message.includes('fetch')){msg='No internet connection';action='retry';}
+    else{msg='Sync failed: '+e.message.slice(0,40);}
+    setSyncStatus('error',msg,action);
+  }
+}
+
+function scheduleRetry(ms){
+  if(syncRetryTimer)clearTimeout(syncRetryTimer);
+  syncRetryTimer=setTimeout(()=>{if(driveState.connected)driveSync();},ms);
+}
+
+function setSyncStatus(state,label,action){
+  const dot=document.getElementById('sync-dot');
+  const lbl=document.getElementById('sync-label');
+  if(dot)dot.className='sync-dot sync-'+state;
+  if(!lbl)return;
+  if(action==='reconnect'){
+    lbl.innerHTML=`<span style="text-decoration:underline;cursor:pointer;" onclick="driveConnect()">${label}</span>`;
+  } else if(action==='recreate'){
+    lbl.innerHTML=`<span style="text-decoration:underline;cursor:pointer;" onclick="driveRecreateFile()">${label}</span>`;
+  } else if(action==='retry'){
+    lbl.innerHTML=`<span style="text-decoration:underline;cursor:pointer;" onclick="driveSync()">${label}</span>`;
+  } else {
+    lbl.textContent=label;
+  }
+}
+
+async function driveRecreateFile(){
+  driveState.fileId=null;saveDriveState();
+  await driveSync();
 }
 
 function driveSyncDebounced(){
@@ -1088,7 +1152,11 @@ async function driveFindOrCreateFile(){
 async function driveFetchFile(){
   if(!driveState.fileId)return null;
   const r=await fetch(`https://www.googleapis.com/drive/v3/files/${driveState.fileId}?alt=media`,{headers:{Authorization:'Bearer '+driveState.accessToken}});
-  if(!r.ok)return null;
+  if(r.status===401)throw Object.assign(new Error('Google account access revoked — reconnect Drive'),{code:'AUTH_REVOKED'});
+  if(r.status===403){const body=await r.text();if(body.includes('storageQuota'))throw Object.assign(new Error('Google Drive storage is full'),{code:'QUOTA'});throw Object.assign(new Error('Drive access denied (403)'),{code:'FORBIDDEN'});}
+  if(r.status===404)throw Object.assign(new Error('Farm data file not found in Drive'),{code:'FILE_NOT_FOUND'});
+  if(r.status>=500)throw Object.assign(new Error('Google Drive is temporarily unavailable'),{code:'SERVER_ERROR'});
+  if(!r.ok)throw Object.assign(new Error('Drive fetch failed (HTTP '+r.status+')'),{code:'HTTP_ERROR'});
   return await r.text();
 }
 
@@ -1098,13 +1166,15 @@ async function driveWriteFile(content){
   const body=`--${boundary}\r\nContent-Type: application/json\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${content}\r\n--${boundary}--`;
   const method=driveState.fileId?'PATCH':'POST';
   const url=driveState.fileId?`https://www.googleapis.com/upload/drive/v3/files/${driveState.fileId}?uploadType=multipart`:'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
-  await fetch(url,{method,headers:{Authorization:'Bearer '+driveState.accessToken,'Content-Type':`multipart/related; boundary=${boundary}`},body});
+  const r=await fetch(url,{method,headers:{Authorization:'Bearer '+driveState.accessToken,'Content-Type':`multipart/related; boundary=${boundary}`},body});
+  if(r.status===401)throw Object.assign(new Error('Google account access revoked — reconnect Drive'),{code:'AUTH_REVOKED'});
+  if(r.status===403){const body2=await r.text();if(body2.includes('storageQuota'))throw Object.assign(new Error('Google Drive storage is full'),{code:'QUOTA'});throw Object.assign(new Error('Drive write access denied (403)'),{code:'FORBIDDEN'});}
+  if(r.status===429)throw Object.assign(new Error('Google Drive rate limit — will retry shortly'),{code:'RATE_LIMIT'});
+  if(r.status>=500)throw Object.assign(new Error('Google Drive is temporarily unavailable'),{code:'SERVER_ERROR'});
+  if(!r.ok)throw Object.assign(new Error('Drive write failed (HTTP '+r.status+')'),{code:'HTTP_ERROR'});
 }
 
-function setSyncStatus(state,label){
-  document.getElementById('sync-dot').className='sync-dot sync-'+state;
-  document.getElementById('sync-label').textContent=label;
-}
+// setSyncStatus: see new version in driveSync block above
 
 function updateDriveUI(){
   const conn=driveState.connected;
