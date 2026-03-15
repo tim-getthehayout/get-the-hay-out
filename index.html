@@ -1899,10 +1899,17 @@ function renderBatchListS(){
   }).join('');
 }
 function updateHeader(){
-  const name=S.herd&&S.herd.name?S.herd.name:'';
+  const name=(S.herd&&S.herd.name)?S.herd.name:'';
   const groups=S.animalGroups||[];
   const totalHead=groups.reduce((s,g)=>s+getGroupTotals(g).totalHead,0);
-  const sub=name&&totalHead?name+' · '+totalHead+' head · '+groups.length+' group'+(groups.length!==1?'s':''):name||'Set up your operation in Settings';
+  let sub='';
+  if(name&&totalHead){
+    sub=name+' · '+totalHead+' head · '+groups.length+' group'+(groups.length!==1?'s':'');
+  } else if(name){
+    sub=name;  // show name even if no animals yet
+  } else {
+    sub='Set up your operation in Settings';
+  }
   document.getElementById('hdr-sub').textContent=sub;
   document.getElementById('ver-tag').textContent=S.version||'v1.0';
 }
@@ -3143,7 +3150,17 @@ function exportSetupTemplate(){
     'Lists'
   ];
 
-  XLSX.writeFile(wb,'gthy-setup-template.xlsx');
+  // Use blob URL for cross-browser compatibility (required for Safari/iOS)
+  const wbout = XLSX.write(wb, {bookType:'xlsx', type:'binary'});
+  const buf = new ArrayBuffer(wbout.length);
+  const view = new Uint8Array(buf);
+  for(let i=0; i<wbout.length; i++) view[i] = wbout.charCodeAt(i) & 0xFF;
+  const blob = new Blob([buf], {type:'application/octet-stream'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'gthy-setup-template.xlsx';
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(url); document.body.removeChild(a); }, 1000);
 }
 
 // ── IMPORT ────────────────────────────────────────────────────────────────────
@@ -3183,32 +3200,18 @@ function importSetupFile(event){
         return new Date().toISOString().slice(0,10);
       }
 
-      // Helper: get sheet rows, skipping note row (row 0) and using row 1 as header
+      // Helper: skip note row (row 1) and use row 2 as headers, data from row 3
       function getRows(sheetName){
         if(!wb.SheetNames.includes(sheetName))return[];
         const ws=wb.Sheets[sheetName];
-        const raw=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false});
-        // sheet_to_json uses row 1 as header — but our sheets have a note in row 1
-        // and headers in row 2. With raw sheet_to_json, first data row IS the note row.
-        // We need to skip the note row by checking if first row looks like a note
-        // (i.e. first key contains long text, not a column header).
-        if(!raw.length)return[];
-        // Check if first row is the note bar (merged cell spanning all cols)
-        const firstRowKeys=Object.keys(raw[0]);
-        const firstRowVal=String(raw[0][firstRowKeys[0]]||'');
-        // Note rows are long sentences; header rows are short label strings
-        // If the first row has only one non-empty value and it's >40 chars, it's the note row
-        const nonEmpty=firstRowKeys.filter(k=>raw[0][k]&&String(raw[0][k]).trim());
-        if(nonEmpty.length===1&&firstRowVal.length>40){
-          // Row 0 = note, row 1 = actual headers — re-parse skipping first row
-          // Use sheet_to_json with header offset
-          const range=XLSX.utils.decode_range(ws['!ref']||'A1');
-          range.s.r=2; // skip to row index 2 (0-based) = row 3 in sheet = first data row
-          const headerRow=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false,range:{s:{r:1,c:0},e:range.e}});
-          return headerRow;
-        }
-        return raw;
+        if(!ws['!ref'])return[];
+        // range:1 tells SheetJS to start from the second row (0-indexed row 1)
+        // so row 2 becomes the header row and row 3+ becomes data
+        const rows=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false,range:1});
+        // Filter out any rows where every value is empty
+        return rows.filter(row=>Object.values(row).some(v=>v!==null&&v!==undefined&&String(v).trim()!==''));
       }
+
 
       // ── Import Animal_Classes ────────────────────────────────────────────
       if(wb.SheetNames.includes('Animal_Classes')){
@@ -3276,7 +3279,7 @@ function importSetupFile(event){
           const unitRaw=String(row['Unit *']||row['Unit']||'bale').trim().toLowerCase();
           const validUnits=['bale','sq bale','ton','lb','bag','gallon'];
           const unit=validUnits.includes(unitRaw)?unitRaw:'lb';
-          const dm=parseFloat(row['DM %']||row['DM_Pct']||row['DM% *']||'85')||85;
+          const dm=parseFloat(row['DM % *']||row['DM %']||row['DM_Pct']||row['DM%']||'85')||85;
           S.feedTypes.push({
             id:Date.now()+Math.floor(Math.random()*999999),
             name,unit,
@@ -3291,7 +3294,7 @@ function importSetupFile(event){
       if(wb.SheetNames.includes('Feed_Batches')){
         getRows('Feed_Batches').forEach(row=>{
           const label=String(row['Label *']||row['Label']||'').trim();
-          const ftName=String(row['Feed Type Name *']||row['Feed Type Name']||row['FeedTypeName *']||row['FeedTypeName']||'').trim();
+          const ftName=String(row['Feed Type Name *']||row['Feed Type Name']||row['FeedTypeName *']||row['FeedTypeName']||row['FeedType']||'').trim();
           if(!label||!ftName)return;
           const ft=S.feedTypes.find(f=>f.name.toLowerCase()===ftName.toLowerCase());
           if(!ft){results.errors.push('Batch "'+label+'": feed type "'+ftName+'" not found');return;}
@@ -3315,8 +3318,6 @@ function importSetupFile(event){
         getRows('Animals').forEach(row=>{
           const tag=String(row['Ear Tag *']||row['Ear Tag']||row['EarTag *']||row['EarTag']||'').trim();
           if(!tag||tag.length>30)return;
-          // Skip example rows
-          if(tag==='T-001'||tag==='T-002'||tag==='T-003'||tag==='T-004'||tag==='T-005')return;
           if(S.animals.find(a=>a.tagNum===tag)){results.skipped++;return;}
           const clsName=String(row['Class Name *']||row['Class Name']||row['ClassName *']||row['ClassName']||'').trim();
           const cls=clsName?S.animalClasses.find(c=>c.name.toLowerCase()===clsName.toLowerCase()):null;
