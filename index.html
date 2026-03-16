@@ -7769,6 +7769,7 @@ function renderNpkDashboard(){
   const rows = pastures.map(p=>{
     const evs = S.events.filter(e=>(e.pasture===p.name||(e.pastureId&&e.pastureId===p.id))
       &&e.status==='closed'&&e.locationType!=='confinement'&&e.totals&&e.totals.npk);
+      // noPasture events (bale grazing) still deposit NPK — included intentionally
     const amendEvs = S.events.filter(e=>e.pasture===p.name&&e.type==='amend');
     const inputApps = (S.inputApplications||[]).filter(a=>(a.locations||[]).some(l=>l.pastureId===p.id||l.name===p.name));
 
@@ -7806,10 +7807,14 @@ function renderNpkDashboard(){
     return `<tr>
       <td style="font-weight:600;">${p.name}${p.archived?` <span class="badge bb" style="font-size:10px;">arch.</span>`:''}
         <div style="font-size:11px;color:var(--text2);font-weight:400;">${acres?acres+' ac':'no acres'} · ${events} event${events!==1?'s':''}</div></td>
-      <td style="color:${nColor};font-weight:600;">${nPerAc}</td>
+      <td style="font-weight:600;">${totalN>0?totalN.toFixed(1):'--'}</td>
+      <td>${totalP>0?totalP.toFixed(1):'--'}</td>
+      <td>${totalK>0?totalK.toFixed(1):'--'}</td>
+      <td style="color:${nColor};">${nPerAc}</td>
       <td>${pPerAc}</td>
       <td>${kPerAc}</td>
-      <td style="color:var(--green-d);font-weight:600;">${valPerAc}</td>
+      <td style="color:var(--green-d);">${valPerAc}</td>
+      <td style="color:var(--green-d);font-weight:600;">${fertVal>0?'$'+fertVal.toFixed(2):'--'}</td>
       <td style="color:var(--teal-d);">${om>0?om.toFixed(0)+' lbs':'--'}</td>
       <td style="font-size:12px;color:var(--text2);">
         ${[grazN>0?'grazing':'', spreadN>0?'manure':'', inputN>0?'inputs':''].filter(Boolean).join(' + ')||'none'}
@@ -7823,8 +7828,9 @@ function renderNpkDashboard(){
       <table class="rpt-tbl">
         <thead><tr>
           <th>Paddock</th>
+          <th>N lbs</th><th>P lbs</th><th>K lbs</th>
           <th>N / ac</th><th>P / ac</th><th>K / ac</th>
-          <th>Value / ac</th>
+          <th>Value / ac</th><th>Total value</th>
           <th>OM residual</th>
           <th>Sources</th>
         </tr></thead>
