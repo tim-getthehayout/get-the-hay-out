@@ -277,7 +277,16 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 
     <!-- ANIMALS SCREEN -->
     <div id="s-animals" class="scr">
-      <!-- Group filter -->
+      <!-- Animal search + group filter -->
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+        <div style="flex:1;position:relative;">
+          <input type="search" id="animals-search" placeholder="Search by tag, EID, class…"
+            oninput="renderAnimalsScreen()"
+            style="width:100%;padding:9px 32px 9px 12px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:14px;background:var(--bg);color:var(--text);font-family:inherit;box-sizing:border-box;"/>
+          <span id="animals-search-clear" onclick="clearAnimalSearch()"
+            style="display:none;position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:16px;color:var(--text2);line-height:1;">×</span>
+        </div>
+      </div>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
         <select id="animals-group-filter" onchange="renderAnimalsScreen()"
           style="flex:1;padding:9px 12px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:14px;background:var(--bg);color:var(--text);font-family:inherit;">
@@ -526,7 +535,16 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
       </div>
       <div id="input-applications-list" style="margin-bottom:12px;"></div>
       <div class="div"></div>
-      <div style="font-size:15px;font-weight:600;margin-bottom:8px;">Locations</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <div style="font-size:15px;font-weight:600;">Locations</div>
+        <div style="flex:1;position:relative;">
+          <input type="search" id="pasture-search" placeholder="Filter locations…"
+            oninput="renderPastures()"
+            style="width:100%;padding:6px 28px 6px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;box-sizing:border-box;"/>
+          <span id="pasture-search-clear" onclick="clearPastureSearch()"
+            style="display:none;position:absolute;right:8px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:15px;color:var(--text2);line-height:1;">×</span>
+        </div>
+      </div>
       <div id="pasture-list"></div>
     </div>
 
@@ -2418,13 +2436,25 @@ function renderPastures(){
   document.getElementById('manure-inventory-section').style.display=hasConfinement?'block':'none';
   if(hasConfinement)renderManureInventory();
   if(!S.pastures.length){el.innerHTML='<div class="empty">No locations yet</div>';return;}
+  // Pasture search filter
+  const pastureSearchRaw = (document.getElementById('pasture-search')?.value||'').trim();
+  const pastureQ = pastureSearchRaw.toLowerCase();
+  const pscEl = document.getElementById('pasture-search-clear');
+  if(pscEl) pscEl.style.display = pastureSearchRaw ? 'block' : 'none';
+
   function pastureSortHdr(col,label){
     const active=pastureSortCol===col;
     const arrow=active?(pastureSortDir===1?' ↑':' ↓'):'';
     return `<span style="cursor:pointer;color:${active?'var(--green)':'var(--text2)'};font-weight:${active?'600':'400'};"
       onclick="pastureSortCol='${col}';pastureSortDir=${active?-1:1}*pastureSortDir;renderPastures()">${label}${arrow}</span>`;
   }
-  const sortedPastureList = [...S.pastures].sort((a,b)=>{
+  const sortedPastureList = [...S.pastures].filter(p=>!pastureQ
+    || p.name.toLowerCase().includes(pastureQ)
+    || (p.soil||'').toLowerCase().includes(pastureQ)
+    || (p.species||'').toLowerCase().includes(pastureQ)
+    || (p.description||'').toLowerCase().includes(pastureQ)
+    || String(p.acres||'').includes(pastureQ)
+  ).sort((a,b)=>{
     let av, bv;
     if(pastureSortCol==='name'){ av=a.name; bv=b.name; return pastureSortDir*av.localeCompare(bv,'en',{numeric:true}); }
     if(pastureSortCol==='acres'){ return pastureSortDir*((a.acres||0)-(b.acres||0)); }
@@ -5978,9 +6008,26 @@ function renderAnimalsScreen(){
 
   const groupFilter = document.getElementById('animals-group-filter')?.value || '';
   const showCulled  = document.getElementById('animals-show-culled')?.checked || false;
+  const searchRaw   = (document.getElementById('animals-search')?.value || '').trim();
+  const searchQ     = searchRaw.toLowerCase();
+  // Show/hide clear button
+  const scEl = document.getElementById('animals-search-clear');
+  if(scEl) scEl.style.display = searchRaw ? 'block' : 'none';
 
   let animals = [...S.animals];
   if(!showCulled) animals = animals.filter(a=>a.active!==false);
+  if(searchQ){
+    animals = animals.filter(a=>{
+      const cls = S.animalClasses.find(c=>c.id===a.classId);
+      const grp = getAnimalGroup(a.id);
+      return (a.tagNum||'').toLowerCase().includes(searchQ)
+          || (a.eid||'').toLowerCase().includes(searchQ)
+          || (a.systemId||'').toLowerCase().includes(searchQ)
+          || (a.notes||'').toLowerCase().includes(searchQ)
+          || (cls?cls.name:'').toLowerCase().includes(searchQ)
+          || (grp?grp.name:'').toLowerCase().includes(searchQ);
+    });
+  }
 
   if(groupFilter === 'unassigned'){
     const assigned = new Set(S.animalGroups.flatMap(g=>g.animalIds||[]));
@@ -6070,6 +6117,18 @@ function toggleAnimalScreenSelect(id){
   if(animalScreenSelected.has(id)) animalScreenSelected.delete(id);
   else animalScreenSelected.add(id);
   renderAnimalsScreen();
+}
+
+
+function clearAnimalSearch(){
+  const el=document.getElementById('animals-search');
+  if(el){el.value='';el.focus();}
+  renderAnimalsScreen();
+}
+function clearPastureSearch(){
+  const el=document.getElementById('pasture-search');
+  if(el){el.value='';el.focus();}
+  renderPastures();
 }
 
 function clearAnimalSelection(){
