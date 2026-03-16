@@ -4183,7 +4183,7 @@ const STAT_METRICS = {
       const perAcre = totalNPK/acres;
       return {
         value: perAcre,
-        display: perAcre.toFixed(1),
+        display: perAcre.toFixed(1)+' /ac',
         sub: `N${totalN.toFixed(0)}/P${totalP.toFixed(0)}/K${totalK.toFixed(0)} lbs total`
       };
     }
@@ -4224,7 +4224,7 @@ const STAT_METRICS = {
       const perAcre = totalVal/acres;
       return {
         value: perAcre,
-        display: '$'+perAcre.toFixed(2),
+        display: '$'+perAcre.toFixed(2)+'/ac',
         sub: '$'+totalVal.toFixed(2)+' total fert. value'
       };
     }
