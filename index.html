@@ -3252,11 +3252,14 @@ function renderRotationCalendar(){
 
     // Row totals
     const allData = periods.map(period=>cells[p.name]?.[period.start]).filter(Boolean);
-    const rowAUDs = allData.reduce((s,d)=>s+(d.auds||0),0);
-    const rowNPK  = allData.reduce((s,d)=>s+(d.totalNPK||0),0);
-    const rowOM   = allData.reduce((s,d)=>s+(d.omLbs||0),0);
-    const rowPct  = allData.filter(d=>d.pasturePct!=null);
-    const avgPct  = rowPct.length ? Math.round(rowPct.reduce((s,d)=>s+d.pasturePct,0)/rowPct.length) : null;
+    const rowAUDs    = allData.reduce((s,d)=>s+(d.auds||0),0);
+    const rowNPK     = allData.reduce((s,d)=>s+(d.totalNPK||0),0);
+    const rowOM      = allData.reduce((s,d)=>s+(d.omLbs||0),0);
+    const totalCost  = allData.reduce((s,d)=>s+(d.totalCost||0),0);
+    const totalDays  = allData.reduce((s,d)=>s+(d.totalDays||0),0);
+    const totalAcres = Math.max(...allData.map(d=>d.totalAcres||0), 0);
+    const rowPct     = allData.filter(d=>d.pasturePct!=null);
+    const avgPct     = rowPct.length ? Math.round(rowPct.reduce((s,d)=>s+d.pasturePct,0)/rowPct.length) : null;
 
     return `<tr>
       <td style="min-width:${PADDOCK_COL_W}px;max-width:${PADDOCK_COL_W}px;
@@ -3267,12 +3270,31 @@ function renderRotationCalendar(){
         <div style="font-size:10px;font-weight:400;color:var(--text2);">${p.acres||0} ac</div>
       </td>
       ${rowCells}
-      <td style="min-width:80px;padding:4px 8px;font-size:10px;color:var(--text2);
-          position:sticky;right:0;background:var(--bg2);border-left:0.5px solid var(--border);
+      <td style="min-width:160px;padding:4px 8px;font-size:11px;
+          position:sticky;right:0;background:var(--bg2);border-left:1px solid var(--border);
           vertical-align:middle;">
-        <div style="font-weight:600;color:var(--text);">${rowAUDs>0?rowAUDs.toFixed(0)+' AUD':''}</div>
-        <div>${avgPct!=null?avgPct+'% grazing':''}</div>
-        <div style="color:var(--teal-d);">${rowOM>0.1?rowOM.toFixed(0)+' OM':''}${rowNPK>0.1?' '+rowNPK.toFixed(0)+'NPK':''}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px 8px;">
+          <div>
+            <div style="font-size:9px;color:var(--text2);line-height:1;">AUDs</div>
+            <div style="font-weight:700;color:${thresholdColor('auds',rowAUDs)==='green'?'var(--green-d)':thresholdColor('auds',rowAUDs)==='amber'?'var(--amber-d)':rowAUDs>0?'var(--text)':'var(--text2)'};">${rowAUDs>0?rowAUDs.toFixed(0):'—'}</div>
+          </div>
+          <div>
+            <div style="font-size:9px;color:var(--text2);line-height:1;">Pasture %</div>
+            <div style="font-weight:700;color:${thresholdColor('pasturePct',avgPct)==='green'?'var(--green-d)':thresholdColor('pasturePct',avgPct)==='amber'?'var(--amber-d)':avgPct!=null?'var(--text)':'var(--text2)'};">${avgPct!=null?avgPct+'%':'—'}</div>
+          </div>
+          <div>
+            <div style="font-size:9px;color:var(--text2);line-height:1;">NPK/ac</div>
+            <div style="font-weight:700;color:${thresholdColor('npkAcre',totalAcres>0?rowNPK/totalAcres:null)==='green'?'var(--green-d)':thresholdColor('npkAcre',totalAcres>0?rowNPK/totalAcres:null)==='amber'?'var(--amber-d)':'var(--text2)'};">${totalAcres>0?(rowNPK/totalAcres).toFixed(1):'—'}</div>
+          </div>
+          <div>
+            <div style="font-size:9px;color:var(--text2);line-height:1;">OM (lbs)</div>
+            <div style="font-weight:700;color:${thresholdColor('omLbs',rowOM)==='green'?'var(--green-d)':thresholdColor('omLbs',rowOM)==='amber'?'var(--amber-d)':rowOM>0?'var(--text)':'var(--text2)'};">${rowOM>0.1?rowOM.toFixed(0):'—'}</div>
+          </div>
+          <div>
+            <div style="font-size:9px;color:var(--text2);line-height:1;">$/day</div>
+            <div style="font-weight:700;color:${(()=>{const cpd=totalDays>0?totalCost/totalDays:null;const c=thresholdColor('costDay',cpd);return c==='green'?'var(--green-d)':c==='amber'?'var(--amber-d)':cpd!=null?'var(--text)':'var(--text2)';})()};">${totalDays>0?'$'+(totalCost/totalDays).toFixed(0):'—'}</div>
+          </div>
+        </div>
       </td>
     </tr>`;
   }).join('');
@@ -3294,9 +3316,15 @@ function renderRotationCalendar(){
                 position:sticky;left:0;z-index:4;border-right:0.5px solid var(--border);
                 border-bottom:0.5px solid var(--border);">Paddock</th>
             ${headerCells}
-            <th style="min-width:80px;padding:6px 8px;text-align:left;font-size:11px;font-weight:600;
+            <th style="min-width:160px;padding:6px 8px;text-align:left;font-size:11px;font-weight:600;
                 background:var(--bg2);position:sticky;right:0;z-index:4;
-                border-left:0.5px solid var(--border);border-bottom:0.5px solid var(--border);">Totals</th>
+                border-left:1px solid var(--border);border-bottom:0.5px solid var(--border);">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px;">
+                <span>AUDs</span><span>Pasture%</span>
+                <span>NPK/ac</span><span>OM lbs</span>
+                <span>$/day</span><span></span>
+              </div>
+            </th>
           </tr>
         </thead>
         <tbody>${tableRows}</tbody>
