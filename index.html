@@ -5188,6 +5188,51 @@ function renderStats(){
 }
 
 // ── Render metric picker in Settings ────────────────────────────────────────
+
+function renderThresholdsList(){
+  const el = document.getElementById('thresholds-list');
+  if(!el) return;
+  const keys = ['auds','pasturePct','npkAcre','omLbs','costDay'];
+  const descs = {
+    auds:      'Animal Unit Days per rotation — total weight × days / AU weight. Measures grazing pressure per paddock.',
+    pasturePct:'% of total DMI from pasture. Higher = better pasture utilization.',
+    npkAcre:   'Lbs of N+P+K deposited per acre per rotation.',
+    omLbs:     'Lbs of dry matter organic residual left on paddock from unconsumed feed.',
+    costDay:   'Stored feed cost per day. Lower = better (more grazing, less purchased feed).',
+  };
+  el.innerHTML = keys.map(k=>{
+    const t = getThreshold(k);
+    const isLower = t.direction==='lower';
+    return `
+      <div style="padding:10px 0;border-bottom:0.5px solid var(--border);">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px;">
+          <div>
+            <span style="font-size:13px;font-weight:600;">${t.label||k}</span>
+            <span style="font-size:11px;color:var(--text2);margin-left:6px;">${isLower?'lower is better':'higher is better'}</span>
+          </div>
+          <div style="display:flex;gap:8px;align-items:flex-end;">
+            <div class="field" style="margin:0;">
+              <label style="font-size:10px;color:var(--text2);">${isLower?'Max target':'Target'}</label>
+              <input type="number" id="th-target-${k}" value="${t.target}"
+                step="${k==='costDay'?'5':k==='pasturePct'?'5':'10'}"
+                style="width:72px;padding:4px 6px;border:0.5px solid var(--border2);border-radius:var(--radius);
+                       font-size:12px;background:var(--bg);color:var(--text);font-family:inherit;"/>
+            </div>
+            <div class="field" style="margin:0;">
+              <label style="font-size:10px;color:var(--text2);">${isLower?'% above target for amber':'% of target for amber'}</label>
+              <input type="number" id="th-warn-${k}" value="${Math.round(t.warnPct*100)}"
+                min="1" max="200" step="5"
+                style="width:60px;padding:4px 6px;border:0.5px solid var(--border2);border-radius:var(--radius);
+                       font-size:12px;background:var(--bg);color:var(--text);font-family:inherit;"/>
+            </div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text2);">${descs[k]||''}</div>
+      </div>
+    `;
+  }).join('');
+}
+
 function renderStatsMetricList(){
   const el = document.getElementById('stats-metric-list');
   if(!el) return;
@@ -7593,12 +7638,13 @@ function renderRotationCalendar(containerId){
 
     const tds = cells.map(c=>{
       if(!c.ev) return `<td colspan="${c.span}" style="min-width:${28*c.span}px;height:30px;border:none;"></td>`;
-      const ev    = c.ev;
-      const color = grpColor(ev.groupId);
-      const name  = grpName(ev.groupId);
-      const auds  = eventAUDs(ev);
-      const isOpen= ev.status==='open';
-      const days  = daysBetween(ev.dateIn, ev.dateOut||todayStr());
+      const ev       = c.ev;
+      const isHayFeed= !!ev.noPasture;
+      const color    = isHayFeed ? '#C4A882' : grpColor(ev.groupId);
+      const name     = grpName(ev.groupId);
+      const auds     = eventAUDs(ev);
+      const isOpen   = ev.status==='open';
+      const days     = daysBetween(ev.dateIn, ev.dateOut||todayStr());
 
       // Only show text if enough space (≥2 weeks wide)
       const showText = c.span >= 2;
