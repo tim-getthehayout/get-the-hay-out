@@ -1611,6 +1611,7 @@ function setSyncStatus(state,label,action){
   } else {
     lbl.textContent=label;
   }
+  syncSidebarSync(state, label);
 }
 
 async function driveRecreateFile(){
@@ -1830,6 +1831,7 @@ function nav(screen,btn){
   document.getElementById('s-'+screen).classList.add('active');
   const nb=document.getElementById('bn-'+screen);if(nb)nb.classList.add('active');
   curScreen=screen;renderCurrentScreen();
+  syncSidebarNav(screen);
 }
 function renderCurrentScreen(){
   if(curScreen==='home')renderHome();
@@ -2325,6 +2327,7 @@ function updateTodoBadge(){
   const open=S.todos.filter(t=>t.status!=='closed').length;
   const badge=document.getElementById('todo-badge');
   badge.style.display=open>0?'':'none';badge.textContent=open;
+  syncSidebarBadges();
 }
 
 // Show paddock tasks in move wizard
@@ -2891,6 +2894,7 @@ function updateHeader(){
   }
   document.getElementById('hdr-sub').textContent=sub;
   document.getElementById('ver-tag').textContent=S.version||'v1.0';
+  syncSidebarOpName();
 }
 
 // ─── FEEDBACK ─────────────────────────────────────────────────────────────────
@@ -2960,6 +2964,7 @@ function renderFeedbackList(){
 function updateFeedbackBadge(){
   const n=S.feedback.filter(f=>f.status==='open'||f.status==='resolved').length;
   const badge=document.getElementById('fb-badge');badge.style.display=n>0?'':'none';badge.textContent=n;
+  syncSidebarBadges();
 }
 
 // ─── DEV BRIEF ────────────────────────────────────────────────────────────────
@@ -6873,51 +6878,29 @@ window.addEventListener('resize', ()=>{
   _resizeTimer = setTimeout(detectMode, 120);
 });
 
-// Sync sidebar nav active state + badges alongside bottom nav
-const _origNav = nav;
-function nav(screen, btn){
-  // Run original nav logic
-  _origNav(screen, btn);
-  // Sync desktop sidebar active state
+// Sidebar sync helpers — called from existing functions, no redeclaration needed
+function syncSidebarNav(screen){
   document.querySelectorAll('.dsk-nav-item').forEach(b=>b.classList.remove('active'));
   const dbn = document.getElementById('dbn-'+screen);
   if(dbn) dbn.classList.add('active');
-  // Keep FAB hidden on settings screen
   const fab = document.querySelector('.fab');
   if(fab) fab.style.display = screen==='settings' ? 'none' : '';
 }
-
-// Mirror badge updates to sidebar badges
-const _origUpdateTodoBadge = updateTodoBadge;
-function updateTodoBadge(){
-  _origUpdateTodoBadge();
-  const n = S.todos.filter(t=>t.status!=='closed').length;
-  const db = document.getElementById('dtodo-badge');
-  if(db){ db.style.display = n>0?'':'none'; db.textContent = n; }
+function syncSidebarBadges(){
+  const tn = S.todos.filter(t=>t.status!=='closed').length;
+  const tb = document.getElementById('dtodo-badge');
+  if(tb){ tb.style.display = tn>0?'':'none'; tb.textContent = tn; }
+  const fn = S.feedback.filter(f=>f.status==='open'||f.status==='resolved').length;
+  const fb = document.getElementById('dfb-badge');
+  if(fb){ fb.style.display = fn>0?'':'none'; fb.textContent = fn; }
 }
-
-const _origUpdateFeedbackBadge = updateFeedbackBadge;
-function updateFeedbackBadge(){
-  _origUpdateFeedbackBadge();
-  const n = S.feedback.filter(f=>f.status==='open'||f.status==='resolved').length;
-  const db = document.getElementById('dfb-badge');
-  if(db){ db.style.display = n>0?'':'none'; db.textContent = n; }
-}
-
-// Mirror sync indicator to sidebar
-const _origSetSyncStatus = setSyncStatus;
-function setSyncStatus(state, label, action){
-  _origSetSyncStatus(state, label, action);
+function syncSidebarSync(state, label){
   const dot = document.getElementById('dsk-sync-dot');
   const lbl = document.getElementById('dsk-sync-label');
   if(dot) dot.className = 'sync-dot sync-'+state;
   if(lbl) lbl.textContent = typeof label==='string' ? label : 'Drive';
 }
-
-// Update sidebar operation name when header updates
-const _origUpdateHeader = updateHeader;
-function updateHeader(){
-  _origUpdateHeader();
+function syncSidebarOpName(){
   const name = (S.herd&&S.herd.name) ? S.herd.name : 'My Farm';
   const el = document.getElementById('dsk-op-name');
   if(el) el.textContent = name;
