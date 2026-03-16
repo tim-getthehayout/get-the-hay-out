@@ -292,7 +292,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
     grid-area:content;
     overflow-y:auto;
     padding:20px 28px 40px;
-    max-width:900px;  /* readable line length */
+    max-width:1100px;  /* wide enough for reports tables */
   }
 
   /* Hide bottom nav on desktop */
@@ -357,10 +357,42 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
   #home-stats-card{ display:none !important; }
 }
 
+
+/* ── REPORTS SCREEN ─────────────────────────────────────────────────── */
+.rpt-panel{display:none;}
+.rpt-panel.active{display:block;}
+.rpt-tab{padding:7px 16px;border-radius:var(--radius);border:0.5px solid var(--border2);
+  background:transparent;color:var(--text2);font-size:13px;font-weight:500;
+  cursor:pointer;font-family:inherit;transition:all .1s;}
+.rpt-tab.active{background:var(--green);color:white;border-color:var(--green);font-weight:600;}
+.rpt-tab:hover:not(.active){background:var(--bg2);color:var(--text);}
+.rot-grid-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+.rot-cell{display:inline-block;height:26px;vertical-align:middle;border-radius:3px;
+  font-size:10px;color:white;font-weight:600;text-align:center;line-height:26px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 3px;}
+.rpt-tbl{width:100%;border-collapse:collapse;font-size:13px;}
+.rpt-tbl th{text-align:left;padding:8px 12px;border-bottom:1.5px solid var(--border);
+  font-weight:600;color:var(--text2);font-size:12px;background:var(--bg2);}
+.rpt-tbl td{padding:8px 12px;border-bottom:0.5px solid var(--border);color:var(--text);}
+.rpt-tbl tr:hover td{background:var(--bg2);}
+/* ── END REPORTS ─────────────────────────────────────────────────────── */
+
+
+/* Rotation calendar table */
+.rot-cal-table{border-collapse:collapse;min-width:100%;}
+.rot-cal-table th,.rot-cal-table td{border:0.5px solid var(--border);}
+.rot-cal-table td:hover{filter:brightness(0.92);}
+/* On mobile, hide the calendar tab — it's a desktop feature */
+@media (max-width:899px){
+  #ev-tab-cal{display:none;}
+  #ev-view-calendar{display:none !important;}
+}
+
 /* ── END DESKTOP LAYOUT ───────────────────────────────────────────────── */
 
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 </head>
 <body>
 <div class="app">
@@ -403,6 +435,10 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
         Feedback
         <span class="dsk-nav-badge" id="dfb-badge" style="display:none;"></span>
       </button>
+      <button class="dsk-nav-item" id="dbn-reports" onclick="nav('reports',this)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        Reports
+      </button>
       <button class="dsk-nav-item" id="dbn-settings" onclick="nav('settings',this)">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
         Settings
@@ -436,6 +472,9 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 
     <!-- HOME -->
     <div id="s-home" class="scr active">
+
+      <!-- Mobile performance dial-in strip -->
+      <div id="mobile-perf-strip"></div>
 
       <!-- Groups (primary) -->
       <div id="home-groups"></div>
@@ -616,6 +655,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
                 <div class="m-cell"><div class="ml">Pasture DMI</div><div class="mv" style="color:var(--green);" id="cp-pdmi">--</div></div>
                 <div class="m-cell"><div class="ml">Pasture %</div><div class="mv" style="color:var(--teal);" id="cp-pct">--</div></div>
                 <div class="m-cell"><div class="ml">NPK value</div><div class="mv" style="color:var(--purple-d);" id="cp-npk">--</div></div>
+                <div class="m-cell"><div class="ml">OM residual</div><div class="mv" style="color:var(--teal-d);" id="cp-om">--</div></div>
               </div>
             </div>
             <button class="btn btn-amber" onclick="wizCloseEvent()">Close event &amp; continue</button>
@@ -672,14 +712,45 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
     <!-- EVENTS -->
     <div id="s-events" class="scr">
       <div id="ev-active-banner"></div>
-      <div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-          <div class="sec" style="margin:0;">Grazing events</div>
-          <select id="ev-filter" onchange="renderEventsLog()" style="font-size:12px;padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);font-family:inherit;">
-            <option value="all">All</option><option value="open">Open</option><option value="closed">Closed</option>
-          </select>
+
+      <!-- Events view toggle: Log | Calendar (Calendar = desktop only) -->
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;">
+        <button id="ev-tab-log" onclick="switchEventsView('log')"
+          style="padding:7px 16px;font-size:13px;font-weight:600;border-radius:20px;cursor:pointer;font-family:inherit;
+                 border:0.5px solid var(--green);background:var(--green);color:white;">
+          Event log
+        </button>
+        <button id="ev-tab-cal" onclick="switchEventsView('calendar')"
+          style="padding:7px 16px;font-size:13px;font-weight:500;border-radius:20px;cursor:pointer;font-family:inherit;
+                 border:0.5px solid var(--border2);background:transparent;color:var(--text2);">
+          Rotation calendar
+        </button>
+      </div>
+
+      <!-- Event log view -->
+      <div id="ev-view-log">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <div class="sec" style="margin:0;">Grazing events</div>
+            <select id="ev-filter" onchange="renderEventsLog()" style="font-size:12px;padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);font-family:inherit;">
+              <option value="all">All</option><option value="open">Open</option><option value="closed">Closed</option>
+            </select>
+          </div>
+          <div id="ev-list"></div>
         </div>
-        <div id="ev-list"></div>
+      </div>
+
+      <!-- Rotation calendar view -->
+      <div id="ev-view-calendar" style="display:none;">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px;">
+            <div>
+              <div class="sec" style="margin:0;">Rotation calendar</div>
+              <div style="font-size:12px;color:var(--text2);margin-top:2px;">Paddocks × time · color coded by selected metric vs your goals</div>
+            </div>
+          </div>
+          <div id="rotation-calendar"></div>
+        </div>
       </div>
     </div>
 
@@ -777,6 +848,19 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
         </div>
       </div>
       <div id="pasture-list"></div>
+    </div>
+
+
+    <!-- REPORTS (desktop) -->
+    <div id="s-reports" class="scr">
+      <!-- Sub-nav tabs -->
+      <div id="rpt-subnav" style="display:flex;gap:4px;margin-bottom:18px;flex-wrap:wrap;"></div>
+      <!-- Sub-screen panels -->
+      <div id="rpt-rotation"   class="rpt-panel"></div>
+      <div id="rpt-npk"        class="rpt-panel"></div>
+      <div id="rpt-feed"       class="rpt-panel"></div>
+      <div id="rpt-animals"    class="rpt-panel"></div>
+      <div id="rpt-summary"    class="rpt-panel"></div>
     </div>
 
     <!-- FEEDBACK -->
@@ -1186,6 +1270,30 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
         <button class="btn btn-green btn-sm" onclick="addBatch()">Add batch</button>
       </div>
 
+
+      <!-- Animal Units & Rotation Goals -->
+      <div class="card" id="goals-card">
+        <div class="sec">Animal units &amp; rotation goals</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.6;">
+          Set target goals for each paddock metric. The rotation calendar uses these to color-code performance: 
+          <strong style="color:var(--green-d);">green</strong> = met or exceeded, 
+          <strong style="color:var(--amber-d);">amber</strong> = within warning range, 
+          <strong style="color:var(--red-d);">red</strong> = missed.
+        </div>
+        <div class="field">
+          <label>Animal unit weight (lbs) — 1 AU = this many lbs live weight</label>
+          <input type="number" id="s-au-weight" placeholder="1000" step="50" style="max-width:140px;"/>
+          <div style="font-size:11px;color:var(--text2);margin-top:4px;">Default 1000 lbs. Used to calculate Animal Unit Days (AUDs) per rotation.</div>
+        </div>
+        <div class="div"></div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:10px;">Per-metric goals</div>
+        <div id="thresholds-list"></div>
+        <div style="font-size:11px;color:var(--text2);margin-top:10px;line-height:1.6;">
+          Amber threshold: if met% of target triggers amber (e.g. 75% means amber kicks in below 75% of your target).<br>
+          For feed cost, higher = worse — set your maximum acceptable $/day and the threshold % above it that triggers amber.
+        </div>
+      </div>
+
       <button class="btn btn-green" onclick="saveSettings()">Save settings</button>
       <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
         <button class="btn btn-outline btn-sm" onclick="exportCSV()">Export events CSV</button>
@@ -1344,6 +1452,14 @@ if(!S.settings.manureLoadLbs)S.settings.manureLoadLbs=8000;
 if(!S.settings.manureVolumeUnit)S.settings.manureVolumeUnit='loads';
 if(!S.settings.homeStats)S.settings.homeStats=['pasture_dmi','feed_cost','pasture_pct','npk_lbs_acre','npk_val_acre'];
 if(!S.settings.homeStatPeriod)S.settings.homeStatPeriod='7d';
+if(!S.settings.auWeight)S.settings.auWeight=1000;
+if(!S.settings.thresholds)S.settings.thresholds={
+  auds:      {target:50,  warnPct:0.7,  direction:'higher', label:'AUDs / rotation'},
+  pasturePct:{target:80,  warnPct:0.75, direction:'higher', label:'Pasture %'},
+  npkAcre:   {target:50,  warnPct:0.6,  direction:'higher', label:'NPK lbs / ac'},
+  omLbs:     {target:200, warnPct:0.5,  direction:'higher', label:'OM residual (lbs)'},
+  costDay:   {target:50,  warnPct:1.25, direction:'lower',  label:'Feed cost / day ($)'},
+};
 
 let driveState = JSON.parse(localStorage.getItem('gthy-drive')||'{}');
 if(!driveState.clientId)driveState.clientId='520206017987-2o679cboufc1f486i0hentj0kktdkut6.apps.googleusercontent.com';
@@ -1368,6 +1484,24 @@ function calcConsumedDMI(entries,resid){
   entries.forEach((e,i)=>{const r=(i===entries.length-1)?(resid/100):0;e.lines.forEach(l=>{const b=S.batches.find(x=>x.id===l.batchId);if(!b)return;const af=b.wt?l.qty*b.wt:l.qty;t+=af*(b.dm/100)*(1-r);});});
   return t;
 }
+
+// Organic matter left on paddock from unconsumed bale residual
+// Uses DM% as proxy for OM (forages: OM ≈ DM - ~7% ash, close enough)
+// Only applied to the last feed entry (same logic as calcConsumedDMI residual)
+function calcResidualOM(entries, residPct){
+  if(!entries||!entries.length||!residPct) return 0;
+  const lastEntry = entries[entries.length-1];
+  if(!lastEntry||!lastEntry.lines) return 0;
+  let omLbs = 0;
+  lastEntry.lines.forEach(l=>{
+    const b = S.batches.find(x=>x.id===l.batchId);
+    if(!b||!l.qty) return;
+    const asFed = b.wt ? l.qty*b.wt : l.qty;  // as-fed lbs
+    omLbs += asFed * (b.dm/100) * (residPct/100); // DM left behind
+  });
+  return omLbs;
+}
+
 function calcEntryCost(entries){let c=0;(entries||[]).forEach(e=>e.lines.forEach(l=>{const b=S.batches.find(x=>x.id===l.batchId);if(b)c+=l.qty*(b.cpu||0);}));return c;}
 function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function getUser(id){return S.users.find(u=>u.id===id)||null;}
@@ -1830,6 +1964,8 @@ function nav(screen,btn){
   document.querySelectorAll('.bnav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('s-'+screen).classList.add('active');
   const nb=document.getElementById('bn-'+screen);if(nb)nb.classList.add('active');
+  // Destroy any active chart instances when leaving reports
+  if(curScreen==='reports'&&screen!=='reports'){Object.keys(_chartInstances||{}).forEach(k=>{try{_chartInstances[k].destroy();}catch(e){};delete _chartInstances[k];});}
   curScreen=screen;renderCurrentScreen();
   syncSidebarNav(screen);
 }
@@ -1837,10 +1973,11 @@ function renderCurrentScreen(){
   if(curScreen==='home')renderHome();
   else if(curScreen==='feed')renderFeedScreen();
   else if(curScreen==='animals')renderAnimalsScreen();
-  else if(curScreen==='events')renderEventsLog();
+  else if(curScreen==='events'){if(_eventsView==='calendar')renderRotationCalendar();else renderEventsLog();}
   else if(curScreen==='todos')renderTodos();
   else if(curScreen==='pastures')renderPastures();
   else if(curScreen==='feedback')renderFeedbackTab();
+  else if(curScreen==='reports'){renderReportsScreen();}
   else if(curScreen==='settings'){loadSettings();renderFeedTypes();renderBatchListS();renderUsersList();renderClassesList();renderGroupsList();renderAnimalList();renderGrpAnimalPicker();updateDriveUI();}
 }
 
@@ -1935,7 +2072,7 @@ function renderDesktopDashboardHeader(){
     home.insertBefore(strip, home.firstChild);
   }
 
-  const period = currentStatPeriod || S.settings.homeStatPeriod || '7d';
+  const period = currentStatPeriod || S.settings.homeStatPeriod || '3d';
   const events = eventsInPeriod(period);
   const activeEvs = getActiveEvents();
   const groups = S.animalGroups||[];
@@ -1985,11 +2122,124 @@ function renderDesktopDashboardHeader(){
 }
 // ─── END DESKTOP DASHBOARD HEADER ────────────────────────────────────────────
 
+
+// ─── MOBILE PERFORMANCE STRIP ─────────────────────────────────────────────────
+// The "dial-in" grazing view: how am I doing over the last 3 days?
+// Shows 3 key metrics with color coding; period switchable via pills.
+
+function renderMobilePerformanceStrip(){
+  const el = document.getElementById('mobile-perf-strip');
+  if(!el) return;
+
+  // Hide on desktop (desktop has the full header strip instead)
+  if(window.gthyMode === 'desktop'){ el.innerHTML=''; return; }
+
+  const period = mobileStripPeriod;
+  const evs = eventsInPeriod(period);
+  const {start, end} = getPeriodDates(period);
+
+  // ── Pasture % (grazing events only) ───────────────────────────────────────
+  const grazingEvs = evs.filter(e=>e.locationType!=='confinement'&&!e.noPasture);
+  let pasturePct = null;
+  {
+    const closed = grazingEvs.filter(e=>e.status==='closed'&&e.totals&&e.totals.pct!=null);
+    if(closed.length){
+      pasturePct = Math.round(closed.reduce((s,e)=>s+e.totals.pct,0)/closed.length);
+    } else {
+      const open = grazingEvs.filter(e=>e.status==='open');
+      let sum=0,cnt=0;
+      open.forEach(ev=>{
+        const g=getGroupById(ev.groupId);
+        const t=g?getGroupTotals(g):null;
+        const dmiTarget=t?t.dmiTarget:(ev.head||0)*(ev.wt||0)*0.025;
+        const days=eventDaysInPeriod(ev,start,end);
+        const sdmi=calcConsumedDMI(ev.feedEntries||[],0);
+        const tot=dmiTarget*days;
+        if(tot>0){sum+=Math.max(0,Math.round((1-sdmi/tot)*100));cnt++;}
+      });
+      if(cnt) pasturePct=Math.round(sum/cnt);
+    }
+  }
+  const pctColor = pasturePct===null?'var(--text2)':pasturePct>=70?'var(--green-d)':pasturePct>=40?'var(--amber-d)':'var(--red-d)';
+  const pctBg    = pasturePct===null?'var(--bg2)':pasturePct>=70?'var(--green-l)':pasturePct>=40?'var(--amber-l)':'var(--red-l)';
+  const pctLabel = pasturePct===null?'--':pasturePct+'%';
+  const pctHint  = pasturePct===null?'no data':pasturePct>=70?'on target':pasturePct>=40?'below target':'supplement';
+
+  // ── NPK / acre ────────────────────────────────────────────────────────────
+  const npkMetric = STAT_METRICS.npk_lbs_acre.calc(evs, period);
+  const npkDisplay = npkMetric.display;
+  const npkSub    = npkMetric.value!=null
+    ? (npkMetric.value>0.5?'depositing well':'low loading')
+    : 'set paddock acres';
+
+  // ── Feed cost / day ───────────────────────────────────────────────────────
+  const days = period==='24h'?1:period==='3d'?3:period==='7d'?7:30;
+  const feedMetric = STAT_METRICS.feed_cost.calc(evs, period);
+  const costPerDay = days>0 ? feedMetric.value/days : 0;
+  const costDisplay = '$'+costPerDay.toFixed(2)+'/day';
+  // Color: green <$5/hd/day rough benchmark for supplement, amber $5-15, red >$15
+  // Use per-head if we can
+  const totalHead = (S.animalGroups||[]).reduce((s,g)=>s+getGroupTotals(g).totalHead,0);
+  const costPerHdDay = totalHead>0 ? costPerDay/totalHead : null;
+  const costColor = feedMetric.value===0?'var(--green-d)':
+    costPerHdDay===null?'var(--text)':
+    costPerHdDay<2?'var(--green-d)':costPerHdDay<5?'var(--amber-d)':'var(--red-d)';
+  const costBg = feedMetric.value===0?'var(--green-l)':
+    costPerHdDay===null?'var(--bg2)':
+    costPerHdDay<2?'var(--green-l)':costPerHdDay<5?'var(--amber-l)':'var(--red-l)';
+  const costHint = feedMetric.value===0?'no stored feed':
+    costPerHdDay!=null?'$'+costPerHdDay.toFixed(2)+'/hd/day':'total';
+
+  // ── Period pills ──────────────────────────────────────────────────────────
+  const pills = [{key:'24h',label:'24h'},{key:'3d',label:'3d'},{key:'7d',label:'7d'},{key:'30d',label:'30d'}]
+    .map(p=>`<button style="padding:3px 10px;font-size:11px;border-radius:20px;border:none;
+      background:${period===p.key?'var(--green)':'var(--bg2)'};
+      color:${period===p.key?'white':'var(--text2)'};cursor:pointer;font-family:inherit;
+      font-weight:${period===p.key?'600':'400'};"
+      onclick="mobileStripPeriod='${p.key}';renderMobilePerformanceStrip();">${p.label}</button>`).join('');
+
+  el.innerHTML = `
+    <div style="background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius-l);
+      padding:12px 14px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div style="font-size:13px;font-weight:700;color:var(--text);">Grazing performance</div>
+        <div style="display:flex;gap:4px;">${pills}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+
+        <div style="background:${pctBg};border-radius:var(--radius);padding:10px 10px;">
+          <div style="font-size:10px;font-weight:600;color:${pctColor};text-transform:uppercase;
+            letter-spacing:.5px;margin-bottom:3px;">Pasture %</div>
+          <div style="font-size:26px;font-weight:800;color:${pctColor};line-height:1;">${pctLabel}</div>
+          <div style="font-size:10px;color:${pctColor};opacity:.75;margin-top:3px;">${pctHint}</div>
+        </div>
+
+        <div style="background:var(--purple-l);border-radius:var(--radius);padding:10px 10px;">
+          <div style="font-size:10px;font-weight:600;color:var(--purple-d);text-transform:uppercase;
+            letter-spacing:.5px;margin-bottom:3px;">NPK / acre</div>
+          <div style="font-size:22px;font-weight:800;color:var(--purple-d);line-height:1;">${npkDisplay}</div>
+          <div style="font-size:10px;color:var(--purple-d);opacity:.75;margin-top:3px;">${npkSub}</div>
+        </div>
+
+        <div style="background:${costBg};border-radius:var(--radius);padding:10px 10px;">
+          <div style="font-size:10px;font-weight:600;color:${costColor};text-transform:uppercase;
+            letter-spacing:.5px;margin-bottom:3px;">Feed cost</div>
+          <div style="font-size:20px;font-weight:800;color:${costColor};line-height:1;">${costDisplay}</div>
+          <div style="font-size:10px;color:${costColor};opacity:.75;margin-top:3px;">${costHint}</div>
+        </div>
+
+      </div>
+    </div>`;
+}
+// ─── END MOBILE PERFORMANCE STRIP ─────────────────────────────────────────────
+
 function renderHome(){
   // ── Remove stale move-btn reference (button was relocated) ────────────────
   const mvBtn=document.getElementById('move-btn');if(mvBtn)mvBtn.style.display='none';
   // ── Desktop: render enhanced dashboard header ─────────────────────────────
   renderDesktopDashboardHeader();
+  // ── Mobile: render dial-in performance strip ──────────────────────────────
+  renderMobilePerformanceStrip();
 
   const groups=S.animalGroups||[];
   const grpsEl=document.getElementById('home-groups');
@@ -2542,6 +2792,9 @@ function calcClosePreview(){
   document.getElementById('cp-pdmi').textContent=t.pdmi!==null?Math.round(t.pdmi).toLocaleString()+' lbs':'--';
   document.getElementById('cp-pct').textContent=t.pct!==null?t.pct+'%':'--';
   document.getElementById('cp-npk').textContent='$'+(t.npkVal).toFixed(2)+(t.subHrs>0?' ('+Math.round(t.pFraction*100)+'% pasture time)':'');
+  const _cpOM=ae.locationType!=='confinement'?calcResidualOM(ae.feedEntries||[],parseInt(document.getElementById('w-feed-res').value)||0):0;
+  const cpOmEl=document.getElementById('cp-om');
+  if(cpOmEl)cpOmEl.textContent=_cpOM>0.1?_cpOM.toFixed(0)+' lbs DM':'none';
 }
 function wizCloseEvent(){
   const ae=wizGroupId?getActiveEventForGroup(wizGroupId):getActive();
@@ -2554,9 +2807,11 @@ function wizCloseEvent(){
   ae.feedResidual=feedRes;
   ae.status='closed';
   const _closedPad=getPastureForEvent(ae);
+  const _residOM=ae.locationType!=='confinement'?calcResidualOM(ae.feedEntries||[],feedRes):0;
   ae.totals={days,storedDMI:sdmi,pastureDMI:pdmi,cost,pct,npk,npkVal,
              pFraction:Math.round(pFraction*100),subMoveHours:subHrs,totalHours:totalHrs,
-             pastureAcres:_closedPad?parseFloat(_closedPad.acres)||null:null};
+             pastureAcres:_closedPad?parseFloat(_closedPad.acres)||null:null,
+             organicMatterLbs:_residOM};
   // Credit NPK to each sub-move location
   if(subMoveNPK.length){
     subMoveNPK.forEach(smNPK=>{
@@ -2668,6 +2923,460 @@ function wizSaveNew(){
 }
 
 // ─── EVENTS ───────────────────────────────────────────────────────────────────
+
+// ─── ROTATION CALENDAR ENGINE ────────────────────────────────────────────────
+
+// Default threshold definitions (used as fallback)
+const DEFAULT_THRESHOLDS = {
+  auds:      {target:50,  warnPct:0.7,  direction:'higher', label:'AUDs'},
+  pasturePct:{target:80,  warnPct:0.75, direction:'higher', label:'Pasture %'},
+  npkAcre:   {target:50,  warnPct:0.6,  direction:'higher', label:'NPK / ac'},
+  omLbs:     {target:200, warnPct:0.5,  direction:'higher', label:'OM (lbs)'},
+  costDay:   {target:50,  warnPct:1.25, direction:'lower',  label:'$/day'},
+};
+
+function getThreshold(key){
+  return (S.settings.thresholds&&S.settings.thresholds[key])
+    ? S.settings.thresholds[key]
+    : DEFAULT_THRESHOLDS[key];
+}
+
+// AUDs for one event over a date range (raw overlap days × head × wt / auWeight)
+function calcAUDsForEvent(ev, rangeStart, rangeEnd){
+  const evStart = ev.dateIn;
+  const evEnd   = ev.dateOut || todayStr();
+  const os = evStart > rangeStart ? evStart : rangeStart;
+  const oe = evEnd   < rangeEnd   ? evEnd   : rangeEnd;
+  if(os > oe) return 0;
+  const days = Math.max(1, rawDaysBetween(os, oe));
+  const auWt = S.settings.auWeight || 1000;
+  return ((ev.head||0) * (ev.wt||0) / auWt) * days;
+}
+
+// Color for a metric value vs its threshold
+// Returns 'green' | 'amber' | 'red' | 'none'
+function thresholdColor(key, value){
+  if(value===null||value===undefined||isNaN(value)) return 'none';
+  const t = getThreshold(key);
+  if(!t||!t.target) return 'none';
+  if(t.direction==='higher'){
+    if(value >= t.target)              return 'green';
+    if(value >= t.target * t.warnPct) return 'amber';
+    return 'red';
+  } else {
+    // lower-is-better (e.g. feed cost)
+    if(value <= t.target)              return 'green';
+    if(value <= t.target * t.warnPct) return 'amber';
+    return 'red';
+  }
+}
+
+// CSS bg color strings for each threshold result
+const THRESHOLD_COLORS = {
+  green: 'var(--green-l)',
+  amber: 'var(--amber-l)',
+  red:   'var(--red-l)',
+  none:  'var(--bg2)',
+};
+const THRESHOLD_TEXT_COLORS = {
+  green: 'var(--green-d)',
+  amber: 'var(--amber-d)',
+  red:   'var(--red-d)',
+  none:  'var(--text2)',
+};
+
+// ── Period generation ─────────────────────────────────────────────────────────
+
+// Generate array of {label, start, end} period objects
+function generatePeriods(granularity, refYear){
+  const periods = [];
+  const now = new Date();
+  if(granularity === 'day'){
+    // Last 60 days
+    for(let i=59; i>=0; i--){
+      const d = new Date(now);
+      d.setDate(d.getDate()-i);
+      const ds = d.toISOString().slice(0,10);
+      periods.push({
+        label: d.toLocaleDateString('en-US',{month:'numeric',day:'numeric'}),
+        start: ds, end: ds,
+        shortLabel: d.getDate()===1 ? d.toLocaleDateString('en-US',{month:'short'}) : String(d.getDate())
+      });
+    }
+  } else if(granularity === 'month'){
+    // Last 24 months
+    for(let i=23; i>=0; i--){
+      const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+      const y = d.getFullYear(), m = d.getMonth();
+      const start = new Date(y,m,1).toISOString().slice(0,10);
+      const end   = new Date(y,m+1,0).toISOString().slice(0,10);
+      periods.push({
+        label: d.toLocaleDateString('en-US',{month:'short',year:'2-digit'}),
+        shortLabel: d.toLocaleDateString('en-US',{month:'short'}),
+        start, end, year:y, month:m
+      });
+    }
+  } else {
+    // 'year' = 12 months of selected year
+    const yr = refYear || now.getFullYear();
+    for(let m=0; m<12; m++){
+      const start = new Date(yr,m,1).toISOString().slice(0,10);
+      const end   = new Date(yr,m+1,0).toISOString().slice(0,10);
+      const d     = new Date(yr,m,1);
+      periods.push({
+        label: d.toLocaleDateString('en-US',{month:'short'}),
+        shortLabel: d.toLocaleDateString('en-US',{month:'short'}),
+        start, end, year:yr, month:m
+      });
+    }
+  }
+  return periods;
+}
+
+// ── Main aggregation ──────────────────────────────────────────────────────────
+
+// For a given paddock and time period, compute all metrics
+function aggregatePaddockPeriod(pastureName, pastureId, periodStart, periodEnd){
+  const closedEvs = S.events.filter(e=>
+    e.status==='closed' &&
+    e.locationType!=='confinement' &&
+    e.type!=='amend' &&
+    (e.pasture===pastureName || (pastureId&&e.pastureId===pastureId)) &&
+    e.dateIn <= periodEnd &&
+    (e.dateOut||e.dateIn) >= periodStart
+  );
+  const openEvs = S.events.filter(e=>
+    e.status==='open' &&
+    e.locationType!=='confinement' &&
+    (e.pasture===pastureName || (pastureId&&e.pastureId===pastureId)) &&
+    e.dateIn <= periodEnd
+  );
+  const allEvs = [...closedEvs, ...openEvs];
+  if(!allEvs.length) return null;
+
+  const auWt = S.settings.auWeight || 1000;
+  let totalAUDs=0, totalNPK=0, totalOM=0, totalCost=0, totalAcres=0, totalDays=0;
+  let pasturePctSum=0, pasturePctCount=0;
+  const groupsSeen = new Set();
+
+  allEvs.forEach(ev=>{
+    const evStart  = ev.dateIn;
+    const evEnd    = ev.dateOut || todayStr();
+    const os = evStart > periodStart ? evStart : periodStart;
+    const oe = evEnd   < periodEnd   ? evEnd   : periodEnd;
+    if(os > oe) return;
+    const daysInPeriod = Math.max(1, rawDaysBetween(os, oe));
+    const totalEvDays  = Math.max(1, rawDaysBetween(evStart, evEnd));
+    const ratio = daysInPeriod / totalEvDays;
+
+    // AUDs
+    totalAUDs += ((ev.head||0) * (ev.wt||0) / auWt) * daysInPeriod;
+    totalDays += daysInPeriod;
+
+    // Acres (from snapshot or live lookup)
+    const pad = getPastureForEvent(ev);
+    const acres = pad ? (parseFloat(pad.acres)||0) : (parseFloat(ev.totals?.pastureAcres)||0);
+    if(acres>0) totalAcres = Math.max(totalAcres, acres); // use paddock acres once
+
+    // NPK, OM, cost — pro-rate closed event totals
+    if(ev.status==='closed'&&ev.totals){
+      totalNPK  += ((ev.totals.npk?.n||0)+(ev.totals.npk?.p||0)+(ev.totals.npk?.k||0)) * ratio;
+      totalOM   += (ev.totals.organicMatterLbs||0) * ratio;
+      totalCost += (ev.totals.cost||0) * ratio;
+      if(ev.totals.pct!=null){pasturePctSum+=ev.totals.pct;pasturePctCount++;}
+    } else if(ev.status==='open'){
+      // Live estimates for open events
+      const bw = (ev.head||0)*(ev.wt||0);
+      const st = S.settings;
+      const liveN = bw/1000*(st.nExc||0.32)*daysInPeriod;
+      const liveP = bw/1000*(st.pExc||0.09)*daysInPeriod;
+      const liveK = bw/1000*(st.kExc||0.30)*daysInPeriod;
+      totalNPK += liveN+liveP+liveK;
+      totalCost += calcEntryCost(ev.feedEntries||[]) * ratio;
+    }
+    if(ev.groupId) groupsSeen.add(ev.groupId);
+  });
+
+  const npkPerAc = totalAcres>0 ? totalNPK/totalAcres : null;
+  const avgPasturePct = pasturePctCount>0 ? Math.round(pasturePctSum/pasturePctCount) : null;
+  const costPerDay = totalDays>0 ? totalCost/totalDays : null;
+
+  return {
+    auds: totalAUDs,
+    pasturePct: avgPasturePct,
+    npkAcre: npkPerAc,
+    omLbs: totalOM,
+    costDay: costPerDay,
+    totalCost, totalDays, totalAcres, totalNPK,
+    eventCount: allEvs.length,
+    groupIds: [...groupsSeen],
+    hasOpen: openEvs.length > 0,
+  };
+}
+
+// Build the full grid data: {paddocks, periods, cells}
+function buildRotationCalendarData(granularity, refYear){
+  const periods = generatePeriods(granularity, refYear);
+  const pastures = S.pastures.filter(p=>p.locationType!=='confinement');
+  // Only include paddocks that have at least one event in the date range
+  const allStart = periods[0]?.start;
+  const allEnd   = periods[periods.length-1]?.end;
+  const activePastures = pastures.filter(p=>{
+    return S.events.some(e=>
+      e.type!=='amend' &&
+      (e.pasture===p.name||(p.id&&e.pastureId===p.id)) &&
+      e.dateIn <= allEnd &&
+      (e.dateOut||e.dateIn) >= allStart
+    );
+  });
+  // If none active, show all (no data state)
+  const rows = activePastures.length ? activePastures : pastures.slice(0,10);
+
+  const cells = {};
+  rows.forEach(p=>{
+    cells[p.name] = {};
+    periods.forEach(period=>{
+      cells[p.name][period.start] = aggregatePaddockPeriod(p.name, p.id, period.start, period.end);
+    });
+  });
+
+  return {rows, periods, cells};
+}
+
+// ─── END ROTATION CALENDAR ENGINE ────────────────────────────────────────────
+
+
+// ─── ROTATION CALENDAR RENDER ─────────────────────────────────────────────────
+
+let calGranularity = 'month';  // 'day' | 'month' | 'year'
+let calMetric      = 'auds';   // which metric drives cell color
+let calYear        = new Date().getFullYear();
+
+const CAL_METRICS = [
+  {key:'auds',       label:'AUDs',       fmt: v=>v!=null?v.toFixed(1):'—'},
+  {key:'pasturePct', label:'Pasture %',  fmt: v=>v!=null?v+'%':'—'},
+  {key:'npkAcre',    label:'NPK / ac',   fmt: v=>v!=null?v.toFixed(1):'—'},
+  {key:'omLbs',      label:'OM (lbs)',   fmt: v=>v!=null?v.toFixed(0):'—'},
+  {key:'costDay',    label:'$/day',      fmt: v=>v!=null?'$'+v.toFixed(0):'—'},
+];
+
+function renderRotationCalendar(){
+  const el = document.getElementById('rotation-calendar');
+  if(!el) return;
+
+  const data = buildRotationCalendarData(calGranularity, calYear);
+  const {rows, periods, cells} = data;
+
+  if(!rows.length){
+    el.innerHTML = '<div class="empty" style="padding:24px;">No pasture locations defined yet.</div>';
+    return;
+  }
+
+  // ── Controls bar ──────────────────────────────────────────────────────────
+  const granPills = ['day','month','year'].map(g=>
+    `<button onclick="calGranularity='${g}';renderRotationCalendar();"
+      style="padding:5px 12px;font-size:12px;border-radius:20px;border:0.5px solid ${calGranularity===g?'var(--green)':'var(--border2)'};
+             background:${calGranularity===g?'var(--green)':'transparent'};color:${calGranularity===g?'white':'var(--text2)'};
+             cursor:pointer;font-family:inherit;font-weight:${calGranularity===g?'600':'400'};">${g==='day'?'Daily':g==='month'?'Monthly':'Yearly'}</button>`
+  ).join('');
+
+  const metricPills = CAL_METRICS.map(m=>
+    `<button onclick="calMetric='${m.key}';renderRotationCalendar();"
+      style="padding:5px 12px;font-size:12px;border-radius:20px;border:0.5px solid ${calMetric===m.key?'var(--blue)':'var(--border2)'};
+             background:${calMetric===m.key?'var(--blue)':'transparent'};color:${calMetric===m.key?'white':'var(--text2)'};
+             cursor:pointer;font-family:inherit;font-weight:${calMetric===m.key?'600':'400'};">${m.label}</button>`
+  ).join('');
+
+  const yearControls = calGranularity==='year'
+    ? `<div style="display:flex;align-items:center;gap:8px;margin-left:auto;">
+        <button onclick="calYear--;renderRotationCalendar();" style="border:0.5px solid var(--border2);background:transparent;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:13px;">‹</button>
+        <span style="font-size:13px;font-weight:600;min-width:40px;text-align:center;">${calYear}</span>
+        <button onclick="calYear++;renderRotationCalendar();" style="border:0.5px solid var(--border2);background:transparent;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:13px;">›</button>
+      </div>` : '';
+
+  const t = getThreshold(calMetric);
+  const metricObj = CAL_METRICS.find(m=>m.key===calMetric);
+
+  // ── Legend ────────────────────────────────────────────────────────────────
+  const legendHtml = t&&t.target ? `
+    <div style="display:flex;align-items:center;gap:12px;font-size:11px;color:var(--text2);">
+      <span>Goal: <strong>${t.direction==='lower'?'≤':'≥'}${t.target}${calMetric==='pasturePct'?'%':calMetric==='costDay'?'/day':''}</strong></span>
+      <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;border-radius:2px;background:var(--green-l);display:inline-block;border:0.5px solid var(--green);"></span> Met</span>
+      <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;border-radius:2px;background:var(--amber-l);display:inline-block;border:0.5px solid var(--amber);"></span> Close</span>
+      <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;border-radius:2px;background:var(--red-l);display:inline-block;border:0.5px solid var(--red);"></span> Missed</span>
+      <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;border-radius:2px;background:var(--bg2);display:inline-block;border:0.5px solid var(--border);"></span> No data</span>
+    </div>` : '<div style="font-size:11px;color:var(--text2);">Set goals in Settings → Animal units &amp; rotation goals to enable color coding.</div>';
+
+  // ── Table ─────────────────────────────────────────────────────────────────
+  // Header: one th per period
+  const PADDOCK_COL_W = 120;
+  const CELL_W = calGranularity==='day' ? 36 : calGranularity==='month' ? 52 : 52;
+
+  const headerCells = periods.map(p=>`
+    <th style="min-width:${CELL_W}px;max-width:${CELL_W}px;padding:4px 2px;text-align:center;
+               font-size:10px;font-weight:600;color:var(--text2);white-space:nowrap;
+               border-bottom:0.5px solid var(--border);background:var(--bg);">
+      ${p.label}
+    </th>`).join('');
+
+  const tableRows = rows.map(p=>{
+    const rowCells = periods.map(period=>{
+      const d = cells[p.name]?.[period.start];
+      if(!d) return `<td style="min-width:${CELL_W}px;max-width:${CELL_W}px;height:36px;
+        background:var(--bg2);border:0.5px solid var(--bg3);"></td>`;
+      
+      const val = d[calMetric];
+      const color = thresholdColor(calMetric, val);
+      const bg = THRESHOLD_COLORS[color];
+      const tc = THRESHOLD_TEXT_COLORS[color];
+      const fmtd = metricObj ? metricObj.fmt(val) : (val!=null?val:'—');
+      const openDot = d.hasOpen ? '<span style="position:absolute;top:2px;right:2px;width:5px;height:5px;border-radius:50%;background:var(--blue);"></span>' : '';
+      
+      // Tooltip content
+      const tipLines = [
+        d.auds!=null?`AUDs: ${d.auds.toFixed(1)}`:'',
+        d.pasturePct!=null?`Pasture: ${d.pasturePct}%`:'',
+        d.npkAcre!=null?`NPK/ac: ${d.npkAcre.toFixed(1)} lbs`:'',
+        d.omLbs>0.1?`OM: ${d.omLbs.toFixed(0)} lbs DM`:'',
+        d.costDay!=null?`Cost/day: $${d.costDay.toFixed(0)}`:'',
+      ].filter(Boolean).join(' | ');
+
+      return `<td style="min-width:${CELL_W}px;max-width:${CELL_W}px;height:36px;
+          background:${bg};border:0.5px solid ${color==='none'?'var(--bg3)':'transparent'};
+          text-align:center;vertical-align:middle;position:relative;cursor:default;"
+          title="${p.label} · ${tipLines}">
+        <span style="font-size:10px;font-weight:600;color:${tc};">${fmtd}</span>
+        ${openDot}
+      </td>`;
+    }).join('');
+
+    // Row totals
+    const allData = periods.map(period=>cells[p.name]?.[period.start]).filter(Boolean);
+    const rowAUDs = allData.reduce((s,d)=>s+(d.auds||0),0);
+    const rowNPK  = allData.reduce((s,d)=>s+(d.totalNPK||0),0);
+    const rowOM   = allData.reduce((s,d)=>s+(d.omLbs||0),0);
+    const rowPct  = allData.filter(d=>d.pasturePct!=null);
+    const avgPct  = rowPct.length ? Math.round(rowPct.reduce((s,d)=>s+d.pasturePct,0)/rowPct.length) : null;
+
+    return `<tr>
+      <td style="min-width:${PADDOCK_COL_W}px;max-width:${PADDOCK_COL_W}px;
+          padding:4px 8px;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+          position:sticky;left:0;z-index:2;background:var(--bg);border-right:0.5px solid var(--border);
+          border-bottom:0.5px solid var(--border2);">
+        ${p.name}
+        <div style="font-size:10px;font-weight:400;color:var(--text2);">${p.acres||0} ac</div>
+      </td>
+      ${rowCells}
+      <td style="min-width:80px;padding:4px 8px;font-size:10px;color:var(--text2);
+          position:sticky;right:0;background:var(--bg2);border-left:0.5px solid var(--border);
+          vertical-align:middle;">
+        <div style="font-weight:600;color:var(--text);">${rowAUDs>0?rowAUDs.toFixed(0)+' AUD':''}</div>
+        <div>${avgPct!=null?avgPct+'% grazing':''}</div>
+        <div style="color:var(--teal-d);">${rowOM>0.1?rowOM.toFixed(0)+' OM':''}${rowNPK>0.1?' '+rowNPK.toFixed(0)+'NPK':''}</div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+      <div style="display:flex;gap:4px;">${granPills}</div>
+      <div style="width:0.5px;height:20px;background:var(--border2);"></div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap;">${metricPills}</div>
+      ${yearControls}
+    </div>
+    <div style="margin-bottom:10px;">${legendHtml}</div>
+    <div style="overflow-x:auto;overflow-y:auto;max-height:60vh;border:0.5px solid var(--border);border-radius:var(--radius);position:relative;">
+      <table style="border-collapse:collapse;min-width:100%;">
+        <thead style="position:sticky;top:0;z-index:3;">
+          <tr>
+            <th style="min-width:${PADDOCK_COL_W}px;max-width:${PADDOCK_COL_W}px;padding:6px 8px;
+                text-align:left;font-size:11px;font-weight:600;background:var(--bg);
+                position:sticky;left:0;z-index:4;border-right:0.5px solid var(--border);
+                border-bottom:0.5px solid var(--border);">Paddock</th>
+            ${headerCells}
+            <th style="min-width:80px;padding:6px 8px;text-align:left;font-size:11px;font-weight:600;
+                background:var(--bg2);position:sticky;right:0;z-index:4;
+                border-left:0.5px solid var(--border);border-bottom:0.5px solid var(--border);">Totals</th>
+          </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>
+    <div style="font-size:10px;color:var(--text2);margin-top:6px;">
+      Blue dot = active (open) event. Hover cells for full metric breakdown.
+      ${calGranularity==='day'?'Showing last 60 days.':calGranularity==='month'?'Showing last 24 months.':'Showing '+calYear+' season.'}
+    </div>
+  `;
+}
+
+// ── Thresholds settings list ──────────────────────────────────────────────────
+function renderThresholdsList(){
+  const el = document.getElementById('thresholds-list');
+  if(!el) return;
+  const keys = ['auds','pasturePct','npkAcre','omLbs','costDay'];
+  const descs = {
+    auds:      'Animal Unit Days per rotation — total weight × days / AU weight. Measures grazing pressure.',
+    pasturePct:'% of total DMI from pasture. Higher = better pasture utilization.',
+    npkAcre:   'Lbs of N+P+K deposited per acre per rotation.',
+    omLbs:     'Lbs of dry matter organic residual left on paddock from feed.',
+    costDay:   'Stored feed cost per day. Lower = better (more grazing, less purchased feed).',
+  };
+  el.innerHTML = keys.map(k=>{
+    const t = getThreshold(k);
+    const isLower = t.direction==='lower';
+    const warnLabel = isLower ? '% above target (amber threshold)' : '% of target for amber';
+    return `
+      <div style="padding:10px 0;border-bottom:0.5px solid var(--border);">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px;">
+          <div>
+            <span style="font-size:13px;font-weight:600;">${t.label||k}</span>
+            <span style="font-size:11px;color:var(--text2);margin-left:6px;">${isLower?'lower is better':'higher is better'}</span>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <div class="field" style="margin:0;">
+              <label style="font-size:10px;color:var(--text2);">${isLower?'Max target':'Target'}</label>
+              <input type="number" id="th-target-${k}" value="${t.target}" step="${k==='costDay'?'5':k==='pasturePct'?'5':'10'}"
+                style="width:72px;padding:4px 6px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:12px;background:var(--bg);color:var(--text);font-family:inherit;"/>
+            </div>
+            <div class="field" style="margin:0;">
+              <label style="font-size:10px;color:var(--text2);">${warnLabel}</label>
+              <input type="number" id="th-warn-${k}" value="${Math.round(t.warnPct*100)}" min="1" max="200" step="5"
+                style="width:60px;padding:4px 6px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:12px;background:var(--bg);color:var(--text);font-family:inherit;"/>
+            </div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text2);">${descs[k]||''}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ─── END ROTATION CALENDAR RENDER ────────────────────────────────────────────
+
+
+let _eventsView = 'log';
+function switchEventsView(view){
+  _eventsView = view;
+  document.getElementById('ev-view-log').style.display     = view==='log'      ? 'block' : 'none';
+  document.getElementById('ev-view-calendar').style.display = view==='calendar' ? 'block' : 'none';
+  const logTab = document.getElementById('ev-tab-log');
+  const calTab = document.getElementById('ev-tab-cal');
+  if(logTab){
+    logTab.style.background = view==='log' ? 'var(--green)' : 'transparent';
+    logTab.style.color      = view==='log' ? 'white' : 'var(--text2)';
+    logTab.style.border     = view==='log' ? '0.5px solid var(--green)' : '0.5px solid var(--border2)';
+    logTab.style.fontWeight = view==='log' ? '600' : '500';
+  }
+  if(calTab){
+    calTab.style.background = view==='calendar' ? 'var(--blue)' : 'transparent';
+    calTab.style.color      = view==='calendar' ? 'white' : 'var(--text2)';
+    calTab.style.border     = view==='calendar' ? '0.5px solid var(--blue)' : '0.5px solid var(--border2)';
+    calTab.style.fontWeight = view==='calendar' ? '600' : '500';
+  }
+  if(view==='calendar') renderRotationCalendar();
+  else renderEventsLog();
+}
+
 function renderEventsLog(){
   const ae=getActive();
   const ab=document.getElementById('ev-active-banner');
@@ -2794,7 +3503,14 @@ function renderPastures(){
       const totalN=gEvsClosed.reduce((s,e)=>s+(e.totals.npk.n||0),0)+spreadEvs.reduce((s,e)=>s+(e.manureNLbs||0),0);
       const totalP=gEvsClosed.reduce((s,e)=>s+(e.totals.npk.p||0),0)+spreadEvs.reduce((s,e)=>s+(e.manurePLbs||0),0);
       const totalK=gEvsClosed.reduce((s,e)=>s+(e.totals.npk.k||0),0)+spreadEvs.reduce((s,e)=>s+(e.manureKLbs||0),0);
-      if(totalN>0.1||spreadEvs.length>0)npkLine=`<div style="font-size:11px;color:var(--text2);margin-top:3px;">NPK deposited: N${totalN.toFixed(1)} / P${totalP.toFixed(1)} / K${totalK.toFixed(1)} lbs${spreadEvs.length?' (incl. '+spreadEvs.length+' spread event'+( spreadEvs.length!==1?'s':'')+')':''}</div>`;
+      const totalOM=gEvsClosed.reduce((s,e)=>s+(e.totals.organicMatterLbs||0),0);
+      if(totalN>0.1||spreadEvs.length>0||totalOM>0.1){
+        npkLine=`<div style="font-size:11px;color:var(--text2);margin-top:3px;">` +
+          `NPK: N${totalN.toFixed(1)} / P${totalP.toFixed(1)} / K${totalK.toFixed(1)} lbs` +
+          (spreadEvs.length?` (incl. ${spreadEvs.length} spread event${spreadEvs.length!==1?'s':''})` : '') +
+          (totalOM>0.1?` · <span style="color:var(--teal-d);">OM: ${totalOM<1000?totalOM.toFixed(0):( totalOM/2000).toFixed(2)+' ton'} DM residual</span>`:'') +
+          `</div>`;
+      }
     }
     let manureLine='';
     if(isCon&&p.captureManure){
@@ -2818,6 +3534,21 @@ function saveSettings(){
   if(checkedStats.length)S.settings.homeStats=checkedStats;
   S.version=document.getElementById('s-ver').value||'v1.0';
   S.testerName=document.getElementById('s-tester').value||'';
+  // AU weight + thresholds
+  const auWtEl=document.getElementById('s-au-weight');
+  if(auWtEl)S.settings.auWeight=parseFloat(auWtEl.value)||1000;
+  // Thresholds — read from rendered inputs
+  const tKeys=['auds','pasturePct','npkAcre','omLbs','costDay'];
+  if(!S.settings.thresholds)S.settings.thresholds={};
+  tKeys.forEach(k=>{
+    const tEl=document.getElementById('th-target-'+k);
+    const wEl=document.getElementById('th-warn-'+k);
+    if(tEl)S.settings.thresholds[k]={
+      ...S.settings.thresholds[k],
+      target:parseFloat(tEl.value)||S.settings.thresholds[k]?.target||0,
+      warnPct:parseFloat(wEl?.value||'0')/100||S.settings.thresholds[k]?.warnPct||0.75,
+    };
+  });
   S.settings.updatedAt=new Date().toISOString();
   save();updateHeader();
 }
@@ -2833,7 +3564,10 @@ function loadSettings(){
   // Stat settings
   const spEl=document.getElementById('s-stat-period');
   if(spEl)spEl.value=S.settings.homeStatPeriod||'7d';
+  const auWtLoad=document.getElementById('s-au-weight');
+  if(auWtLoad)auWtLoad.value=S.settings.auWeight||1000;
   renderStatsMetricList();
+  renderThresholdsList();
   const elCount=document.getElementById('error-log-count');
   if(elCount)elCount.textContent=(S.errorLog||[]).length+' error'+((S.errorLog||[]).length!==1?'s':'')+' recorded';
   // Client ID is hardcoded — no input field to populate
@@ -4365,6 +5099,7 @@ function showImportStatus(type,msg){
 // ── Time period helpers ────────────────────────────────────────────────────────
 const PERIODS = [
   {key:'24h',  label:'24h'},
+  {key:'3d',   label:'3d'},
   {key:'7d',   label:'7d'},
   {key:'30d',  label:'30d'},
   {key:'season',label:'All'},
@@ -4374,7 +5109,7 @@ function getPeriodDates(key){
   const now = new Date();
   const endDate = todayStr();
   if(key==='season') return {start:null, end:null}; // all time
-  const days = key==='24h'?1 : key==='7d'?7 : 30;
+  const days = key==='24h'?1 : key==='3d'?3 : key==='7d'?7 : 30;
   const start = new Date(now);
   start.setDate(start.getDate() - days + 1);
   return {
@@ -4614,6 +5349,7 @@ const STAT_METRICS = {
 
 // ── Render stats on home screen ─────────────────────────────────────────────
 let currentStatPeriod = null;
+let mobileStripPeriod = '3d'; // dial-in strip default
 
 function renderStats(){
   currentStatPeriod = currentStatPeriod || S.settings.homeStatPeriod || '7d';
@@ -5736,6 +6472,7 @@ function importEventsFile(event){
             pct,
             npk,
             npkVal,
+            organicMatterLbs:0, // no residual data in historical import
           }
         });
         results.imported++;
@@ -6102,7 +6839,8 @@ function updateEventEditPreview(ev){
   document.getElementById('ee-preview-content').innerHTML=
     `${days} days · Stored DMI: ${Math.round(storedDMI).toLocaleString()} lbs`+
     (noPasture?' · <strong>100% stored feed</strong>':`· Pasture DMI: ${pastureDMI!==null?Math.round(pastureDMI).toLocaleString()+' lbs':'--'}`)+
-    `<br>${pct!==null?pct+'% pasture':'--'} · NPK: N${n.toFixed(1)}/P${p2.toFixed(1)}/K${k.toFixed(1)} · $${npkVal.toFixed(2)} fert value`;
+    `<br>${pct!==null?pct+'% pasture':'--'} · NPK: N${n.toFixed(1)}/P${p2.toFixed(1)}/K${k.toFixed(1)} · $${npkVal.toFixed(2)} fert value`+
+    (()=>{const _eeOM=ev&&ev.locationType!=='confinement'?calcResidualOM(ev.feedEntries||[],feedRes):0;return _eeOM>0.1?` · OM residual: ${_eeOM.toFixed(0)} lbs DM`:'';})();
 }
 
 function closeEventEdit(){document.getElementById('event-edit-wrap').classList.remove('open');}
@@ -6186,7 +6924,8 @@ function recalcEventTotals(ev){
     dmiVariance={expectedDMI:dmiTarget*days,actualDMI:storedDMI,
                  varianceLbs:varLbs,variancePct:Math.round((varLbs/(dmiTarget*days))*100)};
   }
-  ev.totals={...ev.totals,days,storedDMI,pastureDMI,cost:feedCost,pct,npk,npkVal,dmiVariance};
+  const _omRecalc=ev.locationType!=='confinement'?calcResidualOM(ev.feedEntries||[],ev.feedResidual||0):0;
+  ev.totals={...ev.totals,days,storedDMI,pastureDMI,cost:feedCost,pct,npk,npkVal,dmiVariance,organicMatterLbs:_omRecalc};
 }
 // ─── END RECALCULATE ──────────────────────────────────────────────────────────
 
@@ -6907,6 +7646,519 @@ function syncSidebarOpName(){
 }
 
 // ─── END RESPONSIVE MODE DETECTION ───────────────────────────────────────────
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DESKTOP REPORTS ENGINE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let rptTab = 'rotation';
+let _chartInstances = {};
+
+const RPT_TABS = [
+  {key:'rotation', label:'Rotation calendar'},
+  {key:'npk',      label:'NPK fertility'},
+  {key:'feed',     label:'Feed & DMI trends'},
+  {key:'animals',  label:'Animal performance'},
+  {key:'summary',  label:'Season summary'},
+];
+
+function renderReportsScreen(){
+  // Sub-nav
+  const subnav = document.getElementById('rpt-subnav');
+  if(subnav){
+    subnav.innerHTML = RPT_TABS.map(t=>
+      `<button class="rpt-tab${rptTab===t.key?' active':''}"
+         onclick="rptTab='${t.key}';renderReportsScreen();">${t.label}</button>`
+    ).join('');
+  }
+  // Show active panel
+  document.querySelectorAll('.rpt-panel').forEach(p=>p.classList.remove('active'));
+  const active = document.getElementById('rpt-'+rptTab);
+  if(active) active.classList.add('active');
+
+  if(rptTab==='rotation') renderRotationCalendar();
+  if(rptTab==='npk')      renderNpkDashboard();
+  if(rptTab==='feed')     renderFeedTrendChart();
+  if(rptTab==='animals')  renderAnimalPerformance();
+  if(rptTab==='summary')  renderSeasonSummary();
+}
+
+// ── helpers ─────────────────────────────────────────────────────────────────
+function destroyChart(key){
+  if(_chartInstances[key]){
+    try{_chartInstances[key].destroy();}catch(e){}
+    delete _chartInstances[key];
+  }
+}
+function rptSectionHead(title, sub=''){
+  return `<div style="margin-bottom:16px;">
+    <div style="font-size:18px;font-weight:700;color:var(--text);">${title}</div>
+    ${sub?`<div style="font-size:13px;color:var(--text2);margin-top:3px;">${sub}</div>`:''}
+  </div>`;
+}
+
+// ── 1. ROTATION CALENDAR ────────────────────────────────────────────────────
+function renderRotationCalendar(){
+  const el = document.getElementById('rpt-rotation');
+  if(!el) return;
+
+  const closedEvs = S.events.filter(e=>e.status==='closed'&&e.dateIn&&e.dateOut&&e.locationType!=='confinement'&&e.type!=='amend');
+  const openEvs   = S.events.filter(e=>e.status==='open'&&e.locationType!=='confinement');
+
+  if(!closedEvs.length && !openEvs.length){
+    el.innerHTML = rptSectionHead('Rotation calendar','Which group was on which paddock, and when.') +
+      '<div class="card"><div class="empty">No grazing events yet.</div></div>';
+    return;
+  }
+
+  const allEvs = [...closedEvs, ...openEvs];
+
+  // Date range: earliest dateIn → today (max 365 days back)
+  const earliest = allEvs.reduce((m,e)=>e.dateIn<m?e.dateIn:m, todayStr());
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-365);
+  const startDate = earliest > cutoff.toISOString().slice(0,10) ? earliest : cutoff.toISOString().slice(0,10);
+  const endDate   = todayStr();
+
+  // Build week boundaries (Sunday → Saturday)
+  const weeks = [];
+  let d = new Date(startDate+'T12:00:00');
+  d.setDate(d.getDate() - d.getDay()); // back to Sunday
+  while(d.toISOString().slice(0,10) <= endDate){
+    weeks.push(d.toISOString().slice(0,10));
+    d.setDate(d.getDate()+7);
+  }
+
+  // Unique pastures that appear in events
+  const pastureNames = [...new Set(allEvs.map(e=>e.pasture))].sort((a,b)=>a.localeCompare(b,'en',{numeric:true}));
+
+  // Group color lookup
+  function grpColor(groupId){ const g=getGroupById(groupId); return g?g.color||'#639922':'#888'; }
+  function grpName(groupId){  const g=getGroupById(groupId); return g?g.name:'?'; }
+
+  // For each pasture × week, find which event was active
+  function eventForWeek(pasture, weekStart){
+    const ws = new Date(weekStart+'T12:00:00');
+    const we = new Date(ws); we.setDate(we.getDate()+6);
+    const wsStr = ws.toISOString().slice(0,10);
+    const weStr = we.toISOString().slice(0,10);
+    return allEvs.find(e=>e.pasture===pasture && e.dateIn<=weStr && (e.dateOut||todayStr())>=wsStr) || null;
+  }
+
+  // Build header row (month labels at week columns)
+  let lastMonth = '';
+  const weekHeaders = weeks.map(w=>{
+    const m = new Date(w+'T12:00:00').toLocaleDateString('en-US',{month:'short'});
+    const label = m!==lastMonth ? (lastMonth=m,m) : '';
+    return `<th style="min-width:28px;font-size:10px;color:var(--text2);text-align:center;
+      padding:3px 1px;white-space:nowrap;font-weight:${label?'600':'400'};">${label}</th>`;
+  }).join('');
+
+  // Build grid rows
+  const rows = pastureNames.map(pasture=>{
+    const cells = weeks.map(w=>{
+      const ev = eventForWeek(pasture, w);
+      if(!ev) return `<td style="min-width:28px;height:26px;padding:1px;"></td>`;
+      const color = grpColor(ev.groupId);
+      const name  = grpName(ev.groupId);
+      const isOpen = ev.status==='open';
+      return `<td style="min-width:28px;height:26px;padding:1px;" title="${name} on ${pasture}">
+        <div class="rot-cell" style="width:26px;background:${color};opacity:${isOpen?'1':'0.75'};
+          ${isOpen?'outline:2px solid '+color+';outline-offset:1px;':''}"></div>
+      </td>`;
+    }).join('');
+
+    const padAcres = (()=>{ const p=findPastureByName(pasture); return p&&p.acres?p.acres+' ac':''; })();
+    return `<tr>
+      <td style="white-space:nowrap;font-size:13px;font-weight:500;padding:3px 12px 3px 0;
+        min-width:120px;position:sticky;left:0;background:var(--bg);z-index:1;">
+        ${pasture}<span style="color:var(--text2);font-size:11px;margin-left:4px;">${padAcres}</span></td>
+      ${cells}
+    </tr>`;
+  }).join('');
+
+  // Legend
+  const groups = [...new Set(allEvs.map(e=>e.groupId).filter(Boolean))];
+  const legend = groups.map(gId=>`
+    <span style="display:inline-flex;align-items:center;gap:5px;margin-right:14px;font-size:12px;">
+      <span style="width:12px;height:12px;border-radius:3px;background:${grpColor(gId)};display:inline-block;flex-shrink:0;"></span>
+      ${grpName(gId)}
+    </span>`).join('');
+
+  el.innerHTML = rptSectionHead('Rotation calendar',
+    `${pastureNames.length} paddocks · ${weeks.length} weeks · outlined = currently active`) + `
+    <div style="margin-bottom:12px;">${legend}<span style="font-size:12px;color:var(--text2);margin-left:4px;">Scroll right →</span></div>
+    <div class="rot-grid-wrap card" style="padding:14px;">
+      <table style="border-collapse:collapse;">
+        <thead><tr><th style="min-width:120px;position:sticky;left:0;background:var(--bg);z-index:2;"></th>${weekHeaders}</tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+// ── 2. NPK FERTILITY DASHBOARD ───────────────────────────────────────────────
+function renderNpkDashboard(){
+  const el = document.getElementById('rpt-npk');
+  if(!el) return;
+
+  const pastures = sortedPastures(true).filter(p=>p.locationType!=='confinement');
+  if(!pastures.length){
+    el.innerHTML = rptSectionHead('NPK fertility by paddock') +
+      '<div class="card"><div class="empty">No pasture locations defined.</div></div>';
+    return;
+  }
+
+  const rows = pastures.map(p=>{
+    const evs = S.events.filter(e=>(e.pasture===p.name||(e.pastureId&&e.pastureId===p.id))
+      &&e.status==='closed'&&e.locationType!=='confinement'&&e.totals&&e.totals.npk);
+    const amendEvs = S.events.filter(e=>e.pasture===p.name&&e.type==='amend');
+    const inputApps = (S.inputApplications||[]).filter(a=>(a.locations||[]).some(l=>l.pastureId===p.id||l.name===p.name));
+
+    const grazN = evs.reduce((s,e)=>s+(e.totals.npk.n||0),0);
+    const grazP = evs.reduce((s,e)=>s+(e.totals.npk.p||0),0);
+    const grazK = evs.reduce((s,e)=>s+(e.totals.npk.k||0),0);
+    const spreadN = amendEvs.filter(e=>e.amendType==='manure').reduce((s,e)=>s+(e.manureNLbs||0),0);
+    const spreadP = amendEvs.filter(e=>e.amendType==='manure').reduce((s,e)=>s+(e.manurePLbs||0),0);
+    const spreadK = amendEvs.filter(e=>e.amendType==='manure').reduce((s,e)=>s+(e.manureKLbs||0),0);
+    const inputN  = inputApps.reduce((s,a)=>s+(a.nLbsTotal||0),0);
+    const inputP  = inputApps.reduce((s,a)=>s+(a.pLbsTotal||0),0);
+    const inputK  = inputApps.reduce((s,a)=>s+(a.kLbsTotal||0),0);
+    const totalN  = grazN+spreadN+inputN;
+    const totalP  = grazP+spreadP+inputP;
+    const totalK  = grazK+spreadK+inputK;
+    const om      = evs.reduce((s,e)=>s+(e.totals.organicMatterLbs||0),0);
+    const st = S.settings;
+    const fertVal = totalN*st.nPrice + totalP*st.pPrice + totalK*st.kPrice;
+    const acres = parseFloat(p.acres)||0;
+    const nPerAc = acres>0?(totalN/acres).toFixed(1):'--';
+    const pPerAc = acres>0?(totalP/acres).toFixed(1):'--';
+    const kPerAc = acres>0?(totalK/acres).toFixed(1):'--';
+    const valPerAc = acres>0?'$'+(fertVal/acres).toFixed(2):'--';
+    const events = evs.length;
+
+    // Color code NPK/ac: >8 lbs/ac N = green, 4-8 = amber, <4 = neutral
+    const nAcNum = acres>0?totalN/acres:null;
+    const nColor = nAcNum===null?'var(--text2)':nAcNum>=8?'var(--green-d)':nAcNum>=4?'var(--amber-d)':'var(--text2)';
+
+    return `<tr>
+      <td style="font-weight:600;">${p.name}${p.archived?` <span class="badge bb" style="font-size:10px;">arch.</span>`:''}
+        <div style="font-size:11px;color:var(--text2);font-weight:400;">${acres?acres+' ac':'no acres'} · ${events} event${events!==1?'s':''}</div></td>
+      <td style="color:${nColor};font-weight:600;">${nPerAc}</td>
+      <td>${pPerAc}</td>
+      <td>${kPerAc}</td>
+      <td style="color:var(--green-d);font-weight:600;">${valPerAc}</td>
+      <td style="color:var(--teal-d);">${om>0?om.toFixed(0)+' lbs':'--'}</td>
+      <td style="font-size:12px;color:var(--text2);">
+        ${[grazN>0?'grazing':'', spreadN>0?'manure':'', inputN>0?'inputs':''].filter(Boolean).join(' + ')||'none'}
+      </td>
+    </tr>`;
+  }).join('');
+
+  el.innerHTML = rptSectionHead('NPK fertility by paddock',
+    'Cumulative N/P/K deposited per acre from grazing, manure, and purchased inputs. Color: N lbs/ac (green ≥8, amber ≥4).') + `
+    <div class="card" style="padding:0;overflow:hidden;">
+      <table class="rpt-tbl">
+        <thead><tr>
+          <th>Paddock</th>
+          <th>N / ac</th><th>P / ac</th><th>K / ac</th>
+          <th>Value / ac</th>
+          <th>OM residual</th>
+          <th>Sources</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+// ── 3. FEED COST & DMI TREND CHART ──────────────────────────────────────────
+function renderFeedTrendChart(){
+  const el = document.getElementById('rpt-feed');
+  if(!el) return;
+
+  destroyChart('feed');
+
+  const closedEvs = S.events.filter(e=>e.status==='closed'&&e.totals&&e.dateOut&&e.type!=='amend')
+    .sort((a,b)=>a.dateOut>b.dateOut?1:-1);
+
+  if(closedEvs.length < 2){
+    el.innerHTML = rptSectionHead('Feed cost & DMI trend') +
+      '<div class="card"><div class="empty">Need at least 2 closed events to show trends.</div></div>';
+    return;
+  }
+
+  // Group by month (YYYY-MM)
+  const byMonth = {};
+  closedEvs.forEach(ev=>{
+    const mo = (ev.dateOut||ev.dateIn).slice(0,7);
+    if(!byMonth[mo]) byMonth[mo]={sdmi:0,pdmi:0,cost:0,days:0,pcts:[]};
+    byMonth[mo].sdmi += ev.totals.storedDMI||0;
+    byMonth[mo].pdmi += (ev.totals.pastureDMI||0);
+    byMonth[mo].cost += ev.totals.cost||0;
+    byMonth[mo].days += ev.totals.days||0;
+    if(ev.totals.pct!=null) byMonth[mo].pcts.push(ev.totals.pct);
+  });
+
+  const labels = Object.keys(byMonth).sort();
+  const costPerDay = labels.map(m=>byMonth[m].days>0?(byMonth[m].cost/byMonth[m].days).toFixed(2):0);
+  const pasturePct = labels.map(m=>byMonth[m].pcts.length?Math.round(byMonth[m].pcts.reduce((s,v)=>s+v,0)/byMonth[m].pcts.length):null);
+  const monthLabels = labels.map(m=>{ const d=new Date(m+'-15'); return d.toLocaleDateString('en-US',{month:'short',year:'2-digit'}); });
+
+  el.innerHTML = rptSectionHead('Feed cost & DMI trend',
+    'Monthly feed cost per day (bars) and pasture % (line). Aim: high pasture %, low feed cost.') + `
+    <div class="card">
+      <canvas id="rpt-feed-chart" style="max-height:320px;"></canvas>
+    </div>
+    <div class="card" style="margin-top:14px;">
+      <div class="sec">Monthly summary</div>
+      <table class="rpt-tbl">
+        <thead><tr><th>Month</th><th>Feed cost/day</th><th>Pasture %</th><th>Stored DMI</th><th>Pasture DMI</th></tr></thead>
+        <tbody>${labels.map((m,i)=>`<tr>
+          <td style="font-weight:500;">${monthLabels[i]}</td>
+          <td style="color:var(--amber-d);">$${Number(costPerDay[i]).toFixed(2)}</td>
+          <td style="color:${pasturePct[i]>=70?'var(--green-d)':pasturePct[i]>=40?'var(--amber-d)':'var(--text2)'};">
+            ${pasturePct[i]!==null?pasturePct[i]+'%':'--'}</td>
+          <td>${Math.round(byMonth[m].sdmi).toLocaleString()} lbs</td>
+          <td style="color:var(--green-d);">${Math.round(byMonth[m].pdmi).toLocaleString()} lbs</td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>`;
+
+  // Draw chart after DOM settles
+  requestAnimationFrame(()=>{
+    const canvas = document.getElementById('rpt-feed-chart');
+    if(!canvas||typeof Chart==='undefined') return;
+    _chartInstances['feed'] = new Chart(canvas, {
+      data:{
+        labels: monthLabels,
+        datasets:[
+          { type:'bar', label:'Feed cost/day ($)', data: costPerDay,
+            backgroundColor:'rgba(186,117,23,0.7)', borderColor:'#BA7517',
+            borderWidth:1, yAxisID:'y' },
+          { type:'line', label:'Pasture %', data: pasturePct,
+            borderColor:'#639922', backgroundColor:'rgba(99,153,34,0.12)',
+            borderWidth:2.5, pointRadius:4, tension:0.3,
+            fill:true, yAxisID:'y2', spanGaps:true }
+        ]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:true,
+        plugins:{legend:{position:'top'},tooltip:{mode:'index',intersect:false}},
+        scales:{
+          y:{ type:'linear', position:'left', title:{display:true,text:'$/day'},
+              grid:{color:'rgba(0,0,0,0.06)'} },
+          y2:{ type:'linear', position:'right', min:0, max:100,
+               title:{display:true,text:'Pasture %'},
+               grid:{drawOnChartArea:false},
+               ticks:{callback:v=>v+'%'} }
+        }
+      }
+    });
+  });
+}
+
+// ── 4. ANIMAL PERFORMANCE ───────────────────────────────────────────────────
+function renderAnimalPerformance(){
+  const el = document.getElementById('rpt-animals');
+  if(!el) return;
+
+  destroyChart('animals');
+
+  const activeAnimals = S.animals.filter(a=>a.active!==false&&(a.weightHistory||[]).length>=2);
+  const allActive = S.animals.filter(a=>a.active!==false);
+
+  // Group summary table
+  const groupRows = (S.animalGroups||[]).map(g=>{
+    const animals = getGroupAnimals(g.id);
+    if(!animals.length) return '';
+    const withWt = animals.filter(a=>(a.weightHistory||[]).length>=2);
+    const avgGain = withWt.length ? withWt.reduce((s,a)=>{
+      const hist = (a.weightHistory||[]).slice().sort((x,y)=>x.date>y.date?1:-1);
+      const first = hist[0].weightLbs, last = hist[hist.length-1].weightLbs;
+      const daysDiff = Math.max(1,Math.round((new Date(hist[hist.length-1].date)-new Date(hist[0].date))/86400000));
+      return s + (last-first)/daysDiff;
+    },0)/withWt.length : null;
+    const totals = getGroupTotals(g);
+    const ae = getActiveEventForGroup(g.id);
+    return `<tr>
+      <td><span style="display:inline-block;width:10px;height:10px;border-radius:3px;
+        background:${g.color||'#639922'};margin-right:6px;vertical-align:middle;"></span>
+        <strong>${g.name}</strong></td>
+      <td>${totals.totalHead}</td>
+      <td>${totals.avgWeight?totals.avgWeight+' lbs':'--'}</td>
+      <td style="color:${avgGain>0?'var(--green-d)':avgGain<0?'var(--red-d)':'var(--text2)'};">
+        ${avgGain!=null?(avgGain>0?'+':'')+avgGain.toFixed(2)+' lbs/day avg':'--'}</td>
+      <td>${ae?`<span class="badge bt">${ae.pasture}</span>`:'<span class="badge bb">off pasture</span>'}</td>
+    </tr>`;
+  }).filter(Boolean).join('');
+
+  // Top weight gainers / individual table (top 20)
+  const withGain = activeAnimals.map(a=>{
+    const hist = (a.weightHistory||[]).slice().sort((x,y)=>x.date>y.date?1:-1);
+    const first=hist[0].weightLbs, last=hist[hist.length-1].weightLbs;
+    const daysDiff=Math.max(1,Math.round((new Date(hist[hist.length-1].date)-new Date(hist[0].date))/86400000));
+    const adg=(last-first)/daysDiff;
+    const cls=S.animalClasses.find(c=>c.id===a.classId);
+    const grp=getAnimalGroup(a.id);
+    return {a,adg,first,last,days:daysDiff,cls,grp};
+  }).sort((x,y)=>y.adg-x.adg).slice(0,20);
+
+  const animalRows = withGain.map(({a,adg,first,last,days,cls,grp})=>`<tr>
+    <td>${a.tagNum||a.systemId||'--'}</td>
+    <td style="color:var(--text2);">${cls?cls.name:'--'}</td>
+    <td style="color:var(--text2);">${grp?grp.name:'--'}</td>
+    <td>${first} lbs → <strong>${last} lbs</strong></td>
+    <td style="color:${adg>0?'var(--green-d)':adg<0?'var(--red-d)':'var(--text2)'};">
+      ${adg>0?'+':''}${adg.toFixed(2)} lbs/day</td>
+    <td style="color:var(--text2);">${days}d</td>
+  </tr>`).join('');
+
+  el.innerHTML = rptSectionHead('Animal performance',
+    `${allActive.length} active animals · ${activeAnimals.length} with weight history`) + `
+    <div class="card" style="margin-bottom:14px;">
+      <div class="sec">By group</div>
+      <table class="rpt-tbl">
+        <thead><tr><th>Group</th><th>Head</th><th>Avg weight</th><th>Avg daily gain</th><th>Location</th></tr></thead>
+        <tbody>${groupRows||'<tr><td colspan="5" style="color:var(--text2);padding:12px;">No group data</td></tr>'}</tbody>
+      </table>
+    </div>
+    ${withGain.length?`<div class="card">
+      <div class="sec">Individual weight gain (top ${withGain.length}, requires 2+ weigh dates)</div>
+      <table class="rpt-tbl">
+        <thead><tr><th>Tag</th><th>Class</th><th>Group</th><th>Weight history</th><th>ADG</th><th>Period</th></tr></thead>
+        <tbody>${animalRows}</tbody>
+      </table>
+    </div>`:'<div class="card"><div class="empty">Record weights on at least 2 dates per animal to see individual gain data.</div></div>'}`;
+}
+
+// ── 5. SEASON SUMMARY (with XLSX export) ────────────────────────────────────
+function renderSeasonSummary(){
+  const el = document.getElementById('rpt-summary');
+  if(!el) return;
+
+  const closedEvs = S.events.filter(e=>e.status==='closed'&&e.totals&&e.type!=='amend');
+  const allEvs = S.events.filter(e=>e.type!=='amend');
+  const groups = S.animalGroups||[];
+  const pastures = sortedPastures(true);
+  const st = S.settings;
+
+  const totalDays  = closedEvs.reduce((s,e)=>s+(e.totals.days||0),0);
+  const totalSDMI  = closedEvs.reduce((s,e)=>s+(e.totals.storedDMI||0),0);
+  const totalPDMI  = closedEvs.filter(e=>e.totals.pastureDMI!=null).reduce((s,e)=>s+(e.totals.pastureDMI||0),0);
+  const totalCost  = closedEvs.reduce((s,e)=>s+(e.totals.cost||0),0);
+  const totalNPKVal= closedEvs.reduce((s,e)=>s+(e.totals.npkVal||0),0);
+  const totalOM    = closedEvs.reduce((s,e)=>s+(e.totals.organicMatterLbs||0),0);
+  const avgPct     = closedEvs.filter(e=>e.totals.pct!=null).length
+    ? Math.round(closedEvs.filter(e=>e.totals.pct!=null).reduce((s,e)=>s+e.totals.pct,0)/closedEvs.filter(e=>e.totals.pct!=null).length) : null;
+  const totalAnimals = groups.reduce((s,g)=>s+getGroupTotals(g).totalHead,0);
+  const openCount  = allEvs.filter(e=>e.status==='open').length;
+  const cullCount  = (S.animals||[]).filter(a=>a.active===false).length;
+
+  const statCards = [
+    {l:'Closed events',   v:closedEvs.length,                        c:'var(--text)'},
+    {l:'Total grazing days', v:totalDays,                            c:'var(--green-d)'},
+    {l:'Avg pasture %',   v:avgPct!=null?avgPct+'%':'--',            c:avgPct>=70?'var(--green-d)':avgPct>=40?'var(--amber-d)':'var(--text2)'},
+    {l:'Stored DMI',      v:Math.round(totalSDMI).toLocaleString()+' lbs', c:'var(--amber-d)'},
+    {l:'Pasture DMI',     v:Math.round(totalPDMI).toLocaleString()+' lbs', c:'var(--green-d)'},
+    {l:'Total feed cost', v:'$'+totalCost.toFixed(0),                c:'var(--amber-d)'},
+    {l:'NPK fert. value', v:'$'+totalNPKVal.toFixed(0),              c:'var(--purple-d)'},
+    {l:'OM residual',     v:totalOM>0?Math.round(totalOM).toLocaleString()+' lbs':'--', c:'var(--teal-d)'},
+    {l:'Active animals',  v:totalAnimals,                             c:'var(--text)'},
+    {l:'Culled this season',v:cullCount,                              c:cullCount>0?'var(--amber-d)':'var(--text2)'},
+  ].map(s=>`<div style="background:var(--bg2);border-radius:var(--radius);padding:12px 14px;">
+    <div style="font-size:11px;color:var(--text2);margin-bottom:3px;">${s.l}</div>
+    <div style="font-size:22px;font-weight:700;color:${s.c};">${s.v}</div>
+  </div>`).join('');
+
+  // Per-paddock summary table
+  const padRows = pastures.filter(p=>p.locationType!=='confinement').map(p=>{
+    const evs = closedEvs.filter(e=>e.pasture===p.name||(e.pastureId&&e.pastureId===p.id));
+    if(!evs.length) return '';
+    const days = evs.reduce((s,e)=>s+(e.totals.days||0),0);
+    const n    = evs.reduce((s,e)=>s+(e.totals.npk?e.totals.npk.n:0),0);
+    const p2   = evs.reduce((s,e)=>s+(e.totals.npk?e.totals.npk.p:0),0);
+    const k    = evs.reduce((s,e)=>s+(e.totals.npk?e.totals.npk.k:0),0);
+    const val  = n*st.nPrice+p2*st.pPrice+k*st.kPrice;
+    const om   = evs.reduce((s,e)=>s+(e.totals.organicMatterLbs||0),0);
+    const avgP = evs.filter(e=>e.totals.pct!=null).length
+      ? Math.round(evs.reduce((s,e)=>s+(e.totals.pct||0),0)/evs.filter(e=>e.totals.pct!=null).length) : null;
+    const acres=parseFloat(p.acres)||0;
+    return `<tr>
+      <td style="font-weight:500;">${p.name}<div style="font-size:11px;color:var(--text2);">${acres?acres+' ac':''}</div></td>
+      <td>${evs.length} × ${Math.round(days/evs.length)} day avg</td>
+      <td style="color:${avgP>=70?'var(--green-d)':avgP>=40?'var(--amber-d)':'var(--text2)'};">${avgP!=null?avgP+'%':'--'}</td>
+      <td>N${n.toFixed(0)}/P${p2.toFixed(0)}/K${k.toFixed(0)}</td>
+      <td style="color:var(--green-d);">$${val.toFixed(0)}</td>
+      <td style="color:var(--teal-d);">${om>0?om.toFixed(0)+' lbs':'--'}</td>
+    </tr>`;
+  }).filter(Boolean).join('');
+
+  el.innerHTML = rptSectionHead('Season summary',
+    `${closedEvs.length} closed events · ${openCount} open · ${(S.animals||[]).filter(a=>a.active!==false).length} active animals`) + `
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:16px;">
+      ${statCards}
+    </div>
+    ${padRows?`<div class="card" style="margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div class="sec" style="margin:0;">By paddock</div>
+        <button class="btn btn-outline btn-sm" onclick="exportSeasonSummaryXLSX()">Export XLSX</button>
+      </div>
+      <table class="rpt-tbl">
+        <thead><tr><th>Paddock</th><th>Events / avg days</th><th>Avg pasture %</th><th>NPK (lbs)</th><th>NPK value</th><th>OM residual</th></tr></thead>
+        <tbody>${padRows}</tbody>
+      </table>
+    </div>`:''}`;
+}
+
+// ── Season summary XLSX export ────────────────────────────────────────────────
+function exportSeasonSummaryXLSX(){
+  if(typeof XLSX==='undefined'){alert('Spreadsheet library not loaded — try again.');return;}
+  const closedEvs = S.events.filter(e=>e.status==='closed'&&e.totals&&e.type!=='amend');
+  const st = S.settings;
+  const wb = XLSX.utils.book_new();
+
+  // Events sheet
+  const evRows = [['Paddock','Group','Date in','Date out','Days','Head','Avg wt','Stored DMI','Pasture DMI','Pasture %','Feed cost','NPK N','NPK P','NPK K','NPK value','OM residual lbs']];
+  closedEvs.sort((a,b)=>a.dateIn>b.dateIn?1:-1).forEach(e=>{
+    const t=e.totals||{}, g=getGroupById(e.groupId);
+    evRows.push([e.pasture,g?g.name:'',e.dateIn,e.dateOut||'',t.days||'',e.head||'',e.wt||'',
+      Math.round(t.storedDMI||0),Math.round(t.pastureDMI||0),t.pct!=null?t.pct:'',
+      (t.cost||0).toFixed(2),t.npk?t.npk.n.toFixed(1):'',t.npk?t.npk.p.toFixed(1):'',t.npk?t.npk.k.toFixed(1):'',
+      (t.npkVal||0).toFixed(2),(t.organicMatterLbs||0).toFixed(1)]);
+  });
+
+  // Paddock summary sheet
+  const padRows=[['Paddock','Acres','Events','Total days','Avg pasture %','NPK N lbs','NPK P lbs','NPK K lbs','NPK fert value','OM residual lbs']];
+  sortedPastures(true).filter(p=>p.locationType!=='confinement').forEach(p=>{
+    const evs=closedEvs.filter(e=>e.pasture===p.name||(e.pastureId&&e.pastureId===p.id));
+    if(!evs.length)return;
+    const days=evs.reduce((s,e)=>s+(e.totals.days||0),0);
+    const n=evs.reduce((s,e)=>s+(e.totals.npk?e.totals.npk.n:0),0);
+    const p2=evs.reduce((s,e)=>s+(e.totals.npk?e.totals.npk.p:0),0);
+    const k=evs.reduce((s,e)=>s+(e.totals.npk?e.totals.npk.k:0),0);
+    const val=n*st.nPrice+p2*st.pPrice+k*st.kPrice;
+    const om=evs.reduce((s,e)=>s+(e.totals.organicMatterLbs||0),0);
+    const avgP=evs.filter(e=>e.totals.pct!=null).length
+      ?Math.round(evs.reduce((s,e)=>s+(e.totals.pct||0),0)/evs.filter(e=>e.totals.pct!=null).length):null;
+    padRows.push([p.name,p.acres||0,evs.length,days,avgP,n.toFixed(1),p2.toFixed(1),k.toFixed(1),val.toFixed(2),om.toFixed(1)]);
+  });
+
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(evRows), 'Events');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(padRows), 'Paddock_Summary');
+
+  const wbout=XLSX.write(wb,{bookType:'xlsx',type:'binary'});
+  const buf=new ArrayBuffer(wbout.length); const view=new Uint8Array(buf);
+  for(let i=0;i<wbout.length;i++) view[i]=wbout.charCodeAt(i)&0xFF;
+  const blob=new Blob([buf],{type:'application/octet-stream'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url;
+  a.download='gthy-season-summary-'+todayStr()+'.xlsx';
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{URL.revokeObjectURL(url);document.body.removeChild(a);},1000);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// END DESKTOP REPORTS ENGINE
+// ═══════════════════════════════════════════════════════════════════════════════
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 const _wout=document.getElementById('w-out-date');if(_wout)_wout.value=todayStr();
