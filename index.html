@@ -1518,7 +1518,6 @@ const DRIVE_SCOPE='https://www.googleapis.com/auth/drive.file';
 const DATA_FILENAME='gthy-data.json';
 let syncTimer=null;
 
-function saveClientId(){driveState.clientId='520206017987-2o679cboufc1f486i0hentj0kktdkut6.apps.googleusercontent.com';saveDriveState();}
 
 function driveConnect(){
   if(!driveState.clientId){alert('Enter your OAuth Client ID first.');return;}
@@ -1654,9 +1653,6 @@ function shareFarmCode(){
   }
 }
 
-function formatFarmCode(code){
-  return code.slice(0,6)+'...'+code.slice(-4);
-}
 
 function driveDisconnect(){
   if(!confirm('Disconnect Google Drive? Local data stays on this device.'))return;
@@ -1945,7 +1941,7 @@ function importDataJSON(event){
       const imported=JSON.parse(e.target.result);
       if(!imported.herd&&!imported.events&&!imported.pastures)throw new Error('Not a Get The Hay Out backup file');
       if(!confirm(`Import backup from ${file.name}? Will merge with existing data.`))return;
-      S=mergeData(S,imported);save();renderCurrentScreen();
+      S=mergeData(S,imported);ensureDataArrays();save();renderCurrentScreen();
       const el=document.getElementById('import-status');el.style.display='block';
       el.textContent='Import successful — '+(imported.events||[]).length+' events, '+(imported.pastures||[]).length+' paddocks merged.';
       setTimeout(()=>{el.style.display='none';},5000);
@@ -2833,7 +2829,7 @@ function wizCloseEvent(){
       const capPct=(loc.capturePercent||80)/100;
       const capturedN=npk.n*capPct,capturedP=npk.p*capPct,capturedK=npk.k*capPct;
       const volRate=S.settings.manureVolumeRate||65;
-      const estimatedVolLbs=(head*wt/1000)*volRate*days*capPct;
+      const estimatedVolLbs=((ae.head||0)*(ae.wt||0)/1000)*volRate*days*capPct;
       const st=S.settings;
       ae.totals.capturedNPK={n:capturedN,p:capturedP,k:capturedK};
       ae.totals.estimatedVolumeLbs=estimatedVolLbs;
@@ -2856,7 +2852,7 @@ function wizCloseEvent(){
 }
 function populateNewPastureSelect(){
   const ae=getActive();
-  const opts=sortedPastures().filter(p=>!ae||p.name!==ae.pasture).map(p=>{
+  const opts=sortedPastures(false).filter(p=>!ae||p.name!==ae.pasture).map(p=>{
     const isCon=p.locationType==='confinement';
     const label=isCon?`${p.name} [confinement]`:`${p.name} (${p.acres} ac)`;
     return `<option value="${p.name}">${label}</option>`;
@@ -2942,19 +2938,7 @@ function getThreshold(key){
 }
 
 // AUDs for one event over a date range (raw overlap days × head × wt / auWeight)
-function calcAUDsForEvent(ev, rangeStart, rangeEnd){
-  const evStart = ev.dateIn;
-  const evEnd   = ev.dateOut || todayStr();
-  const os = evStart > rangeStart ? evStart : rangeStart;
-  const oe = evEnd   < rangeEnd   ? evEnd   : rangeEnd;
-  if(os > oe) return 0;
-  const days = Math.max(1, rawDaysBetween(os, oe));
-  const auWt = S.settings.auWeight || 1000;
-  return ((ev.head||0) * (ev.wt||0) / auWt) * days;
-}
 
-// Color for a metric value vs its threshold
-// Returns 'green' | 'amber' | 'red' | 'none'
 function thresholdColor(key, value){
   if(value===null||value===undefined||isNaN(value)) return 'none';
   const t = getThreshold(key);
@@ -3130,33 +3114,6 @@ function aggregatePaddockPeriod(pastureName, pastureId, periodStart, periodEnd){
 }
 
 // Build the full grid data: {paddocks, periods, cells}
-function buildRotationCalendarData(granularity, refYear){
-  const periods = generatePeriods(granularity, refYear);
-  const pastures = S.pastures.filter(p=>p.locationType!=='confinement');
-  // Only include paddocks that have at least one event in the date range
-  const allStart = periods[0]?.start;
-  const allEnd   = periods[periods.length-1]?.end;
-  const activePastures = pastures.filter(p=>{
-    return S.events.some(e=>
-      e.type!=='amend' &&
-      (e.pasture===p.name||(p.id&&e.pastureId===p.id)) &&
-      e.dateIn <= allEnd &&
-      (e.dateOut||e.dateIn) >= allStart
-    );
-  });
-  // If none active, show all (no data state)
-  const rows = activePastures.length ? activePastures : pastures.slice(0,10);
-
-  const cells = {};
-  rows.forEach(p=>{
-    cells[p.name] = {};
-    periods.forEach(period=>{
-      cells[p.name][period.start] = aggregatePaddockPeriod(p.name, p.id, period.start, period.end);
-    });
-  });
-
-  return {rows, periods, cells};
-}
 
 // ─── END ROTATION CALENDAR ENGINE ────────────────────────────────────────────
 
@@ -3173,6 +3130,35 @@ const CAL_METRICS = [
 ];
 
 // renderRotationCalendar (metric grid) moved to shared function below
+
+
+let _eventsView = 'log';
+
+function switchEventsView(view){
+  _eventsView = view;
+  const logDiv = document.getElementById('ev-view-log');
+  const calDiv = document.getElementById('ev-view-calendar');
+  if(logDiv) logDiv.style.display = view==='log' ? 'block' : 'none';
+  if(calDiv) calDiv.style.display = view==='calendar' ? 'block' : 'none';
+
+  const logTab = document.getElementById('ev-tab-log');
+  const calTab = document.getElementById('ev-tab-cal');
+  if(logTab){
+    logTab.style.background  = view==='log' ? 'var(--green)' : 'transparent';
+    logTab.style.color       = view==='log' ? 'white' : 'var(--text2)';
+    logTab.style.border      = view==='log' ? '0.5px solid var(--green)' : '0.5px solid var(--border2)';
+    logTab.style.fontWeight  = view==='log' ? '600' : '500';
+  }
+  if(calTab){
+    calTab.style.background  = view==='calendar' ? 'var(--blue)' : 'transparent';
+    calTab.style.color       = view==='calendar' ? 'white' : 'var(--text2)';
+    calTab.style.border      = view==='calendar' ? '0.5px solid var(--blue)' : '0.5px solid var(--border2)';
+    calTab.style.fontWeight  = view==='calendar' ? '600' : '500';
+  }
+
+  if(view==='calendar') renderRotationCalendar('rotation-calendar');
+  else renderEventsLog();
+}
 
 function renderEventsLog(){
   const ae=getActive();
@@ -3269,8 +3255,8 @@ function renderPastures(){
     if(pastureSortCol==='name'){ av=a.name; bv=b.name; return pastureSortDir*av.localeCompare(bv,'en',{numeric:true}); }
     if(pastureSortCol==='acres'){ return pastureSortDir*((a.acres||0)-(b.acres||0)); }
     if(pastureSortCol==='avg'){
-      const ae=S.events.filter(e=>e.pasture===a.name&&e.status==='closed');
-      const be=S.events.filter(e=>e.pasture===b.name&&e.status==='closed');
+      const ae=S.events.filter(e=>(e.pasture===a.name||(a.id&&e.pastureId===a.id))&&e.status==='closed');
+      const be=S.events.filter(e=>(e.pasture===b.name||(b.id&&e.pastureId===b.id))&&e.status==='closed');
       const aa=ae.length?Math.round(ae.reduce((s,e)=>s+(e.totals?e.totals.pct||0:0),0)/ae.length):0;
       const ba=be.length?Math.round(be.reduce((s,e)=>s+(e.totals?e.totals.pct||0:0),0)/be.length):0;
       return pastureSortDir*(aa-ba);
@@ -3754,9 +3740,6 @@ function getAnyActiveEvent(){return S.events.find(e=>e.status==='open')||null;}
 // Override legacy getActive() to return first open event (for backward compat in calcConsumedDMI etc)
 function getActive(){return getAnyActiveEvent();}
 
-function getDMITargetForGroup(gId){
-  const g=getGroupById(gId);return g?getGroupTotals(g).dmiTarget:null;
-}
 
 // ── Animal Classes UI ────────────────────────────────────────────────────────
 function addAnimalClass(){
@@ -3794,10 +3777,6 @@ function selGroupColor(el,color){
   el.style.border='2px solid var(--text)';
 }
 
-function addGroupClassRow(){
-  grpClassRows.push({classId:'',count:0,avgWeightLbs:''});
-  renderGrpClassRows();
-}
 
 function renderGrpClassRows(){
   const el=document.getElementById('grp-class-rows');if(!el)return;
@@ -3860,10 +3839,6 @@ function renderGroupsList(){
   }).join('');
 }
 
-function removeGroup(i){
-  const g=S.animalGroups[i];
-  tryDeleteAnimalGroup(i);
-}
 
 // ── Split group ───────────────────────────────────────────────────────────────
 let splitSrcColor='#1D9E75';
@@ -6756,8 +6731,10 @@ function recalcEventTotals(ev){
     pct=dmiTarget&&dmiTarget*days>0?Math.round((pastureDMI/(dmiTarget*days))*100):null;
   }
   const st=S.settings;const bw=head*wt;
-  const pFraction=ev.totals?ev.totals.pFraction:100;
-  const npk={n:bw/1000*(st.nExc||0.32)*days,p:bw/1000*(st.pExc||0.09)*days,k:bw/1000*(st.kExc||0.30)*days};
+  const pFraction=(ev.totals&&ev.totals.pFraction!=null)?ev.totals.pFraction:100;
+  const pFrac01=pFraction/100;
+  const npkFull={n:bw/1000*(st.nExc||0.32)*days,p:bw/1000*(st.pExc||0.09)*days,k:bw/1000*(st.kExc||0.30)*days};
+  const npk={n:npkFull.n*pFrac01,p:npkFull.p*pFrac01,k:npkFull.k*pFrac01};
   const npkVal=npk.n*(st.nPrice||0.55)+npk.p*(st.pPrice||0.65)+npk.k*(st.kPrice||0.42);
   // Compute and store DMI variance for noPasture events
   let dmiVariance=null;
@@ -6788,7 +6765,7 @@ function recalcNpkValues(){
   const eligible=S.events.filter(e=>
     e.status==='closed' &&
     e.type!=='amend' &&
-    e.totals && e.totals.npk &&
+    e.totals && e.totals.npk && e.totals.npk.n!=null &&
     (e.dateOut||e.dateIn) >= cutoffStr
   );
 
@@ -7801,15 +7778,20 @@ function renderNpkDashboard(){
     const spreadN = amendEvs.filter(e=>e.amendType==='manure').reduce((s,e)=>s+(e.manureNLbs||0),0);
     const spreadP = amendEvs.filter(e=>e.amendType==='manure').reduce((s,e)=>s+(e.manurePLbs||0),0);
     const spreadK = amendEvs.filter(e=>e.amendType==='manure').reduce((s,e)=>s+(e.manureKLbs||0),0);
-    const inputN  = inputApps.reduce((s,a)=>s+(a.nLbsTotal||0),0);
-    const inputP  = inputApps.reduce((s,a)=>s+(a.pLbsTotal||0),0);
-    const inputK  = inputApps.reduce((s,a)=>s+(a.kLbsTotal||0),0);
+    // Use per-location share (not total across all paddocks in the application)
+    const inputN  = inputApps.reduce((s,a)=>{ const loc=(a.locations||[]).find(l=>l.pastureId===p.id||l.name===p.name); return s+(loc?loc.nLbs||0:a.nLbsTotal||0); },0);
+    const inputP  = inputApps.reduce((s,a)=>{ const loc=(a.locations||[]).find(l=>l.pastureId===p.id||l.name===p.name); return s+(loc?loc.pLbs||0:a.pLbsTotal||0); },0);
+    const inputK  = inputApps.reduce((s,a)=>{ const loc=(a.locations||[]).find(l=>l.pastureId===p.id||l.name===p.name); return s+(loc?loc.kLbs||0:a.kLbsTotal||0); },0);
     const totalN  = grazN+spreadN+inputN;
     const totalP  = grazP+spreadP+inputP;
     const totalK  = grazK+spreadK+inputK;
     const om      = evs.reduce((s,e)=>s+(e.totals.organicMatterLbs||0),0);
     const st = S.settings;
-    const fertVal = totalN*st.nPrice + totalP*st.pPrice + totalK*st.kPrice;
+    // Grazing value from stored totals (matches event display); inputs at current prices
+    const grazVal = evs.reduce((s,e)=>s+(e.totals.npkVal||0),0);
+    const inputVal = (inputN*st.nPrice + inputP*st.pPrice + inputK*st.kPrice);
+    const spreadVal = (spreadN*st.nPrice + spreadP*st.pPrice + spreadK*st.kPrice);
+    const fertVal = grazVal + spreadVal + inputVal;
     const acres = parseFloat(p.acres)||0;
     const nPerAc = acres>0?(totalN/acres).toFixed(1):'--';
     const pPerAc = acres>0?(totalP/acres).toFixed(1):'--';
@@ -8108,10 +8090,12 @@ function exportSeasonSummaryXLSX(){
   const wb = XLSX.utils.book_new();
 
   // Events sheet
-  const evRows = [['Paddock','Group','Date in','Date out','Days','Head','Avg wt','Stored DMI','Pasture DMI','Pasture %','Feed cost','NPK N','NPK P','NPK K','NPK value','OM residual lbs']];
+  const evRows = [['Paddock','Group','Date in','Date out','Days','Head','Avg wt','AUDs','Stored DMI','Pasture DMI','Pasture %','Feed cost','NPK N','NPK P','NPK K','NPK value','OM residual lbs']];
+  const _auWtX=S.settings.auWeight||1000;
   closedEvs.sort((a,b)=>a.dateIn>b.dateIn?1:-1).forEach(e=>{
     const t=e.totals||{}, g=getGroupById(e.groupId);
-    evRows.push([e.pasture,g?g.name:'',e.dateIn,e.dateOut||'',t.days||'',e.head||'',e.wt||'',
+    const _eAUDs=e.noPasture?0:((e.head||0)*(e.wt||0)/_auWtX)*((t.days||1)*(t.pct!=null?Math.max(0,t.pct)/100:1));
+    evRows.push([e.pasture,g?g.name:'',e.dateIn,e.dateOut||'',t.days||'',e.head||'',e.wt||'',_eAUDs>0?+_eAUDs.toFixed(1):'',
       Math.round(t.storedDMI||0),Math.round(t.pastureDMI||0),t.pct!=null?t.pct:'',
       (t.cost||0).toFixed(2),t.npk?t.npk.n.toFixed(1):'',t.npk?t.npk.p.toFixed(1):'',t.npk?t.npk.k.toFixed(1):'',
       (t.npkVal||0).toFixed(2),(t.organicMatterLbs||0).toFixed(1)]);
