@@ -177,11 +177,242 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 .grp-actions .btn{flex:1;min-width:80px;padding:10px 8px;font-size:13px;}
 
 #reset-confirm-btn:not([disabled]){opacity:1 !important;cursor:pointer;}
+
+
+/* Hide sidebar on mobile */
+.dsk-sidebar{display:none;}
+@media (min-width:900px){
+  .dsk-sidebar{display:flex;}
+}
+
+/* ── DESKTOP LAYOUT (≥900px) ─────────────────────────────────────────── */
+@media (min-width:900px){
+  html,body{overflow:auto;}
+
+  body.desktop .app{
+    max-width:100%;
+    height:100vh;
+    display:grid;
+    grid-template-columns:220px 1fr;
+    grid-template-rows:auto 1fr;
+    grid-template-areas:
+      "sidebar header"
+      "sidebar content";
+    overflow:hidden;
+  }
+
+  /* Header spans content column only */
+  body.desktop .hdr{
+    grid-area:header;
+    border-left:0.5px solid var(--border);
+    max-width:100%;
+  }
+
+  /* Sidebar */
+  body.desktop .dsk-sidebar{
+    grid-area:sidebar;
+    display:flex;
+    flex-direction:column;
+    background:var(--bg);
+    border-right:0.5px solid var(--border);
+    overflow-y:auto;
+    padding:0;
+  }
+
+  /* Sidebar logo strip */
+  body.desktop .dsk-logo{
+    padding:18px 18px 14px;
+    border-bottom:0.5px solid var(--border);
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  body.desktop .dsk-logo-icon{
+    width:32px;height:32px;border-radius:8px;
+    background:var(--green);
+    display:flex;align-items:center;justify-content:center;
+    flex-shrink:0;
+  }
+  body.desktop .dsk-logo-text{
+    font-size:14px;font-weight:700;color:var(--green-d);line-height:1.2;
+  }
+  body.desktop .dsk-logo-sub{
+    font-size:11px;color:var(--text2);margin-top:1px;
+  }
+
+  /* Sidebar nav items */
+  body.desktop .dsk-nav{
+    padding:10px 10px;
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    gap:2px;
+  }
+  body.desktop .dsk-nav-item{
+    display:flex;align-items:center;gap:10px;
+    padding:9px 12px;
+    border-radius:8px;
+    border:none;background:transparent;
+    cursor:pointer;font-family:inherit;
+    color:var(--text2);font-size:13px;font-weight:500;
+    width:100%;text-align:left;
+    position:relative;
+    transition:background 0.1s,color 0.1s;
+  }
+  body.desktop .dsk-nav-item:hover{
+    background:var(--bg2);color:var(--text);
+  }
+  body.desktop .dsk-nav-item.active{
+    background:var(--green-l);color:var(--green-d);font-weight:600;
+  }
+  body.desktop .dsk-nav-item svg{
+    flex-shrink:0;opacity:0.7;
+  }
+  body.desktop .dsk-nav-item.active svg{opacity:1;}
+  body.desktop .dsk-nav-badge{
+    margin-left:auto;
+    background:var(--amber);color:white;
+    font-size:10px;font-weight:700;
+    padding:1px 6px;border-radius:10px;
+    min-width:18px;text-align:center;
+  }
+
+  /* Sidebar bottom: sync status */
+  body.desktop .dsk-sync-strip{
+    padding:12px 14px;
+    border-top:0.5px solid var(--border);
+    font-size:11px;color:var(--text2);
+    display:flex;align-items:center;gap:7px;
+    cursor:pointer;
+  }
+  body.desktop .dsk-sync-strip:hover{color:var(--text);}
+
+  /* Main content area */
+  body.desktop .content{
+    grid-area:content;
+    overflow-y:auto;
+    padding:20px 28px 40px;
+    max-width:900px;  /* readable line length */
+  }
+
+  /* Hide bottom nav on desktop */
+  body.desktop .bnav{display:none !important;}
+
+  /* Sheets stay centered and max 560px */
+  body.desktop .sheet-wrap{
+    max-width:560px;
+    left:50%;
+    transform:translateX(-50%);
+  }
+
+  /* Desktop home: two-column grid for group cards */
+  body.desktop #home-groups{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:14px;
+    margin-bottom:0;
+  }
+
+  /* Make group cards always show body on desktop */
+  body.desktop .grp-card .grp-card-body{display:block !important;}
+  body.desktop .grp-card .grp-chevron{display:none;}
+
+  /* Desktop stats row — 5 across */
+  body.desktop .m-grid{
+    display:grid;
+    grid-template-columns:repeat(5,1fr);
+    gap:10px;
+  }
+
+  /* Desktop: widen cards slightly */
+  body.desktop .card{border-radius:var(--radius-l);}
+
+  /* Desktop: content has a max width constraint for readability */
+  body.desktop #s-settings .card,
+  body.desktop #s-pastures .card,
+  body.desktop #s-events .card,
+  body.desktop #s-feedback .card{
+    max-width:760px;
+  }
+}
+
+@media (min-width:900px){
+  .fab{
+    left: calc(220px + ((100vw - 220px) / 2));
+    transform: translateX(-50%);
+    bottom: 24px;
+  }
+  .sheet-wrap{
+    left: calc(220px + ((100vw - 220px) / 2));
+  }
+  /* User picker modal also needs recentering */
+  .user-picker-wrap{
+    left: calc(220px + ((100vw - 220px) / 2));
+  }
+}
+
+
+@media (min-width:900px){
+  /* Stats card is replaced by the desktop dashboard strip above groups */
+  #home-stats-card{ display:none !important; }
+}
+
+/* ── END DESKTOP LAYOUT ───────────────────────────────────────────────── */
+
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 <div class="app">
+
+  <!-- DESKTOP SIDEBAR NAV -->
+  <aside class="dsk-sidebar" id="dsk-sidebar">
+    <div class="dsk-logo">
+      <div class="dsk-logo-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+      </div>
+      <div>
+        <div class="dsk-logo-text">Get The Hay Out</div>
+        <div class="dsk-logo-sub" id="dsk-op-name">Loading…</div>
+      </div>
+    </div>
+    <nav class="dsk-nav">
+      <button class="dsk-nav-item active" id="dbn-home" onclick="nav('home',this)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        Home
+      </button>
+      <button class="dsk-nav-item" id="dbn-animals" onclick="nav('animals',this)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+        Animals
+      </button>
+      <button class="dsk-nav-item" id="dbn-todos" onclick="nav('todos',this)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+        Tasks
+        <span class="dsk-nav-badge" id="dtodo-badge" style="display:none;"></span>
+      </button>
+      <button class="dsk-nav-item" id="dbn-events" onclick="nav('events',this)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        Events
+      </button>
+      <button class="dsk-nav-item" id="dbn-pastures" onclick="nav('pastures',this)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+        Pastures
+      </button>
+      <button class="dsk-nav-item" id="dbn-feedback" onclick="nav('feedback',this)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        Feedback
+        <span class="dsk-nav-badge" id="dfb-badge" style="display:none;"></span>
+      </button>
+      <button class="dsk-nav-item" id="dbn-settings" onclick="nav('settings',this)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        Settings
+      </button>
+    </nav>
+    <div class="dsk-sync-strip" onclick="nav('settings',document.getElementById('bn-settings'))">
+      <span class="sync-dot sync-off" id="dsk-sync-dot"></span>
+      <span id="dsk-sync-label">Drive</span>
+    </div>
+  </aside>
 
   <!-- HEADER -->
   <div class="hdr">
@@ -1684,9 +1915,79 @@ function maybePromptUserSelect(){
 }
 
 // ─── HOME ─────────────────────────────────────────────────────────────────────
+
+// ─── DESKTOP DASHBOARD HEADER ────────────────────────────────────────────────
+// On desktop, inject a prominent performance strip above the group cards
+// On mobile this is a no-op (handled by the existing stats card below groups)
+function renderDesktopDashboardHeader(){
+  if(window.gthyMode !== 'desktop') return;
+
+  const home = document.getElementById('s-home');
+  if(!home) return;
+
+  // Create or find the desktop header strip
+  let strip = document.getElementById('dsk-home-strip');
+  if(!strip){
+    strip = document.createElement('div');
+    strip.id = 'dsk-home-strip';
+    home.insertBefore(strip, home.firstChild);
+  }
+
+  const period = currentStatPeriod || S.settings.homeStatPeriod || '7d';
+  const events = eventsInPeriod(period);
+  const activeEvs = getActiveEvents();
+  const groups = S.animalGroups||[];
+  const totalHead = groups.reduce((s,g)=>s+getGroupTotals(g).totalHead,0);
+  const activeGroups = groups.filter(g=>getActiveEventForGroup(g.id));
+
+  // Quick metric cards
+  const metrics = [
+    {key:'pasture_dmi',  label:'Pasture DMI',  color:'var(--green)'},
+    {key:'feed_cost',    label:'Feed Cost',     color:'var(--amber)'},
+    {key:'pasture_pct',  label:'Pasture %',     color:'var(--teal)'},
+    {key:'npk_lbs_acre', label:'NPK / Acre',    color:'var(--purple-d)'},
+    {key:'npk_val_acre', label:'NPK Value',     color:'var(--blue)'},
+  ];
+
+  const metricHtml = metrics.map(m=>{
+    const metric = STAT_METRICS[m.key];
+    if(!metric) return '';
+    const {display, sub} = metric.calc(events, period);
+    return `<div style="flex:1;min-width:100px;background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius-l);padding:14px 16px;">
+      <div style="font-size:11px;color:var(--text2);margin-bottom:4px;font-weight:500;">${m.label}</div>
+      <div style="font-size:22px;font-weight:700;color:${m.color};line-height:1.1;">${display}</div>
+      <div style="font-size:10px;color:var(--text2);margin-top:4px;line-height:1.3;">${sub}</div>
+    </div>`;
+  }).join('');
+
+  const periodPills = PERIODS.map(p=>
+    `<button style="padding:4px 12px;font-size:12px;border-radius:20px;border:0.5px solid ${period===p.key?'var(--green)':'var(--border2)'};background:${period===p.key?'var(--green)':'transparent'};color:${period===p.key?'white':'var(--text2)'};cursor:pointer;font-family:inherit;font-weight:${period===p.key?'600':'400'};" onclick="currentStatPeriod='${p.key}';renderHome();">${p.label}</button>`
+  ).join('');
+
+  strip.innerHTML = `
+    <div style="margin-bottom:20px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div>
+          <div style="font-size:20px;font-weight:700;color:var(--text);">Farm Overview</div>
+          <div style="font-size:13px;color:var(--text2);margin-top:2px;">${totalHead} head · ${groups.length} group${groups.length!==1?'s':''} · ${activeGroups.length} active</div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          ${periodPills}
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        ${metricHtml}
+      </div>
+    </div>
+  `;
+}
+// ─── END DESKTOP DASHBOARD HEADER ────────────────────────────────────────────
+
 function renderHome(){
   // ── Remove stale move-btn reference (button was relocated) ────────────────
   const mvBtn=document.getElementById('move-btn');if(mvBtn)mvBtn.style.display='none';
+  // ── Desktop: render enhanced dashboard header ─────────────────────────────
+  renderDesktopDashboardHeader();
 
   const groups=S.animalGroups||[];
   const grpsEl=document.getElementById('home-groups');
@@ -6553,6 +6854,77 @@ function sortedAnimals(arr){ return [...(arr||S.animals)].sort((a,b)=>(a.tagNum|
 function sortedGroups(includeArchived=false){ return [...S.animalGroups].filter(g=>includeArchived||!g.archived).sort((a,b)=>a.name.localeCompare(b.name,'en',{numeric:true})); }
 // ─── END SORT HELPERS ─────────────────────────────────────────────────────────
 
+
+// ─── RESPONSIVE MODE DETECTION ───────────────────────────────────────────────
+
+function detectMode(){
+  const isDesktop = window.innerWidth >= 900;
+  const wasDesktop = document.body.classList.contains('desktop');
+  window.gthyMode = isDesktop ? 'desktop' : 'mobile';
+  document.body.classList.toggle('desktop', isDesktop);
+  // On mode switch, re-render current screen to pick up layout changes
+  if(isDesktop !== wasDesktop) renderCurrentScreen();
+}
+
+// Debounced resize handler
+let _resizeTimer = null;
+window.addEventListener('resize', ()=>{
+  clearTimeout(_resizeTimer);
+  _resizeTimer = setTimeout(detectMode, 120);
+});
+
+// Sync sidebar nav active state + badges alongside bottom nav
+const _origNav = nav;
+function nav(screen, btn){
+  // Run original nav logic
+  _origNav(screen, btn);
+  // Sync desktop sidebar active state
+  document.querySelectorAll('.dsk-nav-item').forEach(b=>b.classList.remove('active'));
+  const dbn = document.getElementById('dbn-'+screen);
+  if(dbn) dbn.classList.add('active');
+  // Keep FAB hidden on settings screen
+  const fab = document.querySelector('.fab');
+  if(fab) fab.style.display = screen==='settings' ? 'none' : '';
+}
+
+// Mirror badge updates to sidebar badges
+const _origUpdateTodoBadge = updateTodoBadge;
+function updateTodoBadge(){
+  _origUpdateTodoBadge();
+  const n = S.todos.filter(t=>t.status!=='closed').length;
+  const db = document.getElementById('dtodo-badge');
+  if(db){ db.style.display = n>0?'':'none'; db.textContent = n; }
+}
+
+const _origUpdateFeedbackBadge = updateFeedbackBadge;
+function updateFeedbackBadge(){
+  _origUpdateFeedbackBadge();
+  const n = S.feedback.filter(f=>f.status==='open'||f.status==='resolved').length;
+  const db = document.getElementById('dfb-badge');
+  if(db){ db.style.display = n>0?'':'none'; db.textContent = n; }
+}
+
+// Mirror sync indicator to sidebar
+const _origSetSyncStatus = setSyncStatus;
+function setSyncStatus(state, label, action){
+  _origSetSyncStatus(state, label, action);
+  const dot = document.getElementById('dsk-sync-dot');
+  const lbl = document.getElementById('dsk-sync-label');
+  if(dot) dot.className = 'sync-dot sync-'+state;
+  if(lbl) lbl.textContent = typeof label==='string' ? label : 'Drive';
+}
+
+// Update sidebar operation name when header updates
+const _origUpdateHeader = updateHeader;
+function updateHeader(){
+  _origUpdateHeader();
+  const name = (S.herd&&S.herd.name) ? S.herd.name : 'My Farm';
+  const el = document.getElementById('dsk-op-name');
+  if(el) el.textContent = name;
+}
+
+// ─── END RESPONSIVE MODE DETECTION ───────────────────────────────────────────
+
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 const _wout=document.getElementById('w-out-date');if(_wout)_wout.value=todayStr();
 const _win=document.getElementById('w-in-date');if(_win)_win.value=todayStr();
@@ -6576,6 +6948,7 @@ maybePromptUserSelect();
 maybeResumeTokenRefresh();
 // Sync if token is still valid
 if(driveState.connected&&driveState.accessToken&&Date.now()<(driveState.tokenExpiry||0)){driveSync();}
+detectMode(); // must run last — reads DOM
 </script>
 
 <!-- SPREAD MANURE SHEET -->
