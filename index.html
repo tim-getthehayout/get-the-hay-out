@@ -7589,10 +7589,26 @@ function renderRotationCalendar(containerId){
   function grpName(gId){  const g=getGroupById(gId); return g?g.name:'?'; }
   function weekEnd(ws){ const d2=new Date(ws+'T12:00:00'); d2.setDate(d2.getDate()+6); return d2.toISOString().slice(0,10); }
 
-  // AUDs for an event (full duration, not pro-rated — shows total grazing pressure per rotation)
+  // AUDs supported BY THE PASTURE — pro-rated by pasture DMI fraction.
+  // noPasture = 0. Closed events use ev.totals.pct. Open events: live DMI estimate.
   function eventAUDs(ev){
+    if(ev.noPasture) return 0;
     const days = daysBetween(ev.dateIn, ev.dateOut||todayStr());
-    return ((ev.head||0) * (ev.wt||0) / auWt) * days;
+    const totalAUs = ((ev.head||0) * (ev.wt||0) / auWt);
+    if(!totalAUs) return 0;
+    let pastureFrac = 1;
+    if(ev.status==='closed' && ev.totals){
+      if(ev.totals.pct!=null) pastureFrac = Math.max(0, ev.totals.pct) / 100;
+    } else {
+      const g = getGroupById(ev.groupId);
+      const t = g ? getGroupTotals(g) : null;
+      const dmiTarget = t ? t.dmiTarget : ((ev.head||0)*(ev.wt||0)*0.025);
+      if(dmiTarget > 0){
+        const storedDMI = calcConsumedDMI(allFeedEntries(ev), ev.feedResidual||0);
+        pastureFrac = Math.max(0, (dmiTarget*days - storedDMI)) / (dmiTarget*days);
+      }
+    }
+    return totalAUs * days * pastureFrac;
   }
 
   // ── Month label header ────────────────────────────────────────────────────
