@@ -1108,6 +1108,8 @@ function save(){saveLocal();if(driveState.connected&&driveState.accessToken)driv
 function todayStr(){return new Date().toISOString().slice(0,10);}
 function dLabel(d){return d?new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}):'--';}
 function daysBetween(a,b){return Math.max(1,Math.round((new Date(b+'T12:00:00')-new Date(a+'T12:00:00'))/86400000)+1);}
+// rawDaysBetween: no inclusive +1, used for proration ratios only
+function rawDaysBetween(a,b){return Math.max(0,(new Date(b+'T12:00:00')-new Date(a+'T12:00:00'))/86400000);}
 // getActive: see override in animal groups section
 function getDMITarget(){const h=S.herd;if(!h.count||!h.weight||!h.dmi)return null;return h.count*h.weight*(h.dmi/100);}
 function calcNPK(head,wt,days){const st=S.settings;const bw=head*wt;return{n:bw/1000*st.nExc*days,p:bw/1000*st.pExc*days,k:bw/1000*st.kExc*days};}
@@ -4030,6 +4032,22 @@ function getPeriodDates(key){
 
 // How many days of an event fall within [periodStart, periodEnd]?
 // Returns a value 0..eventDays. Used for pro-rating DMI/NPK on partial events.
+
+// Raw (non-inclusive) overlap days for period proration ratios
+function rawEventDaysInPeriod(ev, periodStart, periodEnd){
+  const evStart = ev.dateIn;
+  const evEnd   = ev.dateOut || todayStr();
+  if(!periodStart) return rawDaysBetween(evStart, evEnd);
+  const overlapStart = evStart > periodStart ? evStart : periodStart;
+  const overlapEnd   = evEnd   < periodEnd   ? evEnd   : periodEnd;
+  if(overlapStart >= overlapEnd) return 0;
+  return rawDaysBetween(overlapStart, overlapEnd);
+}
+// Raw event duration (no +1) for denominators
+function rawEventDays(ev){
+  return rawDaysBetween(ev.dateIn, ev.dateOut || todayStr());
+}
+
 function eventDaysInPeriod(ev, periodStart, periodEnd){
   const evStart = ev.dateIn;
   const evEnd   = ev.dateOut || todayStr();
@@ -4156,35 +4174,39 @@ const STAT_METRICS = {
       let totalN=0,totalP=0,totalK=0;
       const paddockAcres={};
       events.filter(e=>e.locationType!=='confinement').forEach(ev=>{
-        const evDays   = daysBetween(ev.dateIn, ev.dateOut||todayStr());
-        const inPeriod = eventDaysInPeriod(ev, start, end);
-        const ratio    = evDays>0 ? inPeriod/evDays : 0;
+        // Use raw (non-inclusive) days so ratio math is correct
+        const evDays   = rawEventDays(ev);
+        const inPeriod = rawEventDaysInPeriod(ev, start, end);
+        if(inPeriod <= 0) return;
         let n,p,k;
         if(ev.status==='closed'&&ev.totals&&ev.totals.npk&&ev.totals.npk.n!=null){
-          // Use stored totals for closed events
+          // Pro-rate stored totals by fraction of event that falls in period
+          const ratio = evDays>0 ? inPeriod/evDays : 1;
           n=(ev.totals.npk.n||0)*ratio;
           p=(ev.totals.npk.p||0)*ratio;
           k=(ev.totals.npk.k||0)*ratio;
         } else {
-          // Live estimate for open events — calculate from head/wt/days
+          // Open event — live estimate for days in period
           const bw=(ev.head||0)*(ev.wt||0);
-          if(!bw){return;}
-          const daysInPeriod=inPeriod;
-          n=bw/1000*(st.nExc||0.32)*daysInPeriod;
-          p=bw/1000*(st.pExc||0.09)*daysInPeriod;
-          k=bw/1000*(st.kExc||0.30)*daysInPeriod;
+          if(!bw) return;
+          n=bw/1000*(st.nExc||0.32)*inPeriod;
+          p=bw/1000*(st.pExc||0.09)*inPeriod;
+          k=bw/1000*(st.kExc||0.30)*inPeriod;
         }
         totalN+=n; totalP+=p; totalK+=k;
+        // Record paddock acres — parseFloat to ensure numeric, fallback 0 means unknown
         const pad=S.pastures.find(x=>x.name===ev.pasture);
-        if(pad&&pad.acres&&!paddockAcres[ev.pasture]) paddockAcres[ev.pasture]=pad.acres;
+        const acres=pad?parseFloat(pad.acres)||0:0;
+        if(acres>0&&!(ev.pasture in paddockAcres)) paddockAcres[ev.pasture]=acres;
       });
-      const acres = Object.values(paddockAcres).reduce((s,a)=>s+a,0)||1;
-      const totalNPK = totalN+totalP+totalK;
-      const perAcre = totalNPK/acres;
+      const totalAcres = Object.values(paddockAcres).reduce((s,a)=>s+a,0);
+      const perAcre = totalAcres>0 ? (totalN+totalP+totalK)/totalAcres : null;
       return {
         value: perAcre,
-        display: perAcre.toFixed(1)+' /ac',
-        sub: `N${totalN.toFixed(0)}/P${totalP.toFixed(0)}/K${totalK.toFixed(0)} lbs total`
+        display: perAcre!=null ? perAcre.toFixed(1)+' /ac' : '--',
+        sub: totalAcres>0
+          ? `N${totalN.toFixed(0)}/P${totalP.toFixed(0)}/K${totalK.toFixed(0)} lbs · ${totalAcres} ac`
+          : `N${totalN.toFixed(0)}/P${totalP.toFixed(0)}/K${totalK.toFixed(0)} lbs total (set paddock acres for /ac)`
       };
     }
   },
@@ -4201,31 +4223,35 @@ const STAT_METRICS = {
       let totalVal=0;
       const paddockAcres={};
       events.filter(e=>e.locationType!=='confinement').forEach(ev=>{
-        const evDays   = daysBetween(ev.dateIn, ev.dateOut||todayStr());
-        const inPeriod = eventDaysInPeriod(ev, start, end);
-        const ratio    = evDays>0 ? inPeriod/evDays : 0;
+        const evDays   = rawEventDays(ev);
+        const inPeriod = rawEventDaysInPeriod(ev, start, end);
+        if(inPeriod <= 0) return;
         let n,p,k;
         if(ev.status==='closed'&&ev.totals&&ev.totals.npk&&ev.totals.npk.n!=null){
+          const ratio = evDays>0 ? inPeriod/evDays : 1;
           n=(ev.totals.npk.n||0)*ratio;
           p=(ev.totals.npk.p||0)*ratio;
           k=(ev.totals.npk.k||0)*ratio;
         } else {
           const bw=(ev.head||0)*(ev.wt||0);
-          if(!bw){return;}
+          if(!bw) return;
           n=bw/1000*(st.nExc||0.32)*inPeriod;
           p=bw/1000*(st.pExc||0.09)*inPeriod;
           k=bw/1000*(st.kExc||0.30)*inPeriod;
         }
         totalVal += n*st.nPrice + p*st.pPrice + k*st.kPrice;
         const pad=S.pastures.find(x=>x.name===ev.pasture);
-        if(pad&&pad.acres&&!paddockAcres[ev.pasture]) paddockAcres[ev.pasture]=pad.acres;
+        const acres=pad?parseFloat(pad.acres)||0:0;
+        if(acres>0&&!(ev.pasture in paddockAcres)) paddockAcres[ev.pasture]=acres;
       });
-      const acres = Object.values(paddockAcres).reduce((s,a)=>s+a,0)||1;
-      const perAcre = totalVal/acres;
+      const totalAcres = Object.values(paddockAcres).reduce((s,a)=>s+a,0);
+      const perAcre = totalAcres>0 ? totalVal/totalAcres : null;
       return {
         value: perAcre,
-        display: '$'+perAcre.toFixed(2)+'/ac',
-        sub: '$'+totalVal.toFixed(2)+' total fert. value'
+        display: perAcre!=null ? '$'+perAcre.toFixed(2)+'/ac' : '--',
+        sub: totalAcres>0
+          ? '$'+totalVal.toFixed(2)+' total · '+totalAcres+' ac'
+          : '$'+totalVal.toFixed(2)+' total fert. value (set paddock acres for /ac)'
       };
     }
   },
