@@ -1973,7 +1973,7 @@ function renderCurrentScreen(){
   if(curScreen==='home')renderHome();
   else if(curScreen==='feed')renderFeedScreen();
   else if(curScreen==='animals')renderAnimalsScreen();
-  else if(curScreen==='events'){if(_eventsView==='calendar')renderRotationCalendar();else renderEventsLog();}
+  else if(curScreen==='events'){if(_eventsView==='calendar')renderRotationCalendar('rotation-calendar');else renderEventsLog();}
   else if(curScreen==='todos')renderTodos();
   else if(curScreen==='pastures')renderPastures();
   else if(curScreen==='feedback')renderFeedbackTab();
@@ -3069,8 +3069,23 @@ function aggregatePaddockPeriod(pastureName, pastureId, periodStart, periodEnd){
     const totalEvDays  = Math.max(1, rawDaysBetween(evStart, evEnd));
     const ratio = daysInPeriod / totalEvDays;
 
-    // AUDs
-    totalAUDs += ((ev.head||0) * (ev.wt||0) / auWt) * daysInPeriod;
+    // AUDs — pro-rated by pasture DMI fraction (not total animal presence)
+    if(!ev.noPasture){
+      const totalAUs = ((ev.head||0) * (ev.wt||0) / auWt);
+      let pastureFrac2 = 1;
+      if(ev.status==='closed' && ev.totals && ev.totals.pct!=null){
+        pastureFrac2 = Math.max(0, ev.totals.pct) / 100;
+      } else if(ev.status==='open'){
+        const g2=getGroupById(ev.groupId);
+        const t2=g2?getGroupTotals(g2):null;
+        const dmiT2=t2?t2.dmiTarget:((ev.head||0)*(ev.wt||0)*0.025);
+        if(dmiT2>0){
+          const sFeed=calcConsumedDMI(allFeedEntries(ev),ev.feedResidual||0);
+          pastureFrac2=Math.max(0,(dmiT2*daysInPeriod-sFeed))/(dmiT2*daysInPeriod);
+        }
+      }
+      totalAUDs += totalAUs * daysInPeriod * pastureFrac2;
+    }
     totalDays += daysInPeriod;
 
     // Acres (from snapshot or live lookup)
@@ -3148,9 +3163,6 @@ function buildRotationCalendarData(granularity, refYear){
 
 // ─── ROTATION CALENDAR RENDER ─────────────────────────────────────────────────
 
-let calGranularity = 'month';  // 'day' | 'month' | 'year'
-let calMetric      = 'auds';   // which metric drives cell color
-let calYear        = new Date().getFullYear();
 
 const CAL_METRICS = [
   {key:'auds',       label:'AUDs',       fmt: v=>v!=null?v.toFixed(1):'—'},
@@ -3160,250 +3172,7 @@ const CAL_METRICS = [
   {key:'costDay',    label:'$/day',      fmt: v=>v!=null?'$'+v.toFixed(0):'—'},
 ];
 
-function renderRotationCalendar(){
-  const el = document.getElementById('rotation-calendar');
-  if(!el) return;
-
-  const data = buildRotationCalendarData(calGranularity, calYear);
-  const {rows, periods, cells} = data;
-
-  if(!rows.length){
-    el.innerHTML = '<div class="empty" style="padding:24px;">No pasture locations defined yet.</div>';
-    return;
-  }
-
-  // ── Controls bar ──────────────────────────────────────────────────────────
-  const granPills = ['day','month','year'].map(g=>
-    `<button onclick="calGranularity='${g}';renderRotationCalendar();"
-      style="padding:5px 12px;font-size:12px;border-radius:20px;border:0.5px solid ${calGranularity===g?'var(--green)':'var(--border2)'};
-             background:${calGranularity===g?'var(--green)':'transparent'};color:${calGranularity===g?'white':'var(--text2)'};
-             cursor:pointer;font-family:inherit;font-weight:${calGranularity===g?'600':'400'};">${g==='day'?'Daily':g==='month'?'Monthly':'Yearly'}</button>`
-  ).join('');
-
-  const metricPills = CAL_METRICS.map(m=>
-    `<button onclick="calMetric='${m.key}';renderRotationCalendar();"
-      style="padding:5px 12px;font-size:12px;border-radius:20px;border:0.5px solid ${calMetric===m.key?'var(--blue)':'var(--border2)'};
-             background:${calMetric===m.key?'var(--blue)':'transparent'};color:${calMetric===m.key?'white':'var(--text2)'};
-             cursor:pointer;font-family:inherit;font-weight:${calMetric===m.key?'600':'400'};">${m.label}</button>`
-  ).join('');
-
-  const yearControls = calGranularity==='year'
-    ? `<div style="display:flex;align-items:center;gap:8px;margin-left:auto;">
-        <button onclick="calYear--;renderRotationCalendar();" style="border:0.5px solid var(--border2);background:transparent;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:13px;">‹</button>
-        <span style="font-size:13px;font-weight:600;min-width:40px;text-align:center;">${calYear}</span>
-        <button onclick="calYear++;renderRotationCalendar();" style="border:0.5px solid var(--border2);background:transparent;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:13px;">›</button>
-      </div>` : '';
-
-  const t = getThreshold(calMetric);
-  const metricObj = CAL_METRICS.find(m=>m.key===calMetric);
-
-  // ── Legend ────────────────────────────────────────────────────────────────
-  const legendHtml = t&&t.target ? `
-    <div style="display:flex;align-items:center;gap:12px;font-size:11px;color:var(--text2);">
-      <span>Goal: <strong>${t.direction==='lower'?'≤':'≥'}${t.target}${calMetric==='pasturePct'?'%':calMetric==='costDay'?'/day':''}</strong></span>
-      <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;border-radius:2px;background:var(--green-l);display:inline-block;border:0.5px solid var(--green);"></span> Met</span>
-      <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;border-radius:2px;background:var(--amber-l);display:inline-block;border:0.5px solid var(--amber);"></span> Close</span>
-      <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;border-radius:2px;background:var(--red-l);display:inline-block;border:0.5px solid var(--red);"></span> Missed</span>
-      <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;border-radius:2px;background:var(--bg2);display:inline-block;border:0.5px solid var(--border);"></span> No data</span>
-    </div>` : '<div style="font-size:11px;color:var(--text2);">Set goals in Settings → Animal units &amp; rotation goals to enable color coding.</div>';
-
-  // ── Table ─────────────────────────────────────────────────────────────────
-  // Header: one th per period
-  const PADDOCK_COL_W = 120;
-  const CELL_W = calGranularity==='day' ? 36 : calGranularity==='month' ? 52 : 52;
-
-  const headerCells = periods.map(p=>`
-    <th style="min-width:${CELL_W}px;max-width:${CELL_W}px;padding:4px 2px;text-align:center;
-               font-size:10px;font-weight:600;color:var(--text2);white-space:nowrap;
-               border-bottom:0.5px solid var(--border);background:var(--bg);">
-      ${p.label}
-    </th>`).join('');
-
-  const tableRows = rows.map(p=>{
-    const rowCells = periods.map(period=>{
-      const d = cells[p.name]?.[period.start];
-      if(!d) return `<td style="min-width:${CELL_W}px;max-width:${CELL_W}px;height:36px;
-        background:var(--bg2);border:0.5px solid var(--bg3);"></td>`;
-      
-      const val = d[calMetric];
-      const color = thresholdColor(calMetric, val);
-      const bg = THRESHOLD_COLORS[color];
-      const tc = THRESHOLD_TEXT_COLORS[color];
-      const fmtd = metricObj ? metricObj.fmt(val) : (val!=null?val:'—');
-      const openDot = d.hasOpen ? '<span style="position:absolute;top:2px;right:2px;width:5px;height:5px;border-radius:50%;background:var(--blue);"></span>' : '';
-      
-      // Tooltip content
-      const tipLines = [
-        d.auds!=null?`AUDs: ${d.auds.toFixed(1)}`:'',
-        d.pasturePct!=null?`Pasture: ${d.pasturePct}%`:'',
-        d.npkAcre!=null?`NPK/ac: ${d.npkAcre.toFixed(1)} lbs`:'',
-        d.omLbs>0.1?`OM: ${d.omLbs.toFixed(0)} lbs DM`:'',
-        d.costDay!=null?`Cost/day: $${d.costDay.toFixed(0)}`:'',
-      ].filter(Boolean).join(' | ');
-
-      return `<td style="min-width:${CELL_W}px;max-width:${CELL_W}px;height:36px;
-          background:${bg};border:0.5px solid ${color==='none'?'var(--bg3)':'transparent'};
-          text-align:center;vertical-align:middle;position:relative;cursor:default;"
-          title="${p.label} · ${tipLines}">
-        <span style="font-size:10px;font-weight:600;color:${tc};">${fmtd}</span>
-        ${openDot}
-      </td>`;
-    }).join('');
-
-    // Row totals
-    const allData = periods.map(period=>cells[p.name]?.[period.start]).filter(Boolean);
-    const rowAUDs    = allData.reduce((s,d)=>s+(d.auds||0),0);
-    const rowNPK     = allData.reduce((s,d)=>s+(d.totalNPK||0),0);
-    const rowOM      = allData.reduce((s,d)=>s+(d.omLbs||0),0);
-    const totalCost  = allData.reduce((s,d)=>s+(d.totalCost||0),0);
-    const totalDays  = allData.reduce((s,d)=>s+(d.totalDays||0),0);
-    const totalAcres = Math.max(...allData.map(d=>d.totalAcres||0), 0);
-    const rowPct     = allData.filter(d=>d.pasturePct!=null);
-    const avgPct     = rowPct.length ? Math.round(rowPct.reduce((s,d)=>s+d.pasturePct,0)/rowPct.length) : null;
-
-    return `<tr>
-      <td style="min-width:${PADDOCK_COL_W}px;max-width:${PADDOCK_COL_W}px;
-          padding:4px 8px;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-          position:sticky;left:0;z-index:2;background:var(--bg);border-right:0.5px solid var(--border);
-          border-bottom:0.5px solid var(--border2);">
-        ${p.name}
-        <div style="font-size:10px;font-weight:400;color:var(--text2);">${p.acres||0} ac</div>
-      </td>
-      ${rowCells}
-      <td style="min-width:160px;padding:4px 8px;font-size:11px;
-          position:sticky;right:0;background:var(--bg2);border-left:1px solid var(--border);
-          vertical-align:middle;">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px 8px;">
-          <div>
-            <div style="font-size:9px;color:var(--text2);line-height:1;">AUDs</div>
-            <div style="font-weight:700;color:${thresholdColor('auds',rowAUDs)==='green'?'var(--green-d)':thresholdColor('auds',rowAUDs)==='amber'?'var(--amber-d)':rowAUDs>0?'var(--text)':'var(--text2)'};">${rowAUDs>0?rowAUDs.toFixed(0):'—'}</div>
-          </div>
-          <div>
-            <div style="font-size:9px;color:var(--text2);line-height:1;">Pasture %</div>
-            <div style="font-weight:700;color:${thresholdColor('pasturePct',avgPct)==='green'?'var(--green-d)':thresholdColor('pasturePct',avgPct)==='amber'?'var(--amber-d)':avgPct!=null?'var(--text)':'var(--text2)'};">${avgPct!=null?avgPct+'%':'—'}</div>
-          </div>
-          <div>
-            <div style="font-size:9px;color:var(--text2);line-height:1;">NPK/ac</div>
-            <div style="font-weight:700;color:${thresholdColor('npkAcre',totalAcres>0?rowNPK/totalAcres:null)==='green'?'var(--green-d)':thresholdColor('npkAcre',totalAcres>0?rowNPK/totalAcres:null)==='amber'?'var(--amber-d)':'var(--text2)'};">${totalAcres>0?(rowNPK/totalAcres).toFixed(1):'—'}</div>
-          </div>
-          <div>
-            <div style="font-size:9px;color:var(--text2);line-height:1;">OM (lbs)</div>
-            <div style="font-weight:700;color:${thresholdColor('omLbs',rowOM)==='green'?'var(--green-d)':thresholdColor('omLbs',rowOM)==='amber'?'var(--amber-d)':rowOM>0?'var(--text)':'var(--text2)'};">${rowOM>0.1?rowOM.toFixed(0):'—'}</div>
-          </div>
-          <div>
-            <div style="font-size:9px;color:var(--text2);line-height:1;">$/day</div>
-            <div style="font-weight:700;color:${(()=>{const cpd=totalDays>0?totalCost/totalDays:null;const c=thresholdColor('costDay',cpd);return c==='green'?'var(--green-d)':c==='amber'?'var(--amber-d)':cpd!=null?'var(--text)':'var(--text2)';})()};">${totalDays>0?'$'+(totalCost/totalDays).toFixed(0):'—'}</div>
-          </div>
-        </div>
-      </td>
-    </tr>`;
-  }).join('');
-
-  el.innerHTML = `
-    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
-      <div style="display:flex;gap:4px;">${granPills}</div>
-      <div style="width:0.5px;height:20px;background:var(--border2);"></div>
-      <div style="display:flex;gap:4px;flex-wrap:wrap;">${metricPills}</div>
-      ${yearControls}
-    </div>
-    <div style="margin-bottom:10px;">${legendHtml}</div>
-    <div style="overflow-x:auto;overflow-y:auto;max-height:60vh;border:0.5px solid var(--border);border-radius:var(--radius);position:relative;">
-      <table style="border-collapse:collapse;min-width:100%;">
-        <thead style="position:sticky;top:0;z-index:3;">
-          <tr>
-            <th style="min-width:${PADDOCK_COL_W}px;max-width:${PADDOCK_COL_W}px;padding:6px 8px;
-                text-align:left;font-size:11px;font-weight:600;background:var(--bg);
-                position:sticky;left:0;z-index:4;border-right:0.5px solid var(--border);
-                border-bottom:0.5px solid var(--border);">Paddock</th>
-            ${headerCells}
-            <th style="min-width:160px;padding:6px 8px;text-align:left;font-size:11px;font-weight:600;
-                background:var(--bg2);position:sticky;right:0;z-index:4;
-                border-left:1px solid var(--border);border-bottom:0.5px solid var(--border);">
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px;">
-                <span>AUDs</span><span>Pasture%</span>
-                <span>NPK/ac</span><span>OM lbs</span>
-                <span>$/day</span><span></span>
-              </div>
-            </th>
-          </tr>
-        </thead>
-        <tbody>${tableRows}</tbody>
-      </table>
-    </div>
-    <div style="font-size:10px;color:var(--text2);margin-top:6px;">
-      Blue dot = active (open) event. Hover cells for full metric breakdown.
-      ${calGranularity==='day'?'Showing last 60 days.':calGranularity==='month'?'Showing last 24 months.':'Showing '+calYear+' season.'}
-    </div>
-  `;
-}
-
-// ── Thresholds settings list ──────────────────────────────────────────────────
-function renderThresholdsList(){
-  const el = document.getElementById('thresholds-list');
-  if(!el) return;
-  const keys = ['auds','pasturePct','npkAcre','omLbs','costDay'];
-  const descs = {
-    auds:      'Animal Unit Days per rotation — total weight × days / AU weight. Measures grazing pressure.',
-    pasturePct:'% of total DMI from pasture. Higher = better pasture utilization.',
-    npkAcre:   'Lbs of N+P+K deposited per acre per rotation.',
-    omLbs:     'Lbs of dry matter organic residual left on paddock from feed.',
-    costDay:   'Stored feed cost per day. Lower = better (more grazing, less purchased feed).',
-  };
-  el.innerHTML = keys.map(k=>{
-    const t = getThreshold(k);
-    const isLower = t.direction==='lower';
-    const warnLabel = isLower ? '% above target (amber threshold)' : '% of target for amber';
-    return `
-      <div style="padding:10px 0;border-bottom:0.5px solid var(--border);">
-        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px;">
-          <div>
-            <span style="font-size:13px;font-weight:600;">${t.label||k}</span>
-            <span style="font-size:11px;color:var(--text2);margin-left:6px;">${isLower?'lower is better':'higher is better'}</span>
-          </div>
-          <div style="display:flex;gap:8px;align-items:center;">
-            <div class="field" style="margin:0;">
-              <label style="font-size:10px;color:var(--text2);">${isLower?'Max target':'Target'}</label>
-              <input type="number" id="th-target-${k}" value="${t.target}" step="${k==='costDay'?'5':k==='pasturePct'?'5':'10'}"
-                style="width:72px;padding:4px 6px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:12px;background:var(--bg);color:var(--text);font-family:inherit;"/>
-            </div>
-            <div class="field" style="margin:0;">
-              <label style="font-size:10px;color:var(--text2);">${warnLabel}</label>
-              <input type="number" id="th-warn-${k}" value="${Math.round(t.warnPct*100)}" min="1" max="200" step="5"
-                style="width:60px;padding:4px 6px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:12px;background:var(--bg);color:var(--text);font-family:inherit;"/>
-            </div>
-          </div>
-        </div>
-        <div style="font-size:11px;color:var(--text2);">${descs[k]||''}</div>
-      </div>
-    `;
-  }).join('');
-}
-
-// ─── END ROTATION CALENDAR RENDER ────────────────────────────────────────────
-
-
-let _eventsView = 'log';
-function switchEventsView(view){
-  _eventsView = view;
-  document.getElementById('ev-view-log').style.display     = view==='log'      ? 'block' : 'none';
-  document.getElementById('ev-view-calendar').style.display = view==='calendar' ? 'block' : 'none';
-  const logTab = document.getElementById('ev-tab-log');
-  const calTab = document.getElementById('ev-tab-cal');
-  if(logTab){
-    logTab.style.background = view==='log' ? 'var(--green)' : 'transparent';
-    logTab.style.color      = view==='log' ? 'white' : 'var(--text2)';
-    logTab.style.border     = view==='log' ? '0.5px solid var(--green)' : '0.5px solid var(--border2)';
-    logTab.style.fontWeight = view==='log' ? '600' : '500';
-  }
-  if(calTab){
-    calTab.style.background = view==='calendar' ? 'var(--blue)' : 'transparent';
-    calTab.style.color      = view==='calendar' ? 'white' : 'var(--text2)';
-    calTab.style.border     = view==='calendar' ? '0.5px solid var(--blue)' : '0.5px solid var(--border2)';
-    calTab.style.fontWeight = view==='calendar' ? '600' : '500';
-  }
-  if(view==='calendar') renderRotationCalendar();
-  else renderEventsLog();
-}
+// renderRotationCalendar (metric grid) moved to shared function below
 
 function renderEventsLog(){
   const ae=getActive();
@@ -7727,102 +7496,224 @@ function rptSectionHead(title, sub=''){
 }
 
 // ── 1. ROTATION CALENDAR ────────────────────────────────────────────────────
-function renderRotationCalendar(){
-  const el = document.getElementById('rpt-rotation');
+
+// ─── UNIFIED ROTATION CALENDAR ───────────────────────────────────────────────
+// Shared by Reports tab (rpt-rotation) AND Events tab (rotation-calendar div)
+// Shows group-colored event blocks with AUD label inside each block.
+
+let calGranularity = 'month';
+let calMetric      = 'auds';
+let calYear        = new Date().getFullYear();
+
+function renderRotationCalendar(containerId){
+  const el = document.getElementById(containerId || 'rpt-rotation');
   if(!el) return;
 
   const closedEvs = S.events.filter(e=>e.status==='closed'&&e.dateIn&&e.dateOut&&e.locationType!=='confinement'&&e.type!=='amend');
   const openEvs   = S.events.filter(e=>e.status==='open'&&e.locationType!=='confinement');
+  const allEvs    = [...closedEvs, ...openEvs];
 
-  if(!closedEvs.length && !openEvs.length){
-    el.innerHTML = rptSectionHead('Rotation calendar','Which group was on which paddock, and when.') +
-      '<div class="card"><div class="empty">No grazing events yet.</div></div>';
+  if(!allEvs.length){
+    el.innerHTML = '<div class="card"><div class="empty">No grazing events yet.</div></div>';
     return;
   }
 
-  const allEvs = [...closedEvs, ...openEvs];
+  const auWt = S.settings.auWeight || 1000;
 
-  // Date range: earliest dateIn → today (max 365 days back)
+  // ── Date range ────────────────────────────────────────────────────────────
   const earliest = allEvs.reduce((m,e)=>e.dateIn<m?e.dateIn:m, todayStr());
-  const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-365);
+  const cutoff   = new Date(); cutoff.setDate(cutoff.getDate()-365);
   const startDate = earliest > cutoff.toISOString().slice(0,10) ? earliest : cutoff.toISOString().slice(0,10);
   const endDate   = todayStr();
 
-  // Build week boundaries (Sunday → Saturday)
+  // ── Week boundaries (Sun→Sat) ─────────────────────────────────────────────
   const weeks = [];
   let d = new Date(startDate+'T12:00:00');
-  d.setDate(d.getDate() - d.getDay()); // back to Sunday
-  while(d.toISOString().slice(0,10) <= endDate){
+  d.setDate(d.getDate() - d.getDay());
+  const endD = new Date(endDate+'T12:00:00');
+  endD.setDate(endD.getDate() + (6 - endD.getDay())); // pad to end of week
+  while(d <= endD){
     weeks.push(d.toISOString().slice(0,10));
     d.setDate(d.getDate()+7);
   }
 
-  // Unique pastures that appear in events
-  const pastureNames = [...new Set(allEvs.map(e=>e.pasture))].sort((a,b)=>a.localeCompare(b,'en',{numeric:true}));
+  // ── Paddocks (only those with events in range) ────────────────────────────
+  const paddockNames = [...new Set(allEvs.map(e=>e.pasture))].sort((a,b)=>a.localeCompare(b,'en',{numeric:true}));
 
-  // Group color lookup
-  function grpColor(groupId){ const g=getGroupById(groupId); return g?g.color||'#639922':'#888'; }
-  function grpName(groupId){  const g=getGroupById(groupId); return g?g.name:'?'; }
+  function grpColor(gId){ const g=getGroupById(gId); return g?g.color||'#639922':'#888'; }
+  function grpName(gId){  const g=getGroupById(gId); return g?g.name:'?'; }
+  function weekEnd(ws){ const d2=new Date(ws+'T12:00:00'); d2.setDate(d2.getDate()+6); return d2.toISOString().slice(0,10); }
 
-  // For each pasture × week, find which event was active
-  function eventForWeek(pasture, weekStart){
-    const ws = new Date(weekStart+'T12:00:00');
-    const we = new Date(ws); we.setDate(we.getDate()+6);
-    const wsStr = ws.toISOString().slice(0,10);
-    const weStr = we.toISOString().slice(0,10);
-    return allEvs.find(e=>e.pasture===pasture && e.dateIn<=weStr && (e.dateOut||todayStr())>=wsStr) || null;
+  // AUDs for an event (full duration, not pro-rated — shows total grazing pressure per rotation)
+  function eventAUDs(ev){
+    const days = daysBetween(ev.dateIn, ev.dateOut||todayStr());
+    return ((ev.head||0) * (ev.wt||0) / auWt) * days;
   }
 
-  // Build header row (month labels at week columns)
-  let lastMonth = '';
+  // ── Month label header ────────────────────────────────────────────────────
+  let lastMonth='';
   const weekHeaders = weeks.map(w=>{
     const m = new Date(w+'T12:00:00').toLocaleDateString('en-US',{month:'short'});
-    const label = m!==lastMonth ? (lastMonth=m,m) : '';
-    return `<th style="min-width:28px;font-size:10px;color:var(--text2);text-align:center;
-      padding:3px 1px;white-space:nowrap;font-weight:${label?'600':'400'};">${label}</th>`;
+    const lbl = m!==lastMonth ? (lastMonth=m,m) : '';
+    const isFirst = !!lbl;
+    return `<th style="min-width:28px;max-width:28px;font-size:9px;color:var(--text2);text-align:center;
+      padding:2px 0;white-space:nowrap;font-weight:${isFirst?'700':'400'};
+      border-left:${isFirst?'1px solid var(--border2)':'none'};">${lbl}</th>`;
   }).join('');
 
-  // Build grid rows
-  const rows = pastureNames.map(pasture=>{
-    const cells = weeks.map(w=>{
-      const ev = eventForWeek(pasture, w);
-      if(!ev) return `<td style="min-width:28px;height:26px;padding:1px;"></td>`;
+  // ── Grid rows ─────────────────────────────────────────────────────────────
+  const rows = paddockNames.map(pasture=>{
+    const pad    = findPastureByName(pasture);
+    const acres  = pad && pad.acres ? pad.acres+' ac' : '';
+    const padEvs = allEvs.filter(e=>e.pasture===pasture).sort((a,b)=>a.dateIn.localeCompare(b.dateIn));
+
+    // Build a map: weekStart → event (or null)
+    const weekMap = {};
+    weeks.forEach(w=>{ weekMap[w]=null; });
+    padEvs.forEach(ev=>{
+      weeks.forEach(w=>{
+        const we = weekEnd(w);
+        if(ev.dateIn <= we && (ev.dateOut||todayStr()) >= w) weekMap[w]=ev;
+      });
+    });
+
+    // Build cells, merging consecutive same-event weeks into one td with colspan
+    const cells = [];
+    let i=0;
+    while(i < weeks.length){
+      const w  = weeks[i];
+      const ev = weekMap[w];
+      if(!ev){ cells.push({ev:null,span:1,w}); i++; continue; }
+      // Count how many consecutive weeks share this exact event
+      let span=1;
+      while(i+span < weeks.length && weekMap[weeks[i+span]]===ev) span++;
+      cells.push({ev,span,w});
+      i+=span;
+    }
+
+    const tds = cells.map(c=>{
+      if(!c.ev) return `<td colspan="${c.span}" style="min-width:${28*c.span}px;height:30px;border:none;"></td>`;
+      const ev    = c.ev;
       const color = grpColor(ev.groupId);
       const name  = grpName(ev.groupId);
-      const isOpen = ev.status==='open';
-      return `<td style="min-width:28px;height:26px;padding:1px;" title="${name} on ${pasture}">
-        <div class="rot-cell" style="width:26px;background:${color};opacity:${isOpen?'1':'0.75'};
-          ${isOpen?'outline:2px solid '+color+';outline-offset:1px;':''}"></div>
+      const auds  = eventAUDs(ev);
+      const isOpen= ev.status==='open';
+      const days  = daysBetween(ev.dateIn, ev.dateOut||todayStr());
+
+      // Only show text if enough space (≥2 weeks wide)
+      const showText = c.span >= 2;
+      const audsStr  = auds>=0.1 ? (auds>=100?Math.round(auds)+'AU':auds.toFixed(0)+'AU') : '';
+      const daysStr  = days+'d';
+
+      return `<td colspan="${c.span}" style="min-width:${28*c.span}px;height:30px;padding:0;
+          position:relative;vertical-align:top;"
+          title="${name} on ${pasture} · ${days} days · ${isHayFeed?'100% stored feed — 0 pasture AUDs':(auds>=0.1?auds.toFixed(1)+' pasture AUDs ('+Math.round(auds/days*100/(((ev.head||0)*(ev.wt||0)/auWt)||1))+'% pasture-supported)':'no AUD data — set head+weight on event')}">
+        <div style="height:28px;margin:1px 1px 0;border-radius:3px;
+          background:${color};opacity:${isOpen?1:0.8};
+          display:flex;align-items:center;justify-content:center;gap:3px;
+          overflow:hidden;
+          outline:${isOpen?'2px solid '+color:'none'};outline-offset:1px;">
+          ${showText ? `
+            <span style="font-size:9px;font-weight:700;color:white;white-space:nowrap;
+              text-shadow:0 1px 2px rgba(0,0,0,0.4);overflow:hidden;text-overflow:ellipsis;padding:0 2px;">
+              ${isHayFeed ? 'HAY' : (audsStr ? audsStr+' · ' : '')}${isHayFeed ? ' · '+daysStr : daysStr}
+            </span>` : ''}
+        </div>
       </td>`;
     }).join('');
 
-    const padAcres = (()=>{ const p=findPastureByName(pasture); return p&&p.acres?p.acres+' ac':''; })();
+    // Row totals
+    const rowAUDs   = padEvs.reduce((s,e)=>s+eventAUDs(e),0);
+    const rowPctEvs = padEvs.filter(e=>e.status==='closed'&&e.totals?.pct!=null);
+    const avgPct    = rowPctEvs.length ? Math.round(rowPctEvs.reduce((s,e)=>s+e.totals.pct,0)/rowPctEvs.length) : null;
+    const rowOM     = padEvs.reduce((s,e)=>s+(e.totals?.organicMatterLbs||0),0);
+    const rowN      = padEvs.reduce((s,e)=>s+(e.totals?.npk?.n||0),0);
+    const rowP      = padEvs.reduce((s,e)=>s+(e.totals?.npk?.p||0),0);
+    const rowK      = padEvs.reduce((s,e)=>s+(e.totals?.npk?.k||0),0);
+    const rowCost   = padEvs.reduce((s,e)=>s+(e.totals?.cost||0),0);
+    const rowDays   = padEvs.reduce((s,e)=>s+(e.totals?.days||0),0);
+
+    const audColor  = thresholdColor('auds', rowAUDs);
+    const pctColor  = thresholdColor('pasturePct', avgPct);
+
     return `<tr>
-      <td style="white-space:nowrap;font-size:13px;font-weight:500;padding:3px 12px 3px 0;
-        min-width:120px;position:sticky;left:0;background:var(--bg);z-index:1;">
-        ${pasture}<span style="color:var(--text2);font-size:11px;margin-left:4px;">${padAcres}</span></td>
-      ${cells}
+      <td style="white-space:nowrap;font-size:12px;font-weight:500;padding:2px 10px 2px 0;
+        min-width:130px;position:sticky;left:0;z-index:2;background:var(--bg);
+        border-right:0.5px solid var(--border);vertical-align:middle;">
+        ${pasture}
+        <div style="font-size:10px;color:var(--text2);font-weight:400;">${acres}</div>
+      </td>
+      ${tds}
+      <td style="min-width:130px;padding:3px 8px;font-size:10px;
+        position:sticky;right:0;z-index:2;background:var(--bg2);
+        border-left:0.5px solid var(--border);vertical-align:middle;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px 6px;">
+          <div>
+            <div style="font-size:9px;color:var(--text2);">AUDs</div>
+            <div style="font-weight:700;color:${THRESHOLD_TEXT_COLORS[audColor]};">${rowAUDs>0?rowAUDs.toFixed(0):'—'}</div>
+          </div>
+          <div>
+            <div style="font-size:9px;color:var(--text2);">Pasture %</div>
+            <div style="font-weight:700;color:${THRESHOLD_TEXT_COLORS[pctColor]};">${avgPct!=null?avgPct+'%':'—'}</div>
+          </div>
+          <div>
+            <div style="font-size:9px;color:var(--text2);">NPK (N/P/K)</div>
+            <div style="font-weight:600;color:var(--purple-d);font-size:10px;">${rowN>0?rowN.toFixed(0)+'/'+rowP.toFixed(0)+'/'+rowK.toFixed(0):'—'}</div>
+          </div>
+          <div>
+            <div style="font-size:9px;color:var(--text2);">OM lbs</div>
+            <div style="font-weight:600;color:var(--teal-d);">${rowOM>0?rowOM.toFixed(0):'—'}</div>
+          </div>
+          <div>
+            <div style="font-size:9px;color:var(--text2);">Feed cost</div>
+            <div style="font-weight:600;color:var(--amber-d);">${rowDays>0?'$'+(rowCost/rowDays).toFixed(0)+'/d':'—'}</div>
+          </div>
+          <div>
+            <div style="font-size:9px;color:var(--text2);">Events</div>
+            <div style="font-weight:600;color:var(--text);">${padEvs.length}</div>
+          </div>
+        </div>
+      </td>
     </tr>`;
   }).join('');
 
-  // Legend
-  const groups = [...new Set(allEvs.map(e=>e.groupId).filter(Boolean))];
-  const legend = groups.map(gId=>`
-    <span style="display:inline-flex;align-items:center;gap:5px;margin-right:14px;font-size:12px;">
-      <span style="width:12px;height:12px;border-radius:3px;background:${grpColor(gId)};display:inline-block;flex-shrink:0;"></span>
+  // ── Group legend ──────────────────────────────────────────────────────────
+  const groupIds = [...new Set(allEvs.map(e=>e.groupId).filter(Boolean))];
+  const legend = groupIds.map(gId=>`
+    <span style="display:inline-flex;align-items:center;gap:5px;margin-right:12px;font-size:12px;">
+      <span style="width:12px;height:12px;border-radius:3px;background:${grpColor(gId)};display:inline-block;"></span>
       ${grpName(gId)}
-    </span>`).join('');
+    </span>`).join('') +
+    (allEvs.some(e=>e.noPasture) ? `<span style="display:inline-flex;align-items:center;gap:5px;margin-right:12px;font-size:12px;">
+      <span style="width:12px;height:12px;border-radius:3px;background:#C4A882;display:inline-block;"></span>
+      Hay / stored feed
+    </span>` : '');
 
-  el.innerHTML = rptSectionHead('Rotation calendar',
-    `${pastureNames.length} paddocks · ${weeks.length} weeks · outlined = currently active`) + `
-    <div style="margin-bottom:12px;">${legend}<span style="font-size:12px;color:var(--text2);margin-left:4px;">Scroll right →</span></div>
-    <div class="rot-grid-wrap card" style="padding:14px;">
-      <table style="border-collapse:collapse;">
-        <thead><tr><th style="min-width:120px;position:sticky;left:0;background:var(--bg);z-index:2;"></th>${weekHeaders}</tr></thead>
+  el.innerHTML = `
+    <div style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+      <div>${legend}</div>
+      <div style="font-size:11px;color:var(--text2);">Cells show AUDs·days. Hover for detail. Outlined = active event.</div>
+    </div>
+    <div style="overflow-x:auto;overflow-y:auto;max-height:65vh;border:0.5px solid var(--border);border-radius:var(--radius);position:relative;">
+      <table style="border-collapse:collapse;min-width:100%;">
+        <thead style="position:sticky;top:0;z-index:5;background:var(--bg);">
+          <tr>
+            <th style="min-width:130px;padding:4px 10px 4px 0;text-align:left;font-size:11px;
+              font-weight:600;position:sticky;left:0;z-index:6;background:var(--bg);
+              border-right:0.5px solid var(--border);border-bottom:0.5px solid var(--border);">Paddock</th>
+            ${weekHeaders}
+            <th style="min-width:130px;padding:4px 8px;text-align:left;font-size:11px;font-weight:600;
+              position:sticky;right:0;z-index:6;background:var(--bg2);
+              border-left:0.5px solid var(--border);border-bottom:0.5px solid var(--border);">Season totals</th>
+          </tr>
+        </thead>
         <tbody>${rows}</tbody>
       </table>
-    </div>`;
+    </div>
+  `;
 }
+// ─── END UNIFIED ROTATION CALENDAR ───────────────────────────────────────────
+
 
 // ── 2. NPK FERTILITY DASHBOARD ───────────────────────────────────────────────
 function renderNpkDashboard(){
@@ -8110,8 +8001,18 @@ function renderSeasonSummary(){
     const avgP = evs.filter(e=>e.totals.pct!=null).length
       ? Math.round(evs.reduce((s,e)=>s+(e.totals.pct||0),0)/evs.filter(e=>e.totals.pct!=null).length) : null;
     const acres=parseFloat(p.acres)||0;
+    const auWt2=S.settings.auWeight||1000;
+    const auds=evs.reduce((s,e)=>{
+      if(e.noPasture) return s;
+      const totalAUs=(e.head||0)*(e.wt||0)/auWt2;
+      const days2=(e.totals?.days)||daysBetween(e.dateIn,e.dateOut||todayStr());
+      const pFrac=e.totals?.pct!=null ? Math.max(0,e.totals.pct)/100 : 1;
+      return s + totalAUs*days2*pFrac;
+    },0);
+    const audColor=thresholdColor('auds',auds);
     return `<tr>
       <td style="font-weight:500;">${p.name}<div style="font-size:11px;color:var(--text2);">${acres?acres+' ac':''}</div></td>
+      <td style="text-align:right;padding:6px 8px;font-weight:700;color:${THRESHOLD_TEXT_COLORS[audColor]};">${auds>0?auds.toFixed(0):'—'}</td>
       <td>${evs.length} × ${Math.round(days/evs.length)} day avg</td>
       <td style="color:${avgP>=70?'var(--green-d)':avgP>=40?'var(--amber-d)':'var(--text2)'};">${avgP!=null?avgP+'%':'--'}</td>
       <td>N${n.toFixed(0)}/P${p2.toFixed(0)}/K${k.toFixed(0)}</td>
@@ -8131,7 +8032,7 @@ function renderSeasonSummary(){
         <button class="btn btn-outline btn-sm" onclick="exportSeasonSummaryXLSX()">Export XLSX</button>
       </div>
       <table class="rpt-tbl">
-        <thead><tr><th>Paddock</th><th>Events / avg days</th><th>Avg pasture %</th><th>NPK (lbs)</th><th>NPK value</th><th>OM residual</th></tr></thead>
+        <thead><tr><th>Paddock</th><th>AUDs</th><th>Events / avg days</th><th>Avg pasture %</th><th>NPK (lbs)</th><th>NPK value</th><th>OM residual</th></tr></thead>
         <tbody>${padRows}</tbody>
       </table>
     </div>`:''}`;
