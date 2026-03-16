@@ -2231,8 +2231,10 @@ function wizCloseEvent(){
   ae.dateOut=outDate;ae.heightOut=parseFloat(document.getElementById('w-res-h').value)||null;
   ae.feedResidual=feedRes;
   ae.status='closed';
+  const _closedPad=getPastureForEvent(ae);
   ae.totals={days,storedDMI:sdmi,pastureDMI:pdmi,cost,pct,npk,npkVal,
-             pFraction:Math.round(pFraction*100),subMoveHours:subHrs,totalHours:totalHrs};
+             pFraction:Math.round(pFraction*100),subMoveHours:subHrs,totalHours:totalHrs,
+             pastureAcres:_closedPad?parseFloat(_closedPad.acres)||null:null};
   // Credit NPK to each sub-move location
   if(subMoveNPK.length){
     subMoveNPK.forEach(smNPK=>{
@@ -2312,7 +2314,7 @@ function onWizPaddockChange(){
 }
 function renderWizFeedSel(){
   const el=document.getElementById('w-feed-sel');
-  const active=S.batches.filter(b=>b.remaining>0);
+  const active=S.batches.filter(b=>b.remaining>0&&!b.archived);
   if(!active.length){el.innerHTML='<div style="font-size:13px;color:var(--text2);">No batches available</div>';return;}
   el.innerHTML=active.map(b=>{const on=wizFeedLines.find(l=>l.batchId===b.id);
     return `<div class="batch-sel${on?' on':''}" onclick="toggleWizFeed(${b.id})"><div><div style="font-size:13px;font-weight:600;">${b.label}</div><div style="font-size:11px;color:var(--text2);">${b.remaining.toFixed(1)} ${b.unit}s</div></div><div class="chk">${on?'<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>':''}</div></div>`;
@@ -2338,7 +2340,8 @@ function wizSaveNew(){
   const g=wizGroupId?getGroupById(wizGroupId):null;
   const t=g?getGroupTotals(g):{totalHead:0,avgWeight:0};
   const noPastureFlag=document.getElementById('w-no-pasture')?.checked||false;
-  S.events.push({id:Date.now()+1,status:'open',pasture:locName,locationType:isCon?'confinement':'pasture',groupId:wizGroupId||null,groupName:g?g.name:'',dateIn:inDate,noPasture:noPastureFlag,head:parseFloat(document.getElementById('w-new-head').value)||t.totalHead||0,wt:parseFloat(document.getElementById('w-new-wt').value)||t.avgWeight||0,heightIn:(!isCon&&parseFloat(document.getElementById('w-new-h').value))||null,feedEntries});
+  const _newEvLoc=S.pastures.find(p=>p.name===locName)||findPastureByName(locName);
+  S.events.push({id:Date.now()+1,status:'open',pasture:locName,pastureId:_newEvLoc?_newEvLoc.id:null,locationType:isCon?'confinement':'pasture',groupId:wizGroupId||null,groupName:g?g.name:'',dateIn:inDate,noPasture:noPastureFlag,head:parseFloat(document.getElementById('w-new-head').value)||t.totalHead||0,wt:parseFloat(document.getElementById('w-new-wt').value)||t.avgWeight||0,heightIn:(!isCon&&parseFloat(document.getElementById('w-new-h').value))||null,feedEntries});
   wizFeedLines=[];save();nav('home',document.getElementById('bn-home'));
 }
 
@@ -2384,7 +2387,7 @@ function onCaptureChange(){
 function addPasture(){
   const name=document.getElementById('p-name').value.trim();if(!name){alert('Enter a name');return;}
   const locType=document.getElementById('p-loctype').value;
-  const loc={name,acres:parseFloat(document.getElementById('p-acres').value)||0,locationType:locType};
+  const loc={id:generatePastureId(),archived:false,name,acres:parseFloat(document.getElementById('p-acres').value)||0,locationType:locType};
   if(locType==='pasture'){
     loc.soil=document.getElementById('p-soil').value;
     loc.species=document.getElementById('p-species').value;
@@ -2438,6 +2441,10 @@ function renderPastures(){
     <div>${pastureSortHdr('name','Name')} · ${pastureSortHdr('acres','Acres')}</div>
     <div>${pastureSortHdr('avg','Avg %')}</div>
   </div>` + sortedPastureList.map((p)=>{ const i=S.pastures.indexOf(p);
+    if(p.archived) return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:0.5px solid var(--border);opacity:0.45;">
+      <div><div style="font-size:13px;font-weight:500;">${p.name} <span class="badge bb">archived</span></div><div style="font-size:11px;color:var(--text2);">${p.acres||0} ac</div></div>
+      <button class="btn btn-outline btn-xs" onclick="unarchive('pasture',${JSON.stringify(p.id)})">Unarchive</button>
+    </div>`;
     const isCon=p.locationType==='confinement';
     const evs=S.events.filter(e=>e.pasture===p.name&&e.status==='closed');
     const avg=!isCon&&evs.length?Math.round(evs.reduce((s,e)=>s+(e.totals?e.totals.pct||0:0),0)/evs.length):null;
@@ -2448,7 +2455,7 @@ function renderPastures(){
     // Calculate NPK totals for pasture locations
     let npkLine='';
     if(!isCon){
-      const gEvsClosed=S.events.filter(e=>e.pasture===p.name&&e.status==='closed'&&e.locationType!=='confinement'&&e.totals&&e.totals.npk);
+      const gEvsClosed=S.events.filter(e=>(e.pasture===p.name||(e.pastureId&&e.pastureId===p.id))&&e.status==='closed'&&e.locationType!=='confinement'&&e.totals&&e.totals.npk);
       const spreadEvs=S.events.filter(e=>e.pasture===p.name&&e.type==='amend'&&e.amendType==='manure');
       const totalN=gEvsClosed.reduce((s,e)=>s+(e.totals.npk.n||0),0)+spreadEvs.reduce((s,e)=>s+(e.manureNLbs||0),0);
       const totalP=gEvsClosed.reduce((s,e)=>s+(e.totals.npk.p||0),0)+spreadEvs.reduce((s,e)=>s+(e.manurePLbs||0),0);
@@ -2461,7 +2468,7 @@ function renderPastures(){
       const remLbs=batches.reduce((s,b)=>s+getBatchRemaining(b),0);
       if(remLbs>0){const vol=volLbsToDisplay(remLbs);manureLine=`<div style="font-size:11px;color:var(--amber-d);margin-top:3px;">~${vol.val} ${vol.unit} in storage</div>`;}
     }
-    return `<div class="chip"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><div style="font-size:14px;font-weight:600;">${p.name} ${isActive?'<span class="badge bt">active</span>':''} ${isCon?'<span class="badge bb">confinement</span>':''}</div><div style="font-size:12px;color:var(--text2);margin-top:2px;">${detail}</div>${npkLine}${manureLine}</div><div style="display:flex;gap:6px;align-items:center;">${typeBadge}${avg!==null?`<span class="badge ${avg>=60?'bg':'ba'}">${avg}% avg</span>`:''} ${openTasks?`<span class="badge ba">${openTasks} task${openTasks!==1?'s':''}</span>`:''}<button class="btn btn-outline btn-xs" onclick="openLocEdit(${i})">Edit</button><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:20px;padding:2px 6px;" onclick="if(confirm('Delete '+S.pastures[${i}].name+'?')){S.pastures.splice(${i},1);stampSetup();save();renderPastures();}">×</button></div></div></div>`;
+    return `<div class="chip"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><div style="font-size:14px;font-weight:600;">${p.name} ${isActive?'<span class="badge bt">active</span>':''} ${isCon?'<span class="badge bb">confinement</span>':''}</div><div style="font-size:12px;color:var(--text2);margin-top:2px;">${detail}</div>${npkLine}${manureLine}</div><div style="display:flex;gap:6px;align-items:center;">${typeBadge}${avg!==null?`<span class="badge ${avg>=60?'bg':'ba'}">${avg}% avg</span>`:''} ${openTasks?`<span class="badge ba">${openTasks} task${openTasks!==1?'s':''}</span>`:''}<button class="btn btn-outline btn-xs" onclick="openLocEdit(${i})">Edit</button><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:20px;padding:2px 6px;" onclick="tryDeletePasture(${i})">×</button></div></div></div>`;
   }).join('');
 }
 
@@ -2499,16 +2506,19 @@ function loadSettings(){
 }
 function addFeedType(){
   const name=document.getElementById('ft-name').value.trim();if(!name)return;
-  S.feedTypes.push({id:Date.now(),name,unit:document.getElementById('ft-unit').value,dm:parseFloat(document.getElementById('ft-dm').value)||85,cat:document.getElementById('ft-cat').value});
+  S.feedTypes.push({id:generateFeedTypeId(),archived:false,name,unit:document.getElementById('ft-unit').value,dm:parseFloat(document.getElementById('ft-dm').value)||85,cat:document.getElementById('ft-cat').value});
   stampSetup();save();renderFeedTypes();populateBatchTypeSelect();document.getElementById('ft-name').value='';
 }
 function renderFeedTypes(){
   const el=document.getElementById('ft-list');
   if(!S.feedTypes.length){el.innerHTML='<div style="font-size:13px;color:var(--text2);margin-bottom:8px;">None yet</div>';populateBatchTypeSelect();return;}
-  el.innerHTML=S.feedTypes.map((ft,i)=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);font-size:13px;"><span>${ft.name} <span class="badge bb">${ft.unit}</span> <span class="badge bg">${ft.dm}% DM</span></span><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;" onclick="if(confirm('Delete feed type '+S.feedTypes[${i}].name+'?')){S.feedTypes.splice(${i},1);stampSetup();save();renderFeedTypes();}">×</button></div>`).join('');
+  el.innerHTML=S.feedTypes.map((ft,i)=>ft.archived
+    ?`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);opacity:0.45;"><span style="font-size:13px;">${ft.name} <span class="badge bb">archived</span></span><button class="btn btn-outline btn-xs" onclick="unarchive('feedType',${ft.id})">Unarchive</button></div>`
+    :`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);font-size:13px;"><span>${ft.name} <span class="badge bb">${ft.unit}</span> <span class="badge bg">${ft.dm}% DM</span></span><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;" onclick="tryDeleteFeedType(${i})">×</button></div>`
+  ).join('');
   populateBatchTypeSelect();
 }
-function populateBatchTypeSelect(){document.getElementById('b-type').innerHTML='<option value="">— type —</option>'+S.feedTypes.map(ft=>`<option value="${ft.id}">${ft.name} (${ft.unit})</option>`).join('');}
+function populateBatchTypeSelect(){document.getElementById('b-type').innerHTML='<option value="">— type —</option>'+S.feedTypes.filter(ft=>!ft.archived).map(ft=>`<option value="${ft.id}">${ft.name} (${ft.unit})</option>`).join('');}
 function calcBatch(){const q=parseFloat(document.getElementById('b-qty').value),c=parseFloat(document.getElementById('b-cpu').value);if(q&&c)document.getElementById('b-tcost').value=(q*c).toFixed(2);}
 function calcBatchFromTotal(){const q=parseFloat(document.getElementById('b-qty').value),t=parseFloat(document.getElementById('b-tcost').value);if(q&&t)document.getElementById('b-cpu').value=(t/q).toFixed(3);}
 function addBatch(){
@@ -2516,14 +2526,24 @@ function addBatch(){
   if(!ft){alert('Select a feed type');return;}
   const qty=parseFloat(document.getElementById('b-qty').value);if(!qty){alert('Enter quantity');return;}
   const label=document.getElementById('b-label').value.trim()||(ft.name+' '+new Date().toLocaleDateString('en-US',{month:'short',year:'numeric'}));
-  S.batches.push({id:Date.now(),typeId,typeName:ft.name,unit:ft.unit,dm:ft.dm,qty,remaining:qty,wt:parseFloat(document.getElementById('b-wt').value)||null,cpu:parseFloat(document.getElementById('b-cpu').value)||0,label,date:todayStr()});
+  S.batches.push({id:Date.now(),archived:false,typeId,typeName:ft.name,unit:ft.unit,dm:ft.dm,qty,remaining:qty,wt:parseFloat(document.getElementById('b-wt').value)||null,cpu:parseFloat(document.getElementById('b-cpu').value)||0,label,date:todayStr()});
   save();renderBatchListS();['b-qty','b-wt','b-cpu','b-tcost','b-label'].forEach(id=>document.getElementById(id).value='');
 }
 function renderBatchListS(){
   const el=document.getElementById('batch-list-s');
   if(!S.batches.length){el.innerHTML='<div style="font-size:13px;color:var(--text2);">No batches yet</div>';return;}
-  el.innerHTML=S.batches.map(b=>{const pct=Math.round(b.remaining/b.qty*100);
-    return `<div style="margin-bottom:10px;"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;"><span style="font-weight:600;">${b.label}</span><span style="color:var(--text2);">${b.remaining.toFixed(1)}/${b.qty} ${b.unit}s · $${(b.cpu||0).toFixed(2)}/${b.unit}</span></div><div class="prog"><div class="prog-fill" style="width:${pct}%;background:${pct>30?'var(--green)':'var(--amber)'};"></div></div></div>`;
+  el.innerHTML=S.batches.map((b,i)=>{
+    if(b.archived)return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:0.5px solid var(--border);opacity:0.5;font-size:12px;">
+      <span style="color:var(--text2);">${b.label} <span class="badge bb">archived</span></span>
+      <button class="btn btn-outline btn-xs" onclick="unarchive('batch',${b.id})">Unarchive</button></div>`;
+    const pct=Math.round(b.remaining/b.qty*100);
+    return `<div style="margin-bottom:10px;"><div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-bottom:3px;">
+      <span style="font-weight:600;">${b.label}</span>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span style="color:var(--text2);">${b.remaining.toFixed(1)}/${b.qty} ${b.unit}s · $${(b.cpu||0).toFixed(2)}/${b.unit}</span>
+        <button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;padding:0 4px;" onclick="tryDeleteBatch(${i})">×</button>
+      </div></div>
+      <div class="prog"><div class="prog-fill" style="width:${pct}%;background:${pct>30?'var(--green)':'var(--amber)'};" ></div></div></div>`;
   }).join('');
 }
 function updateHeader(){
@@ -2876,7 +2896,7 @@ function addAnimalClass(){
   const name=document.getElementById('cls-name').value.trim();
   if(!name){alert('Enter a class name');return;}
   S.animalClasses.push({
-    id:Date.now(),name,
+    id:Date.now(),archived:false,name,
     species:document.getElementById('cls-species').value,
     defaultWeightLbs:parseFloat(document.getElementById('cls-wt').value)||1000,
     dmiPct:parseFloat(document.getElementById('cls-dmi').value)||2.5,
@@ -2890,11 +2910,10 @@ function addAnimalClass(){
 function renderClassesList(){
   const el=document.getElementById('classes-list');if(!el)return;
   if(!S.animalClasses.length){el.innerHTML='<div style="font-size:13px;color:var(--text2);margin-bottom:8px;">No classes yet — add above or defaults will be seeded on first group creation</div>';return;}
-  el.innerHTML=S.animalClasses.map((c,i)=>`
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);font-size:13px;">
-      <span><strong>${c.name}</strong> <span class="badge bb">${c.species}</span> <span class="badge bt">${c.defaultWeightLbs} lbs</span> <span class="badge bg">${c.dmiPct}% DMI</span></span>
-      <button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;" onclick="if(confirm('Delete class '+S.animalClasses[${i}].name+'?')){S.animalClasses.splice(${i},1);stampSetup();save();renderClassesList();}">×</button>
-    </div>`).join('');
+  el.innerHTML=S.animalClasses.map((c,i)=>c.archived
+    ?`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);opacity:0.45;"><span style="font-size:13px;"><strong>${c.name}</strong> <span class="badge bb">archived</span></span><button class="btn btn-outline btn-xs" onclick="unarchive('class',${c.id})">Unarchive</button></div>`
+    :`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);font-size:13px;"><span><strong>${c.name}</strong> <span class="badge bb">${c.species}</span> <span class="badge bt">${c.defaultWeightLbs} lbs</span> <span class="badge bg">${c.dmiPct}% DMI</span></span><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;" onclick="tryDeleteAnimalClass(${i})">×</button></div>`
+  ).join('');
 }
 
 // ── Animal Groups UI ─────────────────────────────────────────────────────────
@@ -2957,7 +2976,7 @@ function renderGroupsList(){
     } else if(g.classes){
       breakdown=g.classes.map(c=>{const cls=S.animalClasses.find(x=>x.id===c.classId);return`${c.count} ${cls?cls.name:'?'}`;}).join(', ');
     }
-    return `<div class="chip" style="border-left:3px solid ${g.color||'var(--green)'};margin-bottom:6px;">
+    return `<div class="chip" style="border-left:3px solid ${g.color||'var(--green)'};margin-bottom:6px;${g.archived?'opacity:0.5;':''};">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;">
         <div>
           <div style="font-size:14px;font-weight:600;">${g.name} ${ae?`<span class="badge bt">active · ${loc}</span>`:''}</div>
@@ -2967,7 +2986,7 @@ function renderGroupsList(){
         <div style="display:flex;gap:6px;align-items:center;">
           ${ae?`<button class="btn btn-outline btn-xs" onclick="openSplitSheet(${g.id})">Split</button>`:''}
           <button class="btn btn-outline btn-xs" onclick="openWtSheet(${g.id})">Weights</button>
-          <button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:18px;padding:2px 4px;" onclick="removeGroup(${i})">×</button>
+          ${g.archived?`<button class="btn btn-outline btn-xs" onclick="unarchive('group',${g.id})">Unarchive</button>`:`<button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:18px;padding:2px 4px;" onclick="tryDeleteAnimalGroup(${i})">×</button>`}
         </div>
       </div>
     </div>`;
@@ -2976,9 +2995,7 @@ function renderGroupsList(){
 
 function removeGroup(i){
   const g=S.animalGroups[i];
-  if(getActiveEventForGroup(g.id)){alert('Cannot remove a group with an active event. Close the event first.');return;}
-  if(!confirm('Delete group "'+g.name+'"? Animals will become unassigned.'))return;
-  S.animalGroups.splice(i,1);stampSetup();save();renderGroupsList();renderHome();
+  tryDeleteAnimalGroup(i);
 }
 
 // ── Split group ───────────────────────────────────────────────────────────────
@@ -3046,7 +3063,7 @@ function saveSplit(){
   g.classes=g.classes.map((c,i)=>({...c,count:c.count-movedCounts[i].count})).filter(c=>c.count>0);
   // Create new group
   const newId=Date.now();
-  S.animalGroups.push({id:newId,name:newName,color:splitSrcColor,classes:movedCounts.filter(c=>c.count>0)});
+  S.animalGroups.push({id:newId,archived:false,name:newName,color:splitSrcColor,classes:movedCounts.filter(c=>c.count>0)});
   // Update source group's open event snapshot
   const ae=getActiveEventForGroup(gId);
   if(ae){const t=getGroupTotals(g);ae.head=t.totalHead;ae.wt=t.avgWeight;}
@@ -3110,7 +3127,7 @@ function saveLocEdit(){
   }
   // Update name references in events if name changed
   if(p.name!==oldName){
-    S.events.filter(e=>e.pasture===oldName).forEach(e=>e.pasture=p.name);
+    S.events.filter(e=>e.pasture===oldName).forEach(e=>{e.pasture=p.name;if(p.id)e.pastureId=p.id;});
     S.todos.filter(t=>t.paddock===oldName).forEach(t=>t.paddock=p.name);
   }
   stampSetup();save();closeLocEdit();renderPastures();
@@ -3222,12 +3239,12 @@ function guessSexFromClass(className){
 function populateAnimalClassSelect(selectId, selectedId){
   const el=document.getElementById(selectId);if(!el)return;
   el.innerHTML='<option value="">— class —</option>'+
-    [...S.animalClasses].sort((a,b)=>a.name.localeCompare(b.name,'en',{numeric:true})).map(c=>`<option value="${c.id}"${c.id===selectedId?' selected':''}>${c.name} (${c.species})</option>`).join('');
+    [...S.animalClasses].filter(c=>!c.archived).sort((a,b)=>a.name.localeCompare(b.name,'en',{numeric:true})).map(c=>`<option value="${c.id}"${c.id===selectedId?' selected':''}>${c.name} (${c.species})</option>`).join('');
 }
 function populateAnimalGroupSelect(selectId, selectedId){
   const el=document.getElementById(selectId);if(!el)return;
   el.innerHTML='<option value="">— unassigned —</option>'+
-    sortedGroups().map(g=>`<option value="${g.id}"${g.id===selectedId?' selected':''}>${g.name}</option>`).join('');
+    sortedGroups(false).map(g=>`<option value="${g.id}"${g.id===selectedId?' selected':''}>${g.name}</option>`).join('');
 }
 
 // ── Add animal ───────────────────────────────────────────────────────────────
@@ -3540,7 +3557,7 @@ function addAnimalGroup(){
   const newId=Date.now();
   const animalIds=[...grpSelectedAnimals];
   S.animalGroups.push({
-    id:newId,name,
+    id:newId,archived:false,name,
     color:document.getElementById('grp-color').value||'#639922',
     animalIds,
   });
@@ -4037,15 +4054,16 @@ function getPeriodDates(key){
 function rawEventDaysInPeriod(ev, periodStart, periodEnd){
   const evStart = ev.dateIn;
   const evEnd   = ev.dateOut || todayStr();
-  if(!periodStart) return rawDaysBetween(evStart, evEnd);
+  if(!periodStart) return Math.max(1, rawDaysBetween(evStart, evEnd));
   const overlapStart = evStart > periodStart ? evStart : periodStart;
   const overlapEnd   = evEnd   < periodEnd   ? evEnd   : periodEnd;
-  if(overlapStart >= overlapEnd) return 0;
-  return rawDaysBetween(overlapStart, overlapEnd);
+  if(overlapStart > overlapEnd) return 0;
+  // Same-day overlap (e.g. 24h period window = today→today) counts as 1 day
+  return Math.max(1, rawDaysBetween(overlapStart, overlapEnd));
 }
-// Raw event duration (no +1) for denominators
+// Raw event duration (no +1) for denominators, minimum 1 day
 function rawEventDays(ev){
-  return rawDaysBetween(ev.dateIn, ev.dateOut || todayStr());
+  return Math.max(1, rawDaysBetween(ev.dateIn, ev.dateOut || todayStr()));
 }
 
 function eventDaysInPeriod(ev, periodStart, periodEnd){
@@ -4195,8 +4213,9 @@ const STAT_METRICS = {
         }
         totalN+=n; totalP+=p; totalK+=k;
         // Record paddock acres — parseFloat to ensure numeric, fallback 0 means unknown
-        const pad=S.pastures.find(x=>x.name===ev.pasture);
-        const acres=pad?parseFloat(pad.acres)||0:0;
+        // Use ID-based lookup, fallback to fuzzy name, fallback to snapshotted acres
+        const pad=getPastureForEvent(ev);
+        const acres=pad?parseFloat(pad.acres)||0:(parseFloat(ev.totals&&ev.totals.pastureAcres)||0);
         if(acres>0&&!(ev.pasture in paddockAcres)) paddockAcres[ev.pasture]=acres;
       });
       const totalAcres = Object.values(paddockAcres).reduce((s,a)=>s+a,0);
@@ -4205,7 +4224,7 @@ const STAT_METRICS = {
         value: perAcre,
         display: perAcre!=null ? perAcre.toFixed(1)+' /ac' : '--',
         sub: totalAcres>0
-          ? `N${totalN.toFixed(0)}/P${totalP.toFixed(0)}/K${totalK.toFixed(0)} lbs · ${totalAcres} ac`
+          ? `N${totalN.toFixed(0)}/P${totalP.toFixed(0)}/K${totalK.toFixed(0)} lbs · ${totalAcres.toFixed(2)} ac`
           : `N${totalN.toFixed(0)}/P${totalP.toFixed(0)}/K${totalK.toFixed(0)} lbs total (set paddock acres for /ac)`
       };
     }
@@ -4240,8 +4259,8 @@ const STAT_METRICS = {
           k=bw/1000*(st.kExc||0.30)*inPeriod;
         }
         totalVal += n*st.nPrice + p*st.pPrice + k*st.kPrice;
-        const pad=S.pastures.find(x=>x.name===ev.pasture);
-        const acres=pad?parseFloat(pad.acres)||0:0;
+        const pad=getPastureForEvent(ev);
+        const acres=pad?parseFloat(pad.acres)||0:(parseFloat(ev.totals&&ev.totals.pastureAcres)||0);
         if(acres>0&&!(ev.pasture in paddockAcres)) paddockAcres[ev.pasture]=acres;
       });
       const totalAcres = Object.values(paddockAcres).reduce((s,a)=>s+a,0);
@@ -4250,7 +4269,7 @@ const STAT_METRICS = {
         value: perAcre,
         display: perAcre!=null ? '$'+perAcre.toFixed(2)+'/ac' : '--',
         sub: totalAcres>0
-          ? '$'+totalVal.toFixed(2)+' total · '+totalAcres+' ac'
+          ? '$'+totalVal.toFixed(2)+' total · '+totalAcres.toFixed(2)+' ac'
           : '$'+totalVal.toFixed(2)+' total fert. value (set paddock acres for /ac)'
       };
     }
@@ -4727,7 +4746,7 @@ function addInputProduct(){
   const name=document.getElementById('ip-name').value.trim();
   if(!name){alert('Enter a product name');return;}
   S.inputProducts.push({
-    id:Date.now(),name,
+    id:generateInputProductId(),archived:false,name,
     cat:document.getElementById('ip-cat').value,
     unit:document.getElementById('ip-unit').value,
     cpu:parseFloat(document.getElementById('ip-cpu').value)||0,
@@ -4749,6 +4768,7 @@ function renderInputProductsList(){
     return;
   }
   el.innerHTML=S.inputProducts.map((p,i)=>{
+    if(p.archived) return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:0.5px solid var(--border);opacity:0.45;"><div style="font-size:13px;">${p.name} <span class="badge bb">archived</span></div><button class="btn btn-outline btn-xs" onclick="unarchive('product',${JSON.stringify(p.id)})">Unarchive</button></div>`;
     const catColors={fertilizer:'bg',lime:'bt',seed:'bp',herbicide:'ba',other:'bb'};
     const catBadge=`<span class="badge ${catColors[p.cat]||'bb'}">${p.cat}</span>`;
     const npkLine=(p.nPct||p.pPct||p.kPct)?` · N${p.nPct}% P${p.pPct}% K${p.kPct}%`:'';
@@ -4758,7 +4778,7 @@ function renderInputProductsList(){
         <div style="font-size:11px;color:var(--text2);">$${p.cpu.toFixed(2)}/${p.unit}${npkLine}</div>
       </div>
       <button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;padding:2px 6px;"
-        onclick="if(confirm('Delete product '+S.inputProducts[${i}].name+'?')){S.inputProducts.splice(${i},1);stampSetup();save();renderInputProductsList();}">×</button>
+        onclick="tryDeleteInputProduct(${i})">×</button>
     </div>`;
   }).join('');
 }
@@ -4818,7 +4838,7 @@ function onAiSourceChange(){
 function renderAiProductSelect(){
   const el=document.getElementById('ai-product');
   el.innerHTML='<option value="">— select product —</option>'+
-    S.inputProducts.map(p=>`<option value="${p.id}">${p.name} (${p.unit})</option>`).join('');
+    S.inputProducts.filter(p=>!p.archived).map(p=>`<option value="${p.id}">${p.name} (${p.unit})</option>`).join('');
 }
 
 function onAiProductChange(){
@@ -4963,15 +4983,16 @@ function saveApplyInput(){
 
   // Create one application record
   const appId=Date.now();
+  const _appProd=sourceType==='product'?S.inputProducts.find(x=>x.id===parseInt(document.getElementById('ai-product').value)):null;
   const application={
-    id:appId, date, sourceType, productName,
+    id:appId, date, sourceType, productName, productId:_appProd?_appProd.id:null,
     totalCost:costTotal,
     nLbsTotal:nTotal, pLbsTotal:pTotal, kLbsTotal:kTotal,
     locations:locs.map(name=>{
-      const p=S.pastures.find(x=>x.name===name);
+      const p=S.pastures.find(x=>x.name===name)||findPastureByName(name);
       const acres=p?p.acres||0:0;
       const share=locs.length>0?1/locs.length:1; // equal split across locations
-      return {name,acres,nLbs:nTotal*share,pLbs:pTotal*share,kLbs:kTotal*share,costShare:costTotal*share};
+      return {name,pastureId:p?p.id:null,acres,nLbs:nTotal*share,pLbs:pTotal*share,kLbs:kTotal*share,costShare:costTotal*share};
     }),
     notes
   };
@@ -5491,7 +5512,7 @@ function openEventEdit(eventId){
   // Group selector
   const grpSel=document.getElementById('ee-group');
   grpSel.innerHTML='<option value="">— none —</option>'+
-    S.animalGroups.map(g=>`<option value="${g.id}"${g.id===ev.groupId?' selected':''}>${g.name}</option>`).join('');
+    sortedGroups().map(g=>`<option value="${g.id}"${g.id===ev.groupId?' selected':''}>${g.name}</option>`).join('');
   // Core fields
   document.getElementById('ee-date-in').value=ev.dateIn||'';
   document.getElementById('ee-date-out').value=ev.dateOut||'';
@@ -5582,7 +5603,7 @@ function renderEeFeedBatches(){
   const el=document.getElementById('ee-feed-batch-sel');if(!el)return;
   const active=S.batches.filter(b=>b.remaining>0||S.batches.some(x=>x.id===b.id));
   // Show all batches (including near-empty — historical adds don't require remaining)
-  el.innerHTML=S.batches.map(b=>{
+  el.innerHTML=S.batches.filter(b=>!b.archived).map(b=>{
     const on=eeFeedLines.find(l=>l.batchId===b.id);
     return `<div class="batch-sel${on?' on':''}" onclick="toggleEeFeedBatch(${b.id})">
       <div><div style="font-size:13px;font-weight:600;">${b.label}</div>
@@ -5763,7 +5784,10 @@ function saveEventEdit(){
   // Update core fields
   const grpId=parseInt(document.getElementById('ee-group').value)||null;
   const oldGrpId=ev.groupId;
-  ev.pasture=document.getElementById('ee-paddock').value||ev.pasture;
+  const _eePad=document.getElementById('ee-paddock').value||ev.pasture;
+  ev.pasture=_eePad;
+  const _eePadRec=S.pastures.find(p=>p.name===_eePad)||findPastureByName(_eePad);
+  if(_eePadRec)ev.pastureId=_eePadRec.id;
   ev.groupId=grpId;
   ev.groupName=grpId?(getGroupById(grpId)||{}).name||ev.groupName:ev.groupName;
   ev.dateIn=dateIn;
@@ -5945,7 +5969,7 @@ function renderAnimalsScreen(){
   if(gf){
     const cur = gf.value;
     gf.innerHTML = '<option value="">All groups</option>' +
-      S.animalGroups.map(g=>`<option value="${g.id}"${String(g.id)===cur?' selected':''}>${g.name}</option>`).join('') +
+      sortedGroups().map(g=>`<option value="${g.id}"${String(g.id)===cur?' selected':''}>${g.name}</option>`).join('') +
       `<option value="unassigned"${cur==='unassigned'?' selected':''}>Unassigned</option>`;
   }
 
@@ -6146,7 +6170,7 @@ function saveAnimalMove(){
       });
     });
     const newId = Date.now();
-    S.animalGroups.push({id:newId, name, color:amNewColor, animalIds:[...ids]});
+    S.animalGroups.push({id:newId, archived:false, name, color:amNewColor, animalIds:[...ids]});
     save();
     closeAnimalMoveSheet();
     clearAnimalSelection();
@@ -6270,10 +6294,204 @@ function stampSetup(){
   S.setupUpdatedAt = new Date().toISOString();
 }
 
+
+// ─── ARCHIVE / ID SYSTEM ─────────────────────────────────────────────────────
+
+function generatePastureId(){
+  const max=S.pastures.reduce((m,p)=>{
+    const n=parseInt((p.id||'').replace('PSTR-',''))||0;return n>m?n:m;},0);
+  return 'PSTR-'+String(max+1).padStart(5,'0');
+}
+function generateFeedTypeId(){
+  const max=S.feedTypes.reduce((m,f)=>{
+    const n=parseInt((f.id||'').replace('FT-',''))||0;return n>m?n:m;},0);
+  return 'FT-'+String(max+1).padStart(5,'0');
+}
+function generateInputProductId(){
+  const max=S.inputProducts.reduce((m,p)=>{
+    const n=parseInt((p.id||'').replace('IP-',''))||0;return n>m?n:m;},0);
+  return 'IP-'+String(max+1).padStart(5,'0');
+}
+
+// Migrate existing records that lack system IDs or archive flag
+function migrateSystemIds(){
+  let changed=false;
+  S.pastures.forEach(p=>{
+    if(!p.id){p.id=generatePastureId();changed=true;}
+    if(p.archived===undefined){p.archived=false;changed=true;}
+  });
+  S.feedTypes.forEach(f=>{
+    if(!f.id){f.id=generateFeedTypeId();changed=true;}  // they already have numeric ids, just flag
+    if(f.archived===undefined){f.archived=false;changed=true;}
+  });
+  S.inputProducts.forEach(p=>{
+    if(!p.id){p.id=generateInputProductId();changed=true;}
+    if(p.archived===undefined){p.archived=false;changed=true;}
+  });
+  S.animalClasses.forEach(c=>{if(c.archived===undefined){c.archived=false;changed=true;}});
+  S.animalGroups.forEach(g=>{if(g.archived===undefined){g.archived=false;changed=true;}});
+  S.batches.forEach(b=>{if(b.archived===undefined){b.archived=false;changed=true;}});
+  // Back-fill pastureId on events that reference a pasture by name
+  S.events.forEach(ev=>{
+    if(!ev.pastureId&&ev.pasture){
+      const p=findPastureByName(ev.pasture);
+      if(p){ev.pastureId=p.id;changed=true;}
+    }
+  });
+  if(changed){stampSetup();saveLocal();}
+}
+
+// Fuzzy pasture lookup by name (handles "G2" ↔ "G - 2" etc.)
+function findPastureByName(name){
+  if(!name)return null;
+  const exact=S.pastures.find(x=>x.name===name);
+  if(exact)return exact;
+  const norm=n=>n.replace(/[\s\-]/g,'').toLowerCase();
+  return S.pastures.find(x=>norm(x.name)===norm(name))||null;
+}
+function findPastureById(id){return id?S.pastures.find(p=>p.id===id)||null:null;}
+
+// Resolve a pasture for an event — prefers ID, falls back to name
+function getPastureForEvent(ev){
+  return (ev.pastureId&&findPastureById(ev.pastureId))||findPastureByName(ev.pasture)||null;
+}
+
+// Check if a record is referenced in any events (returns arrays of open+closed)
+function getPastureRefs(pastureId){
+  const open=S.events.filter(e=>e.status==='open'&&(e.pastureId===pastureId||findPastureByName(e.pasture)?.id===pastureId));
+  const closed=S.events.filter(e=>e.status==='closed'&&(e.pastureId===pastureId||findPastureByName(e.pasture)?.id===pastureId));
+  return {open,closed};
+}
+function getFeedTypeRefs(ftId){
+  const batches=S.batches.filter(b=>b.typeId===ftId);
+  return {batches, inUse:batches.some(b=>b.remaining<b.qty)};
+}
+function getAnimalClassRefs(classId){
+  return S.animals.filter(a=>a.classId===classId&&a.active!==false);
+}
+function getAnimalGroupRefs(groupId){
+  const open=S.events.filter(e=>e.status==='open'&&e.groupId===groupId);
+  const closed=S.events.filter(e=>e.status==='closed'&&e.groupId===groupId);
+  return {open,closed};
+}
+function getInputProductRefs(productId){
+  return S.inputApplications.filter(a=>a.productId===productId||(!a.productId&&a.productName&&
+    S.inputProducts.find(p=>p.id===productId)?.name===a.productName));
+}
+
+// Smart delete/archive handler — shows the right option based on references
+function tryDeletePasture(idx){
+  const p=S.pastures[idx];if(!p)return;
+  const refs=getPastureRefs(p.id);
+  if(refs.open.length){
+    alert(`Cannot delete "${p.name}" — it has ${refs.open.length} active grazing event${refs.open.length!==1?'s':''}. Close those events first.`);
+    return;
+  }
+  if(refs.closed.length){
+    if(!confirm(`"${p.name}" has ${refs.closed.length} past event${refs.closed.length!==1?'s':''}. Delete it?\n\nChoose Cancel and use Archive instead to keep it visible in historical records but hidden from new entries.`))return;
+    // Offer archive instead
+    const choice=confirm(`Archive "${p.name}" instead of deleting? Archived locations stay linked to past events but won't appear in new entry dropdowns.\n\nOK = Archive  |  Cancel = Delete permanently`);
+    if(choice){p.archived=true;stampSetup();save();renderPastures();return;}
+  } else {
+    if(!confirm(`Delete "${p.name}"? This cannot be undone.`))return;
+  }
+  S.pastures.splice(idx,1);stampSetup();save();renderPastures();
+}
+
+function tryDeleteFeedType(idx){
+  const ft=S.feedTypes[idx];if(!ft)return;
+  const {batches,inUse}=getFeedTypeRefs(ft.id);
+  if(batches.length&&inUse){
+    const choice=confirm(`"${ft.name}" has feed batches with inventory remaining. Archive it instead?\n\nOK = Archive  |  Cancel = Delete permanently`);
+    if(choice){ft.archived=true;stampSetup();save();renderFeedTypes();return;}
+    if(!confirm('Delete permanently? This cannot be undone.'))return;
+  } else if(batches.length){
+    if(!confirm(`Delete "${ft.name}"? It has ${batches.length} batch${batches.length!==1?'es':''} (all depleted).`))return;
+  } else {
+    if(!confirm(`Delete "${ft.name}"?`))return;
+  }
+  S.feedTypes.splice(idx,1);stampSetup();save();renderFeedTypes();
+}
+
+function tryDeleteAnimalClass(idx){
+  const c=S.animalClasses[idx];if(!c)return;
+  const animals=getAnimalClassRefs(c.id);
+  if(animals.length){
+    alert(`Cannot delete "${c.name}" — ${animals.length} active animal${animals.length!==1?'s use':' uses'} this class. Reassign them first.`);
+    return;
+  }
+  const archived=S.animals.filter(a=>a.classId===c.id&&a.active===false);
+  if(archived.length){
+    const choice=confirm(`"${c.name}" is used by ${archived.length} culled animal record${archived.length!==1?'s':''}. Archive the class instead?\n\nOK = Archive  |  Cancel = Delete permanently`);
+    if(choice){c.archived=true;stampSetup();save();renderClassesList();return;}
+    if(!confirm('Delete permanently?'))return;
+  } else {
+    if(!confirm(`Delete class "${c.name}"?`))return;
+  }
+  S.animalClasses.splice(idx,1);stampSetup();save();renderClassesList();
+}
+
+function tryDeleteAnimalGroup(idx){
+  const g=S.animalGroups[idx];
+  if(!g)return;
+  if(getActiveEventForGroup(g.id)){alert('Cannot delete a group with an active event. Close the event first.');return;}
+  const refs=getAnimalGroupRefs(g.id);
+  if(refs.closed.length){
+    const choice=confirm(`"${g.name}" has ${refs.closed.length} past event${refs.closed.length!==1?'s':''}. Archive it instead of deleting?\n\nOK = Archive  |  Cancel = Delete permanently`);
+    if(choice){g.archived=true;stampSetup();save();renderGroupsList();renderHome();return;}
+    if(!confirm('Delete permanently?'))return;
+  } else {
+    if(!confirm(`Delete group "${g.name}"? Animals will become unassigned.`))return;
+  }
+  S.animalGroups.splice(idx,1);stampSetup();save();renderGroupsList();renderHome();
+}
+
+function tryDeleteInputProduct(idx){
+  const p=S.inputProducts[idx];if(!p)return;
+  const refs=getInputProductRefs(p.id);
+  if(refs.length){
+    const choice=confirm(`"${p.name}" has been used in ${refs.length} application${refs.length!==1?'s':''}. Archive it instead?\n\nOK = Archive  |  Cancel = Delete permanently`);
+    if(choice){p.archived=true;stampSetup();save();renderInputProductsList();return;}
+    if(!confirm('Delete permanently?'))return;
+  } else {
+    if(!confirm(`Delete "${p.name}"?`))return;
+  }
+  S.inputProducts.splice(idx,1);stampSetup();save();renderInputProductsList();
+}
+
+function tryDeleteBatch(idx){
+  const b=S.batches[idx];if(!b)return;
+  // Check if batch has been used in any feed entries
+  const used=S.events.some(e=>allFeedEntries(e).some(fe=>fe.lines.some(l=>l.batchId===b.id)));
+  if(b.remaining<b.qty||used){
+    const choice=confirm(`"${b.label}" has been used in feed entries. Archive it instead?\n\nOK = Archive  |  Cancel = Delete permanently`);
+    if(choice){b.archived=true;stampSetup();save();renderBatchListS();return;}
+    if(!confirm('Delete permanently?'))return;
+  } else {
+    if(!confirm(`Delete batch "${b.label}"?`))return;
+  }
+  S.batches.splice(idx,1);stampSetup();save();renderBatchListS();
+}
+
+function unarchive(type, id){
+  const map={pasture:S.pastures,feedType:S.feedTypes,class:S.animalClasses,group:S.animalGroups,product:S.inputProducts,batch:S.batches};
+  const arr=map[type];if(!arr)return;
+  const item=arr.find(x=>x.id===id);if(!item)return;
+  item.archived=false;stampSetup();save();
+  if(type==='pasture')renderPastures();
+  else if(type==='feedType')renderFeedTypes();
+  else if(type==='class')renderClassesList();
+  else if(type==='group'){renderGroupsList();renderHome();}
+  else if(type==='product')renderInputProductsList();
+  else if(type==='batch')renderBatchListS();
+}
+
+// ─── END ARCHIVE / ID SYSTEM ──────────────────────────────────────────────────
+
 // ─── SORT HELPERS ─────────────────────────────────────────────────────────────
-function sortedPastures(){ return [...S.pastures].sort((a,b)=>a.name.localeCompare(b.name,'en',{numeric:true})); }
+function sortedPastures(includeArchived=false){ return [...S.pastures].filter(p=>includeArchived||!p.archived).sort((a,b)=>a.name.localeCompare(b.name,'en',{numeric:true})); }
 function sortedAnimals(arr){ return [...(arr||S.animals)].sort((a,b)=>(a.tagNum||a.systemId||'').localeCompare(b.tagNum||b.systemId||'',  'en',{numeric:true})); }
-function sortedGroups(){ return [...S.animalGroups].sort((a,b)=>a.name.localeCompare(b.name,'en',{numeric:true})); }
+function sortedGroups(includeArchived=false){ return [...S.animalGroups].filter(g=>includeArchived||!g.archived).sort((a,b)=>a.name.localeCompare(b.name,'en',{numeric:true})); }
 // ─── END SORT HELPERS ─────────────────────────────────────────────────────────
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
@@ -6287,6 +6505,7 @@ ensureDataArrays();
 migrateHerdToGroups();
 migrateGroupsToAnimals();
 migrateAnimalSystemIds();
+migrateSystemIds();
 updateHeader();
 updateDriveUI();
 updateHeaderAvatar();
