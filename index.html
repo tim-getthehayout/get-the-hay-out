@@ -3,7 +3,10 @@
 <head>
 <meta charset="UTF-8"/>
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}]}">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+<meta name="app-version" content="b20260317.1431" id="app-version-meta"/>
+<meta http-equiv="Pragma" content="no-cache"/>/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
 <meta name="apple-mobile-web-app-title" content="Get The Hay Out"/>
@@ -489,6 +492,19 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
       </div>
 
       <!-- Quick to-do strip -->
+
+      <!-- Survey snapshot card (mobile field view) -->
+      <div class="card" id="home-survey-card" style="display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <div class="sec" style="margin:0;">Pasture readiness</div>
+          <div style="display:flex;gap:6px;">
+            <span style="font-size:11px;color:var(--text2);" id="home-survey-date-label"></span>
+            <button class="btn btn-green btn-xs" onclick="openSurveySheet()">+ Survey</button>
+          </div>
+        </div>
+        <div id="home-survey-grid"></div>
+      </div>
+
       <div class="card" id="home-todos-card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
           <div class="sec" style="margin:0;">My open tasks</div>
@@ -647,6 +663,31 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
               <div style="font-size:11px;color:var(--text2);margin-top:2px;">Reduces DMI of last feeding — accounts for waste / leftover feed remaining</div>
             </div>
 
+            <div id="w-recovery-section">
+              <div class="div"></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                <div class="sec" style="margin:0;">Estimated recovery window</div>
+                <span id="w-recovery-badge" class="badge bb" style="font-size:10px;"></span>
+              </div>
+              <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.5;">
+                How many days before this paddock is ready to graze again?
+              </div>
+              <div class="two">
+                <div class="field">
+                  <label>Min days <span id="w-rec-min-req" style="color:var(--red);display:none;">*</span></label>
+                  <input type="number" id="w-rec-min" min="1" max="365" step="1" placeholder="30"
+                    oninput="updateRecoveryPreview()"/>
+                </div>
+                <div class="field">
+                  <label>Max days <span id="w-rec-max-req" style="color:var(--red);display:none;">*</span></label>
+                  <input type="number" id="w-rec-max" min="1" max="365" step="1" placeholder="60"
+                    oninput="updateRecoveryPreview()"/>
+                </div>
+              </div>
+              <div id="w-recovery-preview" style="font-size:12px;color:var(--text2);display:none;
+                background:var(--bg2);border-radius:var(--radius);padding:8px 12px;margin-top:4px;">
+              </div>
+            </div>
             <div id="close-preview" style="display:none;"><div class="div"></div><div class="sec">Event totals preview</div>
               <div class="m-grid">
                 <div class="m-cell"><div class="ml">Days</div><div class="mv" id="cp-days">--</div></div>
@@ -681,7 +722,13 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
         <div class="card" style="border-left:3px solid var(--teal);"><div style="font-size:15px;font-weight:600;margin-bottom:2px;">New grazing event</div><div style="font-size:13px;color:var(--text2);">Open on the destination paddock</div></div>
         <div class="card">
           <div class="sec">Destination paddock</div>
-          <div class="field"><label>Paddock</label><select id="w-new-pasture" onchange="onWizPaddockChange()"><option value="">— select —</option></select></div>
+          <div class="field"><label>Paddock(s)</label>
+                <div id="w-paddock-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;min-height:0;"></div>
+                <select id="w-new-pasture" onchange="onWizPaddockChange();addWizPaddock()" style="max-width:100%;">
+                  <option value="">— add paddock —</option>
+                </select>
+                <div style="font-size:11px;color:var(--text2);margin-top:3px;">Select one or more paddocks. Tap to remove.</div>
+              </div>
           <div class="two">
             <div class="field"><label>Move-in date</label><input type="date" id="w-in-date"/></div>
             <div class="field"><label>Pre-graze height (in)</label><input type="number" id="w-new-h" min="0" step="0.5" placeholder="10"/></div>
@@ -839,6 +886,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
       <div class="div"></div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
         <div style="font-size:15px;font-weight:600;">Locations</div>
+        <button class="btn btn-green btn-sm" onclick="openSurveySheet()" style="flex-shrink:0;">📋 Survey</button>
         <div style="flex:1;position:relative;">
           <input type="search" id="pasture-search" placeholder="Filter locations…"
             oninput="renderPastures()"
@@ -861,6 +909,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
       <div id="rpt-feed"       class="rpt-panel"></div>
       <div id="rpt-animals"    class="rpt-panel"></div>
       <div id="rpt-summary"    class="rpt-panel"></div>
+      <div id="rpt-survey"     class="rpt-panel"></div>
     </div>
 
     <!-- FEEDBACK -->
@@ -1294,6 +1343,46 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
         </div>
       </div>
 
+      <!-- Pasture recovery time -->
+      <div class="card" id="recovery-card">
+        <div class="sec">Pasture recovery tracking</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.6;">
+          When moving off a paddock, record your estimated recovery window before the next graze.
+          Helps track planned rest periods against actual rotation timing.
+        </div>
+        <label style="display:flex;align-items:center;gap:10px;padding:10px 0;
+          border:0.5px solid var(--border);border-radius:var(--radius);padding:10px 12px;
+          cursor:pointer;margin-bottom:12px;">
+          <input type="checkbox" id="s-recovery-required"
+            style="width:18px;height:18px;accent-color:var(--green);flex-shrink:0;">
+          <div>
+            <div style="font-size:13px;font-weight:500;">Require recovery estimate on every move</div>
+            <div style="font-size:11px;color:var(--text2);margin-top:2px;">
+              When checked, the recovery window fields are mandatory during the move wizard close step.
+              When unchecked, they are optional.
+            </div>
+          </div>
+        </label>
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Default recovery window (days)</div>
+        <div class="two">
+          <div class="field">
+            <label>Minimum days until return</label>
+            <input type="number" id="s-recovery-min" min="1" max="365" step="1" placeholder="30"
+              style="max-width:120px;"/>
+            <div style="font-size:11px;color:var(--text2);margin-top:4px;">Earliest you'd graze this paddock again</div>
+          </div>
+          <div class="field">
+            <label>Maximum days until return</label>
+            <input type="number" id="s-recovery-max" min="1" max="365" step="1" placeholder="60"
+              style="max-width:120px;"/>
+            <div style="font-size:11px;color:var(--text2);margin-top:4px;">Latest before the window closes</div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text2);line-height:1.6;margin-top:4px;">
+          These defaults pre-fill the move wizard. You can adjust per-move during close.
+        </div>
+      </div>
+
       <button class="btn btn-green" onclick="saveSettings()">Save settings</button>
       <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
         <button class="btn btn-outline btn-sm" onclick="exportCSV()">Export events CSV</button>
@@ -1447,12 +1536,17 @@ if(!S.manureBatches)S.manureBatches=[];
 if(!S.inputProducts)S.inputProducts=[];
 if(!S.errorLog)S.errorLog=[];
 if(!S.inputApplications)S.inputApplications=[];
+if(!S.surveys)S.surveys=[];
 if(!S.settings.manureVolumeRate)S.settings.manureVolumeRate=65;
 if(!S.settings.manureLoadLbs)S.settings.manureLoadLbs=8000;
 if(!S.settings.manureVolumeUnit)S.settings.manureVolumeUnit='loads';
 if(!S.settings.homeStats)S.settings.homeStats=['pasture_dmi','feed_cost','pasture_pct','npk_lbs_acre','npk_val_acre'];
+if(!S.version)S.version='b20260317.1431';
 if(!S.settings.homeStatPeriod)S.settings.homeStatPeriod='7d';
 if(!S.settings.auWeight)S.settings.auWeight=1000;
+if(!S.settings.recoveryRequired===undefined)S.settings.recoveryRequired=false;
+if(S.settings.recoveryMinDays===undefined)S.settings.recoveryMinDays=30;
+if(S.settings.recoveryMaxDays===undefined)S.settings.recoveryMaxDays=60;
 if(!S.settings.thresholds)S.settings.thresholds={
   auds:      {target:50,  warnPct:0.7,  direction:'higher', label:'AUDs / rotation'},
   pasturePct:{target:80,  warnPct:0.75, direction:'higher', label:'Pasture %'},
@@ -1898,6 +1992,7 @@ function mergeData(local,remote){
     batches:          ma(local.batches,           remote.batches),
     manureBatches:    ma(local.manureBatches||[], remote.manureBatches||[]),
     inputApplications:ma(local.inputApplications||[],remote.inputApplications||[]),
+    surveys:          ma(local.surveys||[],          remote.surveys||[]),
     // Individual animals (not in setupUpdatedAt block — additions don't delete)
     animals:          ma(local.animals||[],       remote.animals||[]),
     // Collaboration
@@ -1918,9 +2013,10 @@ function mergeData(local,remote){
 function ensureDataArrays(){
   const arrays=['pastures','events','feedTypes','batches','manureBatches',
                 'inputProducts','inputApplications','animalClasses','animalGroups',
-                'animals','users','todos','feedback'];
+                'animals','users','todos','feedback','surveys'];
   arrays.forEach(k=>{if(!Array.isArray(S[k]))S[k]=[];});
   if(!S.herd)S.herd={name:'',type:'',count:0,weight:0,dmi:2.5};
+  if(S._paddocksMigrated===undefined)S._paddocksMigrated=false;
   if(S._herdMigrated===undefined)S._herdMigrated=S.animalGroups&&S.animalGroups.length>0;
   if(!Array.isArray(S.errorLog))S.errorLog=[];
   if(!S.settings)S.settings={};
@@ -2273,6 +2369,7 @@ function renderHome(){
 
   // Season stats rendered via metric registry
   renderStats();
+  renderHomeSurveyCard();
 
   const allClosed=S.events.filter(e=>e.status==='closed');
   const el=document.getElementById('h-event-list');
@@ -2282,7 +2379,7 @@ function renderHome(){
       const t=e.totals||{};const g=getGroupById(e.groupId);
       const pc=t.pct>=60?'bg':t.pct>=30?'ba':'br';
       const isCon=e.locationType==='confinement';
-      return `<div class="row"><div class="row-head"><span style="font-size:14px;font-weight:600;">${e.pasture}</span><span class="badge ${isCon?'bb':pc}">${isCon?'confinement':t.pct!==undefined?t.pct+'% pasture':'--'}</span></div><div class="row-detail">${g?g.name+' · ':''}${dLabel(e.dateIn)} → ${dLabel(e.dateOut||'')} · ${t.days||'?'} days · $${(t.cost||0).toFixed(2)}</div></div>`;
+      return `<div class="row"><div class="row-head"><span style="font-size:14px;font-weight:600;">${evDisplayName(e)}</span><span class="badge ${isCon?'bb':pc}">${isCon?'confinement':t.pct!==undefined?t.pct+'% pasture':'--'}</span></div><div class="row-detail">${g?g.name+' · ':''}${dLabel(e.dateIn)} → ${dLabel(e.dateOut||'')} · ${t.days||'?'} days · $${(t.cost||0).toFixed(2)}</div></div>`;
     }).join('');
   }
   updateTodoBadge();
@@ -2316,7 +2413,7 @@ function renderGroupCard(g){
     const costAll = calcEntryCost(ae.feedEntries||[]) + subMoves.reduce((s,sm)=>s+calcEntryCost(sm.feedEntries||[]),0);
     locBar=`<div class="grp-loc-bar">
       <div style="flex:1;">
-        <div style="font-size:13px;font-weight:600;">${locIcon} ${ae.pasture} ${locBadge}</div>
+        <div style="font-size:13px;font-weight:600;">${locIcon} ${evDisplayName(ae)} ${locBadge}</div>
         <div style="font-size:11px;color:var(--text2);margin-top:2px;">Day ${days} · ${dLabel(ae.dateIn)} · ${allEntries2.length} feeding${allEntries2.length!==1?'s':''} · $${costAll.toFixed(2)}</div>
         ${subMoves.length?`<div style="font-size:11px;color:var(--text2);margin-top:2px;">${subMoves.length} sub-move${subMoves.length!==1?'s':''} · ${subHrsTotal.toFixed(1)}h off-paddock · ${pastureHrsPct}% on pasture</div>`:''}
       </div>
@@ -2525,7 +2622,7 @@ function openTodoSheet(id,fromWiz=false){
   document.getElementById('td-note').value='';
   document.getElementById('td-title').value='';
   const ae=getActive();
-  const preselect=fromWiz&&wizPaddockForTodo?wizPaddockForTodo:ae?ae.pasture:'';
+  const preselect=fromWiz&&wizPaddockForTodo?wizPaddockForTodo:ae?evPrimaryPaddock(ae).pastureName:'';
   populateTodoPaddock(preselect);
   populateTodoAnimal(null);
   if(id){
@@ -2692,11 +2789,11 @@ function initWiz(){
     const ae=getActive();
     document.getElementById('ws0-has').style.display=ae?'block':'none';
     document.getElementById('ws0-none').style.display=ae?'none':'block';
-    if(ae){document.getElementById('ws0-banner').innerHTML=`<div style="font-size:14px;font-weight:600;color:var(--amber-d);">Closing: ${ae.pasture}</div><div style="font-size:12px;color:var(--amber-d);opacity:0.85;margin-top:2px;">In ${dLabel(ae.dateIn)} · ${daysBetween(ae.dateIn,todayStr())} days · ${(ae.feedEntries||[]).length} feedings</div>`;if(ae.heightIn)document.getElementById('w-pregraze-disp').value=ae.heightIn;showPaddockTasksInWiz(ae.pasture,'w-paddock-tasks','w-paddock-tasks-list');}
+    if(ae){document.getElementById('ws0-banner').innerHTML=`<div style="font-size:14px;font-weight:600;color:var(--amber-d);">Closing: ${evDisplayName(ae)}</div><div style="font-size:12px;color:var(--amber-d);opacity:0.85;margin-top:2px;">In ${dLabel(ae.dateIn)} · ${daysBetween(ae.dateIn,todayStr())} days · ${(ae.feedEntries||[]).length} feedings</div>`;if(ae.heightIn)document.getElementById('w-pregraze-disp').value=ae.heightIn;showPaddockTasksInWiz(evPrimaryPaddock(ae).pastureName,'w-paddock-tasks','w-paddock-tasks-list');}
     const _wout=document.getElementById('w-out-date');if(_wout)_wout.value=todayStr();const _win=document.getElementById('w-in-date');if(_win)_win.value=todayStr();
     if(S.herd&&S.herd.count)document.getElementById('w-new-head').value=S.herd.count;
     if(S.herd&&S.herd.weight)document.getElementById('w-new-wt').value=S.herd.weight;
-    populateNewPastureSelect();renderWizFeedSel();calcClosePreview();return;
+    populateNewPastureSelect();renderWizFeedSel();calcClosePreview();initRecoveryFields();return;
   }
   if(active.length===1){wizGroupId=active[0].groupId;initWizFromGroup();return;}
   if(active.length===0&&groups.length===1){wizGroupId=groups[0].id;initWizFromGroup();return;}
@@ -2731,9 +2828,9 @@ function initWizFromGroup(){
   document.getElementById('ws0-none').style.display=ae?'none':'block';
   if(ae){
     const g=getGroupById(ae.groupId);
-    document.getElementById('ws0-banner').innerHTML=`<div style="font-size:14px;font-weight:600;color:var(--amber-d);">Closing: ${ae.pasture}${g?' ('+g.name+')':''}</div><div style="font-size:12px;color:var(--amber-d);opacity:0.85;margin-top:2px;">In ${dLabel(ae.dateIn)} · ${daysBetween(ae.dateIn,todayStr())} days · ${(ae.feedEntries||[]).length} feedings</div>`;
+    document.getElementById('ws0-banner').innerHTML=`<div style="font-size:14px;font-weight:600;color:var(--amber-d);">Closing: ${evDisplayName(ae)}${g?' ('+g.name+')':''}</div><div style="font-size:12px;color:var(--amber-d);opacity:0.85;margin-top:2px;">In ${dLabel(ae.dateIn)} · ${daysBetween(ae.dateIn,todayStr())} days · ${(ae.feedEntries||[]).length} feedings</div>`;
     if(ae.heightIn)document.getElementById('w-pregraze-disp').value=ae.heightIn;
-    showPaddockTasksInWiz(ae.pasture,'w-paddock-tasks','w-paddock-tasks-list');
+    showPaddockTasksInWiz(evPrimaryPaddock(ae).pastureName,'w-paddock-tasks','w-paddock-tasks-list');
   }
   const _wout=document.getElementById('w-out-date');if(_wout)_wout.value=todayStr();
   const _win=document.getElementById('w-in-date');if(_win)_win.value=todayStr();
@@ -2742,7 +2839,7 @@ function initWizFromGroup(){
   const t=g?getGroupTotals(g):null;
   if(t&&t.totalHead)document.getElementById('w-new-head').value=t.totalHead;
   if(t&&t.avgWeight)document.getElementById('w-new-wt').value=t.avgWeight;
-  populateNewPastureSelect();renderWizFeedSel();calcClosePreview();
+  populateNewPastureSelect();renderWizFeedSel();calcClosePreview();initRecoveryFields();
 }
 
 
@@ -2766,7 +2863,7 @@ function calcClosePreview(){
     const feedRes=parseInt(document.getElementById('w-feed-res').value)||0;
     const outDate=document.getElementById('w-out-date').value||todayStr();
     const t=calcEventTotalsWithSubMoves(ae,outDate,feedRes);
-    const loc=S.pastures.find(p=>p.name===ae.pasture);
+    const loc=getPastureForEvent(ae);
     const capPct=(loc&&loc.capturePercent||80)/100;
     const capVal=(t.npk.n*S.settings.nPrice+t.npk.p*S.settings.pPrice+t.npk.k*S.settings.kPrice).toFixed(2);
     prev.style.display='block';
@@ -2792,22 +2889,121 @@ function calcClosePreview(){
   const cpOmEl=document.getElementById('cp-om');
   if(cpOmEl)cpOmEl.textContent=_cpOM>0.1?_cpOM.toFixed(0)+' lbs DM':'none';
 }
+
+// ─── PASTURE RECOVERY TRACKING ───────────────────────────────────────────────
+
+function initRecoveryFields(){
+  const st = S.settings;
+  const section = document.getElementById('w-recovery-section');
+  if(!section) return;
+  const isRequired = !!st.recoveryRequired;
+  // Badge
+  const badge = document.getElementById('w-recovery-badge');
+  if(badge){ badge.textContent = isRequired ? 'required' : 'optional'; badge.className = 'badge '+(isRequired?'ba':'bb'); }
+  // Required asterisks
+  const minReq = document.getElementById('w-rec-min-req');
+  const maxReq = document.getElementById('w-rec-max-req');
+  if(minReq) minReq.style.display = isRequired ? 'inline' : 'none';
+  if(maxReq) maxReq.style.display = isRequired ? 'inline' : 'none';
+  // Pre-fill: pasture-specific default (from survey) → settings default
+  const ae2 = wizGroupId ? getActiveEventForGroup(wizGroupId) : getActive();
+  const pad2 = ae2 ? (findPastureById(ae2.pastureId)||findPastureByName(ae2.pasture)) : null;
+  const minEl = document.getElementById('w-rec-min');
+  const maxEl = document.getElementById('w-rec-max');
+  const prefMin = pad2?.recoveryMinDays || st.recoveryMinDays || 30;
+  const prefMax = pad2?.recoveryMaxDays || st.recoveryMaxDays || 60;
+  if(minEl && !minEl.value) minEl.value = prefMin;
+  if(maxEl && !maxEl.value) maxEl.value = prefMax;
+  updateRecoveryPreview();
+}
+
+function updateRecoveryPreview(){
+  const minVal = parseInt(document.getElementById('w-rec-min')?.value)||null;
+  const maxVal = parseInt(document.getElementById('w-rec-max')?.value)||null;
+  const prev = document.getElementById('w-recovery-preview');
+  if(!prev) return;
+  if(!minVal && !maxVal){ prev.style.display='none'; return; }
+  const outDate = document.getElementById('w-out-date')?.value || todayStr();
+  const outD = new Date(outDate+'T12:00:00');
+  const parts = [];
+  if(minVal){
+    const minRet = new Date(outD); minRet.setDate(minRet.getDate()+minVal);
+    parts.push('Earliest return: <strong>'+minRet.toLocaleDateString('en-US',{month:'short',day:'numeric'})+'</strong> ('+minVal+'d)');
+  }
+  if(maxVal){
+    const maxRet = new Date(outD); maxRet.setDate(maxRet.getDate()+maxVal);
+    parts.push('Window closes: <strong>'+maxRet.toLocaleDateString('en-US',{month:'short',day:'numeric'})+'</strong> ('+maxVal+'d)');
+  }
+  prev.innerHTML = parts.join(' &nbsp;·&nbsp; ');
+  prev.style.display = 'block';
+}
+
+function validateRecoveryFields(){
+  const st = S.settings;
+  if(!st.recoveryRequired) return true; // optional — always valid
+  const minVal = parseInt(document.getElementById('w-rec-min')?.value)||0;
+  const maxVal = parseInt(document.getElementById('w-rec-max')?.value)||0;
+  if(!minVal || !maxVal){
+    alert('Recovery window is required for this operation. Enter minimum and maximum days before continuing.');
+    return false;
+  }
+  if(minVal > maxVal){
+    alert('Minimum recovery days cannot be greater than maximum.');
+    return false;
+  }
+  return true;
+}
+
+// ─── END PASTURE RECOVERY TRACKING ───────────────────────────────────────────
+
 function wizCloseEvent(){
   const ae=wizGroupId?getActiveEventForGroup(wizGroupId):getActive();
   if(!ae){alert('No active event to close');return;}
   const outDate=document.getElementById('w-out-date').value;if(!outDate){alert('Enter move-out date');return;}
+  if(!validateRecoveryFields()) return;
   const feedRes=parseInt(document.getElementById('w-feed-res').value)||0;
   const totals = calcEventTotalsWithSubMoves(ae, outDate, feedRes);
   const {days,sdmi,cost,npk,npkVal,pdmi,pct,pFraction,subHrs,totalHrs,subMoveNPK} = totals;
   ae.dateOut=outDate;ae.heightOut=parseFloat(document.getElementById('w-res-h').value)||null;
   ae.feedResidual=feedRes;
+  ae.recoveryMinDays=parseInt(document.getElementById('w-rec-min')?.value)||null;
+  ae.recoveryMaxDays=parseInt(document.getElementById('w-rec-max')?.value)||null;
   ae.status='closed';
   const _closedPad=getPastureForEvent(ae);
   const _residOM=ae.locationType!=='confinement'?calcResidualOM(ae.feedEntries||[],feedRes):0;
+  // Snapshot acres from all paddocks
+  const _totalAcres=evTotalAcres(ae)||(_closedPad?parseFloat(_closedPad.acres)||null:null);
   ae.totals={days,storedDMI:sdmi,pastureDMI:pdmi,cost,pct,npk,npkVal,
              pFraction:Math.round(pFraction*100),subMoveHours:subHrs,totalHours:totalHrs,
-             pastureAcres:_closedPad?parseFloat(_closedPad.acres)||null:null,
+             pastureAcres:_totalAcres,
              organicMatterLbs:_residOM};
+  // Snapshot current acres on paddock records for accurate per-acre calcs
+  evPaddocks(ae).forEach(pad=>{
+    const rec=paddockRecord(pad);
+    if(rec&&rec.acres) pad.acres=parseFloat(rec.acres)||pad.acres;
+  });
+  // Split NPK across paddocks by acreage fraction (stores per-paddock breakdown)
+  if(!isCon && evPaddocks(ae).length>1){
+    const pads=evPaddocks(ae);
+    const totalAc=pads.reduce((s,p)=>s+(p.acres||0),0);
+    ae.totals.paddockNPK=pads.map(p=>{
+      const frac=totalAc>0?(p.acres||0)/totalAc:1/pads.length;
+      const st2=S.settings;
+      return {
+        pastureId:p.pastureId, pastureName:p.pastureName,
+        n:npk.n*frac, p:npk.p*frac, k:npk.k*frac,
+        npkVal:(npk.n*frac*st2.nPrice+npk.p*frac*st2.pPrice+npk.k*frac*st2.kPrice),
+        acres:p.acres||null, fraction:frac,
+      };
+    });
+  } else {
+    // Single paddock — simple attribution
+    ae.totals.paddockNPK=[{
+      pastureId:evPrimaryPaddock(ae).pastureId,
+      pastureName:evPrimaryPaddock(ae).pastureName,
+      n:npk.n, p:npk.p, k:npk.k, npkVal, acres:_totalAcres, fraction:1,
+    }];
+  }
   // Credit NPK to each sub-move location
   if(subMoveNPK.length){
     subMoveNPK.forEach(smNPK=>{
@@ -2824,7 +3020,7 @@ function wizCloseEvent(){
   }
   // If this is a confinement event with manure capture, route NPK to manure storage
   if(ae.locationType==='confinement'){
-    const loc=S.pastures.find(p=>p.name===ae.pasture);
+    const loc=getPastureForEvent(ae);
     if(loc&&loc.captureManure){
       const capPct=(loc.capturePercent||80)/100;
       const capturedN=npk.n*capPct,capturedP=npk.p*capPct,capturedK=npk.k*capPct;
@@ -2847,10 +3043,12 @@ function wizCloseEvent(){
     const vol=ae.totals.estimatedVolumeLbs?volLbsToDisplay(ae.totals.estimatedVolumeLbs):{val:'--',unit:''};
     summaryExtra=`<div class="banner ban-teal" style="margin-top:10px;"><div style="font-size:13px;font-weight:600;color:var(--teal-d);">Manure captured</div><div style="font-size:12px;color:var(--teal-d);">~${vol.val} ${vol.unit} · N${cn.n.toFixed(1)}/P${cn.p.toFixed(1)}/K${cn.k.toFixed(1)} lbs · $${capFertVal} fert value<br>Added to manure inventory for ${ae.pasture}</div></div>`;
   }
-  document.getElementById('ws1-summary').innerHTML=`<div style="font-size:15px;font-weight:600;margin-bottom:10px;">Closed: ${ae.pasture} ${isCon?'<span class="badge bb">confinement</span>':''}</div><div class="m-grid"><div class="m-cell"><div class="ml">Days</div><div class="mv">${days}</div></div><div class="m-cell"><div class="ml">Feed cost</div><div class="mv" style="color:var(--amber);">$${cost.toFixed(2)}</div></div><div class="m-cell"><div class="ml">Stored DMI</div><div class="mv">${Math.round(sdmi).toLocaleString()} lbs</div></div><div class="m-cell"><div class="ml">${isCon?'Manure NPK':'Pasture DMI'}</div><div class="mv" style="color:${isCon?'var(--purple-d)':'var(--green)'};">${isCon?(ae.totals.capturedNPK?'N'+ae.totals.capturedNPK.n.toFixed(1):'not captured'):(pdmi!==null?Math.round(pdmi).toLocaleString()+' lbs':'--')}</div></div><div class="m-cell"><div class="ml">${isCon?'Capture %':'Pasture %'}</div><div class="mv" style="color:var(--teal);">${isCon?(ae.totals.capturePercent||0)+'%':(pct!==null?pct+'%':'--')}</div></div><div class="m-cell"><div class="ml">NPK fert value</div><div class="mv" style="color:var(--purple-d);">$${npkVal.toFixed(2)}</div></div></div>${summaryExtra}`;
+  document.getElementById('ws1-summary').innerHTML=`<div style="font-size:15px;font-weight:600;margin-bottom:10px;">Closed: ${evDisplayName(ae)} ${isCon?'<span class="badge bb">confinement</span>':''}</div><div class="m-grid"><div class="m-cell"><div class="ml">Days</div><div class="mv">${days}</div></div><div class="m-cell"><div class="ml">Feed cost</div><div class="mv" style="color:var(--amber);">$${cost.toFixed(2)}</div></div><div class="m-cell"><div class="ml">Stored DMI</div><div class="mv">${Math.round(sdmi).toLocaleString()} lbs</div></div><div class="m-cell"><div class="ml">${isCon?'Manure NPK':'Pasture DMI'}</div><div class="mv" style="color:${isCon?'var(--purple-d)':'var(--green)'};">${isCon?(ae.totals.capturedNPK?'N'+ae.totals.capturedNPK.n.toFixed(1):'not captured'):(pdmi!==null?Math.round(pdmi).toLocaleString()+' lbs':'--')}</div></div><div class="m-cell"><div class="ml">${isCon?'Capture %':'Pasture %'}</div><div class="mv" style="color:var(--teal);">${isCon?(ae.totals.capturePercent||0)+'%':(pct!==null?pct+'%':'--')}</div></div><div class="m-cell"><div class="ml">NPK fert value</div><div class="mv" style="color:var(--purple-d);">$${npkVal.toFixed(2)}</div></div></div>${summaryExtra}`;
   wizGo(1);
 }
-function populateNewPastureSelect(){
+function populateNewPastureSelect(ev){
+  if(!ev&&wizPaddocks.length===0) initWizPaddocks(null); // fresh start
+  else if(ev) initWizPaddocks(ev);
   const ae=getActive();
   const opts=sortedPastures(false).filter(p=>!ae||p.name!==ae.pasture).map(p=>{
     const isCon=p.locationType==='confinement';
@@ -2860,7 +3058,7 @@ function populateNewPastureSelect(){
   document.getElementById('w-new-pasture').innerHTML='<option value="">— select location —</option>'+opts;
 }
 function onWizPaddockChange(){
-  const locName=document.getElementById('w-new-pasture').value;
+  const locName=wizPaddocks.length?wizPaddocks[0].pastureName:(document.getElementById('w-new-pasture').value||'');
   wizPaddockForTodo=locName;
   showPaddockTasksInWiz(locName,'w-dest-tasks','w-dest-tasks-list');
   // Show/hide forage height based on location type
@@ -2913,8 +3111,31 @@ function wizSaveNew(){
   const g=wizGroupId?getGroupById(wizGroupId):null;
   const t=g?getGroupTotals(g):{totalHead:0,avgWeight:0};
   const noPastureFlag=document.getElementById('w-no-pasture')?.checked||false;
-  const _newEvLoc=S.pastures.find(p=>p.name===locName)||findPastureByName(locName);
-  S.events.push({id:Date.now()+1,status:'open',pasture:locName,pastureId:_newEvLoc?_newEvLoc.id:null,locationType:isCon?'confinement':'pasture',groupId:wizGroupId||null,groupName:g?g.name:'',dateIn:inDate,noPasture:noPastureFlag,head:parseFloat(document.getElementById('w-new-head').value)||t.totalHead||0,wt:parseFloat(document.getElementById('w-new-wt').value)||t.avgWeight||0,heightIn:(!isCon&&parseFloat(document.getElementById('w-new-h').value))||null,feedEntries});
+  const _newEvLoc=wizPaddocks.length?paddockRecord(wizPaddocks[0]):S.pastures.find(p=>p.name===locName)||findPastureByName(locName);
+  S.events.push({
+    id:Date.now()+1, status:'open',
+    // Legacy fields kept for backward compat / fallback display
+    pasture:locName, pastureId:_newEvLoc?_newEvLoc.id:null,
+    locationType:isCon?'confinement':'pasture',
+    // New paddocks array — primary entry
+    paddocks:[{
+      pastureId:   _newEvLoc?_newEvLoc.id:null,
+      pastureName: locName,
+      acres:       _newEvLoc?parseFloat(_newEvLoc.acres)||null:null,
+      dateAdded:   inDate,
+      locationType:isCon?'confinement':'pasture',
+    }],
+    groupId:wizGroupId||null, groupName:g?g.name:'',
+    dateIn:inDate, noPasture:noPastureFlag,
+    head:parseFloat(document.getElementById('w-new-head').value)||t.totalHead||0,
+    wt:parseFloat(document.getElementById('w-new-wt').value)||t.avgWeight||0,
+    heightIn:(!isCon&&parseFloat(document.getElementById('w-new-h').value))||null,
+    feedEntries,
+  });
+  // Apply multi-paddock array to the just-pushed event
+  const _newEv=S.events[S.events.length-1];
+  if(_newEv) applyWizPaddocksToEvent(_newEv,inDate);
+  wizPaddocks=[];
   wizFeedLines=[];save();nav('home',document.getElementById('bn-home'));
 }
 
@@ -3025,14 +3246,14 @@ function aggregatePaddockPeriod(pastureName, pastureId, periodStart, periodEnd){
     e.status==='closed' &&
     e.locationType!=='confinement' &&
     e.type!=='amend' &&
-    (e.pasture===pastureName || (pastureId&&e.pastureId===pastureId)) &&
+    evMatchesPasture(e,pastureName,pastureId) &&
     e.dateIn <= periodEnd &&
     (e.dateOut||e.dateIn) >= periodStart
   );
   const openEvs = S.events.filter(e=>
     e.status==='open' &&
     e.locationType!=='confinement' &&
-    (e.pasture===pastureName || (pastureId&&e.pastureId===pastureId)) &&
+    evMatchesPasture(e,pastureName,pastureId) &&
     e.dateIn <= periodEnd
   );
   const allEvs = [...closedEvs, ...openEvs];
@@ -3079,7 +3300,12 @@ function aggregatePaddockPeriod(pastureName, pastureId, periodStart, periodEnd){
 
     // NPK, OM, cost — pro-rate closed event totals
     if(ev.status==='closed'&&ev.totals){
-      totalNPK  += ((ev.totals.npk?.n||0)+(ev.totals.npk?.p||0)+(ev.totals.npk?.k||0)) * ratio;
+      // Use per-paddock NPK share if available
+      const _npkShare=ev.totals.paddockNPK
+        ?ev.totals.paddockNPK.find(x=>(pastureId&&x.pastureId===pastureId)||(x.pastureName===pastureName))
+        :null;
+      const _npkSrc=_npkShare||ev.totals.npk||{n:0,p:0,k:0};
+      totalNPK  += ((_npkSrc.n||0)+(_npkSrc.p||0)+(_npkSrc.k||0)) * ratio;
       totalOM   += (ev.totals.organicMatterLbs||0) * ratio;
       totalCost += (ev.totals.cost||0) * ratio;
       if(ev.totals.pct!=null){pasturePctSum+=ev.totals.pct;pasturePctCount++;}
@@ -3160,10 +3386,556 @@ function switchEventsView(view){
   else renderEventsLog();
 }
 
+
+// ─── PASTURE SURVEY ───────────────────────────────────────────────────────────
+
+// Rating color: 1=red, 5-6=amber, 8-10=deep green
+function surveyRatingColor(r){
+  if(!r) return 'var(--bg2)';
+  if(r<=3) return '#E24B4A';
+  if(r<=5) return '#BA7517';
+  if(r<=7) return '#639922';
+  return '#3B6D11';
+}
+function surveyRatingBg(r){
+  if(!r) return 'var(--bg2)';
+  if(r<=3) return 'var(--red-l)';
+  if(r<=5) return 'var(--amber-l)';
+  if(r<=7) return 'var(--green-l)';
+  return '#C2E0A0';
+}
+
+// Get the latest survey rating for a pasture
+function latestSurveyRating(pastureId, pastureName){
+  if(!S.surveys||!S.surveys.length) return null;
+  const sorted = [...S.surveys].sort((a,b)=>b.date.localeCompare(a.date));
+  for(const sv of sorted){
+    const r = (sv.ratings||[]).find(r=>r.pastureId===pastureId||r.pastureName===pastureName);
+    if(r) return {rating:r.rating, date:sv.date, notes:r.notes||''};
+  }
+  return null;
+}
+
+// Get the last closed event for a pasture (for recovery window editing)
+function lastClosedEventForPasture(pastureId, pastureName){
+  const evs = S.events.filter(e=>
+    e.status==='closed' &&
+    e.type!=='amend' &&
+    evMatchesPasture(e,pastureName,pastureId)
+  ).sort((a,b)=>b.dateOut.localeCompare(a.dateOut));
+  return evs[0]||null;
+}
+
+let surveyRatings = {}; // pastureId -> rating (1-10)
+let surveyNotes   = {}; // pastureId -> notes
+let surveyRecovery= {}; // pastureId -> {min, max}
+
+function openSurveySheet(){
+  surveyRatings = {};
+  surveyNotes   = {};
+  surveyRecovery= {};
+  document.getElementById('survey-date').value = todayStr();
+  renderSurveyPaddocks();
+  document.getElementById('survey-sheet-wrap').classList.add('open');
+}
+function closeSurveySheet(){
+  document.getElementById('survey-sheet-wrap').classList.remove('open');
+}
+
+function renderSurveyPaddocks(){
+  const pastures = sortedPastures(false).filter(p=>p.locationType!=='confinement');
+  const listEl   = document.getElementById('survey-paddock-list');
+  const recEl    = document.getElementById('survey-recovery-list');
+  if(!pastures.length){
+    listEl.innerHTML='<div class="empty">No pasture locations defined.</div>';
+    recEl.innerHTML='';
+    return;
+  }
+
+  listEl.innerHTML = pastures.map(p=>{
+    const latest = latestSurveyRating(p.id, p.name);
+    const lastEv = lastClosedEventForPasture(p.id, p.name);
+    const activeEv = S.events.find(e=>e.status==='open'&&evMatchesPasture(e,p.name,p.id));
+    const daysSince = lastEv&&lastEv.dateOut ?
+      Math.round((new Date(todayStr()+'T12:00:00')-new Date(lastEv.dateOut+'T12:00:00'))/86400000) : null;
+
+    const ratingBtns = [1,2,3,4,5,6,7,8,9,10].map(n=>{
+      const selected = surveyRatings[p.id]===n;
+      const color = surveyRatingColor(n);
+      return `<button onclick="setSurveyRating('${p.id}','${p.name}',${n})"
+        style="width:30px;height:30px;border-radius:6px;border:2px solid ${selected?color:'var(--border2)'};
+               background:${selected?color:'var(--bg2)'};color:${selected?'white':'var(--text2)'};
+               font-size:12px;font-weight:${selected?'700':'400'};cursor:pointer;
+               transition:all 0.1s;flex-shrink:0;">${n}</button>`;
+    }).join('');
+
+    const activeNote = activeEv
+      ? `<span class="badge bt" style="font-size:10px;">Active · Day ${daysBetween(activeEv.dateIn,todayStr())}</span>`
+      : (daysSince!==null ? `<span style="font-size:11px;color:var(--text2);">${daysSince}d since last graze</span>` : '');
+
+    const latestNote = latest
+      ? `<span style="font-size:11px;color:${surveyRatingColor(latest.rating)};">Last rated: ${latest.rating}/10 on ${dLabel(latest.date)}</span>`
+      : '';
+
+    return `<div style="padding:10px 0;border-bottom:0.5px solid var(--border);" id="survey-row-${p.id}">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px;">
+        <div>
+          <span style="font-size:14px;font-weight:600;">${p.name}</span>
+          <span style="font-size:11px;color:var(--text2);margin-left:6px;">${p.acres||0} ac</span>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
+          ${activeNote} ${latestNote}
+        </div>
+      </div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap;" id="rating-btns-${p.id}">
+        ${ratingBtns}
+      </div>
+      <div id="survey-selected-${p.id}" style="font-size:11px;margin-top:4px;min-height:16px;"></div>
+    </div>`;
+  }).join('');
+
+  // Recovery window — show ALL pastures so new operations can set initial values
+  const recRows = pastures.map(p=>{
+    const lastEv  = lastClosedEventForPasture(p.id, p.name);
+    const st      = S.settings;
+
+    // Priority: surveyRecovery temp state → last event → pasture default → settings default
+    const srcMin  = lastEv ? lastEv.recoveryMinDays : p.recoveryMinDays;
+    const srcMax  = lastEv ? lastEv.recoveryMaxDays : p.recoveryMaxDays;
+    const curMin  = surveyRecovery[p.id]?.min ?? srcMin ?? st.recoveryMinDays ?? 30;
+    const curMax  = surveyRecovery[p.id]?.max ?? srcMax ?? st.recoveryMaxDays ?? 60;
+
+    // Estimated next graze window
+    let nextGrazeHtml = '';
+    const baseDate = lastEv?.dateOut || null;
+    if(baseDate && curMin && curMax){
+      const base = new Date(baseDate+'T12:00:00');
+      const earliest = new Date(base); earliest.setDate(earliest.getDate()+curMin);
+      const latest   = new Date(base); latest.setDate(latest.getDate()+curMax);
+      const today    = new Date(todayStr()+'T12:00:00');
+      const daysRested = Math.round((today-base)/86400000);
+      const readyIn  = curMin - daysRested;
+      let statusHtml = '';
+      if(daysRested >= curMax){
+        statusHtml = '<span style="color:var(--amber-d);font-weight:600;">⚠ window closing</span>';
+      } else if(daysRested >= curMin){
+        statusHtml = '<span style="color:var(--green-d);font-weight:600;">✓ ready to graze</span>';
+      } else {
+        statusHtml = '<span style="color:var(--text2);">'+readyIn+'d until ready</span>';
+      }
+      nextGrazeHtml = `<div style="font-size:11px;color:var(--text2);margin-top:3px;">
+        Next window: ${earliest.toLocaleDateString('en-US',{month:'short',day:'numeric'})}–${latest.toLocaleDateString('en-US',{month:'short',day:'numeric'})} &nbsp;·&nbsp; ${statusHtml}
+      </div>`;
+    } else if(!baseDate){
+      nextGrazeHtml = '<div style="font-size:11px;color:var(--text2);margin-top:3px;font-style:italic;">No graze history — window will calculate after first move</div>';
+    }
+
+    const contextLine = lastEv
+      ? `Last grazed: ${dLabel(lastEv.dateOut)}`
+      : (p.recoveryMinDays ? 'Default set on pasture' : 'No history yet — set initial window');
+
+    return `<div style="padding:10px 0;border-bottom:0.5px solid var(--border);">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div style="min-width:110px;">
+          <div style="font-size:13px;font-weight:500;">${p.name}</div>
+          <div style="font-size:11px;color:var(--text2);">${contextLine}</div>
+        </div>
+        <div style="flex:1;"></div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <div style="text-align:center;">
+            <div style="font-size:9px;color:var(--text2);margin-bottom:2px;">MIN days</div>
+            <input type="number" placeholder="${st.recoveryMinDays||30}" min="1" max="365"
+              value="${curMin}"
+              onchange="surveyRecovery['${p.id}']={...(surveyRecovery['${p.id}']||{}),min:parseInt(this.value)||null};renderSurveyRecoveryPreview('${p.id}')"
+              id="rec-min-${p.id}"
+              style="width:60px;padding:5px 7px;border:0.5px solid var(--border2);border-radius:var(--radius);
+                     font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;text-align:center;"/>
+          </div>
+          <span style="font-size:14px;color:var(--text2);margin-top:12px;">–</span>
+          <div style="text-align:center;">
+            <div style="font-size:9px;color:var(--text2);margin-bottom:2px;">MAX days</div>
+            <input type="number" placeholder="${st.recoveryMaxDays||60}" min="1" max="365"
+              value="${curMax}"
+              onchange="surveyRecovery['${p.id}']={...(surveyRecovery['${p.id}']||{}),max:parseInt(this.value)||null};renderSurveyRecoveryPreview('${p.id}')"
+              id="rec-max-${p.id}"
+              style="width:60px;padding:5px 7px;border:0.5px solid var(--border2);border-radius:var(--radius);
+                     font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;text-align:center;"/>
+          </div>
+        </div>
+      </div>
+      <div id="rec-preview-${p.id}">${nextGrazeHtml}</div>
+    </div>`;
+  }).join('');
+
+  recEl.innerHTML = recRows || '<div style="font-size:13px;color:var(--text2);">No pasture locations defined yet.</div>';
+}
+
+
+function renderSurveyRecoveryPreview(pastureId){
+  const p    = S.pastures.find(x=>x.id===pastureId);
+  const el   = document.getElementById('rec-preview-'+pastureId);
+  if(!el||!p) return;
+
+  const minVal = parseInt(document.getElementById('rec-min-'+pastureId)?.value)||
+                 surveyRecovery[pastureId]?.min||null;
+  const maxVal = parseInt(document.getElementById('rec-max-'+pastureId)?.value)||
+                 surveyRecovery[pastureId]?.max||null;
+  const lastEv = lastClosedEventForPasture(pastureId, p.name);
+  const baseDate = lastEv?.dateOut||null;
+
+  if(!baseDate){
+    el.innerHTML='<div style="font-size:11px;color:var(--text2);margin-top:3px;font-style:italic;">No graze history — window will calculate after first move</div>';
+    return;
+  }
+  if(!minVal||!maxVal){ el.innerHTML=''; return; }
+
+  const base     = new Date(baseDate+'T12:00:00');
+  const earliest = new Date(base); earliest.setDate(earliest.getDate()+minVal);
+  const latest   = new Date(base); latest.setDate(latest.getDate()+maxVal);
+  const today    = new Date(todayStr()+'T12:00:00');
+  const daysRested = Math.round((today-base)/86400000);
+
+  let statusHtml = '';
+  if(daysRested >= maxVal){
+    statusHtml = '<span style="color:var(--amber-d);font-weight:600;">⚠ window closing</span>';
+  } else if(daysRested >= minVal){
+    statusHtml = '<span style="color:var(--green-d);font-weight:600;">✓ ready to graze</span>';
+  } else {
+    statusHtml = '<span style="color:var(--text2);">'+(minVal-daysRested)+'d until ready</span>';
+  }
+
+  el.innerHTML = `<div style="font-size:11px;color:var(--text2);margin-top:3px;">
+    Next window: ${earliest.toLocaleDateString('en-US',{month:'short',day:'numeric'})}–${latest.toLocaleDateString('en-US',{month:'short',day:'numeric'})} &nbsp;·&nbsp; ${statusHtml}
+  </div>`;
+}
+
+function setSurveyRating(pastureId, pastureName, rating){
+  surveyRatings[pastureId] = rating;
+  // Re-render just the buttons for this pasture (fast, no full re-render)
+  const btnsEl = document.getElementById('rating-btns-'+pastureId);
+  if(btnsEl){
+    btnsEl.querySelectorAll('button').forEach((btn,i)=>{
+      const n = i+1;
+      const selected = n === rating;
+      const color = surveyRatingColor(n);
+      btn.style.border = `2px solid ${selected?color:'var(--border2)'}`;
+      btn.style.background = selected ? color : 'var(--bg2)';
+      btn.style.color = selected ? 'white' : 'var(--text2)';
+      btn.style.fontWeight = selected ? '700' : '400';
+    });
+  }
+  const selEl = document.getElementById('survey-selected-'+pastureId);
+  if(selEl){
+    const colors=['','#E24B4A','#E24B4A','#E24B4A','#BA7517','#BA7517','#639922','#639922','#3B6D11','#3B6D11','#3B6D11'];
+    const labels=['','Very poor','Poor','Below avg','Fair','Moderate','Good','Very good','Excellent','Outstanding','Perfect'];
+    selEl.innerHTML = `<span style="color:${colors[rating]};font-weight:600;">${rating}/10 — ${labels[rating]}</span>`;
+  }
+}
+
+function saveSurvey(){
+  const date = document.getElementById('survey-date').value || todayStr();
+  const pastures = sortedPastures(false).filter(p=>p.locationType!=='confinement');
+  const ratings = pastures
+    .filter(p=>surveyRatings[p.id]!=null)
+    .map(p=>({
+      pastureId:   p.id,
+      pastureName: p.name,
+      rating:      surveyRatings[p.id],
+      notes:       surveyNotes[p.id]||'',
+    }));
+
+  if(!ratings.length){
+    alert('Rate at least one paddock before saving.');
+    return;
+  }
+
+  // Upsert: if a survey for this date already exists, update it
+  const existing = S.surveys.find(sv=>sv.date===date);
+  if(existing){
+    // Merge ratings: overwrite any paddocks that were re-rated
+    ratings.forEach(r=>{
+      const idx = existing.ratings.findIndex(x=>x.pastureId===r.pastureId);
+      if(idx>=0) existing.ratings[idx]=r;
+      else existing.ratings.push(r);
+    });
+  } else {
+    S.surveys.push({id:Date.now(), date, ratings});
+  }
+
+  // Apply recovery window edits: to last closed event if it exists,
+  // otherwise store on the pasture record itself for new/ungrazed paddocks
+  let recoveryUpdated = 0;
+  Object.entries(surveyRecovery).forEach(([pastureId,rec])=>{
+    if(rec.min==null && rec.max==null) return;
+    const p  = S.pastures.find(x=>x.id===pastureId);
+    if(!p) return;
+    const ev = lastClosedEventForPasture(pastureId, p.name);
+    if(ev){
+      if(rec.min!=null) ev.recoveryMinDays=rec.min;
+      if(rec.max!=null) ev.recoveryMaxDays=rec.max;
+    } else {
+      // No event yet — store directly on pasture for move wizard to pick up
+      if(rec.min!=null) p.recoveryMinDays=rec.min;
+      if(rec.max!=null) p.recoveryMaxDays=rec.max;
+    }
+    recoveryUpdated++;
+  });
+
+  save();
+  closeSurveySheet();
+  if(curScreen==='pastures') renderPastures();
+
+  const msg = `Survey saved: ${ratings.length} paddock${ratings.length!==1?'s':''} rated.`
+    + (recoveryUpdated ? ` ${recoveryUpdated} recovery window${recoveryUpdated!==1?'s':''} updated.` : '');
+  // Show brief toast-style confirmation
+  showSurveyToast(msg);
+}
+
+function showSurveyToast(msg){
+  let toast = document.getElementById('survey-toast');
+  if(!toast){
+    toast = document.createElement('div');
+    toast.id = 'survey-toast';
+    toast.style.cssText = 'position:fixed;bottom:100px;left:50%;transform:translateX(-50%);'
+      +'background:var(--green-d);color:white;padding:10px 18px;border-radius:20px;'
+      +'font-size:13px;font-weight:500;z-index:500;opacity:0;transition:opacity 0.2s;'
+      +'max-width:90vw;text-align:center;pointer-events:none;';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.style.opacity = '1';
+  setTimeout(()=>{ toast.style.opacity='0'; }, 3000);
+}
+
+// ─── END PASTURE SURVEY ───────────────────────────────────────────────────────
+
+
+function renderHomeSurveyCard(){
+  const card = document.getElementById('home-survey-card');
+  const grid = document.getElementById('home-survey-grid');
+  const dateLabel = document.getElementById('home-survey-date-label');
+  if(!card||!grid) return;
+
+  const surveys = [...(S.surveys||[])].sort((a,b)=>b.date.localeCompare(a.date));
+  if(!surveys.length){ card.style.display='none'; return; }
+
+  card.style.display='block';
+  const latest = surveys[0];
+  if(dateLabel) dateLabel.textContent = dLabel(latest.date);
+
+  const pastures = sortedPastures(false).filter(p=>p.locationType!=='confinement');
+  // Build latest rating per pasture (across all surveys)
+  const rated = pastures.map(p=>{
+    const lr = latestSurveyRating(p.id, p.name);
+    return lr ? {pasture:p, rating:lr.rating, date:lr.date} : null;
+  }).filter(Boolean);
+
+  if(!rated.length){ card.style.display='none'; return; }
+
+  // Sort: lowest ratings first (needs attention) to highest (most ready)
+  rated.sort((a,b)=>a.rating-b.rating);
+
+  grid.innerHTML = rated.map(({pasture:p, rating:r, date})=>{
+    const isActive = S.events.some(e=>e.status==='open'&&evMatchesPasture(e,p.name,p.id));
+    const lastEv = lastClosedEventForPasture(p.id, p.name);
+    const restDays = lastEv&&lastEv.dateOut
+      ? Math.round((new Date(todayStr()+'T12:00:00')-new Date(lastEv.dateOut+'T12:00:00'))/86400000)
+      : null;
+    // Recovery window check
+    const recOk = lastEv&&lastEv.recoveryMinDays ? restDays>=lastEv.recoveryMinDays : null;
+    const recOver = lastEv&&lastEv.recoveryMaxDays ? restDays>lastEv.recoveryMaxDays : false;
+
+    // Color intensity: rating 1=lightest, 10=darkest green
+    const bgColors = ['','#FEE2E2','#FECACA','#FCA5A5',  // 1-3 red shades
+                      '#FEF3C7','#FDE68A',                // 4-5 amber shades
+                      '#DCFCE7','#BBF7D0','#86EFAC',      // 6-8 light→mid green
+                      '#4ADE80','#22C55E'];                // 9-10 deep green
+    const txtColors= ['','#991B1B','#991B1B','#991B1B',
+                       '#92400E','#92400E',
+                       '#166534','#15803D','#15803D',
+                       '#14532D','#14532D'];
+
+    return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;
+        border-bottom:0.5px solid var(--border);">
+      <div style="width:36px;height:36px;border-radius:8px;display:flex;align-items:center;
+        justify-content:center;font-size:15px;font-weight:700;flex-shrink:0;
+        background:${bgColors[r]||'var(--bg2)'};color:${txtColors[r]||'var(--text)'};">
+        ${r}
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:600;">${p.name}
+          ${isActive?'<span class="badge bt" style="font-size:10px;">active</span>':''}
+        </div>
+        <div style="font-size:11px;color:var(--text2);">
+          ${restDays!=null?restDays+'d rest':'no history'}${p.acres?' · '+p.acres+' ac':''}
+        </div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;font-size:11px;">
+        ${recOk===true&&!recOver?'<span style="color:var(--green-d);font-weight:600;">✓ ready</span>':''}
+        ${recOk===false?'<span style="color:var(--text2);">not ready</span>':''}
+        ${recOver?'<span style="color:var(--amber-d);">overdue</span>':''}
+        ${lastEv&&lastEv.recoveryMinDays?'<div style="color:var(--text2);">'+lastEv.recoveryMinDays+'–'+(lastEv.recoveryMaxDays||'?')+'d window</div>':''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+
+// ─── MULTI-PADDOCK WIZARD HELPERS ────────────────────────────────────────────
+
+let wizPaddocks = []; // [{pastureId, pastureName, acres, locationType}]
+
+function initWizPaddocks(ev){
+  // Load existing paddocks from event (edit) or start fresh
+  if(ev && ev.paddocks && ev.paddocks.length){
+    wizPaddocks = ev.paddocks.map(p=>({...p}));
+  } else if(ev && ev.pasture){
+    const rec = findPastureByName(ev.pasture);
+    wizPaddocks = [{pastureId:ev.pastureId||rec?.id||null, pastureName:ev.pasture,
+      acres:rec?parseFloat(rec.acres)||null:null, locationType:ev.locationType||'pasture'}];
+  } else {
+    wizPaddocks = [];
+  }
+  renderWizPaddockChips();
+}
+
+function addWizPaddock(){
+  const sel = document.getElementById('w-new-pasture');
+  const name = sel?.value;
+  if(!name){ return; }
+  if(wizPaddocks.some(p=>p.pastureName===name)){ sel.value=''; return; } // already added
+  const rec = S.pastures.find(p=>p.name===name)||findPastureByName(name);
+  wizPaddocks.push({
+    pastureId:   rec?rec.id:null,
+    pastureName: name,
+    acres:       rec?parseFloat(rec.acres)||null:null,
+    dateAdded:   document.getElementById('w-new-date')?.value||todayStr(),
+    locationType: rec?rec.locationType||'pasture':'pasture',
+  });
+  sel.value='';
+  renderWizPaddockChips();
+  onWizPaddockChange();
+}
+
+function removeWizPaddock(name){
+  if(wizPaddocks.length<=1){ alert('At least one paddock is required.'); return; }
+  wizPaddocks = wizPaddocks.filter(p=>p.pastureName!==name);
+  renderWizPaddockChips();
+  onWizPaddockChange();
+}
+
+function renderWizPaddockChips(){
+  const el = document.getElementById('w-paddock-chips');
+  if(!el) return;
+  el.innerHTML = wizPaddocks.map(p=>`
+    <span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;
+      border-radius:20px;background:var(--green-l);color:var(--green-d);
+      font-size:12px;font-weight:600;cursor:pointer;"
+      onclick="removeWizPaddock('${p.pastureName}')"
+      title="Tap to remove ${p.pastureName}">
+      ${p.pastureName}${wizPaddocks.length>1?' ×':''}
+    </span>`).join('');
+  // Show total acres
+  const totalAc = wizPaddocks.reduce((s,p)=>s+(p.acres||0),0);
+  if(totalAc>0 && el.nextElementSibling){
+    // update the 'add paddock' select option to show current total acres
+  }
+}
+
+// Sync wizPaddocks back to the event object before saving
+function applyWizPaddocksToEvent(ev, dateIn){
+  ev.paddocks = wizPaddocks.map((p,i)=>({
+    ...p,
+    dateAdded: i===0 ? dateIn : (p.dateAdded||dateIn),
+  }));
+  // Keep legacy fields pointing at primary
+  ev.pasture   = wizPaddocks[0]?.pastureName||ev.pasture||'';
+  ev.pastureId = wizPaddocks[0]?.pastureId||ev.pastureId||null;
+  ev.locationType = wizPaddocks[0]?.locationType||ev.locationType||'pasture';
+}
+
+// ─── EVENT EDIT MULTI-PADDOCK ─────────────────────────────────────────────────
+
+let eePaddocks = []; // working copy for event edit sheet
+
+function initEePaddocks(ev){
+  if(ev && ev.paddocks && ev.paddocks.length){
+    eePaddocks = ev.paddocks.map(p=>({...p}));
+  } else if(ev){
+    const rec = getPastureForEvent(ev);
+    eePaddocks = [{pastureId:ev.pastureId||rec?.id||null,
+      pastureName:ev.pasture||'',
+      acres:rec?parseFloat(rec.acres)||null:null,
+      dateAdded:ev.dateIn, locationType:ev.locationType||'pasture'}];
+  } else { eePaddocks=[]; }
+  renderEePaddockChips();
+  updateEePaddockNote();
+}
+
+function addEePaddock(){
+  const sel = document.getElementById('ee-paddock');
+  const name = sel?.value;
+  if(!name){ return; }
+  if(eePaddocks.some(p=>p.pastureName===name)){ sel.value=''; return; }
+  const rec = S.pastures.find(p=>p.name===name)||findPastureByName(name);
+  eePaddocks.push({
+    pastureId:   rec?rec.id:null,
+    pastureName: name,
+    acres:       rec?parseFloat(rec.acres)||null:null,
+    dateAdded:   todayStr(), // added mid-event
+    locationType: rec?rec.locationType||'pasture':'pasture',
+  });
+  sel.value='';
+  renderEePaddockChips();
+  updateEePaddockNote();
+}
+
+function removeEePaddock(name){
+  if(eePaddocks.length<=1){ alert('At least one paddock is required.'); return; }
+  eePaddocks = eePaddocks.filter(p=>p.pastureName!==name);
+  renderEePaddockChips();
+  updateEePaddockNote();
+}
+
+function renderEePaddockChips(){
+  const el = document.getElementById('ee-paddock-chips');
+  if(!el) return;
+  el.innerHTML = eePaddocks.map(p=>`
+    <span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;
+      border-radius:20px;background:var(--green-l);color:var(--green-d);
+      font-size:12px;font-weight:600;cursor:pointer;"
+      onclick="removeEePaddock('${p.pastureName}')"
+      title="Tap to remove">
+      ${p.pastureName}${eePaddocks.length>1?' ×':''}
+      ${p.dateAdded&&p.dateAdded!==eePaddocks[0]?.dateAdded?
+        '<span style="font-size:10px;opacity:0.7;"> from '+dLabel(p.dateAdded)+'</span>':''}
+    </span>`).join('');
+}
+
+function updateEePaddockNote(){
+  const el = document.getElementById('ee-paddock-note');
+  if(!el) return;
+  const totalAc = eePaddocks.reduce((s,p)=>s+(p.acres||0),0);
+  if(eePaddocks.length>1){
+    el.innerHTML = `<span style="color:var(--text2);">${eePaddocks.length} paddocks · ${totalAc>0?totalAc.toFixed(1)+' ac total':'set acres on Pastures tab'} · NPK splits by acreage</span>`;
+  } else {
+    el.innerHTML = '';
+  }
+}
+
+function applyEePaddocksToEvent(ev){
+  ev.paddocks = eePaddocks.map(p=>({...p}));
+  ev.pasture   = eePaddocks[0]?.pastureName||ev.pasture||'';
+  ev.pastureId = eePaddocks[0]?.pastureId||ev.pastureId||null;
+  ev.locationType = eePaddocks[0]?.locationType||ev.locationType||'pasture';
+}
+
+// ─── END MULTI-PADDOCK HELPERS ────────────────────────────────────────────────
+
 function renderEventsLog(){
   const ae=getActive();
   const ab=document.getElementById('ev-active-banner');
-  ab.innerHTML=ae?`<div class="banner ban-green"><div style="font-size:14px;font-weight:600;color:var(--green-d);">Active: ${ae.pasture} — Day ${daysBetween(ae.dateIn,todayStr())}</div><div style="font-size:12px;color:var(--green-d);opacity:0.85;">In ${dLabel(ae.dateIn)} · ${(ae.feedEntries||[]).length} feedings</div></div>`:'';
+  ab.innerHTML=ae?`<div class="banner ban-green"><div style="font-size:14px;font-weight:600;color:var(--green-d);">Active: ${evDisplayName(ae)} — Day ${daysBetween(ae.dateIn,todayStr())}</div><div style="font-size:12px;color:var(--green-d);opacity:0.85;">In ${dLabel(ae.dateIn)} · ${(ae.feedEntries||[]).length} feedings</div></div>`:'';
   const filter=document.getElementById('ev-filter').value;
   let evs=[...S.events].filter(e=>e.type!=='amend').reverse();
   if(filter==='open')evs=evs.filter(e=>e.status==='open');
@@ -3176,14 +3948,14 @@ function renderEventsLog(){
     const g=getGroupById(e.groupId);
     return `<div class="row" style="cursor:pointer;" onclick="openEventEdit(${e.id})">
       <div class="row-head">
-        <span style="font-size:14px;font-weight:600;">${e.pasture}</span>
+        <span style="font-size:14px;font-weight:600;">${evDisplayName(e)}</span>
         <div style="display:flex;gap:6px;align-items:center;">
           ${g?`<span style="font-size:11px;color:var(--text2);">${g.name}</span>`:''}
           <span class="badge ${isClosed?'bb':'bt'}">${isClosed?'closed':'active'}</span>
           <button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openEventEdit(${e.id})">Edit</button>
         </div>
       </div>
-      <div class="row-detail">${isClosed?`${dLabel(e.dateIn)} → ${dLabel(e.dateOut)} · ${days} days · $${(t.cost||0).toFixed(2)} · ${e.noPasture?'<span style="color:var(--amber-d);">100% stored feed</span>':(t.pct!==undefined?t.pct+'% pasture':'--')}`:dLabel(e.dateIn)+' → ongoing · '+days+' · '+(e.feedEntries||[]).length+' feedings'}${isClosed&&t.npkVal?`<br>NPK: N${t.npk?t.npk.n.toFixed(1):0}/P${t.npk?t.npk.p.toFixed(1):0}/K${t.npk?t.npk.k.toFixed(1):0} lbs · $${t.npkVal.toFixed(2)} fert value`:''}${isClosed&&e.noPasture&&t.dmiVariance?`<br><span style="color:${Math.abs(t.dmiVariance.variancePct)<5?'var(--green-d)':t.dmiVariance.variancePct>0?'var(--amber-d)':'var(--blue-d)'};">DMI: ${Math.round(t.dmiVariance.actualDMI).toLocaleString()} fed vs ${Math.round(t.dmiVariance.expectedDMI).toLocaleString()} expected (${t.dmiVariance.variancePct>0?'+':''}${t.dmiVariance.variancePct}%)</span>`:''}</div>
+      <div class="row-detail">${isClosed?`${dLabel(e.dateIn)} → ${dLabel(e.dateOut)} · ${days} days · $${(t.cost||0).toFixed(2)} · ${e.noPasture?'<span style="color:var(--amber-d);">100% stored feed</span>':(t.pct!==undefined?t.pct+'% pasture':'--')}${(e.recoveryMinDays||e.recoveryMaxDays)?` · <span style="color:var(--teal-d);">↻ ${e.recoveryMinDays||'?'}–${e.recoveryMaxDays||'?'}d recovery</span>`:''}`:dLabel(e.dateIn)+' → ongoing · '+days+' · '+(e.feedEntries||[]).length+' feedings'}${isClosed&&t.npkVal?`<br>NPK: N${t.npk?t.npk.n.toFixed(1):0}/P${t.npk?t.npk.p.toFixed(1):0}/K${t.npk?t.npk.k.toFixed(1):0} lbs · $${t.npkVal.toFixed(2)} fert value`:''}${isClosed&&e.noPasture&&t.dmiVariance?`<br><span style="color:${Math.abs(t.dmiVariance.variancePct)<5?'var(--green-d)':t.dmiVariance.variancePct>0?'var(--amber-d)':'var(--blue-d)'};">DMI: ${Math.round(t.dmiVariance.actualDMI).toLocaleString()} fed vs ${Math.round(t.dmiVariance.expectedDMI).toLocaleString()} expected (${t.dmiVariance.variancePct>0?'+':''}${t.dmiVariance.variancePct}%)</span>`:''}</div>
     </div>`;
   }).join('');
 }
@@ -3255,8 +4027,8 @@ function renderPastures(){
     if(pastureSortCol==='name'){ av=a.name; bv=b.name; return pastureSortDir*av.localeCompare(bv,'en',{numeric:true}); }
     if(pastureSortCol==='acres'){ return pastureSortDir*((a.acres||0)-(b.acres||0)); }
     if(pastureSortCol==='avg'){
-      const ae=S.events.filter(e=>(e.pasture===a.name||(a.id&&e.pastureId===a.id))&&e.status==='closed');
-      const be=S.events.filter(e=>(e.pasture===b.name||(b.id&&e.pastureId===b.id))&&e.status==='closed');
+      const ae=S.events.filter(e=>evMatchesPasture(e,a.name,a.id)&&e.status==='closed');
+      const be=S.events.filter(e=>evMatchesPasture(e,b.name,b.id)&&e.status==='closed');
       const aa=ae.length?Math.round(ae.reduce((s,e)=>s+(e.totals?e.totals.pct||0:0),0)/ae.length):0;
       const ba=be.length?Math.round(be.reduce((s,e)=>s+(e.totals?e.totals.pct||0:0),0)/be.length):0;
       return pastureSortDir*(aa-ba);
@@ -3272,17 +4044,17 @@ function renderPastures(){
       <button class="btn btn-outline btn-xs" onclick="unarchive('pasture',${JSON.stringify(p.id)})">Unarchive</button>
     </div>`;
     const isCon=p.locationType==='confinement';
-    const evs=S.events.filter(e=>e.pasture===p.name&&e.status==='closed');
+    const evs=S.events.filter(e=>evMatchesPasture(e,p.name,p.id)&&e.status==='closed');
     const avg=!isCon&&evs.length?Math.round(evs.reduce((s,e)=>s+(e.totals?e.totals.pct||0:0),0)/evs.length):null;
-    const ae=getActive();const isActive=ae&&ae.pasture===p.name;
+    const ae=getActive();const isActive=ae&&evMatchesPasture(ae,p.name,p.id);
     const openTasks=S.todos.filter(t=>t.paddock===p.name&&t.status!=='closed').length;
     const typeBadge=isCon?`<span class="badge bb">${p.captureManure?Math.round(p.capturePercent||80)+'% cap':'no cap'}</span>`:'';
     const detail=isCon?(p.description||'Confinement'):`${p.acres} ac · ${p.soil||''}${p.species?' · '+p.species:''}`;
     // Calculate NPK totals for pasture locations
     let npkLine='';
     if(!isCon){
-      const gEvsClosed=S.events.filter(e=>(e.pasture===p.name||(e.pastureId&&e.pastureId===p.id))&&e.status==='closed'&&e.locationType!=='confinement'&&e.totals&&e.totals.npk);
-      const spreadEvs=S.events.filter(e=>e.pasture===p.name&&e.type==='amend'&&e.amendType==='manure');
+      const gEvsClosed=S.events.filter(e=>evMatchesPasture(e,p.name,p.id)&&e.status==='closed'&&e.locationType!=='confinement'&&e.totals&&e.totals.npk);
+      const spreadEvs=S.events.filter(e=>evMatchesPasture(e,p.name,p.id)&&e.type==='amend'&&e.amendType==='manure');
       const totalN=gEvsClosed.reduce((s,e)=>s+(e.totals.npk.n||0),0)+spreadEvs.reduce((s,e)=>s+(e.manureNLbs||0),0);
       const totalP=gEvsClosed.reduce((s,e)=>s+(e.totals.npk.p||0),0)+spreadEvs.reduce((s,e)=>s+(e.manurePLbs||0),0);
       const totalK=gEvsClosed.reduce((s,e)=>s+(e.totals.npk.k||0),0)+spreadEvs.reduce((s,e)=>s+(e.manureKLbs||0),0);
@@ -3301,7 +4073,7 @@ function renderPastures(){
       const remLbs=batches.reduce((s,b)=>s+getBatchRemaining(b),0);
       if(remLbs>0){const vol=volLbsToDisplay(remLbs);manureLine=`<div style="font-size:11px;color:var(--amber-d);margin-top:3px;">~${vol.val} ${vol.unit} in storage</div>`;}
     }
-    return `<div class="chip"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><div style="font-size:14px;font-weight:600;">${p.name} ${isActive?'<span class="badge bt">active</span>':''} ${isCon?'<span class="badge bb">confinement</span>':''}</div><div style="font-size:12px;color:var(--text2);margin-top:2px;">${detail}</div>${npkLine}${manureLine}</div><div style="display:flex;gap:6px;align-items:center;">${typeBadge}${avg!==null?`<span class="badge ${avg>=60?'bg':'ba'}">${avg}% avg</span>`:''} ${openTasks?`<span class="badge ba">${openTasks} task${openTasks!==1?'s':''}</span>`:''}<button class="btn btn-outline btn-xs" onclick="openLocEdit(${i})">Edit</button><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:20px;padding:2px 6px;" onclick="tryDeletePasture(${i})">×</button></div></div></div>`;
+    return `<div class="chip"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><div style="font-size:14px;font-weight:600;">${p.name} ${isActive?'<span class="badge bt">active</span>':''} ${isCon?'<span class="badge bb">confinement</span>':''}</div><div style="font-size:12px;color:var(--text2);margin-top:2px;">${detail}</div>${npkLine}${manureLine}</div><div style="display:flex;gap:6px;align-items:center;">${typeBadge}${avg!==null?`<span class="badge ${avg>=60?'bg':'ba'}">${avg}% avg</span>`:''} ${openTasks?`<span class="badge ba">${openTasks} task${openTasks!==1?'s':''}</span>`:''}${(()=>{const lr=latestSurveyRating(p.id,p.name);return lr?`<span style="font-size:11px;font-weight:700;color:${surveyRatingColor(lr.rating)};background:${surveyRatingBg(lr.rating)};padding:2px 7px;border-radius:10px;" title="Survey ${dLabel(lr.date)}">${lr.rating}/10</span>`:'';})()}<button class="btn btn-outline btn-xs" onclick="openLocEdit(${i})">Edit</button><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:20px;padding:2px 6px;" onclick="tryDeletePasture(${i})">×</button></div></div></div>`;
   }).join('');
 }
 
@@ -3320,6 +4092,12 @@ function saveSettings(){
   // AU weight + thresholds
   const auWtEl=document.getElementById('s-au-weight');
   if(auWtEl)S.settings.auWeight=parseFloat(auWtEl.value)||1000;
+  const recReqEl=document.getElementById('s-recovery-required');
+  if(recReqEl)S.settings.recoveryRequired=recReqEl.checked;
+  const recMinEl=document.getElementById('s-recovery-min');
+  if(recMinEl)S.settings.recoveryMinDays=parseInt(recMinEl.value)||30;
+  const recMaxEl=document.getElementById('s-recovery-max');
+  if(recMaxEl)S.settings.recoveryMaxDays=parseInt(recMaxEl.value)||60;
   // Thresholds — read from rendered inputs
   const tKeys=['auds','pasturePct','npkAcre','omLbs','costDay'];
   if(!S.settings.thresholds)S.settings.thresholds={};
@@ -3343,12 +4121,18 @@ function loadSettings(){
   if(st.manureVolumeRate&&document.getElementById('s-manure-rate'))document.getElementById('s-manure-rate').value=st.manureVolumeRate;
   if(st.manureLoadLbs&&document.getElementById('s-load-lbs'))document.getElementById('s-load-lbs').value=st.manureLoadLbs;
   if(st.manureVolumeUnit&&document.getElementById('s-vol-unit'))document.getElementById('s-vol-unit').value=st.manureVolumeUnit;
-  document.getElementById('s-ver').value=S.version||'v1.0';document.getElementById('s-tester').value=S.testerName||'';
+  document.getElementById('s-ver').value=S.version||'b20260317.1431';document.getElementById('s-tester').value=S.testerName||'';
   // Stat settings
   const spEl=document.getElementById('s-stat-period');
   if(spEl)spEl.value=S.settings.homeStatPeriod||'7d';
   const auWtLoad=document.getElementById('s-au-weight');
   if(auWtLoad)auWtLoad.value=S.settings.auWeight||1000;
+  const recReqLoad=document.getElementById('s-recovery-required');
+  if(recReqLoad)recReqLoad.checked=!!S.settings.recoveryRequired;
+  const recMinLoad=document.getElementById('s-recovery-min');
+  if(recMinLoad)recMinLoad.value=S.settings.recoveryMinDays||30;
+  const recMaxLoad=document.getElementById('s-recovery-max');
+  if(recMaxLoad)recMaxLoad.value=S.settings.recoveryMaxDays||60;
   renderStatsMetricList();
   renderThresholdsList();
   const elCount=document.getElementById('error-log-count');
@@ -3410,7 +4194,11 @@ function updateHeader(){
     sub='Set up your operation in Settings';
   }
   document.getElementById('hdr-sub').textContent=sub;
-  document.getElementById('ver-tag').textContent=S.version||'v1.0';
+  const _vTag=document.getElementById('ver-tag');
+  if(_vTag)_vTag.textContent=S.version||'b20260317.1431';
+  // Keep meta tag in sync so SW registration uses the right version
+  const _vMeta=document.getElementById('app-version-meta');
+  if(_vMeta&&S.version)_vMeta.setAttribute('content',S.version);
   syncSidebarOpName();
 }
 
@@ -3418,7 +4206,7 @@ function updateHeader(){
 const CAT={bug:{label:'Bug',cls:'br',pillCls:'cp-bug'},ux:{label:'UX friction',cls:'ba',pillCls:'cp-ux'},feature:{label:'Missing feature',cls:'bp',pillCls:'cp-feature'},calc:{label:'Calculation',cls:'bt',pillCls:'cp-calc'},idea:{label:'Idea',cls:'bg',pillCls:'cp-idea'}};
 let selCatVal='';
 function openFeedbackSheet(){
-  const ae=getActive();const ctx=[`Screen: ${curScreen}`];if(ae)ctx.push(`Event: ${ae.pasture} day ${daysBetween(ae.dateIn,todayStr())}`);
+  const ae=getActive();const ctx=[`Screen: ${curScreen}`];if(ae)ctx.push(`Event: ${evDisplayName(ae)} day ${daysBetween(ae.dateIn,todayStr())}`);
   document.getElementById('fb-ctx-text').textContent=ctx.join(' · ');
   document.getElementById('fb-note').value='';selCatVal='';document.querySelectorAll('.cat-pill').forEach(p=>p.classList.remove('sel'));
   document.getElementById('fb-sheet-wrap').classList.add('open');setTimeout(()=>document.getElementById('fb-note').focus(),300);
@@ -3429,7 +4217,7 @@ function saveFeedbackItem(){
   const note=document.getElementById('fb-note').value.trim();
   if(!note){document.getElementById('fb-note').style.borderColor='var(--red)';setTimeout(()=>document.getElementById('fb-note').style.borderColor='',1500);return;}
   const ae=getActive();
-  S.feedback.push({id:Date.now(),cat:selCatVal||'idea',note,tester:S.testerName||(getActiveUser()?getActiveUser().name:'anonymous'),version:S.version||'v1.0',status:'open',ctx:{screen:curScreen,activeEvent:ae?{pasture:ae.pasture,day:daysBetween(ae.dateIn,todayStr())}:null},ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:null});
+  S.feedback.push({id:Date.now(),cat:selCatVal||'idea',note,tester:S.testerName||(getActiveUser()?getActiveUser().name:'anonymous'),version:S.version||'b20260317.1431',status:'open',ctx:{screen:curScreen,activeEvent:ae?{pasture:ae.pasture,day:daysBetween(ae.dateIn,todayStr())}:null},ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:null});
   save();closeFeedbackSheet();updateFeedbackBadge();if(curScreen==='feedback')renderFeedbackTab();
 }
 function renderFeedbackTab(){renderConfirmSection();renderFeedbackStats();renderFeedbackList();}
@@ -3445,12 +4233,12 @@ function confirmFixed(id){const f=S.feedback.find(x=>x.id===id);if(!f)return;f.s
 function reopenIssue(id){
   const orig=S.feedback.find(x=>x.id===id);if(!orig)return;
   orig.status='closed';orig.confirmedBy=S.testerName||'anonymous';orig.confirmedAt=new Date().toISOString();
-  S.feedback.push({id:Date.now(),cat:orig.cat,note:`[Regression] ${orig.note}`,tester:S.testerName||'anonymous',version:S.version||'v1.0',status:'open',ctx:orig.ctx,ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:orig.id});
+  S.feedback.push({id:Date.now(),cat:orig.cat,note:`[Regression] ${orig.note}`,tester:S.testerName||'anonymous',version:S.version||'b20260317.1431',status:'open',ctx:orig.ctx,ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:orig.id});
   save();renderFeedbackTab();updateFeedbackBadge();
 }
 function openResolveSheet(id){
   document.getElementById('resolve-id').value=id;document.getElementById('resolve-note').value='';
-  document.getElementById('resolve-ver-label').textContent=S.version||'v1.0';
+  document.getElementById('resolve-ver-label').textContent=S.version||'b20260317.1431';
   document.getElementById('resolve-sheet-wrap').classList.add('open');setTimeout(()=>document.getElementById('resolve-note').focus(),300);
 }
 function closeResolveSheet(){document.getElementById('resolve-sheet-wrap').classList.remove('open');}
@@ -3458,7 +4246,7 @@ function saveResolve(){
   const id=parseInt(document.getElementById('resolve-id').value);const note=document.getElementById('resolve-note').value.trim();
   if(!note){alert('Describe what was changed');return;}
   const f=S.feedback.find(x=>x.id===id);if(!f)return;
-  f.status='resolved';f.resolutionNote=note;f.resolvedInVersion=S.version||'v1.0';f.resolvedAt=new Date().toISOString();
+  f.status='resolved';f.resolutionNote=note;f.resolvedInVersion=S.version||'b20260317.1431';f.resolvedAt=new Date().toISOString();
   save();closeResolveSheet();renderFeedbackTab();updateFeedbackBadge();
 }
 function renderFeedbackStats(){
@@ -3491,7 +4279,7 @@ function generateBrief(){
   const testers=[...new Set(S.feedback.map(f=>f.tester).filter(t=>t&&t!=='anonymous'))];
   const open=S.feedback.filter(f=>f.status==='open');const resolved=S.feedback.filter(f=>f.status==='resolved');const closed=S.feedback.filter(f=>f.status==='closed');
   const catOrder=['bug','calc','ux','feature','idea'];
-  let b=`GET THE HAY OUT — DEV SESSION BRIEF\nGenerated: ${now}\nVersion: ${S.version||'v1.0'}\nTesters: ${testers.length?testers.join(', '):'anonymous'}\nOpen: ${open.length} · Awaiting: ${resolved.length} · Closed: ${closed.length}\n${'═'.repeat(52)}\n`;
+  let b=`GET THE HAY OUT — DEV SESSION BRIEF\nGenerated: ${now}\nVersion: ${S.version||'b20260317.1431'}\nTesters: ${testers.length?testers.join(', '):'anonymous'}\nOpen: ${open.length} · Awaiting: ${resolved.length} · Closed: ${closed.length}\n${'═'.repeat(52)}\n`;
   if(open.length){b+=`\nOPEN ITEMS (${open.length})\n${'─'.repeat(52)}\n`;catOrder.forEach(cat=>{const items=open.filter(f=>f.cat===cat);if(!items.length)return;b+=`\n[${(CAT[cat]||CAT.idea).label.toUpperCase()}]\n`;items.forEach((f,i)=>{const d=new Date(f.ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});const ctx=f.ctx.activeEvent?`screen:${f.ctx.screen} event:${f.ctx.activeEvent.pasture} day${f.ctx.activeEvent.day}`:`screen:${f.ctx.screen}`;b+=`${i+1}. ${f.note}\n   [${ctx}] — ${f.tester}, ${f.version||'?'}, ${d}${f.linkedTo?' ⚠ regression':''}\n`;});});}
   if(resolved.length){b+=`\n${'═'.repeat(52)}\nAWAITING CONFIRMATION (${resolved.length})\n${'─'.repeat(52)}\n`;resolved.forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fix in ${f.resolvedInVersion}: ${f.resolutionNote}\n`;});}
   if(closed.length){b+=`\n${'═'.repeat(52)}\nCLOSED (last 10)\n${'─'.repeat(52)}\n`;closed.slice(-10).forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fixed in ${f.resolvedInVersion||'?'}: ${f.resolutionNote||'—'}. Confirmed: ${f.confirmedBy||'?'}\n`;});}
@@ -3969,7 +4757,11 @@ function saveLocEdit(){
   }
   // Update name references in events if name changed
   if(p.name!==oldName){
-    S.events.filter(e=>e.pasture===oldName).forEach(e=>{e.pasture=p.name;if(p.id)e.pastureId=p.id;});
+    S.events.filter(e=>evMatchesPasture(e,oldName,p.id)).forEach(e=>{
+    e.pasture=p.name; // legacy field
+    if(p.id)e.pastureId=p.id;
+    evPaddocks(e).forEach(pad=>{ if(pad.pastureName===oldName){ pad.pastureName=p.name; if(p.id)pad.pastureId=p.id; } });
+  });
     S.todos.filter(t=>t.paddock===oldName).forEach(t=>t.paddock=p.name);
   }
   stampSetup();save();closeLocEdit();renderPastures();
@@ -6030,7 +6822,7 @@ function closeResetSheet(){
 async function executeReset(){
   if(document.getElementById('reset-confirm-input').value!=='YES')return;
   const mode=document.getElementById('reset-confirm-btn').dataset.mode||'all';
-  const ver=S.version||'v1.0';
+  const ver=S.version||'b20260317.1431';
   if(mode==='events'){
     // Events-only reset — preserve setup data
     S.events=[];
@@ -6398,7 +7190,9 @@ function openEventEdit(eventId){
   // Paddock selector
   const padSel=document.getElementById('ee-paddock');
   padSel.innerHTML='<option value="">— select —</option>'+
-    sortedPastures().map(p=>`<option value="${p.name}"${p.name===ev.pasture?' selected':''}>${p.name}</option>`).join('');
+    sortedPastures().map(p=>`<option value="${p.name}">${p.name}</option>`).join('');
+  document.getElementById('ee-paddock').onchange=()=>addEePaddock();
+  initEePaddocks(ev);
   // Group selector
   const grpSel=document.getElementById('ee-group');
   grpSel.innerHTML='<option value="">— none —</option>'+
@@ -6675,10 +7469,20 @@ function saveEventEdit(){
   // Update core fields
   const grpId=parseInt(document.getElementById('ee-group').value)||null;
   const oldGrpId=ev.groupId;
-  const _eePad=document.getElementById('ee-paddock').value||ev.pasture;
-  ev.pasture=_eePad;
-  const _eePadRec=S.pastures.find(p=>p.name===_eePad)||findPastureByName(_eePad);
+  const _eePadSel=document.getElementById('ee-paddock').value||evPrimaryPaddock(ev).pastureName;
+  // Apply multi-paddock array from eePaddocks
+  if(eePaddocks.length) applyEePaddocksToEvent(ev);
+  const _eePad2=ev.pasture;
+  const _eePadRec=S.pastures.find(p=>p.name===_eePad2)||findPastureByName(_eePad2);
   if(_eePadRec)ev.pastureId=_eePadRec.id;
+  // Ensure paddocks[] is set
+  if(!ev.paddocks||!ev.paddocks.length){
+    ev.paddocks=[{pastureId:ev.pastureId,pastureName:_eePad2,acres:_eePadRec?parseFloat(_eePadRec.acres)||null:null,dateAdded:ev.dateIn,locationType:ev.locationType||'pasture'}];
+  } else {
+    ev.paddocks[0].pastureName=_eePad2;
+    ev.paddocks[0].pastureId=_eePadRec?_eePadRec.id:ev.paddocks[0].pastureId;
+    if(_eePadRec)ev.paddocks[0].acres=parseFloat(_eePadRec.acres)||null;
+  }
   ev.groupId=grpId;
   ev.groupName=grpId?(getGroupById(grpId)||{}).name||ev.groupName:ev.groupName;
   ev.dateIn=dateIn;
@@ -6744,7 +7548,19 @@ function recalcEventTotals(ev){
                  varianceLbs:varLbs,variancePct:Math.round((varLbs/(dmiTarget*days))*100)};
   }
   const _omRecalc=ev.locationType!=='confinement'?calcResidualOM(ev.feedEntries||[],ev.feedResidual||0):0;
-  ev.totals={...ev.totals,days,storedDMI,pastureDMI,cost:feedCost,pct,npk,npkVal,dmiVariance,organicMatterLbs:_omRecalc};
+  const _recalcPads=evPaddocks(ev);
+  const _recalcAc=_recalcPads.reduce((s,p)=>s+(p.acres||parseFloat(paddockRecord(p)?.acres)||0),0);
+  const _paddockNPKRecalc=_recalcPads.length>1?_recalcPads.map(pad=>{
+    const frac=_recalcAc>0?(pad.acres||0)/_recalcAc:1/_recalcPads.length;
+    const st2=S.settings;
+    return {pastureId:pad.pastureId,pastureName:pad.pastureName,
+      n:npk.n*frac,p:npk.p*frac,k:npk.k*frac,
+      npkVal:(npk.n*frac*(st2.nPrice||0.55)+npk.p*frac*(st2.pPrice||0.65)+npk.k*frac*(st2.kPrice||0.42)),
+      acres:pad.acres||null,fraction:frac};
+  }):[{pastureId:_recalcPads[0]?.pastureId,pastureName:_recalcPads[0]?.pastureName,
+    n:npk.n,p:npk.p,k:npk.k,npkVal,acres:_recalcAc||null,fraction:1}];
+  ev.totals={...ev.totals,days,storedDMI,pastureDMI,cost:feedCost,pct,npk,npkVal,
+    dmiVariance,organicMatterLbs:_omRecalc,paddockNPK:_paddockNPKRecalc};
 }
 // ─── END RECALCULATE ──────────────────────────────────────────────────────────
 
@@ -7218,6 +8034,83 @@ function stampSetup(){
 }
 
 
+
+// ─── MULTI-PADDOCK EVENT HELPERS ──────────────────────────────────────────────
+// These abstract away old (ev.pasture string) vs new (ev.paddocks[]) format.
+// Every calculation should go through these, never read ev.pasture directly.
+
+function evPaddocks(ev){
+  if(ev.paddocks && ev.paddocks.length) return ev.paddocks;
+  // Legacy fallback — synthesise a single-entry array from old fields
+  return [{
+    pastureId:   ev.pastureId||null,
+    pastureName: ev.pasture||'',
+    acres:       null,   // will be resolved via lookup where needed
+    dateAdded:   ev.dateIn||null,
+    locationType:ev.locationType||'pasture',
+  }];
+}
+
+function evPrimaryPaddock(ev){ return evPaddocks(ev)[0]; }
+
+// true if this event involved the named/id'd pasture
+function evMatchesPasture(ev, name, id){
+  return evPaddocks(ev).some(p=>
+    (id && p.pastureId===id) ||
+    (name && p.pastureName===name) ||
+    (name && p.pastureName && p.pastureName.replace(/[\s-]/g,'').toLowerCase()===
+      name.replace(/[\s-]/g,'').toLowerCase())
+  );
+}
+
+// Display name — "G-3" or "G-3, G-4, G-5"
+function evDisplayName(ev){
+  const pads = evPaddocks(ev);
+  return pads.map(p=>p.pastureName).filter(Boolean).join(', ') || ev.pasture || '—';
+}
+
+// Total acres across all paddocks in the event
+function evTotalAcres(ev){
+  const pads = evPaddocks(ev);
+  // Try paddock records first (have snapshot acres)
+  let sum = pads.reduce((s,p)=>{
+    if(p.acres!=null) return s+parseFloat(p.acres);
+    const rec = findPastureById(p.pastureId)||findPastureByName(p.pastureName);
+    return s+(rec?parseFloat(rec.acres)||0:0);
+  },0);
+  if(sum>0) return sum;
+  // Fall back to totals snapshot
+  return parseFloat(ev.totals?.pastureAcres)||0;
+}
+
+// Resolve a pasture record for a paddock entry
+function paddockRecord(pad){
+  return findPastureById(pad.pastureId)||findPastureByName(pad.pastureName)||null;
+}
+
+// Migration: convert ev.pasture → ev.paddocks[]
+function migrateToPaddocksField(){
+  if(S._paddocksMigrated) return;
+  let changed=false;
+  S.events.forEach(ev=>{
+    if(ev.type==='amend') return;
+    if(ev.paddocks && ev.paddocks.length) return; // already migrated
+    const rec = findPastureById(ev.pastureId)||findPastureByName(ev.pasture);
+    ev.paddocks=[{
+      pastureId:    ev.pastureId||(rec?rec.id:null),
+      pastureName:  ev.pasture||'',
+      acres:        rec?parseFloat(rec.acres)||null:
+                    parseFloat(ev.totals?.pastureAcres)||null,
+      dateAdded:    ev.dateIn||null,
+      locationType: ev.locationType||'pasture',
+    }];
+    changed=true;
+  });
+  S._paddocksMigrated=true;
+  if(changed) saveLocal();
+}
+// ─── END MULTI-PADDOCK HELPERS ────────────────────────────────────────────────
+
 // ─── ARCHIVE / ID SYSTEM ─────────────────────────────────────────────────────
 
 function generatePastureId(){
@@ -7276,13 +8169,15 @@ function findPastureById(id){return id?S.pastures.find(p=>p.id===id)||null:null;
 
 // Resolve a pasture for an event — prefers ID, falls back to name
 function getPastureForEvent(ev){
-  return (ev.pastureId&&findPastureById(ev.pastureId))||findPastureByName(ev.pasture)||null;
+  const primary=evPrimaryPaddock(ev);
+  return (primary.pastureId&&findPastureById(primary.pastureId))||findPastureByName(primary.pastureName)||null;
 }
 
 // Check if a record is referenced in any events (returns arrays of open+closed)
 function getPastureRefs(pastureId){
-  const open=S.events.filter(e=>e.status==='open'&&(e.pastureId===pastureId||findPastureByName(e.pasture)?.id===pastureId));
-  const closed=S.events.filter(e=>e.status==='closed'&&(e.pastureId===pastureId||findPastureByName(e.pasture)?.id===pastureId));
+  const p=findPastureById(pastureId);
+  const open=S.events.filter(e=>e.status==='open'&&evMatchesPasture(e,p?.name,pastureId));
+  const closed=S.events.filter(e=>e.status==='closed'&&evMatchesPasture(e,p?.name,pastureId));
   return {open,closed};
 }
 function getFeedTypeRefs(ftId){
@@ -7480,6 +8375,7 @@ const RPT_TABS = [
   {key:'feed',     label:'Feed & DMI trends'},
   {key:'animals',  label:'Animal performance'},
   {key:'summary',  label:'Season summary'},
+  {key:'survey',   label:'Pasture surveys'},
 ];
 
 function renderReportsScreen(){
@@ -7501,6 +8397,7 @@ function renderReportsScreen(){
   if(rptTab==='feed')     renderFeedTrendChart();
   if(rptTab==='animals')  renderAnimalPerformance();
   if(rptTab==='summary')  renderSeasonSummary();
+  if(rptTab==='survey')   renderSurveyReport();
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────────
@@ -7560,7 +8457,7 @@ function renderRotationCalendar(containerId){
   }
 
   // ── Paddocks (only those with events in range) ────────────────────────────
-  const paddockNames = [...new Set(allEvs.map(e=>e.pasture))].sort((a,b)=>a.localeCompare(b,'en',{numeric:true}));
+  const paddockNames = [...new Set(allEvs.flatMap(e=>evPaddocks(e).map(p=>p.pastureName)))].filter(Boolean).sort((a,b)=>a.localeCompare(b,'en',{numeric:true}));
 
   function grpColor(gId){ const g=getGroupById(gId); return g?g.color||'#639922':'#888'; }
   function grpName(gId){  const g=getGroupById(gId); return g?g.name:'?'; }
@@ -7603,15 +8500,19 @@ function renderRotationCalendar(containerId){
   const rows = paddockNames.map(pasture=>{
     const pad    = findPastureByName(pasture);
     const acres  = pad && pad.acres ? pad.acres+' ac' : '';
-    const padEvs = allEvs.filter(e=>e.pasture===pasture).sort((a,b)=>a.dateIn.localeCompare(b.dateIn));
+    const padEvs = allEvs.filter(e=>evMatchesPasture(e,pasture,null)).sort((a,b)=>a.dateIn.localeCompare(b.dateIn));
 
     // Build a map: weekStart → event (or null)
     const weekMap = {};
     weeks.forEach(w=>{ weekMap[w]=null; });
     padEvs.forEach(ev=>{
+      // Only show event on this paddock row if this paddock is in the event
+      const padEntry=evPaddocks(ev).find(p=>p.pastureName===pasture);
+      if(!padEntry) return;
+      const effectiveStart=padEntry.dateAdded||ev.dateIn;
       weeks.forEach(w=>{
         const we = weekEnd(w);
-        if(ev.dateIn <= we && (ev.dateOut||todayStr()) >= w) weekMap[w]=ev;
+        if(effectiveStart <= we && (ev.dateOut||todayStr()) >= w) weekMap[w]=ev;
       });
     });
 
@@ -7629,8 +8530,39 @@ function renderRotationCalendar(containerId){
       i+=span;
     }
 
-    const tds = cells.map(c=>{
-      if(!c.ev) return `<td colspan="${c.span}" style="min-width:${28*c.span}px;height:30px;border:none;"></td>`;
+    // Merge consecutive null cells into single gap blocks, then compute rest days
+    const mergedCells = [];
+    let ci2=0;
+    while(ci2 < cells.length){
+      const c = cells[ci2];
+      if(c.ev){ mergedCells.push(c); ci2++; continue; }
+      // Accumulate the full gap span
+      let gapSpan = c.span;
+      while(ci2+1 < cells.length && !cells[ci2+1].ev){ ci2++; gapSpan += cells[ci2].span; }
+      // Find the prev and next events for this gap
+      const prevEvCell = mergedCells.length ? mergedCells[mergedCells.length-1] : null;
+      const nextEvCell = (()=>{ for(let k=ci2+1;k<cells.length;k++) if(cells[k].ev) return cells[k]; return null; })();
+      let restDays = null;
+      if(prevEvCell && nextEvCell){
+        const prevEnd  = prevEvCell.ev.dateOut || todayStr();
+        const nextStart= nextEvCell.ev.dateIn;
+        restDays = Math.max(0, Math.round((new Date(nextStart+'T12:00:00')-new Date(prevEnd+'T12:00:00'))/86400000));
+      }
+      mergedCells.push({ev:null, span:gapSpan, w:c.w, restDays});
+      ci2++;
+    }
+
+    const tds = mergedCells.map(c=>{
+      if(!c.ev){
+        const showRest = c.restDays!=null && c.span >= 2;
+        const restLabel = c.restDays!=null ? c.restDays+'d rest' : '';
+        return `<td colspan="${c.span}" style="min-width:${28*c.span}px;height:30px;padding:0;vertical-align:middle;text-align:center;"
+          title="${c.restDays!=null?c.restDays+' day rest period':'No previous or next event'}">
+          ${showRest ? `<span style="font-size:9px;color:var(--text2);font-weight:500;
+            background:var(--bg2);border-radius:3px;padding:1px 4px;
+            white-space:nowrap;">${restLabel}</span>` : ''}
+        </td>`;
+      }
       const ev       = c.ev;
       const isHayFeed= !!ev.noPasture;
       const color    = isHayFeed ? '#C4A882' : grpColor(ev.groupId);
@@ -7646,7 +8578,7 @@ function renderRotationCalendar(containerId){
 
       return `<td colspan="${c.span}" style="min-width:${28*c.span}px;height:30px;padding:0;
           position:relative;vertical-align:top;"
-          title="${name} on ${pasture} · ${days} days · ${isHayFeed?'100% stored feed — 0 pasture AUDs':(auds>=0.1?auds.toFixed(1)+' pasture AUDs ('+Math.round(auds/days*100/(((ev.head||0)*(ev.wt||0)/auWt)||1))+'% pasture-supported)':'no AUD data — set head+weight on event')}">
+          title="${name} on ${pasture} · ${days} days · ${isHayFeed?'100% stored feed — 0 pasture AUDs':(auds>=0.1?auds.toFixed(1)+' pasture AUDs ('+Math.round(auds/days*100/(((ev.head||0)*(ev.wt||0)/auWt)||1))+'% pasture-supported)':'no AUD data — set head+weight on event')}${ev.recoveryMinDays||ev.recoveryMaxDays?' · Recovery: '+(ev.recoveryMinDays||'?')+'–'+(ev.recoveryMaxDays||'?')+'d':''}">
         <div style="height:28px;margin:1px 1px 0;border-radius:3px;
           background:${color};opacity:${isOpen?1:0.8};
           display:flex;align-items:center;justify-content:center;gap:3px;
@@ -7767,15 +8699,25 @@ function renderNpkDashboard(){
   }
 
   const rows = pastures.map(p=>{
-    const evs = S.events.filter(e=>(e.pasture===p.name||(e.pastureId&&e.pastureId===p.id))
+    const evs = S.events.filter(e=>evMatchesPasture(e,p.name,p.id)
       &&e.status==='closed'&&e.locationType!=='confinement'&&e.totals&&e.totals.npk);
-      // noPasture events (bale grazing) still deposit NPK — included intentionally
-    const amendEvs = S.events.filter(e=>e.pasture===p.name&&e.type==='amend');
+      // For multi-paddock events, use paddockNPK share; else use totals.npk directly (bale grazing) still deposit NPK — included intentionally
+    const amendEvs = S.events.filter(e=>evMatchesPasture(e,p.name,p.id)&&e.type==='amend');
     const inputApps = (S.inputApplications||[]).filter(a=>(a.locations||[]).some(l=>l.pastureId===p.id||l.name===p.name));
 
-    const grazN = evs.reduce((s,e)=>s+(e.totals.npk.n||0),0);
-    const grazP = evs.reduce((s,e)=>s+(e.totals.npk.p||0),0);
-    const grazK = evs.reduce((s,e)=>s+(e.totals.npk.k||0),0);
+    // Use per-paddock NPK share if available (multi-paddock events)
+    function getPaddockNPKShare(e, pid, pname){
+      if(e.totals.paddockNPK){
+        const share=e.totals.paddockNPK.find(x=>(pid&&x.pastureId===pid)||(pname&&x.pastureName===pname));
+        return share||{n:0,p:0,k:0};
+      }
+      return e.totals.npk||{n:0,p:0,k:0};
+    }
+    const grazN = evs.reduce((s,e)=>s+(getPaddockNPKShare(e,p.id,p.name).n||0),0);
+    const grazP = evs.reduce((s,e)=>s+(getPaddockNPKShare(e,p.id,p.name).p||0),0);
+    const grazK = evs.reduce((s,e)=>s+(getPaddockNPKShare(e,p.id,p.name).k||0),0);
+    const grazVal = evs.reduce((s,e)=>s+(e.totals.paddockNPK?
+      (getPaddockNPKShare(e,p.id,p.name).npkVal||0):(e.totals.npkVal||0)),0);
     const spreadN = amendEvs.filter(e=>e.amendType==='manure').reduce((s,e)=>s+(e.manureNLbs||0),0);
     const spreadP = amendEvs.filter(e=>e.amendType==='manure').reduce((s,e)=>s+(e.manurePLbs||0),0);
     const spreadK = amendEvs.filter(e=>e.amendType==='manure').reduce((s,e)=>s+(e.manureKLbs||0),0);
@@ -7788,8 +8730,7 @@ function renderNpkDashboard(){
     const totalK  = grazK+spreadK+inputK;
     const om      = evs.reduce((s,e)=>s+(e.totals.organicMatterLbs||0),0);
     const st = S.settings;
-    // Grazing value from stored totals (matches event display); inputs at current prices
-    const grazVal = evs.reduce((s,e)=>s+(e.totals.npkVal||0),0);
+    // grazVal computed above from paddockNPK shares
     const inputVal = (inputN*st.nPrice + inputP*st.pPrice + inputK*st.kPrice);
     const spreadVal = (spreadN*st.nPrice + spreadP*st.pPrice + spreadK*st.kPrice);
     const fertVal = grazVal + spreadVal + inputVal;
@@ -8000,6 +8941,108 @@ function renderAnimalPerformance(){
 }
 
 // ── 5. SEASON SUMMARY (with XLSX export) ────────────────────────────────────
+
+// ── SURVEY REPORT ─────────────────────────────────────────────────────────────
+function renderSurveyReport(){
+  const el = document.getElementById('rpt-survey');
+  if(!el) return;
+
+  const pastures = sortedPastures(true).filter(p=>p.locationType!=='confinement');
+  const surveys  = [...(S.surveys||[])].sort((a,b)=>b.date.localeCompare(a.date));
+
+  if(!surveys.length){
+    el.innerHTML = rptSectionHead('Pasture surveys','No surveys recorded yet. Use the 📋 Survey button on the Pastures tab to start.') +
+      '<div class="card"><div class="empty">No survey data yet.</div></div>';
+    return;
+  }
+
+  // Build a lookup: pastureId -> [{date, rating, notes}] sorted newest first
+  const byPasture = {};
+  surveys.forEach(sv=>{
+    (sv.ratings||[]).forEach(r=>{
+      const key = r.pastureId || r.pastureName;
+      if(!byPasture[key]) byPasture[key] = [];
+      byPasture[key].push({date:sv.date, rating:r.rating, notes:r.notes||''});
+    });
+  });
+
+  // Timeline header: unique dates across all surveys (newest first, max 20)
+  const allDates = [...new Set(surveys.map(s=>s.date))].slice(0,20);
+
+  // Per-paddock table rows
+  const rows = pastures.map(p=>{
+    const key = p.id || p.name;
+    const hist = byPasture[key] || byPasture[p.name] || [];
+    if(!hist.length) return '';
+
+    const cells = allDates.map(date=>{
+      const entry = hist.find(h=>h.date===date);
+      if(!entry) return `<td style="min-width:52px;text-align:center;padding:4px 2px;">
+        <span style="color:var(--border2);">—</span></td>`;
+      const r = entry.rating;
+      return `<td style="min-width:52px;text-align:center;padding:3px 2px;"
+        title="${dLabel(date)}: ${r}/10${entry.notes?' — '+entry.notes:''}">
+        <div style="display:inline-block;width:32px;height:32px;border-radius:6px;line-height:32px;
+          text-align:center;font-size:12px;font-weight:700;
+          background:${surveyRatingBg(r)};color:${surveyRatingColor(r)};">${r}</div>
+      </td>`;
+    }).join('');
+
+    const latest = hist[0];
+    const trend = hist.length>=2 ? hist[0].rating - hist[1].rating : null;
+    const trendStr = trend===null?'':trend>0?`<span style="color:var(--green-d);">▲${trend}</span>`:trend<0?`<span style="color:var(--red-d);">▼${Math.abs(trend)}</span>`:`<span style="color:var(--text2);">→</span>`;
+
+    return `<tr>
+      <td style="font-weight:600;white-space:nowrap;padding:4px 10px 4px 0;
+        position:sticky;left:0;background:var(--bg);z-index:1;min-width:120px;">
+        ${p.name}
+        <div style="font-size:10px;color:var(--text2);font-weight:400;">${p.acres||0} ac</div>
+      </td>
+      <td style="min-width:52px;text-align:center;padding:3px 6px;
+        position:sticky;left:120px;background:var(--bg);z-index:1;border-right:0.5px solid var(--border);">
+        <div style="display:inline-block;width:32px;height:32px;border-radius:6px;line-height:32px;
+          text-align:center;font-size:13px;font-weight:700;
+          background:${surveyRatingBg(latest.rating)};color:${surveyRatingColor(latest.rating)};">
+          ${latest.rating}
+        </div>
+        <div style="font-size:10px;margin-top:1px;">${trendStr}</div>
+      </td>
+      ${cells}
+    </tr>`;
+  }).filter(Boolean).join('');
+
+  if(!rows){
+    el.innerHTML = rptSectionHead('Pasture surveys') +
+      '<div class="card"><div class="empty">No survey data for current pastures.</div></div>';
+    return;
+  }
+
+  const dateHeaders = allDates.map(d=>`<th style="min-width:52px;text-align:center;
+    font-size:10px;font-weight:600;color:var(--text2);padding:4px 2px;white-space:nowrap;">
+    ${dLabel(d)}</th>`).join('');
+
+  el.innerHTML = rptSectionHead('Pasture surveys',
+    `${surveys.length} survey${surveys.length!==1?'s':''} recorded · Showing latest ${allDates.length} dates`) + `
+  <div class="card" style="padding:0;overflow:hidden;">
+    <div style="overflow-x:auto;max-height:70vh;overflow-y:auto;">
+      <table style="border-collapse:collapse;min-width:100%;">
+        <thead style="position:sticky;top:0;z-index:3;background:var(--bg);">
+          <tr style="border-bottom:1.5px solid var(--border);">
+            <th style="text-align:left;padding:8px 10px 8px 0;min-width:120px;
+              position:sticky;left:0;z-index:4;background:var(--bg);">Paddock</th>
+            <th style="min-width:52px;text-align:center;padding:8px 6px;font-size:10px;
+              font-weight:600;color:var(--text2);position:sticky;left:120px;z-index:4;
+              background:var(--bg);border-right:0.5px solid var(--border);">Latest</th>
+            ${dateHeaders}
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+// ── END SURVEY REPORT ──────────────────────────────────────────────────────────
+
 function renderSeasonSummary(){
   const el = document.getElementById('rpt-summary');
   if(!el) return;
@@ -8040,13 +9083,22 @@ function renderSeasonSummary(){
 
   // Per-paddock summary table
   const padRows = pastures.filter(p=>p.locationType!=='confinement').map(p=>{
-    const evs = closedEvs.filter(e=>e.pasture===p.name||(e.pastureId&&e.pastureId===p.id));
+    const evs = closedEvs.filter(e=>evMatchesPasture(e,p.name,p.id));
     if(!evs.length) return '';
     const days = evs.reduce((s,e)=>s+(e.totals.days||0),0);
-    const n    = evs.reduce((s,e)=>s+(e.totals.npk?e.totals.npk.n:0),0);
-    const p2   = evs.reduce((s,e)=>s+(e.totals.npk?e.totals.npk.p:0),0);
-    const k    = evs.reduce((s,e)=>s+(e.totals.npk?e.totals.npk.k:0),0);
-    const val  = n*st.nPrice+p2*st.pPrice+k*st.kPrice;
+    function _padNPK(e){
+      if(e.totals.paddockNPK){
+        const s=e.totals.paddockNPK.find(x=>(p.id&&x.pastureId===p.id)||x.pastureName===p.name);
+        return s||{n:0,p:0,k:0};
+      }
+      return e.totals.npk||{n:0,p:0,k:0};
+    }
+    const n    = evs.reduce((s,e)=>s+(_padNPK(e).n||0),0);
+    const p2   = evs.reduce((s,e)=>s+(_padNPK(e).p||0),0);
+    const k    = evs.reduce((s,e)=>s+(_padNPK(e).k||0),0);
+    const val  = evs.reduce((s,e)=>s+(e.totals.paddockNPK?
+      (e.totals.paddockNPK.find(x=>(p.id&&x.pastureId===p.id)||x.pastureName===p.name)?.npkVal||0)
+      :(e.totals.npkVal||0)),0);
     const om   = evs.reduce((s,e)=>s+(e.totals.organicMatterLbs||0),0);
     const avgP = evs.filter(e=>e.totals.pct!=null).length
       ? Math.round(evs.reduce((s,e)=>s+(e.totals.pct||0),0)/evs.filter(e=>e.totals.pct!=null).length) : null;
@@ -8110,7 +9162,7 @@ function exportSeasonSummaryXLSX(){
   // Paddock summary sheet
   const padRows=[['Paddock','Acres','Events','Total days','Avg pasture %','NPK N lbs','NPK P lbs','NPK K lbs','NPK fert value','OM residual lbs']];
   sortedPastures(true).filter(p=>p.locationType!=='confinement').forEach(p=>{
-    const evs=closedEvs.filter(e=>e.pasture===p.name||(e.pastureId&&e.pastureId===p.id));
+    const evs=closedEvs.filter(e=>evMatchesPasture(e,p.name,p.id));
     if(!evs.length)return;
     const days=evs.reduce((s,e)=>s+(e.totals.days||0),0);
     const n=evs.reduce((s,e)=>s+(e.totals.npk?e.totals.npk.n:0),0);
@@ -8153,6 +9205,7 @@ migrateHerdToGroups();
 migrateGroupsToAnimals();
 migrateAnimalSystemIds();
 migrateSystemIds();
+migrateToPaddocksField();
 updateHeader();
 updateDriveUI();
 updateHeaderAvatar();
@@ -8691,10 +9744,12 @@ detectMode(); // must run last — reads DOM
     </div>
     <input type="hidden" id="ee-id"/>
     <div class="two">
-      <div class="field"><label>Paddock</label>
-        <select id="ee-paddock">
-          <option value="">— select —</option>
+      <div class="field"><label>Paddock(s)</label>
+        <div id="ee-paddock-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;min-height:0;"></div>
+        <select id="ee-paddock" style="max-width:100%;">
+          <option value="">— add paddock —</option>
         </select>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px;" id="ee-paddock-note"></div>
       </div>
       <div class="field"><label>Group</label>
         <select id="ee-group">
@@ -8819,6 +9874,81 @@ detectMode(); // must run last — reads DOM
     </div>
   </div>
 </div>
+
+
+<!-- PASTURE SURVEY SHEET -->
+<div class="sheet-wrap" id="survey-sheet-wrap">
+  <div class="sheet-backdrop" onclick="closeSurveySheet()"></div>
+  <div class="sheet" style="max-height:90vh;overflow-y:auto;">
+    <div class="sheet-handle"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+      <div style="font-size:16px;font-weight:600;">Pasture survey</div>
+      <div style="font-size:12px;color:var(--text2);" id="survey-date-label"></div>
+    </div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:14px;">
+      Rate each paddock 1–10 for forage availability. Tap a number to select.
+    </div>
+    <div class="field" style="margin-bottom:14px;">
+      <label>Survey date</label>
+      <input type="date" id="survey-date" style="max-width:180px;"/>
+    </div>
+    <div id="survey-paddock-list"></div>
+    <div class="div"></div>
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Recovery window edits <span style="font-size:11px;font-weight:400;color:var(--text2);">(optional — updates the last closed event per paddock)</span></div>
+    <div id="survey-recovery-list"></div>
+    <div class="btn-row" style="margin-top:16px;">
+      <button class="btn btn-green" onclick="saveSurvey()">Save survey</button>
+      <button class="btn btn-outline" onclick="closeSurveySheet()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+// ─── SERVICE WORKER REGISTRATION ─────────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    // Read app version from meta tag — passed to sw.js as query param
+    // so the SW cache name updates automatically with every version bump
+    const _appVer = document.getElementById('app-version-meta')?.getAttribute('content') || 'v1.0';
+    navigator.serviceWorker.register('/sw.js?v=' + encodeURIComponent(_appVer), { scope: '/' })
+      .then(reg => {
+        console.log('[GTHY] SW registered v' + _appVer + ', scope:', reg.scope);
+
+        // Check for updates every time the app gains focus (user switches back)
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') {
+            reg.update().catch(() => {});
+          }
+        });
+
+        // When a new SW is waiting to activate, reload to pick it up
+        // This fires after the new SW has installed and is ready
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          if (!newWorker) return;
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              // New version available — tell the SW to take over, then reload
+              console.log('[GTHY] New version available — reloading');
+              newWorker.postMessage('SKIP_WAITING');
+            }
+          });
+        });
+      })
+      .catch(err => console.warn('[GTHY] SW registration failed:', err));
+
+    // When the SW has taken over (after SKIP_WAITING), reload once
+    let reloadPending = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (reloadPending) return;
+      reloadPending = true;
+      window.location.reload();
+    });
+  });
+}
+// ─── END SERVICE WORKER REGISTRATION ─────────────────────────────────────────
+</script>
 
 </body>
 </html>
