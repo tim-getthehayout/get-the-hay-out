@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260317.1500" id="app-version-meta"/>
+<meta name="app-version" content="b20260317.1615" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -112,10 +112,10 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 .wiz-step{display:none;}.wiz-step.on{display:block;}
 .fab{position:fixed;bottom:calc(72px + var(--safe-bottom) + 12px);right:16px;width:48px;height:48px;border-radius:50%;background:var(--green);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:90;box-shadow:0 2px 10px rgba(0,0,0,0.2);}
 .fab:active{background:var(--green-d);}
-.sheet-wrap{display:none;position:fixed;inset:0;z-index:200;max-width:480px;left:50%;transform:translateX(-50%);}
+.sheet-wrap{display:none;position:fixed;inset:0;z-index:200;}
 .sheet-wrap.open{display:block;}
 .sheet-backdrop{position:absolute;inset:0;background:rgba(0,0,0,0.4);}
-.sheet{position:absolute;bottom:0;left:0;right:0;background:var(--bg);border-radius:var(--radius-xl) var(--radius-xl) 0 0;padding:16px 16px calc(24px + var(--safe-bottom));max-height:92vh;overflow-y:auto;}
+.sheet{position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:min(85vw,680px);background:var(--bg);border-radius:var(--radius-xl) var(--radius-xl) 0 0;padding:16px 16px calc(24px + var(--safe-bottom));max-height:92vh;overflow-y:auto;}
 .sheet-handle{width:36px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 16px;}
 .cat-pills{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;}
 .cat-pill{padding:6px 14px;border-radius:20px;font-size:13px;font-weight:500;cursor:pointer;border:0.5px solid var(--border2);background:transparent;color:var(--text2);font-family:inherit;}
@@ -302,11 +302,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
   body.desktop .bnav{display:none !important;}
 
   /* Sheets stay centered and max 560px */
-  body.desktop .sheet-wrap{
-    max-width:560px;
-    left:50%;
-    transform:translateX(-50%);
-  }
+  /* sheet width controlled by .sheet rule above */
 
   /* Desktop home: two-column grid for group cards */
   body.desktop #home-groups{
@@ -1562,7 +1558,7 @@ if(!S.settings.manureVolumeRate)S.settings.manureVolumeRate=65;
 if(!S.settings.manureLoadLbs)S.settings.manureLoadLbs=8000;
 if(!S.settings.manureVolumeUnit)S.settings.manureVolumeUnit='loads';
 if(!S.settings.homeStats)S.settings.homeStats=['pasture_dmi','feed_cost','pasture_pct','npk_lbs_acre','npk_val_acre'];
-if(!S.version)S.version='b20260317.1500';
+if(!S.version)S.version='b20260317.1615';
 if(!S.settings.homeStatPeriod)S.settings.homeStatPeriod='7d';
 if(!S.settings.auWeight)S.settings.auWeight=1000;
 if(!S.settings.recoveryRequired===undefined)S.settings.recoveryRequired=false;
@@ -3477,11 +3473,31 @@ let surveyRatings = {}; // pastureId -> rating (1-10)
 let surveyNotes   = {}; // pastureId -> notes
 let surveyRecovery= {}; // pastureId -> {min, max}
 
-function openSurveySheet(){
+let surveyFocusPastureId = null; // null = all pastures, string = single pasture mode
+
+function openSurveySheet(pastureId){
   surveyRatings = {};
   surveyNotes   = {};
   surveyRecovery= {};
+  surveyFocusPastureId = pastureId || null;
   document.getElementById('survey-date').value = todayStr();
+
+  // Update sheet title for single vs mass mode
+  const titleEl = document.getElementById('survey-sheet-title');
+  const subtitleEl = document.getElementById('survey-sheet-subtitle');
+  const recSection = document.getElementById('survey-recovery-section-hdr');
+
+  if(surveyFocusPastureId){
+    const p = S.pastures.find(x=>x.id===pastureId);
+    if(titleEl) titleEl.textContent = 'Survey: ' + (p?p.name:'Paddock');
+    if(subtitleEl) subtitleEl.textContent = 'Rate forage availability and set recovery window.';
+    if(recSection) recSection.style.display = 'none'; // merged into single card
+  } else {
+    if(titleEl) titleEl.textContent = 'Pasture survey';
+    if(subtitleEl) subtitleEl.textContent = 'Rate each paddock 1–10 for forage availability. Tap a number to select.';
+    if(recSection) recSection.style.display = '';
+  }
+
   renderSurveyPaddocks();
   document.getElementById('survey-sheet-wrap').classList.add('open');
 }
@@ -3490,12 +3506,108 @@ function closeSurveySheet(){
 }
 
 function renderSurveyPaddocks(){
-  const pastures = sortedPastures(false).filter(p=>p.locationType!=='confinement');
+  let pastures = sortedPastures(false).filter(p=>p.locationType!=='confinement');
+  // Single-pasture mode: filter to just the focused paddock
+  if(surveyFocusPastureId){
+    pastures = pastures.filter(p=>p.id===surveyFocusPastureId);
+  }
   const listEl   = document.getElementById('survey-paddock-list');
   const recEl    = document.getElementById('survey-recovery-list');
   if(!pastures.length){
     listEl.innerHTML='<div class="empty">No pasture locations defined.</div>';
-    recEl.innerHTML='';
+    if(recEl) recEl.innerHTML='';
+    return;
+  }
+
+  // In single-pasture mode, render combined card (rating + recovery together)
+  if(surveyFocusPastureId && pastures.length===1){
+    const p = pastures[0];
+    const st = S.settings;
+    const lastEv = lastClosedEventForPasture(p.id, p.name);
+    const latest = latestSurveyRating(p.id, p.name);
+    const activeEv = S.events.find(e=>e.status==='open'&&evMatchesPasture(e,p.name,p.id));
+    const daysSince = lastEv?.dateOut
+      ? Math.round((new Date(todayStr()+'T12:00:00')-new Date(lastEv.dateOut+'T12:00:00'))/86400000)
+      : null;
+
+    // Rating buttons
+    const ratingBtns = [1,2,3,4,5,6,7,8,9,10].map(n=>{
+      const selected = surveyRatings[p.id]===n;
+      const color = surveyRatingColor(n);
+      return `<button onclick="setSurveyRating('${p.id}','${p.name}',${n})"
+        style="width:34px;height:34px;border-radius:8px;border:2px solid ${selected?color:'var(--border2)'};
+               background:${selected?color:'var(--bg2)'};color:${selected?'white':'var(--text2)'};
+               font-size:13px;font-weight:${selected?'700':'400'};cursor:pointer;flex-shrink:0;">${n}</button>`;
+    }).join('');
+
+    // Recovery values
+    const srcMin = lastEv ? lastEv.recoveryMinDays : p.recoveryMinDays;
+    const srcMax = lastEv ? lastEv.recoveryMaxDays : p.recoveryMaxDays;
+    const curMin = surveyRecovery[p.id]?.min ?? srcMin ?? st.recoveryMinDays ?? 30;
+    const curMax = surveyRecovery[p.id]?.max ?? srcMax ?? st.recoveryMaxDays ?? 60;
+
+    // Next graze estimate
+    let nextGrazeHtml = '';
+    if(lastEv?.dateOut && curMin && curMax){
+      const base = new Date(lastEv.dateOut+'T12:00:00');
+      const earliest = new Date(base); earliest.setDate(earliest.getDate()+curMin);
+      const latest2  = new Date(base); latest2.setDate(latest2.getDate()+curMax);
+      const daysRested = Math.round((new Date(todayStr()+'T12:00:00')-base)/86400000);
+      let statusHtml = '';
+      if(daysRested >= curMax) statusHtml = '<span style="color:var(--amber-d);font-weight:600;">⚠ window closing</span>';
+      else if(daysRested >= curMin) statusHtml = '<span style="color:var(--green-d);font-weight:600;">✓ ready to graze</span>';
+      else statusHtml = '<span style="color:var(--text2);">'+(curMin-daysRested)+'d until ready</span>';
+      nextGrazeHtml = `<div style="font-size:12px;color:var(--text2);margin-top:6px;padding:8px 12px;background:var(--bg2);border-radius:var(--radius);">
+        Next window: <strong>${earliest.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</strong> – <strong>${latest2.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</strong> &nbsp;·&nbsp; ${statusHtml}
+      </div>`;
+    }
+
+    const contextStr = lastEv ? `Last grazed ${dLabel(lastEv.dateOut)} · ${daysSince}d ago`
+      : activeEv ? `Active · Day ${daysBetween(activeEv.dateIn,todayStr())}`
+      : 'No graze history';
+    const latestStr = latest ? `Last rated ${latest.rating}/10 on ${dLabel(latest.date)}` : 'Not yet rated';
+
+    listEl.innerHTML = `
+      <div style="padding:4px 0 12px;">
+        <div style="display:flex;gap:6px;font-size:11px;color:var(--text2);margin-bottom:12px;flex-wrap:wrap;">
+          <span>${contextStr}</span><span>·</span><span>${latestStr}</span>
+        </div>
+
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Forage rating</div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px;" id="rating-btns-${p.id}">
+          ${ratingBtns}
+        </div>
+        <div id="survey-selected-${p.id}" style="font-size:12px;margin-top:4px;min-height:18px;"></div>
+
+        <div class="div" style="margin:14px 0;"></div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Recovery window</div>
+        <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:8px;">
+          <div>
+            <div style="font-size:10px;color:var(--text2);margin-bottom:3px;">MIN days</div>
+            <input type="number" placeholder="${st.recoveryMinDays||30}" min="1" max="365"
+              value="${curMin}" id="rec-min-${p.id}"
+              onchange="surveyRecovery['${p.id}']={...(surveyRecovery['${p.id}']||{}),min:parseInt(this.value)||null};renderSurveyRecoveryPreview('${p.id}')"
+              style="width:72px;padding:6px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);
+                     font-size:14px;background:var(--bg);color:var(--text);font-family:inherit;text-align:center;"/>
+          </div>
+          <span style="font-size:16px;color:var(--text2);padding-bottom:6px;">–</span>
+          <div>
+            <div style="font-size:10px;color:var(--text2);margin-bottom:3px;">MAX days</div>
+            <input type="number" placeholder="${st.recoveryMaxDays||60}" min="1" max="365"
+              value="${curMax}" id="rec-max-${p.id}"
+              onchange="surveyRecovery['${p.id}']={...(surveyRecovery['${p.id}']||{}),max:parseInt(this.value)||null};renderSurveyRecoveryPreview('${p.id}')"
+              style="width:72px;padding:6px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);
+                     font-size:14px;background:var(--bg);color:var(--text);font-family:inherit;text-align:center;"/>
+          </div>
+          <div style="font-size:12px;color:var(--text2);padding-bottom:6px;">${lastEv?'days from '+dLabel(lastEv.dateOut):'days (from first move-out)'}</div>
+        </div>
+        <div id="rec-preview-${p.id}">${nextGrazeHtml}</div>
+      </div>`;
+
+    // Hide the separate recovery section (it's embedded above)
+    if(recEl) recEl.innerHTML = '';
+    const recHdr = document.getElementById('survey-recovery-section-hdr');
+    if(recHdr) recHdr.style.display='none';
     return;
   }
 
@@ -3588,25 +3700,34 @@ function renderSurveyPaddocks(){
           <div style="font-size:11px;color:var(--text2);">${contextLine}</div>
         </div>
         <div style="flex:1;"></div>
-        <div style="display:flex;gap:6px;align-items:center;">
+        <div style="font-size:10px;color:var(--text2);margin-bottom:4px;">
+          ${lastEv?'From: '+dLabel(lastEv.dateOut):'No graze history yet'}
+        </div>
+        <div style="display:flex;gap:10px;align-items:flex-start;">
           <div style="text-align:center;">
             <div style="font-size:9px;color:var(--text2);margin-bottom:2px;">MIN days</div>
             <input type="number" placeholder="${st.recoveryMinDays||30}" min="1" max="365"
               value="${curMin}"
-              onchange="surveyRecovery['${p.id}']={...(surveyRecovery['${p.id}']||{}),min:parseInt(this.value)||null};renderSurveyRecoveryPreview('${p.id}')"
+              oninput="surveyRecovery['${p.id}']={...(surveyRecovery['${p.id}']||{}),min:parseInt(this.value)||null};renderSurveyRecoveryPreview('${p.id}')"
               id="rec-min-${p.id}"
               style="width:60px;padding:5px 7px;border:0.5px solid var(--border2);border-radius:var(--radius);
                      font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;text-align:center;"/>
+            <div id="rec-min-date-${p.id}" style="font-size:11px;font-weight:600;color:var(--green-d);margin-top:3px;min-height:14px;">
+              ${(()=>{if(!lastEv?.dateOut||!curMin)return'';const d=new Date(lastEv.dateOut+'T12:00:00');d.setDate(d.getDate()+curMin);return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});})()}
+            </div>
           </div>
-          <span style="font-size:14px;color:var(--text2);margin-top:12px;">–</span>
+          <div style="font-size:14px;color:var(--text2);padding-top:18px;">–</div>
           <div style="text-align:center;">
             <div style="font-size:9px;color:var(--text2);margin-bottom:2px;">MAX days</div>
             <input type="number" placeholder="${st.recoveryMaxDays||60}" min="1" max="365"
               value="${curMax}"
-              onchange="surveyRecovery['${p.id}']={...(surveyRecovery['${p.id}']||{}),max:parseInt(this.value)||null};renderSurveyRecoveryPreview('${p.id}')"
+              oninput="surveyRecovery['${p.id}']={...(surveyRecovery['${p.id}']||{}),max:parseInt(this.value)||null};renderSurveyRecoveryPreview('${p.id}')"
               id="rec-max-${p.id}"
               style="width:60px;padding:5px 7px;border:0.5px solid var(--border2);border-radius:var(--radius);
                      font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;text-align:center;"/>
+            <div id="rec-max-date-${p.id}" style="font-size:11px;font-weight:600;color:var(--amber-d);margin-top:3px;min-height:14px;">
+              ${(()=>{if(!lastEv?.dateOut||!curMax)return'';const d=new Date(lastEv.dateOut+'T12:00:00');d.setDate(d.getDate()+curMax);return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});})()}
+            </div>
           </div>
         </div>
       </div>
@@ -3654,6 +3775,12 @@ function renderSurveyRecoveryPreview(pastureId){
   el.innerHTML = `<div style="font-size:11px;color:var(--text2);margin-top:3px;">
     Next window: ${earliest.toLocaleDateString('en-US',{month:'short',day:'numeric'})}–${latest.toLocaleDateString('en-US',{month:'short',day:'numeric'})} &nbsp;·&nbsp; ${statusHtml}
   </div>`;
+
+  // Also update the inline date labels under each input
+  const minDateEl = document.getElementById('rec-min-date-'+pastureId);
+  const maxDateEl = document.getElementById('rec-max-date-'+pastureId);
+  if(minDateEl) minDateEl.textContent = earliest.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  if(maxDateEl) maxDateEl.textContent = latest.toLocaleDateString('en-US',{month:'short',day:'numeric'});
 }
 
 function setSurveyRating(pastureId, pastureName, rating){
@@ -4120,7 +4247,7 @@ function renderPastures(){
       const remLbs=batches.reduce((s,b)=>s+getBatchRemaining(b),0);
       if(remLbs>0){const vol=volLbsToDisplay(remLbs);manureLine=`<div style="font-size:11px;color:var(--amber-d);margin-top:3px;">~${vol.val} ${vol.unit} in storage</div>`;}
     }
-    return `<div class="chip"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><div style="font-size:14px;font-weight:600;">${p.name} ${isActive?'<span class="badge bt">active</span>':''} ${isCon?'<span class="badge bb">confinement</span>':''}</div><div style="font-size:12px;color:var(--text2);margin-top:2px;">${detail}</div>${npkLine}${manureLine}</div><div style="display:flex;gap:6px;align-items:center;">${typeBadge}${avg!==null?`<span class="badge ${avg>=60?'bg':'ba'}">${avg}% avg</span>`:''} ${openTasks?`<span class="badge ba">${openTasks} task${openTasks!==1?'s':''}</span>`:''}${(()=>{const lr=latestSurveyRating(p.id,p.name);return lr?`<span style="font-size:11px;font-weight:700;color:${surveyRatingColor(lr.rating)};background:${surveyRatingBg(lr.rating)};padding:2px 7px;border-radius:10px;" title="Survey ${dLabel(lr.date)}">${lr.rating}/10</span>`:'';})()}<button class="btn btn-outline btn-xs" onclick="openLocEdit(${i})">Edit</button><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:20px;padding:2px 6px;" onclick="tryDeletePasture(${i})">×</button></div></div></div>`;
+    return `<div class="chip"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><div style="font-size:14px;font-weight:600;">${p.name} ${isActive?'<span class="badge bt">active</span>':''} ${isCon?'<span class="badge bb">confinement</span>':''}</div><div style="font-size:12px;color:var(--text2);margin-top:2px;">${detail}</div>${npkLine}${manureLine}</div><div style="display:flex;gap:6px;align-items:center;">${typeBadge}${avg!==null?`<span class="badge ${avg>=60?'bg':'ba'}">${avg}% avg</span>`:''} ${openTasks?`<span class="badge ba">${openTasks} task${openTasks!==1?'s':''}</span>`:''}${(()=>{const lr=latestSurveyRating(p.id,p.name);return lr?`<span style="font-size:11px;font-weight:700;color:${surveyRatingColor(lr.rating)};background:${surveyRatingBg(lr.rating)};padding:2px 7px;border-radius:10px;" title="Survey ${dLabel(lr.date)}">${lr.rating}/10</span>`:'';})()}<button class="btn btn-outline btn-xs" onclick="openLocEdit(${i})">Edit</button><button class="btn btn-outline btn-xs" onclick="openSurveySheet('${p.id}')">📋 Survey</button><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:20px;padding:2px 6px;" onclick="tryDeletePasture(${i})">×</button></div></div></div>`;
   }).join('');
 }
 
@@ -4168,7 +4295,7 @@ function loadSettings(){
   if(st.manureVolumeRate&&document.getElementById('s-manure-rate'))document.getElementById('s-manure-rate').value=st.manureVolumeRate;
   if(st.manureLoadLbs&&document.getElementById('s-load-lbs'))document.getElementById('s-load-lbs').value=st.manureLoadLbs;
   if(st.manureVolumeUnit&&document.getElementById('s-vol-unit'))document.getElementById('s-vol-unit').value=st.manureVolumeUnit;
-  document.getElementById('s-ver').value=S.version||'b20260317.1500';document.getElementById('s-tester').value=S.testerName||'';
+  document.getElementById('s-ver').value=S.version||'b20260317.1615';document.getElementById('s-tester').value=S.testerName||'';
   // Stat settings
   const spEl=document.getElementById('s-stat-period');
   if(spEl)spEl.value=S.settings.homeStatPeriod||'7d';
@@ -4267,7 +4394,7 @@ function updateHeader(){
   }
   document.getElementById('hdr-sub').textContent=sub;
   const _vTag=document.getElementById('ver-tag');
-  if(_vTag)_vTag.textContent=S.version||'b20260317.1500';
+  if(_vTag)_vTag.textContent=S.version||'b20260317.1615';
   // Keep meta tag in sync so SW registration uses the right version
   const _vMeta=document.getElementById('app-version-meta');
   if(_vMeta&&S.version)_vMeta.setAttribute('content',S.version);
@@ -4289,7 +4416,7 @@ function saveFeedbackItem(){
   const note=document.getElementById('fb-note').value.trim();
   if(!note){document.getElementById('fb-note').style.borderColor='var(--red)';setTimeout(()=>document.getElementById('fb-note').style.borderColor='',1500);return;}
   const ae=getActive();
-  S.feedback.push({id:Date.now(),cat:selCatVal||'idea',note,tester:S.testerName||(getActiveUser()?getActiveUser().name:'anonymous'),version:S.version||'b20260317.1500',status:'open',ctx:{screen:curScreen,activeEvent:ae?{pasture:ae.pasture,day:daysBetween(ae.dateIn,todayStr())}:null},ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:null});
+  S.feedback.push({id:Date.now(),cat:selCatVal||'idea',note,tester:S.testerName||(getActiveUser()?getActiveUser().name:'anonymous'),version:S.version||'b20260317.1615',status:'open',ctx:{screen:curScreen,activeEvent:ae?{pasture:ae.pasture,day:daysBetween(ae.dateIn,todayStr())}:null},ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:null});
   save();closeFeedbackSheet();updateFeedbackBadge();if(curScreen==='feedback')renderFeedbackTab();
 }
 function renderFeedbackTab(){renderConfirmSection();renderFeedbackStats();renderFeedbackList();}
@@ -4305,12 +4432,12 @@ function confirmFixed(id){const f=S.feedback.find(x=>x.id===id);if(!f)return;f.s
 function reopenIssue(id){
   const orig=S.feedback.find(x=>x.id===id);if(!orig)return;
   orig.status='closed';orig.confirmedBy=S.testerName||'anonymous';orig.confirmedAt=new Date().toISOString();
-  S.feedback.push({id:Date.now(),cat:orig.cat,note:`[Regression] ${orig.note}`,tester:S.testerName||'anonymous',version:S.version||'b20260317.1500',status:'open',ctx:orig.ctx,ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:orig.id});
+  S.feedback.push({id:Date.now(),cat:orig.cat,note:`[Regression] ${orig.note}`,tester:S.testerName||'anonymous',version:S.version||'b20260317.1615',status:'open',ctx:orig.ctx,ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:orig.id});
   save();renderFeedbackTab();updateFeedbackBadge();
 }
 function openResolveSheet(id){
   document.getElementById('resolve-id').value=id;document.getElementById('resolve-note').value='';
-  document.getElementById('resolve-ver-label').textContent=S.version||'b20260317.1500';
+  document.getElementById('resolve-ver-label').textContent=S.version||'b20260317.1615';
   document.getElementById('resolve-sheet-wrap').classList.add('open');setTimeout(()=>document.getElementById('resolve-note').focus(),300);
 }
 function closeResolveSheet(){document.getElementById('resolve-sheet-wrap').classList.remove('open');}
@@ -4318,7 +4445,7 @@ function saveResolve(){
   const id=parseInt(document.getElementById('resolve-id').value);const note=document.getElementById('resolve-note').value.trim();
   if(!note){alert('Describe what was changed');return;}
   const f=S.feedback.find(x=>x.id===id);if(!f)return;
-  f.status='resolved';f.resolutionNote=note;f.resolvedInVersion=S.version||'b20260317.1500';f.resolvedAt=new Date().toISOString();
+  f.status='resolved';f.resolutionNote=note;f.resolvedInVersion=S.version||'b20260317.1615';f.resolvedAt=new Date().toISOString();
   save();closeResolveSheet();renderFeedbackTab();updateFeedbackBadge();
 }
 function renderFeedbackStats(){
@@ -4351,7 +4478,7 @@ function generateBrief(){
   const testers=[...new Set(S.feedback.map(f=>f.tester).filter(t=>t&&t!=='anonymous'))];
   const open=S.feedback.filter(f=>f.status==='open');const resolved=S.feedback.filter(f=>f.status==='resolved');const closed=S.feedback.filter(f=>f.status==='closed');
   const catOrder=['bug','calc','ux','feature','idea'];
-  let b=`GET THE HAY OUT — DEV SESSION BRIEF\nGenerated: ${now}\nVersion: ${S.version||'b20260317.1500'}\nTesters: ${testers.length?testers.join(', '):'anonymous'}\nOpen: ${open.length} · Awaiting: ${resolved.length} · Closed: ${closed.length}\n${'═'.repeat(52)}\n`;
+  let b=`GET THE HAY OUT — DEV SESSION BRIEF\nGenerated: ${now}\nVersion: ${S.version||'b20260317.1615'}\nTesters: ${testers.length?testers.join(', '):'anonymous'}\nOpen: ${open.length} · Awaiting: ${resolved.length} · Closed: ${closed.length}\n${'═'.repeat(52)}\n`;
   if(open.length){b+=`\nOPEN ITEMS (${open.length})\n${'─'.repeat(52)}\n`;catOrder.forEach(cat=>{const items=open.filter(f=>f.cat===cat);if(!items.length)return;b+=`\n[${(CAT[cat]||CAT.idea).label.toUpperCase()}]\n`;items.forEach((f,i)=>{const d=new Date(f.ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});const ctx=f.ctx.activeEvent?`screen:${f.ctx.screen} event:${f.ctx.activeEvent.pasture} day${f.ctx.activeEvent.day}`:`screen:${f.ctx.screen}`;b+=`${i+1}. ${f.note}\n   [${ctx}] — ${f.tester}, ${f.version||'?'}, ${d}${f.linkedTo?' ⚠ regression':''}\n`;});});}
   if(resolved.length){b+=`\n${'═'.repeat(52)}\nAWAITING CONFIRMATION (${resolved.length})\n${'─'.repeat(52)}\n`;resolved.forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fix in ${f.resolvedInVersion}: ${f.resolutionNote}\n`;});}
   if(closed.length){b+=`\n${'═'.repeat(52)}\nCLOSED (last 10)\n${'─'.repeat(52)}\n`;closed.slice(-10).forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fixed in ${f.resolvedInVersion||'?'}: ${f.resolutionNote||'—'}. Confirmed: ${f.confirmedBy||'?'}\n`;});}
@@ -6900,7 +7027,7 @@ function closeResetSheet(){
 async function executeReset(){
   if(document.getElementById('reset-confirm-input').value!=='YES')return;
   const mode=document.getElementById('reset-confirm-btn').dataset.mode||'all';
-  const ver=S.version||'b20260317.1500';
+  const ver=S.version||'b20260317.1615';
   if(mode==='events'){
     // Events-only reset — preserve setup data
     S.events=[];
@@ -9899,10 +10026,12 @@ detectMode(); // must run last — reads DOM
       <div style="font-size:12px;font-weight:600;margin-bottom:4px;">Recalculated totals</div>
       <div id="ee-preview-content" style="font-size:12px;color:var(--text2);line-height:1.8;"></div>
     </div>
-    <div class="btn-row">
-      <button class="btn btn-green" onclick="saveEventEdit()">Save &amp; recalculate</button>
-      <button class="btn btn-red btn-sm" onclick="deleteEvent()" style="width:auto;padding:12px 14px;">Delete</button>
-      <button class="btn btn-outline" onclick="closeEventEdit()">Cancel</button>
+    <div class="btn-row" style="flex-wrap:wrap;gap:8px;">
+      <button class="btn btn-green" onclick="saveEventEdit()" style="flex:2;min-width:160px;">Save &amp; recalculate</button>
+      <button class="btn btn-outline" onclick="closeEventEdit()" style="flex:1;min-width:80px;">Cancel</button>
+    </div>
+    <div style="margin-top:8px;">
+      <button class="btn btn-red btn-sm" onclick="deleteEvent()" style="width:auto;padding:10px 16px;font-size:12px;">Delete event</button>
     </div>
   </div>
 </div>
@@ -9960,10 +10089,10 @@ detectMode(); // must run last — reads DOM
   <div class="sheet" style="max-height:90vh;overflow-y:auto;">
     <div class="sheet-handle"></div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-      <div style="font-size:16px;font-weight:600;">Pasture survey</div>
+      <div style="font-size:16px;font-weight:600;" id="survey-sheet-title">Pasture survey</div>
       <div style="font-size:12px;color:var(--text2);" id="survey-date-label"></div>
     </div>
-    <div style="font-size:13px;color:var(--text2);margin-bottom:14px;">
+    <div style="font-size:13px;color:var(--text2);margin-bottom:14px;" id="survey-sheet-subtitle">
       Rate each paddock 1–10 for forage availability. Tap a number to select.
     </div>
     <div class="field" style="margin-bottom:14px;">
@@ -9972,7 +10101,7 @@ detectMode(); // must run last — reads DOM
     </div>
     <div id="survey-paddock-list"></div>
     <div class="div"></div>
-    <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Recovery window edits <span style="font-size:11px;font-weight:400;color:var(--text2);">(optional — updates the last closed event per paddock)</span></div>
+    <div id="survey-recovery-section-hdr" style="font-size:13px;font-weight:600;margin-bottom:8px;">Recovery window edits <span style="font-size:11px;font-weight:400;color:var(--text2);">(optional — updates the last closed event per paddock)</span></div>
     <div id="survey-recovery-list"></div>
     <div class="btn-row" style="margin-top:16px;">
       <button class="btn btn-green" onclick="saveSurvey()">Save survey</button>
