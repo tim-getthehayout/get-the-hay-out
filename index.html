@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260317.1431" id="app-version-meta"/>
+<meta name="app-version" content="b20260317.1500" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -1231,8 +1231,29 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
       <div class="card">
         <div class="sec">App</div>
         <div class="two">
-          <div class="field"><label>Version string</label><input type="text" id="s-ver" placeholder="v1.0"/></div>
+          <div class="field">
+            <label>Version string</label>
+            <input type="text" id="s-ver" placeholder="v1.0"/>
+            <div style="font-size:11px;color:var(--text2);margin-top:4px;">Bump this when deploying (e.g. v1.2 → v1.3) to push updates to iOS.</div>
+          </div>
           <div class="field"><label>Your name (tester)</label><input type="text" id="s-tester" placeholder="Name"/></div>
+        </div>
+        <div style="margin-top:10px;padding:8px 12px;background:var(--bg2);border-radius:var(--radius);
+          border:0.5px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <div>
+            <div style="font-size:10px;color:var(--text2);margin-bottom:2px;">BUILD STAMP</div>
+            <div style="font-size:13px;font-weight:600;font-family:monospace;" id="s-build-stamp">—</div>
+          </div>
+          <div style="width:0.5px;height:28px;background:var(--border);"></div>
+          <div>
+            <div style="font-size:10px;color:var(--text2);margin-bottom:2px;">SW CACHE KEY</div>
+            <div style="font-size:13px;font-weight:600;font-family:monospace;" id="s-cache-key">—</div>
+          </div>
+          <div style="width:0.5px;height:28px;background:var(--border);"></div>
+          <div>
+            <div style="font-size:10px;color:var(--text2);margin-bottom:2px;">SERVICE WORKER</div>
+            <div style="font-size:13px;font-weight:600;" id="s-sw-status">checking…</div>
+          </div>
         </div>
       </div>
 
@@ -1541,7 +1562,7 @@ if(!S.settings.manureVolumeRate)S.settings.manureVolumeRate=65;
 if(!S.settings.manureLoadLbs)S.settings.manureLoadLbs=8000;
 if(!S.settings.manureVolumeUnit)S.settings.manureVolumeUnit='loads';
 if(!S.settings.homeStats)S.settings.homeStats=['pasture_dmi','feed_cost','pasture_pct','npk_lbs_acre','npk_val_acre'];
-if(!S.version)S.version='b20260317.1431';
+if(!S.version)S.version='b20260317.1500';
 if(!S.settings.homeStatPeriod)S.settings.homeStatPeriod='7d';
 if(!S.settings.auWeight)S.settings.auWeight=1000;
 if(!S.settings.recoveryRequired===undefined)S.settings.recoveryRequired=false;
@@ -2037,7 +2058,33 @@ function importDataJSON(event){
       const imported=JSON.parse(e.target.result);
       if(!imported.herd&&!imported.events&&!imported.pastures)throw new Error('Not a Get The Hay Out backup file');
       if(!confirm(`Import backup from ${file.name}? Will merge with existing data.`))return;
-      S=mergeData(S,imported);ensureDataArrays();save();renderCurrentScreen();
+      S=mergeData(S,imported);
+      // Union-merge setup arrays: mergeData picks one side wholesale based on
+      // setupUpdatedAt — we need to explicitly add any imported items not in the result
+      ['pastures','feedTypes','animalClasses','inputProducts','animalGroups'].forEach(key=>{
+        const importedItems = imported[key]||[];
+        if(!importedItems.length) return;
+        const existing = S[key]||[];
+        // Use name as key for setup arrays (id may not exist on imported items)
+        const nameKey = key==='pastures'?'name':key==='feedTypes'?'name':'name';
+        const existingNames = new Set(existing.map(x=>x[nameKey]||x.id));
+        let added = 0;
+        importedItems.forEach(item=>{
+          const k = item[nameKey]||item.id;
+          if(k && !existingNames.has(k)){
+            existing.push(item);
+            existingNames.add(k);
+            added++;
+          }
+        });
+        S[key] = existing;
+      });
+      stampSetup(); // advance timestamp so this merged result wins on next sync
+      migrateSystemIds();
+      migrateToPaddocksField();
+      ensureDataArrays();
+      save();
+      renderCurrentScreen();
       const el=document.getElementById('import-status');el.style.display='block';
       el.textContent='Import successful — '+(imported.events||[]).length+' events, '+(imported.pastures||[]).length+' paddocks merged.';
       setTimeout(()=>{el.style.display='none';},5000);
@@ -4121,7 +4168,7 @@ function loadSettings(){
   if(st.manureVolumeRate&&document.getElementById('s-manure-rate'))document.getElementById('s-manure-rate').value=st.manureVolumeRate;
   if(st.manureLoadLbs&&document.getElementById('s-load-lbs'))document.getElementById('s-load-lbs').value=st.manureLoadLbs;
   if(st.manureVolumeUnit&&document.getElementById('s-vol-unit'))document.getElementById('s-vol-unit').value=st.manureVolumeUnit;
-  document.getElementById('s-ver').value=S.version||'b20260317.1431';document.getElementById('s-tester').value=S.testerName||'';
+  document.getElementById('s-ver').value=S.version||'b20260317.1500';document.getElementById('s-tester').value=S.testerName||'';
   // Stat settings
   const spEl=document.getElementById('s-stat-period');
   if(spEl)spEl.value=S.settings.homeStatPeriod||'7d';
@@ -4135,6 +4182,31 @@ function loadSettings(){
   if(recMaxLoad)recMaxLoad.value=S.settings.recoveryMaxDays||60;
   renderStatsMetricList();
   renderThresholdsList();
+  // Populate build info panel
+  const _metaVer = document.getElementById('app-version-meta')?.getAttribute('content')||'—';
+  const _stampEl = document.getElementById('s-build-stamp');
+  const _cacheEl = document.getElementById('s-cache-key');
+  const _swEl    = document.getElementById('s-sw-status');
+  if(_stampEl) _stampEl.textContent = _metaVer;
+  if(_cacheEl) _cacheEl.textContent = 'gthy-' + _metaVer;
+  // Check SW registration status
+  if(_swEl){
+    if('serviceWorker' in navigator){
+      navigator.serviceWorker.getRegistration('/').then(reg=>{
+        if(reg && reg.active){
+          const swUrl = new URL(reg.active.scriptURL);
+          const swVer = swUrl.searchParams.get('v') || '?';
+          _swEl.innerHTML = '<span style="color:var(--green-d);">✓ active</span> · v=' + swVer;
+        } else if(reg && reg.installing){
+          _swEl.innerHTML = '<span style="color:var(--amber-d);">installing…</span>';
+        } else {
+          _swEl.innerHTML = '<span style="color:var(--text2);">not registered</span>';
+        }
+      }).catch(()=>{ if(_swEl)_swEl.textContent='unavailable'; });
+    } else {
+      _swEl.textContent = 'not supported';
+    }
+  }
   const elCount=document.getElementById('error-log-count');
   if(elCount)elCount.textContent=(S.errorLog||[]).length+' error'+((S.errorLog||[]).length!==1?'s':'')+' recorded';
   // Client ID is hardcoded — no input field to populate
@@ -4195,7 +4267,7 @@ function updateHeader(){
   }
   document.getElementById('hdr-sub').textContent=sub;
   const _vTag=document.getElementById('ver-tag');
-  if(_vTag)_vTag.textContent=S.version||'b20260317.1431';
+  if(_vTag)_vTag.textContent=S.version||'b20260317.1500';
   // Keep meta tag in sync so SW registration uses the right version
   const _vMeta=document.getElementById('app-version-meta');
   if(_vMeta&&S.version)_vMeta.setAttribute('content',S.version);
@@ -4217,7 +4289,7 @@ function saveFeedbackItem(){
   const note=document.getElementById('fb-note').value.trim();
   if(!note){document.getElementById('fb-note').style.borderColor='var(--red)';setTimeout(()=>document.getElementById('fb-note').style.borderColor='',1500);return;}
   const ae=getActive();
-  S.feedback.push({id:Date.now(),cat:selCatVal||'idea',note,tester:S.testerName||(getActiveUser()?getActiveUser().name:'anonymous'),version:S.version||'b20260317.1431',status:'open',ctx:{screen:curScreen,activeEvent:ae?{pasture:ae.pasture,day:daysBetween(ae.dateIn,todayStr())}:null},ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:null});
+  S.feedback.push({id:Date.now(),cat:selCatVal||'idea',note,tester:S.testerName||(getActiveUser()?getActiveUser().name:'anonymous'),version:S.version||'b20260317.1500',status:'open',ctx:{screen:curScreen,activeEvent:ae?{pasture:ae.pasture,day:daysBetween(ae.dateIn,todayStr())}:null},ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:null});
   save();closeFeedbackSheet();updateFeedbackBadge();if(curScreen==='feedback')renderFeedbackTab();
 }
 function renderFeedbackTab(){renderConfirmSection();renderFeedbackStats();renderFeedbackList();}
@@ -4233,12 +4305,12 @@ function confirmFixed(id){const f=S.feedback.find(x=>x.id===id);if(!f)return;f.s
 function reopenIssue(id){
   const orig=S.feedback.find(x=>x.id===id);if(!orig)return;
   orig.status='closed';orig.confirmedBy=S.testerName||'anonymous';orig.confirmedAt=new Date().toISOString();
-  S.feedback.push({id:Date.now(),cat:orig.cat,note:`[Regression] ${orig.note}`,tester:S.testerName||'anonymous',version:S.version||'b20260317.1431',status:'open',ctx:orig.ctx,ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:orig.id});
+  S.feedback.push({id:Date.now(),cat:orig.cat,note:`[Regression] ${orig.note}`,tester:S.testerName||'anonymous',version:S.version||'b20260317.1500',status:'open',ctx:orig.ctx,ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:orig.id});
   save();renderFeedbackTab();updateFeedbackBadge();
 }
 function openResolveSheet(id){
   document.getElementById('resolve-id').value=id;document.getElementById('resolve-note').value='';
-  document.getElementById('resolve-ver-label').textContent=S.version||'b20260317.1431';
+  document.getElementById('resolve-ver-label').textContent=S.version||'b20260317.1500';
   document.getElementById('resolve-sheet-wrap').classList.add('open');setTimeout(()=>document.getElementById('resolve-note').focus(),300);
 }
 function closeResolveSheet(){document.getElementById('resolve-sheet-wrap').classList.remove('open');}
@@ -4246,7 +4318,7 @@ function saveResolve(){
   const id=parseInt(document.getElementById('resolve-id').value);const note=document.getElementById('resolve-note').value.trim();
   if(!note){alert('Describe what was changed');return;}
   const f=S.feedback.find(x=>x.id===id);if(!f)return;
-  f.status='resolved';f.resolutionNote=note;f.resolvedInVersion=S.version||'b20260317.1431';f.resolvedAt=new Date().toISOString();
+  f.status='resolved';f.resolutionNote=note;f.resolvedInVersion=S.version||'b20260317.1500';f.resolvedAt=new Date().toISOString();
   save();closeResolveSheet();renderFeedbackTab();updateFeedbackBadge();
 }
 function renderFeedbackStats(){
@@ -4279,7 +4351,7 @@ function generateBrief(){
   const testers=[...new Set(S.feedback.map(f=>f.tester).filter(t=>t&&t!=='anonymous'))];
   const open=S.feedback.filter(f=>f.status==='open');const resolved=S.feedback.filter(f=>f.status==='resolved');const closed=S.feedback.filter(f=>f.status==='closed');
   const catOrder=['bug','calc','ux','feature','idea'];
-  let b=`GET THE HAY OUT — DEV SESSION BRIEF\nGenerated: ${now}\nVersion: ${S.version||'b20260317.1431'}\nTesters: ${testers.length?testers.join(', '):'anonymous'}\nOpen: ${open.length} · Awaiting: ${resolved.length} · Closed: ${closed.length}\n${'═'.repeat(52)}\n`;
+  let b=`GET THE HAY OUT — DEV SESSION BRIEF\nGenerated: ${now}\nVersion: ${S.version||'b20260317.1500'}\nTesters: ${testers.length?testers.join(', '):'anonymous'}\nOpen: ${open.length} · Awaiting: ${resolved.length} · Closed: ${closed.length}\n${'═'.repeat(52)}\n`;
   if(open.length){b+=`\nOPEN ITEMS (${open.length})\n${'─'.repeat(52)}\n`;catOrder.forEach(cat=>{const items=open.filter(f=>f.cat===cat);if(!items.length)return;b+=`\n[${(CAT[cat]||CAT.idea).label.toUpperCase()}]\n`;items.forEach((f,i)=>{const d=new Date(f.ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});const ctx=f.ctx.activeEvent?`screen:${f.ctx.screen} event:${f.ctx.activeEvent.pasture} day${f.ctx.activeEvent.day}`:`screen:${f.ctx.screen}`;b+=`${i+1}. ${f.note}\n   [${ctx}] — ${f.tester}, ${f.version||'?'}, ${d}${f.linkedTo?' ⚠ regression':''}\n`;});});}
   if(resolved.length){b+=`\n${'═'.repeat(52)}\nAWAITING CONFIRMATION (${resolved.length})\n${'─'.repeat(52)}\n`;resolved.forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fix in ${f.resolvedInVersion}: ${f.resolutionNote}\n`;});}
   if(closed.length){b+=`\n${'═'.repeat(52)}\nCLOSED (last 10)\n${'─'.repeat(52)}\n`;closed.slice(-10).forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fixed in ${f.resolvedInVersion||'?'}: ${f.resolutionNote||'—'}. Confirmed: ${f.confirmedBy||'?'}\n`;});}
@@ -5631,6 +5703,12 @@ function importSetupFile(event){
       showImportStatus(results.errors.length?'warn':'ok',
         msg+(results.errors.length?'\n\nWarnings:\n'+results.errors.slice(0,5).join('\n'):''));
 
+      // Stamp setup timestamp so sync doesn't clobber these imports
+      stampSetup();
+      // Back-fill system IDs on any new pastures/feedTypes
+      migrateSystemIds();
+      migrateToPaddocksField();
+      save();
       renderAnimalList();renderGroupsList();renderClassesList();
       renderPastures();renderFeedTypes();renderBatchListS();
 
@@ -6822,7 +6900,7 @@ function closeResetSheet(){
 async function executeReset(){
   if(document.getElementById('reset-confirm-input').value!=='YES')return;
   const mode=document.getElementById('reset-confirm-btn').dataset.mode||'all';
-  const ver=S.version||'b20260317.1431';
+  const ver=S.version||'b20260317.1500';
   if(mode==='events'){
     // Events-only reset — preserve setup data
     S.events=[];
