@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260318.1101" id="app-version-meta"/>
+<meta name="app-version" content="b20260318.1147" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -429,6 +429,10 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
         Pastures
       </button>
+      <button class="dsk-nav-item" id="dbn-feed" onclick="nav('feed',this)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+        Feed
+      </button>
       <button class="dsk-nav-item" id="dbn-feedback" onclick="nav('feedback',this)">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
         Feedback
@@ -525,21 +529,41 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
     </div>
 
     <!-- FEED -->
-    <div id="s-feed" class="scr" style="display:none!important;">
-      <!-- Feed screen kept for goFeedGroup() navigation from home cards -->
-      <div id="feed-no-event" style="display:none;"><div class="card"><div class="empty">No active grazing event.</div></div></div>
-      <div id="feed-form">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <div id="feed-banner" style="flex:1;"></div>
-          <button class="btn btn-outline btn-sm" onclick="nav('home',document.getElementById('bn-home'))" style="flex-shrink:0;margin-left:8px;">← Home</button>
+    <div id="s-feed" class="scr">
+
+      <!-- ── Feed overview stats ── -->
+      <div class="card" id="feed-overview-card" style="margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <div class="sec" style="margin:0;">Feed on hand</div>
+          <span style="font-size:11px;color:var(--text2);">dry matter basis</span>
         </div>
-        <div id="feed-group-tabs" style="display:none;margin-bottom:10px;"></div>
+        <div id="feed-stats-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;"></div>
+        <div id="feed-days-bar-wrap" style="display:none;">
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text2);margin-bottom:4px;">
+            <span>Days of feed on hand</span>
+            <span id="feed-days-label">—</span>
+          </div>
+          <div class="prog"><div class="prog-fill" id="feed-days-bar" style="width:0%;background:var(--green);"></div></div>
+          <div style="font-size:11px;color:var(--text2);margin-top:3px;" id="feed-days-hint"></div>
+        </div>
+      </div>
+
+      <!-- ── Active event feeding (shown only when group is actively grazing) ── -->
+      <div id="feed-active-section" style="display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <div style="font-size:15px;font-weight:600;">Log feeding</div>
+          <button class="btn btn-outline btn-xs" onclick="nav('home',document.getElementById('bn-home'))">← Home</button>
+        </div>
+        <div id="feed-group-tabs" style="display:none;margin-bottom:8px;"></div>
+        <div id="feed-banner" style="margin-bottom:8px;"></div>
         <div class="card">
-          <div class="sec">Add feeding entry</div>
           <div class="field"><label>Date fed</label><input type="date" id="ff-date"/></div>
-          <div class="sec" style="margin-bottom:6px;">Feed batch</div>
           <div id="ff-batch-sel"></div>
-          <div id="ff-qty-wrap" style="display:none;"><div class="div"></div><div class="sec" style="margin-bottom:8px;">Quantities</div><div id="ff-qty-lines"></div></div>
+          <div id="ff-qty-wrap" style="display:none;">
+            <div class="div"></div>
+            <div class="sec" style="margin-bottom:8px;">Quantities</div>
+            <div id="ff-qty-lines"></div>
+          </div>
           <div class="div"></div>
           <div class="card-inset">
             <div class="two">
@@ -555,6 +579,50 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
           <div id="ff-running" style="display:none;padding-top:10px;border-top:0.5px solid var(--border);font-size:12px;color:var(--text2);margin-top:4px;"></div>
         </div>
       </div>
+
+      <!-- ── Feed types ── -->
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <div class="sec" style="margin:0;">Feed types</div>
+        </div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.5;">Define each type once — batches reference them for DM% and unit.</div>
+        <div id="ft-list"></div>
+        <div class="div"></div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Add feed type</div>
+        <div class="two">
+          <div class="field"><label>Name</label><input type="text" id="ft-name" placeholder="Round bale"/></div>
+          <div class="field"><label>Unit</label><select id="ft-unit"><option value="bale">bale</option><option value="sq bale">sq bale</option><option value="ton">ton</option><option value="lb">lb</option><option value="bag">bag</option></select></div>
+        </div>
+        <div class="two">
+          <div class="field"><label>DM %</label><input type="number" id="ft-dm" placeholder="85"/></div>
+          <div class="field"><label>Category</label><select id="ft-cat"><option value="hay">Hay/forage</option><option value="silage">Silage</option><option value="grain">Grain/supp</option></select></div>
+        </div>
+        <button class="btn btn-green btn-sm" onclick="addFeedType()">Add feed type</button>
+      </div>
+
+      <!-- ── Feed inventory (batches) ── -->
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <div class="sec" style="margin:0;">Feed inventory</div>
+        </div>
+        <div id="batch-list-s" style="margin-bottom:12px;"></div>
+        <div class="div"></div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Add batch</div>
+        <div class="two">
+          <div class="field"><label>Feed type</label><select id="b-type"><option value="">— type —</option></select></div>
+          <div class="field"><label>Label</label><input type="text" id="b-label" placeholder="June 1st cut"/></div>
+        </div>
+        <div class="two">
+          <div class="field"><label>Quantity</label><input type="number" id="b-qty" placeholder="100" oninput="calcBatch()"/></div>
+          <div class="field"><label>Wt / unit (lbs)</label><input type="number" id="b-wt" placeholder="850"/></div>
+        </div>
+        <div class="two">
+          <div class="field"><label>Cost / unit ($)</label><input type="number" id="b-cpu" step="0.01" placeholder="40" oninput="calcBatch()"/></div>
+          <div class="field"><label>Total cost ($)</label><input type="number" id="b-tcost" step="0.01" placeholder="4000" oninput="calcBatchFromTotal()"/></div>
+        </div>
+        <button class="btn btn-green btn-sm" onclick="addBatch()">Add batch</button>
+      </div>
+
     </div>
 
     <!-- ANIMALS SCREEN -->
@@ -593,41 +661,23 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
           </div>
         </div>
       </div>
+      <!-- Groups summary -->
+      <div class="card" style="margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <div class="sec" style="margin:0;">Groups</div>
+          <button class="btn btn-green btn-xs" onclick="openAddGroupSheet()">+ Add group</button>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;">
+          <button class="btn btn-outline btn-xs" onclick="openManageClassesSheet()">🐄 Classes</button>
+          <button class="btn btn-outline btn-xs" onclick="openManageTreatmentTypesSheet()">💉 Treatments</button>
+          <button class="btn btn-outline btn-xs" onclick="openManageAIBullsSheet()">🐂 AI Sires</button>
+        </div>
+        <div id="groups-list"></div>
+      </div>
+
       <!-- Animal list -->
       <div id="animals-screen-list"></div>
 
-      <!-- Add animal inline -->
-      <div class="card" style="margin-top:12px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <div class="sec" style="margin:0;">Add animal</div>
-          <button class="btn btn-outline btn-xs" onclick="toggleAddAnimalForm()" id="toggle-add-animal-btn">+ Add</button>
-        </div>
-        <div id="add-animal-form-inline" style="display:none;">
-          <div class="field"><label>Ear tag # <span style="font-size:10px;color:var(--text2);">optional</span></label>
-            <input type="text" id="ani-tag" placeholder="T-006"/>
-          </div>
-          <div class="two">
-            <div class="field"><label>Sex</label>
-              <select id="ani-sex"><option value="female">Female</option><option value="male">Male</option></select>
-            </div>
-            <div class="field"><label>Class</label>
-              <select id="ani-class"><option value="">— class —</option></select>
-            </div>
-          </div>
-          <div class="two">
-            <div class="field"><label>Weight (lbs)</label>
-              <input type="number" id="ani-wt" placeholder="1200" step="1"/>
-            </div>
-            <div class="field"><label>Group</label>
-              <select id="ani-group"><option value="">— unassigned —</option></select>
-            </div>
-          </div>
-          <div class="btn-row">
-            <button class="btn btn-green btn-sm" onclick="addAnimalFromScreen()">Add animal</button>
-            <button class="btn btn-outline btn-sm" onclick="toggleAddAnimalForm()">Cancel</button>
-          </div>
-        </div>
-      </div>
     </div>
 
     <!-- MOVE WIZARD -->
@@ -821,48 +871,6 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 
     <!-- PASTURES -->
     <div id="s-pastures" class="scr">
-      <div class="card">
-        <div class="sec">Add location</div>
-        <div class="two">
-          <div class="field"><label>Name</label><input type="text" id="p-name" placeholder="North paddock"/></div>
-          <div class="field"><label>Acres</label><input type="number" id="p-acres" step="0.5" placeholder="20"/></div>
-        </div>
-        <div class="field"><label>Location type</label>
-          <select id="p-loctype" onchange="onLocTypeChange()">
-            <option value="pasture">Pasture / paddock</option>
-            <option value="confinement">Confinement / holding area</option>
-          </select>
-        </div>
-        <div id="p-pasture-fields">
-          <div class="two">
-            <div class="field"><label>Soil type</label><select id="p-soil"><option>Loam</option><option>Clay</option><option>Sandy</option><option>Silt</option></select></div>
-            <div class="field"><label>Forage species</label><input type="text" id="p-species" placeholder="Mixed grass/clover"/></div>
-          </div>
-        </div>
-        <div id="p-confinement-fields" style="display:none;">
-          <div class="field"><label>Description</label><input type="text" id="p-desc" placeholder="e.g. Winter barn, Drylot A, Sacrifice paddock"/></div>
-          <div class="field">
-            <label>Capture manure?</label>
-            <select id="p-capture" onchange="onCaptureChange()">
-              <option value="yes">Yes — manure captured for storage</option>
-              <option value="no">No — manure not captured (NPK not tracked)</option>
-            </select>
-          </div>
-          <div id="p-capture-fields">
-            <div class="two">
-              <div class="field"><label>Capture % (est.)</label><input type="number" id="p-capture-pct" min="0" max="100" step="5" placeholder="80"/></div>
-              <div class="field"><label>Manure batch mode</label>
-                <select id="p-batch-mode">
-                  <option value="accumulate">Accumulate into one running batch</option>
-                  <option value="new">New batch each event close</option>
-                </select>
-              </div>
-            </div>
-          </div>
-        </div>
-        <button class="btn btn-green" onclick="addPasture()">Add location</button>
-      </div>
-
       <!-- Manure inventory section -->
       <div id="manure-inventory-section" style="display:none;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
@@ -882,7 +890,8 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
       <div class="div"></div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
         <div style="font-size:15px;font-weight:600;">Locations</div>
-        <button class="btn btn-green btn-sm" onclick="openSurveySheet()" style="flex-shrink:0;">📋 Survey</button>
+        <button class="btn btn-green btn-sm" onclick="openAddLocation()" style="flex-shrink:0;">+ Add</button>
+        <button class="btn btn-outline btn-sm" onclick="openSurveySheet()" style="flex-shrink:0;">📋 Survey</button>
         <div style="flex:1;position:relative;">
           <input type="search" id="pasture-search" placeholder="Filter locations…"
             oninput="renderPastures()"
@@ -1071,88 +1080,6 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 
       <!-- Animal Classes -->
       <div class="card">
-        <div class="sec">Animal classes</div>
-        <div style="font-size:13px;color:var(--text2);margin-bottom:10px;line-height:1.6;">Define the animal classes on your farm. Each class has its own default weight and DMI rate for accurate calculations.</div>
-        <div id="classes-list"></div>
-        <div class="div"></div>
-        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Add class</div>
-        <div class="two">
-          <div class="field"><label>Name</label><input type="text" id="cls-name" placeholder="Cow, Steer, Ewe…"/></div>
-          <div class="field"><label>Species</label>
-            <select id="cls-species"><option>Beef cattle</option><option>Dairy cattle</option><option>Sheep</option><option>Goats</option><option>Other</option></select>
-          </div>
-        </div>
-        <div class="two">
-          <div class="field"><label>Default weight (lbs)</label><input type="number" id="cls-wt" placeholder="1200"/></div>
-          <div class="field"><label>DMI % of body weight</label><input type="number" id="cls-dmi" step="0.1" placeholder="2.5"/></div>
-        </div>
-        <button class="btn btn-green btn-sm" onclick="addAnimalClass()">Add class</button>
-      </div>
-      <!-- Treatment types -->
-      <div class="card">
-        <div class="sec">Treatment types</div>
-        <div style="font-size:13px;color:var(--text2);margin-bottom:10px;line-height:1.6;">
-          Define treatment categories for health event logging — e.g. Vaccinate, Deworm, Castrate.
-        </div>
-        <div id="treatment-types-list"></div>
-        <div class="div"></div>
-        <div style="display:flex;gap:8px;align-items:flex-end;">
-          <div class="field" style="flex:1;margin:0;">
-            <label>Treatment name</label>
-            <input type="text" id="tt-name" placeholder="e.g. Vaccinate — BVD"/>
-          </div>
-          <button class="btn btn-green btn-sm" style="width:auto;padding:10px 16px;" onclick="addTreatmentType()">Add</button>
-        </div>
-      </div>
-
-      <!-- AI Bulls -->
-      <div class="card">
-        <div class="sec">AI sire list</div>
-        <div style="font-size:13px;color:var(--text2);margin-bottom:10px;line-height:1.6;">
-          Store your AI sires here. Name and registration number are snapshotted on each breeding record so edits don't affect history.
-        </div>
-        <div id="ai-bulls-list"></div>
-        <div class="div"></div>
-        <div class="two">
-          <div class="field"><label>Sire name *</label><input type="text" id="ab-name" placeholder="e.g. Connealy Confidence"/></div>
-          <div class="field"><label>Reg # <span style="font-size:10px;color:var(--text2);">optional</span></label><input type="text" id="ab-reg" placeholder="e.g. 17760326"/></div>
-        </div>
-        <div class="two">
-          <div class="field"><label>Breed <span style="font-size:10px;color:var(--text2);">optional</span></label><input type="text" id="ab-breed" placeholder="e.g. Angus"/></div>
-          <div class="field"><label>EPDs <span style="font-size:10px;color:var(--text2);">optional</span></label><input type="text" id="ab-epds" placeholder="e.g. CE+8 BW-1.2 WW+68"/></div>
-        </div>
-        <div class="field"><label>Notes <span style="font-size:10px;color:var(--text2);">optional</span></label><input type="text" id="ab-notes" placeholder="Tank location, straw count, etc."/></div>
-        <button class="btn btn-green btn-sm" style="width:auto;padding:10px 20px;" onclick="addAIBull()">Add sire</button>
-      </div>
-
-
-      <!-- Animal Groups -->
-      <div class="card">
-        <div class="sec">Animal groups</div>
-        <div style="font-size:13px;color:var(--text2);margin-bottom:10px;line-height:1.6;">Groups are the units that move between locations. You can have multiple groups active in different paddocks simultaneously.</div>
-        <div id="groups-list"></div>
-        <div class="div"></div>
-        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Add group</div>
-        <div class="two">
-          <div class="field"><label>Group name</label><input type="text" id="grp-name" placeholder="Cow herd, Yearlings…"/></div>
-          <div class="field"><label>Color</label>
-            <div style="display:flex;gap:8px;margin-top:4px;" id="grp-color-picker">
-              <div onclick="selGroupColor(this,'#639922')" style="width:28px;height:28px;border-radius:50%;background:#639922;cursor:pointer;border:2px solid var(--text);" data-color="#639922"></div>
-              <div onclick="selGroupColor(this,'#1D9E75')" style="width:28px;height:28px;border-radius:50%;background:#1D9E75;cursor:pointer;border:2px solid transparent;" data-color="#1D9E75"></div>
-              <div onclick="selGroupColor(this,'#185FA5')" style="width:28px;height:28px;border-radius:50%;background:#185FA5;cursor:pointer;border:2px solid transparent;" data-color="#185FA5"></div>
-              <div onclick="selGroupColor(this,'#BA7517')" style="width:28px;height:28px;border-radius:50%;background:#BA7517;cursor:pointer;border:2px solid transparent;" data-color="#BA7517"></div>
-              <div onclick="selGroupColor(this,'#534AB7')" style="width:28px;height:28px;border-radius:50%;background:#534AB7;cursor:pointer;border:2px solid transparent;" data-color="#534AB7"></div>
-            </div>
-            <input type="hidden" id="grp-color" value="#639922"/>
-          </div>
-        </div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">Select animals to include (add animals above first, or add unassigned animals later)</div>
-        <div id="grp-animal-picker" style="max-height:200px;overflow-y:auto;margin-bottom:10px;"></div>
-        <button class="btn btn-green btn-sm" onclick="addAnimalGroup()">Add group</button>
-      </div>
-
-      <!-- Individual Animals -->
-      <div class="card">
         <div class="sec">Individual animals</div>
         <div style="font-size:13px;color:var(--text2);margin-bottom:10px;line-height:1.6;">Add each animal with their tag number, EID, sex, class, and current weight. Animals are then assigned to groups.</div>
         <!-- Search/filter bar -->
@@ -1339,39 +1266,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
         <button class="btn btn-green btn-sm" onclick="addInputProduct()">Add product</button>
       </div>
 
-      <!-- Feed inventory -->
-      <div class="card">
-        <div class="sec">Feed inventory</div>
-        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Feed types</div>
-        <div id="ft-list"></div>
-        <div class="div"></div>
-        <div class="two">
-          <div class="field"><label>Name</label><input type="text" id="ft-name" placeholder="Round bale"/></div>
-          <div class="field"><label>Unit</label><select id="ft-unit"><option value="bale">bale</option><option value="sq bale">sq bale</option><option value="ton">ton</option><option value="lb">lb</option><option value="bag">bag</option></select></div>
-        </div>
-        <div class="two">
-          <div class="field"><label>DM %</label><input type="number" id="ft-dm" placeholder="85"/></div>
-          <div class="field"><label>Category</label><select id="ft-cat"><option value="hay">Hay/forage</option><option value="silage">Silage</option><option value="grain">Grain/supp</option></select></div>
-        </div>
-        <button class="btn btn-green btn-sm" onclick="addFeedType()">Add feed type</button>
-        <div class="div"></div>
-        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Feed batches</div>
-        <div id="batch-list-s"></div>
-        <div class="div"></div>
-        <div class="two">
-          <div class="field"><label>Feed type</label><select id="b-type"><option value="">— type —</option></select></div>
-          <div class="field"><label>Label</label><input type="text" id="b-label" placeholder="June 1st cut"/></div>
-        </div>
-        <div class="two">
-          <div class="field"><label>Quantity</label><input type="number" id="b-qty" placeholder="100" oninput="calcBatch()"/></div>
-          <div class="field"><label>Wt / unit (lbs)</label><input type="number" id="b-wt" placeholder="850"/></div>
-        </div>
-        <div class="two">
-          <div class="field"><label>Cost / unit ($)</label><input type="number" id="b-cpu" step="0.01" placeholder="40" oninput="calcBatch()"/></div>
-          <div class="field"><label>Total cost ($)</label><input type="number" id="b-tcost" step="0.01" placeholder="4000" oninput="calcBatchFromTotal()"/></div>
-        </div>
-        <button class="btn btn-green btn-sm" onclick="addBatch()">Add batch</button>
-      </div>
+
 
 
       <!-- Animal Units & Rotation Goals -->
@@ -1468,6 +1363,10 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
     <button class="bnav-btn" id="bn-pastures" onclick="nav('pastures',this)">
       <svg class="bnav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
       Pastures
+    </button>
+    <button class="bnav-btn" id="bn-feed" onclick="nav('feed',this)">
+      <svg class="bnav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18M3 15h18M9 3v18M15 3v18" stroke-linecap="round"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+      Feed
     </button>
     <button class="bnav-btn" id="bn-feedback" onclick="nav('feedback',this)">
       <svg class="bnav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
@@ -1582,7 +1481,7 @@ if(!S.batches)S.batches=[];
 if(!S.herd)S.herd={};
 if(!S.settings)S.settings={nPrice:0.55,pPrice:0.65,kPrice:0.42,nExc:0.32,pExc:0.09,kExc:0.30};
 if(!S.feedback)S.feedback=[];
-if(!S.version)S.version='v1.1';
+if(!S.version)S.version='v1.2';
 if(!S.testerName)S.testerName='';
 if(!S.users)S.users=[];
 if(!S.todos)S.todos=[];
@@ -1595,7 +1494,7 @@ if(!S.settings.manureVolumeRate)S.settings.manureVolumeRate=65;
 if(!S.settings.manureLoadLbs)S.settings.manureLoadLbs=8000;
 if(!S.settings.manureVolumeUnit)S.settings.manureVolumeUnit='loads';
 if(!S.settings.homeStats)S.settings.homeStats=['pasture_dmi','feed_cost','pasture_pct','npk_lbs_acre','npk_val_acre'];
-if(!S.version)S.version='b20260318.1101';
+if(!S.version)S.version='v1.2';
 if(!S.settings.homeStatPeriod)S.settings.homeStatPeriod='7d';
 if(!S.settings.auWeight)S.settings.auWeight=1000;
 if(!S.settings.recoveryRequired===undefined)S.settings.recoveryRequired=false;
@@ -2151,7 +2050,7 @@ function renderCurrentScreen(){
   else if(curScreen==='pastures')renderPastures();
   else if(curScreen==='feedback')renderFeedbackTab();
   else if(curScreen==='reports'){renderReportsScreen();}
-  else if(curScreen==='settings'){loadSettings();renderFeedTypes();renderBatchListS();renderUsersList();renderClassesList();renderGroupsList();renderAnimalList();renderGrpAnimalPicker();updateDriveUI();}
+  else if(curScreen==='settings'){loadSettings();renderUsersList();renderClassesList();renderGroupsList();renderAnimalList();renderGrpAnimalPicker();updateDriveUI();}
 }
 
 // ─── USER SYSTEM ──────────────────────────────────────────────────────────────
@@ -2578,12 +2477,7 @@ function toggleGroupCard(gId){
 
 function goFeedGroup(gId){
   ffActiveGroupId=gId;
-  // Feed screen is no longer in nav — show it directly
-  document.querySelectorAll('.scr').forEach(s=>s.classList.remove('active'));
-  document.querySelectorAll('.bnav-btn').forEach(b=>b.classList.remove('active'));
-  const feedScr=document.getElementById('s-feed');
-  if(feedScr){feedScr.style.removeProperty('display');feedScr.classList.add('active');}
-  curScreen='feed';renderFeedScreen();
+  nav('feed', document.getElementById('bn-feed')||document.getElementById('dbn-feed'));
 }
 
 function moveGroup(gId){
@@ -2775,12 +2669,24 @@ let ffLines=[];
 let ffActiveGroupId=null;
 
 function renderFeedScreen(){
-  const active=getActiveEvents();
-  document.getElementById('feed-no-event').style.display=active.length?'none':'block';
-  document.getElementById('feed-form').style.display=active.length?'block':'none';
-  if(!active.length)return;
-  // Build group tabs
-  const tabsEl=document.getElementById('feed-group-tabs');
+  // ── Overview stats ─────────────────────────────────────────────────────────
+  renderFeedOverview();
+
+  // ── Feed types + batches ───────────────────────────────────────────────────
+  renderFeedTypes();
+  renderBatchListS();
+  populateBatchTypeSelect();
+
+  // ── Active event feeding section ───────────────────────────────────────────
+  const active = getActiveEvents();
+  const activeSection = document.getElementById('feed-active-section');
+  if(!active.length){
+    if(activeSection) activeSection.style.display='none';
+    return;
+  }
+  if(activeSection) activeSection.style.display='block';
+
+  const tabsEl = document.getElementById('feed-group-tabs');
   if(active.length>1){
     tabsEl.style.display='block';
     if(!ffActiveGroupId||!active.find(e=>e.groupId===ffActiveGroupId))ffActiveGroupId=active[0].groupId;
@@ -2795,9 +2701,100 @@ function renderFeedScreen(){
   }
   const ae=active.find(e=>e.groupId===ffActiveGroupId)||active[0];
   const g=getGroupById(ae.groupId);const gColor=g?g.color:'#639922';const gName=g?g.name:(ae.groupName||'Herd');
-  document.getElementById('feed-banner').innerHTML=`<div class="banner ban-green" style="border-left:3px solid ${gColor};"><div style="font-size:14px;font-weight:600;color:var(--green-d);">Feeding: ${gName} at ${ae.pasture}</div><div style="font-size:12px;color:var(--green-d);opacity:0.85;">Day ${daysBetween(ae.dateIn,todayStr())} · in since ${dLabel(ae.dateIn)}</div></div>`;
+  document.getElementById('feed-banner').innerHTML=`<div class="banner ban-green" style="border-left:3px solid ${gColor};"><div style="font-size:14px;font-weight:600;color:var(--green-d);">Feeding: ${gName} at ${evDisplayName(ae)}</div><div style="font-size:12px;color:var(--green-d);opacity:0.85;">Day ${daysBetween(ae.dateIn,todayStr())} · in since ${dLabel(ae.dateIn)}</div></div>`;
   document.getElementById('ff-date').value=todayStr();
   ffLines=[];renderFFBatches();renderFFHistory(ae);
+}
+
+// ── Feed overview stats ───────────────────────────────────────────────────────
+function renderFeedOverview(){
+  const grid = document.getElementById('feed-stats-grid');
+  const barWrap = document.getElementById('feed-days-bar-wrap');
+  if(!grid) return;
+
+  // Total DM on hand across all active (non-archived, remaining > 0) batches
+  let totalDMLbs = 0;
+  let totalCost = 0;
+  let batchCount = 0;
+  (S.batches||[]).filter(b=>!b.archived && b.remaining>0).forEach(b=>{
+    const asFedLbs = b.wt ? b.remaining * b.wt : b.remaining; // lbs as-fed
+    totalDMLbs += asFedLbs * (b.dm/100);
+    totalCost  += b.remaining * (b.cpu||0);
+    batchCount++;
+  });
+
+  // Daily DMI run rate: sum across all animals on farm (all active groups)
+  let totalDailyDMI = 0;
+  let totalHead = 0;
+  (S.animalGroups||[]).forEach(g=>{
+    const t = getGroupTotals(g);
+    totalDailyDMI += t.dmiTarget||0;
+    totalHead += t.totalHead||0;
+  });
+
+  // Days of feed on hand
+  const daysOnHand = totalDailyDMI > 0 ? totalDMLbs / totalDailyDMI : null;
+
+  // Format helpers
+  const fmtDM = v => v>=1000 ? (v/1000).toFixed(1)+'k lbs' : Math.round(v).toLocaleString()+' lbs';
+  const fmtDays = v => v!=null ? Math.floor(v)+'d' : '—';
+
+  // Color for days on hand: green=60+, amber=21–60, red<21
+  const daysColor = daysOnHand===null ? 'var(--text2)'
+    : daysOnHand>=60 ? 'var(--green-d)'
+    : daysOnHand>=21 ? 'var(--amber-d)'
+    : 'var(--red-d)';
+  const daysBg = daysOnHand===null ? 'var(--bg2)'
+    : daysOnHand>=60 ? 'var(--green-l)'
+    : daysOnHand>=21 ? 'var(--amber-l)'
+    : 'var(--red-l)';
+
+  grid.innerHTML = [
+    {
+      label:'DM on hand',
+      value: batchCount ? fmtDM(totalDMLbs) : '—',
+      sub: batchCount ? batchCount+' batch'+(batchCount!==1?'es':'')+' · $'+totalCost.toFixed(0)+' value' : 'No batches in inventory',
+      color:'var(--green-d)', bg:'var(--green-l)',
+    },
+    {
+      label:'Daily run rate',
+      value: totalDailyDMI > 0 ? fmtDM(totalDailyDMI)+'/day' : '—',
+      sub: totalHead ? totalHead+' head across '+((S.animalGroups||[]).length)+' group'+((S.animalGroups||[]).length!==1?'s':'') : 'Add animals to calculate',
+      color:'var(--amber-d)', bg:'var(--amber-l)',
+    },
+    {
+      label:'Days on hand',
+      value: fmtDays(daysOnHand),
+      sub: daysOnHand!=null
+        ? (daysOnHand>=60?'Good supply':daysOnHand>=21?'Watch closely':'Running low')
+        : totalDailyDMI===0 ? 'No animals' : 'No feed',
+      color: daysColor, bg: daysBg,
+    },
+  ].map(m=>`
+    <div style="background:${m.bg};border-radius:var(--radius);padding:10px 12px;">
+      <div style="font-size:10px;font-weight:600;color:${m.color};text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px;">${m.label}</div>
+      <div style="font-size:20px;font-weight:800;color:${m.color};line-height:1;">${m.value}</div>
+      <div style="font-size:10px;color:${m.color};opacity:.75;margin-top:3px;line-height:1.3;">${m.sub}</div>
+    </div>`).join('');
+
+  // Days bar
+  if(daysOnHand!=null && totalDailyDMI>0 && barWrap){
+    barWrap.style.display='block';
+    const target = 90; // 90-day target as 100%
+    const pct = Math.min(100, Math.round((daysOnHand/target)*100));
+    const barColor = daysOnHand>=60?'var(--green)':daysOnHand>=21?'var(--amber)':'var(--red)';
+    document.getElementById('feed-days-label').textContent = Math.floor(daysOnHand)+' days';
+    document.getElementById('feed-days-bar').style.width = pct+'%';
+    document.getElementById('feed-days-bar').style.background = barColor;
+    const hint = daysOnHand>=60
+      ? 'Good winter supply (90d = full bar)'
+      : daysOnHand>=21
+      ? 'Getting low — consider purchasing feed'
+      : 'Critical — less than 3 weeks of feed on hand';
+    document.getElementById('feed-days-hint').textContent = hint;
+  } else if(barWrap){
+    barWrap.style.display='none';
+  }
 }
 function renderFFBatches(){
   const el=document.getElementById('ff-batch-sel');
@@ -2844,7 +2841,7 @@ function saveFeedEntry(){
     const b=S.batches.find(x=>x.id===l.batchId);
     if(b&&l.qty>0)b.remaining=Math.max(0,+(b.remaining-l.qty).toFixed(2));
   });
-  ffLines=[];save();renderFFBatches();renderFFHistory(ae);
+  ffLines=[];save();renderFFBatches();renderFFHistory(ae);renderFeedOverview();
 }
 function renderFFHistory(ae){
   const el=document.getElementById('ff-history');const rt=document.getElementById('ff-running');
@@ -4490,42 +4487,9 @@ function renderEventsLog(){
 }
 
 // ─── PASTURES ─────────────────────────────────────────────────────────────────
-function onLocTypeChange(){
-  const v=document.getElementById('p-loctype').value;
-  document.getElementById('p-pasture-fields').style.display=v==='pasture'?'block':'none';
-  document.getElementById('p-confinement-fields').style.display=v==='confinement'?'block':'none';
-}
-function onCaptureChange(){
-  const v=document.getElementById('p-capture').value;
-  document.getElementById('p-capture-fields').style.display=v==='yes'?'block':'none';
-}
-function addPasture(){
-  const name=document.getElementById('p-name').value.trim();if(!name){alert('Enter a name');return;}
-  const locType=document.getElementById('p-loctype').value;
-  const loc={id:generatePastureId(),archived:false,name,acres:parseFloat(document.getElementById('p-acres').value)||0,locationType:locType};
-  if(locType==='pasture'){
-    loc.soil=document.getElementById('p-soil').value;
-    loc.species=document.getElementById('p-species').value;
-  } else {
-    loc.description=document.getElementById('p-desc').value;
-    loc.captureManure=document.getElementById('p-capture').value==='yes';
-    if(loc.captureManure){
-      loc.capturePercent=parseFloat(document.getElementById('p-capture-pct').value)||80;
-      loc.batchMode=document.getElementById('p-batch-mode').value;
-      // Create accumulating batch if mode is accumulate
-      if(loc.batchMode==='accumulate'){
-        const batchId=Date.now();
-        S.manureBatches.push({id:batchId,label:name+' — running batch',locationName:name,mode:'accumulate',nLbs:0,pLbs:0,kLbs:0,estimatedVolumeLbs:0,events:[],createdAt:new Date().toISOString()});
-        loc.accumulatingBatchId=batchId;
-      }
-    }
-  }
-  S.pastures.push(loc);
-  stampSetup();save();renderPastures();renderManureInventory();
-  ['p-name','p-acres','p-species','p-desc'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  document.getElementById('p-loctype').value='pasture';
-  onLocTypeChange();
-}
+
+
+
 function renderPastures(){
   renderInputApplicationsList();
   const el=document.getElementById('pasture-list');
@@ -4650,7 +4614,7 @@ function loadSettings(){
   if(st.manureVolumeRate&&document.getElementById('s-manure-rate'))document.getElementById('s-manure-rate').value=st.manureVolumeRate;
   if(st.manureLoadLbs&&document.getElementById('s-load-lbs'))document.getElementById('s-load-lbs').value=st.manureLoadLbs;
   if(st.manureVolumeUnit&&document.getElementById('s-vol-unit'))document.getElementById('s-vol-unit').value=st.manureVolumeUnit;
-  document.getElementById('s-ver').value=S.version||'b20260318.1101';document.getElementById('s-tester').value=S.testerName||'';
+  document.getElementById('s-ver').value=S.version||'b20260318.1147';document.getElementById('s-tester').value=S.testerName||'';
   // Stat settings
   const spEl=document.getElementById('s-stat-period');
   if(spEl)spEl.value=S.settings.homeStatPeriod||'7d';
@@ -4664,8 +4628,7 @@ function loadSettings(){
   if(recMaxLoad)recMaxLoad.value=S.settings.recoveryMaxDays||60;
   renderStatsMetricList();
   renderThresholdsList();
-  renderTreatmentTypesList();
-  renderAIBullsList();
+  // Treatment types and AI bulls now managed from Animals tab
   // Populate build info panel
   const _metaVer = document.getElementById('app-version-meta')?.getAttribute('content')||'—';
   const _stampEl = document.getElementById('s-build-stamp');
@@ -4718,7 +4681,7 @@ function addBatch(){
   const qty=parseFloat(document.getElementById('b-qty').value);if(!qty){alert('Enter quantity');return;}
   const label=document.getElementById('b-label').value.trim()||(ft.name+' '+new Date().toLocaleDateString('en-US',{month:'short',year:'numeric'}));
   S.batches.push({id:Date.now(),archived:false,typeId,typeName:ft.name,unit:ft.unit,dm:ft.dm,qty,remaining:qty,wt:parseFloat(document.getElementById('b-wt').value)||null,cpu:parseFloat(document.getElementById('b-cpu').value)||0,label,date:todayStr()});
-  save();renderBatchListS();['b-qty','b-wt','b-cpu','b-tcost','b-label'].forEach(id=>document.getElementById(id).value='');
+  save();renderBatchListS();renderFeedOverview();['b-qty','b-wt','b-cpu','b-tcost','b-label'].forEach(id=>document.getElementById(id).value='');
 }
 function renderBatchListS(){
   const el=document.getElementById('batch-list-s');
@@ -4751,7 +4714,7 @@ function updateHeader(){
   }
   document.getElementById('hdr-sub').textContent=sub;
   const _vTag=document.getElementById('ver-tag');
-  if(_vTag)_vTag.textContent=S.version||'b20260318.1101';
+  if(_vTag)_vTag.textContent=S.version||'b20260318.1147';
   // Keep meta tag in sync so SW registration uses the right version
   const _vMeta=document.getElementById('app-version-meta');
   if(_vMeta&&S.version)_vMeta.setAttribute('content',S.version);
@@ -4773,7 +4736,7 @@ function saveFeedbackItem(){
   const note=document.getElementById('fb-note').value.trim();
   if(!note){document.getElementById('fb-note').style.borderColor='var(--red)';setTimeout(()=>document.getElementById('fb-note').style.borderColor='',1500);return;}
   const ae=getActive();
-  S.feedback.push({id:Date.now(),cat:selCatVal||'idea',note,tester:S.testerName||(getActiveUser()?getActiveUser().name:'anonymous'),version:S.version||'b20260318.1101',status:'open',ctx:{screen:curScreen,activeEvent:ae?{pasture:ae.pasture,day:daysBetween(ae.dateIn,todayStr())}:null},ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:null});
+  S.feedback.push({id:Date.now(),cat:selCatVal||'idea',note,tester:S.testerName||(getActiveUser()?getActiveUser().name:'anonymous'),version:S.version||'b20260318.1147',status:'open',ctx:{screen:curScreen,activeEvent:ae?{pasture:ae.pasture,day:daysBetween(ae.dateIn,todayStr())}:null},ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:null});
   save();closeFeedbackSheet();updateFeedbackBadge();if(curScreen==='feedback')renderFeedbackTab();
 }
 function renderFeedbackTab(){renderConfirmSection();renderFeedbackStats();renderFeedbackList();}
@@ -4789,12 +4752,12 @@ function confirmFixed(id){const f=S.feedback.find(x=>x.id===id);if(!f)return;f.s
 function reopenIssue(id){
   const orig=S.feedback.find(x=>x.id===id);if(!orig)return;
   orig.status='closed';orig.confirmedBy=S.testerName||'anonymous';orig.confirmedAt=new Date().toISOString();
-  S.feedback.push({id:Date.now(),cat:orig.cat,note:`[Regression] ${orig.note}`,tester:S.testerName||'anonymous',version:S.version||'b20260318.1101',status:'open',ctx:orig.ctx,ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:orig.id});
+  S.feedback.push({id:Date.now(),cat:orig.cat,note:`[Regression] ${orig.note}`,tester:S.testerName||'anonymous',version:S.version||'b20260318.1147',status:'open',ctx:orig.ctx,ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:orig.id});
   save();renderFeedbackTab();updateFeedbackBadge();
 }
 function openResolveSheet(id){
   document.getElementById('resolve-id').value=id;document.getElementById('resolve-note').value='';
-  document.getElementById('resolve-ver-label').textContent=S.version||'b20260318.1101';
+  document.getElementById('resolve-ver-label').textContent=S.version||'b20260318.1147';
   document.getElementById('resolve-sheet-wrap').classList.add('open');setTimeout(()=>document.getElementById('resolve-note').focus(),300);
 }
 function closeResolveSheet(){document.getElementById('resolve-sheet-wrap').classList.remove('open');}
@@ -4802,7 +4765,7 @@ function saveResolve(){
   const id=parseInt(document.getElementById('resolve-id').value);const note=document.getElementById('resolve-note').value.trim();
   if(!note){alert('Describe what was changed');return;}
   const f=S.feedback.find(x=>x.id===id);if(!f)return;
-  f.status='resolved';f.resolutionNote=note;f.resolvedInVersion=S.version||'b20260318.1101';f.resolvedAt=new Date().toISOString();
+  f.status='resolved';f.resolutionNote=note;f.resolvedInVersion=S.version||'b20260318.1147';f.resolvedAt=new Date().toISOString();
   save();closeResolveSheet();renderFeedbackTab();updateFeedbackBadge();
 }
 function renderFeedbackStats(){
@@ -4835,7 +4798,7 @@ function generateBrief(){
   const testers=[...new Set(S.feedback.map(f=>f.tester).filter(t=>t&&t!=='anonymous'))];
   const open=S.feedback.filter(f=>f.status==='open');const resolved=S.feedback.filter(f=>f.status==='resolved');const closed=S.feedback.filter(f=>f.status==='closed');
   const catOrder=['bug','calc','ux','feature','idea'];
-  let b=`GET THE HAY OUT — DEV SESSION BRIEF\nGenerated: ${now}\nVersion: ${S.version||'b20260318.1101'}\nTesters: ${testers.length?testers.join(', '):'anonymous'}\nOpen: ${open.length} · Awaiting: ${resolved.length} · Closed: ${closed.length}\n${'═'.repeat(52)}\n`;
+  let b=`GET THE HAY OUT — DEV SESSION BRIEF\nGenerated: ${now}\nVersion: ${S.version||'b20260318.1147'}\nTesters: ${testers.length?testers.join(', '):'anonymous'}\nOpen: ${open.length} · Awaiting: ${resolved.length} · Closed: ${closed.length}\n${'═'.repeat(52)}\n`;
   if(open.length){b+=`\nOPEN ITEMS (${open.length})\n${'─'.repeat(52)}\n`;catOrder.forEach(cat=>{const items=open.filter(f=>f.cat===cat);if(!items.length)return;b+=`\n[${(CAT[cat]||CAT.idea).label.toUpperCase()}]\n`;items.forEach((f,i)=>{const d=new Date(f.ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});const ctx=f.ctx.activeEvent?`screen:${f.ctx.screen} event:${f.ctx.activeEvent.pasture} day${f.ctx.activeEvent.day}`:`screen:${f.ctx.screen}`;b+=`${i+1}. ${f.note}\n   [${ctx}] — ${f.tester}, ${f.version||'?'}, ${d}${f.linkedTo?' ⚠ regression':''}\n`;});});}
   if(resolved.length){b+=`\n${'═'.repeat(52)}\nAWAITING CONFIRMATION (${resolved.length})\n${'─'.repeat(52)}\n`;resolved.forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fix in ${f.resolvedInVersion}: ${f.resolutionNote}\n`;});}
   if(closed.length){b+=`\n${'═'.repeat(52)}\nCLOSED (last 10)\n${'─'.repeat(52)}\n`;closed.slice(-10).forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fixed in ${f.resolvedInVersion||'?'}: ${f.resolutionNote||'—'}. Confirmed: ${f.confirmedBy||'?'}\n`;});}
@@ -5535,52 +5498,135 @@ function openMoveWizard(){
 }
 
 // ── Location edit ─────────────────────────────────────────────────────────────
+function openAddLocation(){
+  // Open sheet in "add" mode — blank slate
+  document.getElementById('loc-edit-title').textContent = 'Add location';
+  document.getElementById('le-save-btn').textContent    = 'Add location';
+  document.getElementById('loc-edit-idx').value = '__new__';
+  document.getElementById('le-name').value    = '';
+  document.getElementById('le-acres').value   = '';
+  document.getElementById('le-loctype').value = 'pasture';
+  document.getElementById('le-soil').value    = 'Loam';
+  document.getElementById('le-species').value = '';
+  document.getElementById('le-desc').value    = '';
+  document.getElementById('le-capture').value = 'no';
+  document.getElementById('le-cap-pct').value = 80;
+  document.getElementById('le-batch-mode').value = 'accumulate';
+  document.getElementById('le-pasture-fields').style.display    = 'block';
+  document.getElementById('le-confinement-fields').style.display = 'none';
+  document.getElementById('le-capture-fields').style.display    = 'none';
+  document.getElementById('le-delete-wrap').style.display       = 'none';
+  document.getElementById('loc-edit-wrap').classList.add('open');
+}
+
 function openLocEdit(idx){
   const p=S.pastures[idx];if(!p)return;
+  document.getElementById('loc-edit-title').textContent = 'Edit location';
+  document.getElementById('le-save-btn').textContent    = 'Save changes';
   document.getElementById('loc-edit-idx').value=idx;
   document.getElementById('le-name').value=p.name||'';
   document.getElementById('le-acres').value=p.acres||'';
   const isCon=p.locationType==='confinement';
+  document.getElementById('le-loctype').value=isCon?'confinement':'pasture';
   document.getElementById('le-pasture-fields').style.display=isCon?'none':'block';
   document.getElementById('le-confinement-fields').style.display=isCon?'block':'none';
   if(!isCon){
     document.getElementById('le-soil').value=p.soil||'Loam';
     document.getElementById('le-species').value=p.species||'';
+    document.getElementById('le-capture-fields').style.display='none';
   } else {
     document.getElementById('le-desc').value=p.description||'';
     document.getElementById('le-capture').value=p.captureManure?'yes':'no';
     document.getElementById('le-cap-pct').value=p.capturePercent||80;
     document.getElementById('le-batch-mode').value=p.batchMode||'accumulate';
+    document.getElementById('le-capture-fields').style.display=p.captureManure?'block':'none';
   }
+  document.getElementById('le-delete-wrap').style.display='block';
   document.getElementById('loc-edit-wrap').classList.add('open');
 }
 function closeLocEdit(){document.getElementById('loc-edit-wrap').classList.remove('open');}
 
+function onLeLocTypeChange(){
+  const v=document.getElementById('le-loctype').value;
+  document.getElementById('le-pasture-fields').style.display=v==='pasture'?'block':'none';
+  document.getElementById('le-confinement-fields').style.display=v==='confinement'?'block':'none';
+}
+function onLeCaptureChange(){
+  const v=document.getElementById('le-capture').value;
+  document.getElementById('le-capture-fields').style.display=v==='yes'?'block':'none';
+}
+
 function saveLocEdit(){
-  const idx=parseInt(document.getElementById('loc-edit-idx').value);
-  const p=S.pastures[idx];if(!p)return;
-  const oldName=p.name;
-  p.name=document.getElementById('le-name').value.trim()||p.name;
-  p.acres=parseFloat(document.getElementById('le-acres').value)||p.acres;
-  if(p.locationType!=='confinement'){
-    p.soil=document.getElementById('le-soil').value;
-    p.species=document.getElementById('le-species').value;
-  } else {
-    p.description=document.getElementById('le-desc').value;
-    p.captureManure=document.getElementById('le-capture').value==='yes';
-    p.capturePercent=parseFloat(document.getElementById('le-cap-pct').value)||80;
-    p.batchMode=document.getElementById('le-batch-mode').value;
+  const idxRaw = document.getElementById('loc-edit-idx').value;
+  const isNew  = idxRaw === '__new__';
+  const name   = document.getElementById('le-name').value.trim();
+  if(!name){ alert('Enter a location name'); return; }
+  const locType = document.getElementById('le-loctype').value;
+  const isCon   = locType === 'confinement';
+
+  if(isNew){
+    // Create new pasture
+    const loc = {
+      id: generatePastureId(), archived: false,
+      name, acres: parseFloat(document.getElementById('le-acres').value)||0,
+      locationType: locType,
+    };
+    if(!isCon){
+      loc.soil    = document.getElementById('le-soil').value;
+      loc.species = document.getElementById('le-species').value;
+    } else {
+      loc.description   = document.getElementById('le-desc').value;
+      loc.captureManure = document.getElementById('le-capture').value === 'yes';
+      if(loc.captureManure){
+        loc.capturePercent = parseFloat(document.getElementById('le-cap-pct').value)||80;
+        loc.batchMode      = document.getElementById('le-batch-mode').value;
+        if(loc.batchMode === 'accumulate'){
+          const batchId = Date.now();
+          S.manureBatches.push({id:batchId,label:name+' — running batch',locationName:name,
+            mode:'accumulate',nLbs:0,pLbs:0,kLbs:0,estimatedVolumeLbs:0,events:[],
+            createdAt:new Date().toISOString()});
+          loc.accumulatingBatchId = batchId;
+        }
+      }
+    }
+    S.pastures.push(loc);
+    stampSetup(); save(); closeLocEdit(); renderPastures(); renderManureInventory();
+    return;
   }
-  // Update name references in events if name changed
-  if(p.name!==oldName){
+
+  // Edit existing
+  const idx = parseInt(idxRaw);
+  const p   = S.pastures[idx]; if(!p) return;
+  const oldName = p.name;
+  p.name  = name;
+  p.acres = parseFloat(document.getElementById('le-acres').value)||p.acres;
+  p.locationType = locType;
+  if(!isCon){
+    p.soil    = document.getElementById('le-soil').value;
+    p.species = document.getElementById('le-species').value;
+  } else {
+    p.description    = document.getElementById('le-desc').value;
+    p.captureManure  = document.getElementById('le-capture').value === 'yes';
+    p.capturePercent = parseFloat(document.getElementById('le-cap-pct').value)||80;
+    p.batchMode      = document.getElementById('le-batch-mode').value;
+  }
+  if(p.name !== oldName){
     S.events.filter(e=>evMatchesPasture(e,oldName,p.id)).forEach(e=>{
-    e.pasture=p.name; // legacy field
-    if(p.id)e.pastureId=p.id;
-    evPaddocks(e).forEach(pad=>{ if(pad.pastureName===oldName){ pad.pastureName=p.name; if(p.id)pad.pastureId=p.id; } });
-  });
+      e.pasture = p.name;
+      if(p.id) e.pastureId = p.id;
+      evPaddocks(e).forEach(pad=>{
+        if(pad.pastureName===oldName){ pad.pastureName=p.name; if(p.id)pad.pastureId=p.id; }
+      });
+    });
     S.todos.filter(t=>t.paddock===oldName).forEach(t=>t.paddock=p.name);
   }
-  stampSetup();save();closeLocEdit();renderPastures();
+  stampSetup(); save(); closeLocEdit(); renderPastures();
+}
+
+function tryDeletePastureFromEdit(){
+  const idx = parseInt(document.getElementById('loc-edit-idx').value);
+  closeLocEdit();
+  tryDeletePasture(idx);
 }
 
 // ─── END ANIMAL GROUPS ────────────────────────────────────────────────────────
@@ -5803,7 +5849,7 @@ function renderAnimalList(){
         ? `<span style="font-size:10px;color:var(--text2);"> · ${lastEvt.type==='treatment'?'💉':lastEvt.type==='breeding'?'♀':lastEvt.type==='heat'?'🌡':'📝'} ${dLabel(lastEvt.date)}</span>`
         : '';
       return `<div style="padding:8px 0;border-bottom:0.5px solid var(--border);opacity:${isCulled?'0.55':'1'};">
-        <div style="display:flex;align-items:center;gap:10px;" onclick="openAnimalEdit(${a.id})" style="cursor:pointer;">
+        <div style="display:flex;align-items:center;gap:10px;cursor:pointer;" onclick="openAnimalEdit(${a.id})">
           <div style="flex:1;min-width:0;cursor:pointer;">
             <div style="font-size:13px;font-weight:600;">${primaryLabel}${secondaryLabel} <span style="font-size:12px;color:var(--text2);">${sexIcon}</span> ${cullBadge}</div>
             <div style="font-size:11px;color:var(--text2);">${cls?cls.name:'No class'}${hasDam?' · dam':''}${lastEvtBadge}${isCulled&&a.cullRecord?' · '+a.cullRecord.date:''}</div>
@@ -7692,7 +7738,7 @@ function closeResetSheet(){
 async function executeReset(){
   if(document.getElementById('reset-confirm-input').value!=='YES')return;
   const mode=document.getElementById('reset-confirm-btn').dataset.mode||'all';
-  const ver=S.version||'b20260318.1101';
+  const ver=S.version||'b20260318.1147';
   if(mode==='events'){
     // Events-only reset — preserve setup data
     S.events=[];
@@ -8793,49 +8839,8 @@ function saveAnimalMove(){
 // ─── END ANIMALS SCREEN ───────────────────────────────────────────────────────
 
 
-function toggleAddAnimalForm(){
-  const form = document.getElementById('add-animal-form-inline');
-  const btn  = document.getElementById('toggle-add-animal-btn');
-  if(!form) return;
-  const open = form.style.display === 'none' || !form.style.display;
-  form.style.display = open ? 'block' : 'none';
-  if(btn) btn.textContent = open ? '− Close' : '+ Add';
-  if(open){
-    // Populate selects
-    const cls = document.getElementById('ani-class');
-    if(cls) cls.innerHTML = '<option value="">— class —</option>' +
-      S.animalClasses.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
-    const grp = document.getElementById('ani-group');
-    if(grp) grp.innerHTML = '<option value="">— unassigned —</option>' +
-      S.animalGroups.map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
-  }
-}
 
-function addAnimalFromScreen(){
-  const tag = document.getElementById('ani-tag').value.trim() || null;
-  if(tag && S.animals.find(a=>a.tagNum===tag)){alert('Ear tag '+tag+' already exists');return;}
-  const classId = parseInt(document.getElementById('ani-class').value)||null;
-  const wt = parseFloat(document.getElementById('ani-wt').value)||null;
-  const groupId = parseInt(document.getElementById('ani-group').value)||null;
-  const newId = Date.now();
-  S.animals.push({
-    id:newId, systemId:generateSystemId(), tagNum:tag,
-    eid:null, sex:document.getElementById('ani-sex').value,
-    classId, weightLbs:wt,
-    weightHistory:wt?[{date:todayStr(),weightLbs:wt,note:'Initial weight'}]:[],
-    notes:'', active:true, cullRecord:null, damId:null, sireTag:null, calvingRecords:[],
-    createdAt:new Date().toISOString()
-  });
-  if(groupId){
-    const g=S.animalGroups.find(x=>x.id===groupId);
-    if(g){if(!g.animalIds)g.animalIds=[];g.animalIds.push(newId);}
-  }
-  save();
-  ['ani-tag','ani-wt'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  toggleAddAnimalForm();
-  renderAnimalsScreen();
-  renderGroupsList();
-}
+
 
 function deleteAnimalFromScreen(animalId){
   const a = getAnimalById(animalId); if(!a) return;
@@ -10078,6 +10083,18 @@ const _wod=document.getElementById('w-out-date');if(_wod)_wod.addEventListener('
 // Init color picker default (guard against null — Settings screen not in DOM at load)
 const _cpFirst=document.querySelector('#color-picker div');if(_cpFirst)_cpFirst.style.border='2px solid var(--text)';
 ensureDataArrays();
+  // Seed two demo animals on a completely blank session so the UI is visible in previews
+  if(!S.testerName&&!S.animals.length&&!S.pastures.length&&!S._demoSeeded){
+    S.animals=[
+      {id:1,systemId:'GTHY-00001',tagNum:'T-001',eid:'',sex:'female',classId:null,
+       weightLbs:1250,weightHistory:[],notes:'Sample cow',active:true,
+       cullRecord:null,damId:null,sireTag:null,calvingRecords:[],createdAt:new Date().toISOString()},
+      {id:2,systemId:'GTHY-00002',tagNum:'T-002',eid:'',sex:'male',classId:null,
+       weightLbs:1800,weightHistory:[],notes:'Sample bull',active:true,
+       cullRecord:null,damId:null,sireTag:null,calvingRecords:[],createdAt:new Date().toISOString()},
+    ];
+    S._demoSeeded=true;
+  }
 migrateHerdToGroups();
 migrateGroupsToAnimals();
 migrateAnimalSystemIds();
@@ -10186,37 +10203,50 @@ detectMode(); // must run last — reads DOM
   <div class="sheet-backdrop" onclick="closeLocEdit()"></div>
   <div class="sheet">
     <div class="sheet-handle"></div>
-    <div style="font-size:16px;font-weight:600;margin-bottom:14px;">Edit location</div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:14px;" id="loc-edit-title">Edit location</div>
     <input type="hidden" id="loc-edit-idx"/>
-    <div class="field"><label>Name</label><input type="text" id="le-name"/></div>
-    <div class="field"><label>Acres</label><input type="number" id="le-acres" step="0.5"/></div>
+    <div class="two">
+      <div class="field"><label>Name</label><input type="text" id="le-name" placeholder="North paddock"/></div>
+      <div class="field"><label>Acres</label><input type="number" id="le-acres" step="0.5" placeholder="20"/></div>
+    </div>
+    <div class="field"><label>Location type</label>
+      <select id="le-loctype" onchange="onLeLocTypeChange()">
+        <option value="pasture">Pasture / paddock</option>
+        <option value="confinement">Confinement / holding area</option>
+      </select>
+    </div>
     <div id="le-pasture-fields">
       <div class="two">
         <div class="field"><label>Soil type</label><select id="le-soil"><option>Loam</option><option>Clay</option><option>Sandy</option><option>Silt</option></select></div>
-        <div class="field"><label>Forage species</label><input type="text" id="le-species"/></div>
+        <div class="field"><label>Forage species</label><input type="text" id="le-species" placeholder="Mixed grass/clover"/></div>
       </div>
     </div>
     <div id="le-confinement-fields" style="display:none;">
-      <div class="field"><label>Description</label><input type="text" id="le-desc"/></div>
+      <div class="field"><label>Description</label><input type="text" id="le-desc" placeholder="e.g. Winter barn, Drylot A"/></div>
       <div class="field"><label>Capture manure?</label>
-        <select id="le-capture">
+        <select id="le-capture" onchange="onLeCaptureChange()">
           <option value="yes">Yes — captured for storage</option>
           <option value="no">No — not captured</option>
         </select>
       </div>
-      <div class="two">
-        <div class="field"><label>Capture %</label><input type="number" id="le-cap-pct" min="0" max="100" step="5"/></div>
-        <div class="field"><label>Batch mode</label>
-          <select id="le-batch-mode">
-            <option value="accumulate">Accumulate</option>
-            <option value="new">New per event</option>
-          </select>
+      <div id="le-capture-fields">
+        <div class="two">
+          <div class="field"><label>Capture %</label><input type="number" id="le-cap-pct" min="0" max="100" step="5" placeholder="80"/></div>
+          <div class="field"><label>Batch mode</label>
+            <select id="le-batch-mode">
+              <option value="accumulate">Accumulate into one running batch</option>
+              <option value="new">New batch each event close</option>
+            </select>
+          </div>
         </div>
       </div>
     </div>
-    <div class="btn-row">
-      <button class="btn btn-green" onclick="saveLocEdit()">Save changes</button>
+    <div class="btn-row" style="margin-top:14px;">
+      <button class="btn btn-green" id="le-save-btn" onclick="saveLocEdit()">Save changes</button>
       <button class="btn btn-outline" onclick="closeLocEdit()">Cancel</button>
+    </div>
+    <div id="le-delete-wrap" style="margin-top:8px;display:none;">
+      <button class="btn btn-red btn-sm" style="width:auto;" onclick="tryDeletePastureFromEdit()">Delete location</button>
     </div>
   </div>
 </div>
@@ -11004,6 +11034,141 @@ if ('serviceWorker' in navigator) {
       <button class="btn btn-green" onclick="saveAnimalWeight()">Save weight</button>
       <button class="btn btn-outline" onclick="closeAnimalWeightSheet()">Cancel</button>
     </div>
+  </div>
+</div>
+
+
+<!-- ADD / EDIT GROUP SHEET -->
+<div class="sheet-wrap" id="add-group-wrap">
+  <div class="sheet-backdrop" onclick="closeAddGroupSheet()"></div>
+  <div class="sheet" style="max-height:90vh;overflow-y:auto;">
+    <div class="sheet-handle"></div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:12px;" id="add-group-title">Add group</div>
+    <input type="hidden" id="ag-edit-id"/>
+    <div class="two">
+      <div class="field">
+        <label>Group name</label>
+        <input type="text" id="ag-name" placeholder="Cow herd, Yearlings…"/>
+      </div>
+      <div class="field">
+        <label>Color</label>
+        <div style="display:flex;gap:8px;margin-top:4px;" id="ag-color-picker">
+          <div onclick="selAGColor(this,'#639922')" style="width:28px;height:28px;border-radius:50%;background:#639922;cursor:pointer;border:2px solid var(--text);" data-color="#639922"></div>
+          <div onclick="selAGColor(this,'#1D9E75')" style="width:28px;height:28px;border-radius:50%;background:#1D9E75;cursor:pointer;border:2px solid transparent;" data-color="#1D9E75"></div>
+          <div onclick="selAGColor(this,'#185FA5')" style="width:28px;height:28px;border-radius:50%;background:#185FA5;cursor:pointer;border:2px solid transparent;" data-color="#185FA5"></div>
+          <div onclick="selAGColor(this,'#BA7517')" style="width:28px;height:28px;border-radius:50%;background:#BA7517;cursor:pointer;border:2px solid transparent;" data-color="#BA7517"></div>
+          <div onclick="selAGColor(this,'#E24B4A')" style="width:28px;height:28px;border-radius:50%;background:#E24B4A;cursor:pointer;border:2px solid transparent;" data-color="#E24B4A"></div>
+          <div onclick="selAGColor(this,'#534AB7')" style="width:28px;height:28px;border-radius:50%;background:#534AB7;cursor:pointer;border:2px solid transparent;" data-color="#534AB7"></div>
+        </div>
+        <input type="hidden" id="ag-color" value="#639922"/>
+      </div>
+    </div>
+    <div class="div"></div>
+    <div style="font-size:13px;font-weight:600;margin-bottom:6px;">Animals in group</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:8px);">Tap to add/remove animals. Unassigned animals shown.</div>
+    <div id="ag-animal-picker" style="max-height:220px;overflow-y:auto;margin-bottom:10px;"></div>
+    <div class="btn-row" style="margin-top:12px;">
+      <button class="btn btn-green" onclick="saveGroupFromSheet()">Save group</button>
+      <button class="btn btn-outline" onclick="closeAddGroupSheet()">Cancel</button>
+    </div>
+    <div id="ag-delete-wrap" style="display:none;margin-top:8px;">
+      <button class="btn btn-red btn-sm" style="width:auto;" onclick="deleteGroupFromSheet()">Delete group</button>
+    </div>
+  </div>
+</div>
+
+<!-- MANAGE CLASSES SHEET -->
+<div class="sheet-wrap" id="manage-classes-wrap">
+  <div class="sheet-backdrop" onclick="closeManageClassesSheet()"></div>
+  <div class="sheet" style="max-height:90vh;overflow-y:auto;">
+    <div class="sheet-handle"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div style="font-size:16px;font-weight:600;">Animal classes</div>
+      <div style="font-size:12px;color:var(--text2);">Weight and DMI defaults per class</div>
+    </div>
+    <div id="mc-classes-list" style="margin-bottom:12px;"></div>
+    <div class="div"></div>
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Add class</div>
+    <div class="two">
+      <div class="field">
+        <label>Class name *</label>
+        <input type="text" id="mc-cls-name" placeholder="Cow, Heifer, Steer…"/>
+      </div>
+      <div class="field">
+        <label>Species</label>
+        <select id="mc-cls-species">
+          <option>Beef cattle</option><option>Dairy cattle</option>
+          <option>Sheep</option><option>Goats</option><option>Other</option>
+        </select>
+      </div>
+    </div>
+    <div class="two">
+      <div class="field">
+        <label>Default weight (lbs)</label>
+        <input type="number" id="mc-cls-wt" placeholder="1200" step="1"/>
+      </div>
+      <div class="field">
+        <label>DMI % of body weight</label>
+        <input type="number" id="mc-cls-dmi" placeholder="2.5" step="0.1" min="0.5" max="6"/>
+      </div>
+    </div>
+    <div class="btn-row" style="margin-top:8px;">
+      <button class="btn btn-green" onclick="addClassFromSheet()">Add class</button>
+      <button class="btn btn-outline" onclick="closeManageClassesSheet()">Done</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- MANAGE TREATMENT TYPES SHEET -->
+<div class="sheet-wrap" id="manage-treatments-wrap">
+  <div class="sheet-backdrop" onclick="closeManageTreatmentTypesSheet()"></div>
+  <div class="sheet" style="max-height:90vh;overflow-y:auto;">
+    <div class="sheet-handle"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div style="font-size:16px;font-weight:600;">Treatment types</div>
+      <button class="btn btn-outline btn-xs" onclick="closeManageTreatmentTypesSheet()">Done</button>
+    </div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:12px;">
+      Define treatment categories used when logging health events — e.g. Vaccinate, Deworm, Castrate.
+    </div>
+    <div id="mt-types-list" style="margin-bottom:12px;"></div>
+    <div class="div"></div>
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Add treatment type</div>
+    <div style="display:flex;gap:8px;align-items:flex-end;">
+      <div class="field" style="flex:1;margin:0;">
+        <input type="text" id="mt-name" placeholder="e.g. Vaccinate — BVD"/>
+      </div>
+      <button class="btn btn-green btn-sm" style="width:auto;padding:10px 16px;" onclick="addTreatmentTypeFromSheet()">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- MANAGE AI SIRES SHEET -->
+<div class="sheet-wrap" id="manage-ai-bulls-wrap">
+  <div class="sheet-backdrop" onclick="closeManageAIBullsSheet()"></div>
+  <div class="sheet" style="max-height:90vh;overflow-y:auto;">
+    <div class="sheet-handle"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div style="font-size:16px;font-weight:600;">AI sires</div>
+      <button class="btn btn-outline btn-xs" onclick="closeManageAIBullsSheet()">Done</button>
+    </div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:12px;">
+      Name and registration number are snapshotted on each breeding record so edits don't affect history.
+    </div>
+    <div id="mab-bulls-list" style="margin-bottom:12px;"></div>
+    <div class="div"></div>
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Add sire</div>
+    <div class="two">
+      <div class="field"><label>Sire name *</label><input type="text" id="mab-name" placeholder="e.g. Connealy Confidence"/></div>
+      <div class="field"><label>Reg #</label><input type="text" id="mab-reg" placeholder="e.g. 17760326"/></div>
+    </div>
+    <div class="two">
+      <div class="field"><label>Breed</label><input type="text" id="mab-breed" placeholder="e.g. Angus"/></div>
+      <div class="field"><label>EPDs</label><input type="text" id="mab-epds" placeholder="e.g. CE+8 BW-1.2 WW+68"/></div>
+    </div>
+    <div class="field"><label>Notes</label><input type="text" id="mab-notes" placeholder="Tank location, straw count, etc."/></div>
+    <button class="btn btn-green btn-sm" style="width:auto;padding:10px 20px;" onclick="addAIBullFromSheet()">Add sire</button>
   </div>
 </div>
 
