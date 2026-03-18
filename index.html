@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260317.1615" id="app-version-meta"/>
+<meta name="app-version" content="b20260317.2127" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -1558,7 +1558,7 @@ if(!S.settings.manureVolumeRate)S.settings.manureVolumeRate=65;
 if(!S.settings.manureLoadLbs)S.settings.manureLoadLbs=8000;
 if(!S.settings.manureVolumeUnit)S.settings.manureVolumeUnit='loads';
 if(!S.settings.homeStats)S.settings.homeStats=['pasture_dmi','feed_cost','pasture_pct','npk_lbs_acre','npk_val_acre'];
-if(!S.version)S.version='b20260317.1615';
+if(!S.version)S.version='b20260317.2127';
 if(!S.settings.homeStatPeriod)S.settings.homeStatPeriod='7d';
 if(!S.settings.auWeight)S.settings.auWeight=1000;
 if(!S.settings.recoveryRequired===undefined)S.settings.recoveryRequired=false;
@@ -2933,6 +2933,14 @@ function calcClosePreview(){
   if(cpOmEl)cpOmEl.textContent=_cpOM>0.1?_cpOM.toFixed(0)+' lbs DM':'none';
 }
 
+
+// Get the effective datetime a paddock was added (date + optional time)
+function paddockDateTimeAdded(pad, eventDateIn){
+  const d = pad.dateAdded || eventDateIn || todayStr();
+  const t = pad.timeAdded || '00:00';
+  return d + 'T' + t + ':00';
+}
+
 // ─── PASTURE RECOVERY TRACKING ───────────────────────────────────────────────
 
 function initRecoveryFields(){
@@ -3025,20 +3033,57 @@ function wizCloseEvent(){
     const rec=paddockRecord(pad);
     if(rec&&rec.acres) pad.acres=parseFloat(rec.acres)||pad.acres;
   });
-  // Split NPK across paddocks by acreage fraction (stores per-paddock breakdown)
+  // Split NPK across paddocks using phase-aware calculation:
+  // Phase 1: primary paddock only (from dateIn until first additional paddock added)
+  // Phase 2: all paddocks split by acreage ratio (from each pad's dateAdded onward)
   if(!isCon && evPaddocks(ae).length>1){
-    const pads=evPaddocks(ae);
-    const totalAc=pads.reduce((s,p)=>s+(p.acres||0),0);
-    ae.totals.paddockNPK=pads.map(p=>{
-      const frac=totalAc>0?(p.acres||0)/totalAc:1/pads.length;
-      const st2=S.settings;
-      return {
-        pastureId:p.pastureId, pastureName:p.pastureName,
-        n:npk.n*frac, p:npk.p*frac, k:npk.k*frac,
-        npkVal:(npk.n*frac*st2.nPrice+npk.p*frac*st2.pPrice+npk.k*frac*st2.kPrice),
-        acres:p.acres||null, fraction:frac,
-      };
+    const pads = evPaddocks(ae);
+    const totalDays = daysBetween(ae.dateIn, outDate);
+    const totalAcAll = pads.reduce((s,p)=>s+(p.acres||0),0);
+    const st2 = S.settings;
+    // Build per-paddock NPK accumulation
+    const padNPK = pads.map(p=>({pastureId:p.pastureId, pastureName:p.pastureName, n:0, p:0, k:0, acres:p.acres||null}));
+    // Build all transition points: dateAdded and dateRemoved events
+    const transitions = new Set([ae.dateIn, outDate]);
+    pads.forEach(p=>{
+      const da = p.dateAdded||ae.dateIn;
+      const dr = p.dateRemoved||null;
+      if(da>ae.dateIn && da<outDate) transitions.add(da);
+      if(dr && dr>ae.dateIn && dr<outDate) transitions.add(dr);
     });
+    const sortedTrans = [...transitions].sort();
+    const segments = [];
+    for(let ti=0; ti<sortedTrans.length-1; ti++){
+      segments.push({start:sortedTrans[ti], end:sortedTrans[ti+1]});
+    }
+    segments.forEach(seg=>{
+      const segDays = daysBetween(seg.start, seg.end);
+      if(segDays<=0) return;
+      // Which pads are active in this segment?
+      // Active = dateAdded <= segStart AND (no dateRemoved OR dateRemoved > segStart)
+      const activePads = pads.filter(p=>{
+        const da = p.dateAdded||ae.dateIn;
+        const dr = p.dateRemoved||null;
+        return da<=seg.start && (!dr || dr>seg.start);
+      });
+      const segAcres = activePads.reduce((s,p)=>s+(p.acres||0),0);
+      // NPK for this segment (total herd, all days)
+      const segNPK = calcNPK(ae.head||0, ae.wt||0, segDays);
+      activePads.forEach(ap=>{
+        const frac = segAcres>0?(ap.acres||0)/segAcres:1/activePads.length;
+        const idx = padNPK.findIndex(x=>x.pastureName===ap.pastureName);
+        if(idx>=0){
+          padNPK[idx].n += segNPK.n*pFraction*frac;
+          padNPK[idx].p += segNPK.p*pFraction*frac;
+          padNPK[idx].k += segNPK.k*pFraction*frac;
+        }
+      });
+    });
+    ae.totals.paddockNPK = padNPK.map(p=>({
+      ...p,
+      npkVal:(p.n*st2.nPrice+p.p*st2.pPrice+p.k*st2.kPrice),
+      fraction: totalAcAll>0?(p.acres||0)/totalAcAll:1/pads.length,
+    }));
   } else {
     // Single paddock — simple attribution
     ae.totals.paddockNPK=[{
@@ -3291,7 +3336,10 @@ function aggregatePaddockPeriod(pastureName, pastureId, periodStart, periodEnd){
     e.type!=='amend' &&
     evMatchesPasture(e,pastureName,pastureId) &&
     e.dateIn <= periodEnd &&
-    (e.dateOut||e.dateIn) >= periodStart
+    (e.dateOut||e.dateIn) >= periodStart &&
+    // Exclude if this specific paddock was removed before the period
+    (()=>{ const pad=evPaddocks(e).find(p=>p.pastureId===pastureId||p.pastureName===pastureName);
+           return !pad?.dateRemoved || pad.dateRemoved >= periodStart; })()
   );
   const openEvs = S.events.filter(e=>
     e.status==='open' &&
@@ -3984,6 +4032,7 @@ function addWizPaddock(){
     pastureName: name,
     acres:       rec?parseFloat(rec.acres)||null:null,
     dateAdded:   document.getElementById('w-new-date')?.value||todayStr(),
+    timeAdded:   '00:00',
     locationType: rec?rec.locationType||'pasture':'pasture',
   });
   sel.value='';
@@ -4001,19 +4050,67 @@ function removeWizPaddock(name){
 function renderWizPaddockChips(){
   const el = document.getElementById('w-paddock-chips');
   if(!el) return;
-  el.innerHTML = wizPaddocks.map(p=>`
-    <span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;
-      border-radius:20px;background:var(--green-l);color:var(--green-d);
-      font-size:12px;font-weight:600;cursor:pointer;"
-      onclick="removeWizPaddock('${p.pastureName}')"
-      title="Tap to remove ${p.pastureName}">
-      ${p.pastureName}${wizPaddocks.length>1?' ×':''}
-    </span>`).join('');
-  // Show total acres
-  const totalAc = wizPaddocks.reduce((s,p)=>s+(p.acres||0),0);
-  if(totalAc>0 && el.nextElementSibling){
-    // update the 'add paddock' select option to show current total acres
-  }
+  const eventDate = document.getElementById('w-new-date')?.value || todayStr();
+  el.innerHTML = wizPaddocks.map((p,i)=>{
+    const isPrimary = i===0;
+    const dateVal  = p.dateAdded || eventDate;
+    const timeVal  = p.timeAdded || '00:00';
+    if(isPrimary){
+      return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+        <span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;
+          border-radius:20px;background:var(--green-l);color:var(--green-d);
+          font-size:12px;font-weight:600;">
+          ${p.pastureName}
+          <span style="font-size:10px;opacity:0.65;">primary · from event start</span>
+        </span>
+      </div>`;
+    }
+    return `<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius);
+        padding:8px 10px;margin-bottom:6px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <span style="font-size:13px;font-weight:600;color:var(--green-d);">${p.pastureName}</span>
+        <button onclick="removeWizPaddock('${p.pastureName}')"
+          style="border:none;background:transparent;color:var(--text2);cursor:pointer;
+                 font-size:16px;padding:0 4px;line-height:1;">×</button>
+      </div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:8px;">
+        <div>
+          <div style="font-size:10px;color:var(--text2);margin-bottom:2px;">Moved on — date</div>
+          <input type="date" value="${dateVal}"
+            oninput="wizPaddocks[${i}].dateAdded=this.value;renderWizPaddockChips();"
+            style="padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);
+                   font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;"/>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--text2);margin-bottom:2px;">Time (optional)</div>
+          <input type="time" value="${timeVal}"
+            oninput="wizPaddocks[${i}].timeAdded=this.value;"
+            style="padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);
+                   font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;"/>
+        </div>
+      </div>
+      <div style="font-size:10px;color:var(--text2);margin-bottom:4px;font-weight:600;">Moved off (optional)</div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:6px;">
+        <div>
+          <div style="font-size:10px;color:var(--text2);margin-bottom:2px;">Moved off — date</div>
+          <input type="date" value="${p.dateRemoved||''}"
+            oninput="wizPaddocks[${i}].dateRemoved=this.value||null;renderWizPaddockChips();"
+            style="padding:5px 8px;border:0.5px solid ${p.dateRemoved?'var(--amber)':'var(--border2)'};border-radius:var(--radius);
+                   font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;"/>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--text2);margin-bottom:2px;">Time (optional)</div>
+          <input type="time" value="${p.timeRemoved||''}"
+            oninput="wizPaddocks[${i}].timeRemoved=this.value||null;"
+            style="padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);
+                   font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;"/>
+        </div>
+      </div>
+      ${p.dateRemoved?`<div style="font-size:11px;color:var(--amber-d);padding:4px 8px;background:var(--amber-l);border-radius:var(--radius);">
+        Active ${daysBetween(p.dateAdded||eventDate, p.dateRemoved)} days · NPK credited for this window only
+      </div>`:'<div style="font-size:11px;color:var(--text2);">Active until event closes · set moved-off date if group left this paddock early</div>'}
+    </div>`;
+  }).join('');
 }
 
 // Sync wizPaddocks back to the event object before saving
@@ -4057,6 +4154,7 @@ function addEePaddock(){
     pastureName: name,
     acres:       rec?parseFloat(rec.acres)||null:null,
     dateAdded:   todayStr(), // added mid-event
+    timeAdded:   '00:00',
     locationType: rec?rec.locationType||'pasture':'pasture',
   });
   sel.value='';
@@ -4074,16 +4172,67 @@ function removeEePaddock(name){
 function renderEePaddockChips(){
   const el = document.getElementById('ee-paddock-chips');
   if(!el) return;
-  el.innerHTML = eePaddocks.map(p=>`
-    <span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;
-      border-radius:20px;background:var(--green-l);color:var(--green-d);
-      font-size:12px;font-weight:600;cursor:pointer;"
-      onclick="removeEePaddock('${p.pastureName}')"
-      title="Tap to remove">
-      ${p.pastureName}${eePaddocks.length>1?' ×':''}
-      ${p.dateAdded&&p.dateAdded!==eePaddocks[0]?.dateAdded?
-        '<span style="font-size:10px;opacity:0.7;"> from '+dLabel(p.dateAdded)+'</span>':''}
-    </span>`).join('');
+  const ev = S.events.find(e=>e.id===parseInt(document.getElementById('ee-id')?.value));
+  el.innerHTML = eePaddocks.map((p,i)=>{
+    const isPrimary = i===0;
+    const dateVal  = p.dateAdded || (ev?ev.dateIn:todayStr());
+    const timeVal  = p.timeAdded || '00:00';
+    if(isPrimary){
+      return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+        <span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;
+          border-radius:20px;background:var(--green-l);color:var(--green-d);
+          font-size:12px;font-weight:600;">
+          ${p.pastureName}
+          <span style="font-size:10px;opacity:0.65;">primary</span>
+        </span>
+      </div>`;
+    }
+    return `<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius);
+        padding:8px 10px;margin-bottom:6px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <span style="font-size:13px;font-weight:600;color:var(--green-d);">${p.pastureName}</span>
+        <button onclick="removeEePaddock('${p.pastureName}')"
+          style="border:none;background:transparent;color:var(--text2);cursor:pointer;
+                 font-size:16px;padding:0 4px;line-height:1;">×</button>
+      </div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:8px;">
+        <div>
+          <div style="font-size:10px;color:var(--text2);margin-bottom:2px;">Moved on — date</div>
+          <input type="date" value="${dateVal}"
+            oninput="eePaddocks[${i}].dateAdded=this.value;renderEePaddockChips();"
+            style="padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);
+                   font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;"/>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--text2);margin-bottom:2px;">Time (optional)</div>
+          <input type="time" value="${timeVal}"
+            oninput="eePaddocks[${i}].timeAdded=this.value;"
+            style="padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);
+                   font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;"/>
+        </div>
+      </div>
+      <div style="font-size:10px;color:var(--text2);margin-bottom:4px;font-weight:600;">Moved off (optional — leave blank if still active)</div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:6px;${p.dateRemoved?'':'opacity:0.6;'}">
+        <div>
+          <div style="font-size:10px;color:var(--text2);margin-bottom:2px;">Moved off — date</div>
+          <input type="date" value="${p.dateRemoved||''}"
+            oninput="eePaddocks[${i}].dateRemoved=this.value||null;renderEePaddockChips();"
+            style="padding:5px 8px;border:0.5px solid ${p.dateRemoved?'var(--amber)':'var(--border2)'};border-radius:var(--radius);
+                   font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;"/>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--text2);margin-bottom:2px;">Time (optional)</div>
+          <input type="time" value="${p.timeRemoved||''}"
+            oninput="eePaddocks[${i}].timeRemoved=this.value||null;"
+            style="padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);
+                   font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;"/>
+        </div>
+      </div>
+      ${p.dateRemoved?`<div style="font-size:11px;color:var(--amber-d);padding:4px 8px;background:var(--amber-l);border-radius:var(--radius);">
+        Active ${daysBetween(p.dateAdded||ev?.dateIn||todayStr(), p.dateRemoved)} days · NPK credited for this window only
+      </div>`:'<div style="font-size:11px;color:var(--text2);">NPK splits from moved-on date · active until event close</div>'}
+    </div>`;
+  }).join('');
 }
 
 function updateEePaddockNote(){
@@ -4295,7 +4444,7 @@ function loadSettings(){
   if(st.manureVolumeRate&&document.getElementById('s-manure-rate'))document.getElementById('s-manure-rate').value=st.manureVolumeRate;
   if(st.manureLoadLbs&&document.getElementById('s-load-lbs'))document.getElementById('s-load-lbs').value=st.manureLoadLbs;
   if(st.manureVolumeUnit&&document.getElementById('s-vol-unit'))document.getElementById('s-vol-unit').value=st.manureVolumeUnit;
-  document.getElementById('s-ver').value=S.version||'b20260317.1615';document.getElementById('s-tester').value=S.testerName||'';
+  document.getElementById('s-ver').value=S.version||'b20260317.2127';document.getElementById('s-tester').value=S.testerName||'';
   // Stat settings
   const spEl=document.getElementById('s-stat-period');
   if(spEl)spEl.value=S.settings.homeStatPeriod||'7d';
@@ -4394,7 +4543,7 @@ function updateHeader(){
   }
   document.getElementById('hdr-sub').textContent=sub;
   const _vTag=document.getElementById('ver-tag');
-  if(_vTag)_vTag.textContent=S.version||'b20260317.1615';
+  if(_vTag)_vTag.textContent=S.version||'b20260317.2127';
   // Keep meta tag in sync so SW registration uses the right version
   const _vMeta=document.getElementById('app-version-meta');
   if(_vMeta&&S.version)_vMeta.setAttribute('content',S.version);
@@ -4416,7 +4565,7 @@ function saveFeedbackItem(){
   const note=document.getElementById('fb-note').value.trim();
   if(!note){document.getElementById('fb-note').style.borderColor='var(--red)';setTimeout(()=>document.getElementById('fb-note').style.borderColor='',1500);return;}
   const ae=getActive();
-  S.feedback.push({id:Date.now(),cat:selCatVal||'idea',note,tester:S.testerName||(getActiveUser()?getActiveUser().name:'anonymous'),version:S.version||'b20260317.1615',status:'open',ctx:{screen:curScreen,activeEvent:ae?{pasture:ae.pasture,day:daysBetween(ae.dateIn,todayStr())}:null},ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:null});
+  S.feedback.push({id:Date.now(),cat:selCatVal||'idea',note,tester:S.testerName||(getActiveUser()?getActiveUser().name:'anonymous'),version:S.version||'b20260317.2127',status:'open',ctx:{screen:curScreen,activeEvent:ae?{pasture:ae.pasture,day:daysBetween(ae.dateIn,todayStr())}:null},ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:null});
   save();closeFeedbackSheet();updateFeedbackBadge();if(curScreen==='feedback')renderFeedbackTab();
 }
 function renderFeedbackTab(){renderConfirmSection();renderFeedbackStats();renderFeedbackList();}
@@ -4432,12 +4581,12 @@ function confirmFixed(id){const f=S.feedback.find(x=>x.id===id);if(!f)return;f.s
 function reopenIssue(id){
   const orig=S.feedback.find(x=>x.id===id);if(!orig)return;
   orig.status='closed';orig.confirmedBy=S.testerName||'anonymous';orig.confirmedAt=new Date().toISOString();
-  S.feedback.push({id:Date.now(),cat:orig.cat,note:`[Regression] ${orig.note}`,tester:S.testerName||'anonymous',version:S.version||'b20260317.1615',status:'open',ctx:orig.ctx,ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:orig.id});
+  S.feedback.push({id:Date.now(),cat:orig.cat,note:`[Regression] ${orig.note}`,tester:S.testerName||'anonymous',version:S.version||'b20260317.2127',status:'open',ctx:orig.ctx,ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:orig.id});
   save();renderFeedbackTab();updateFeedbackBadge();
 }
 function openResolveSheet(id){
   document.getElementById('resolve-id').value=id;document.getElementById('resolve-note').value='';
-  document.getElementById('resolve-ver-label').textContent=S.version||'b20260317.1615';
+  document.getElementById('resolve-ver-label').textContent=S.version||'b20260317.2127';
   document.getElementById('resolve-sheet-wrap').classList.add('open');setTimeout(()=>document.getElementById('resolve-note').focus(),300);
 }
 function closeResolveSheet(){document.getElementById('resolve-sheet-wrap').classList.remove('open');}
@@ -4445,7 +4594,7 @@ function saveResolve(){
   const id=parseInt(document.getElementById('resolve-id').value);const note=document.getElementById('resolve-note').value.trim();
   if(!note){alert('Describe what was changed');return;}
   const f=S.feedback.find(x=>x.id===id);if(!f)return;
-  f.status='resolved';f.resolutionNote=note;f.resolvedInVersion=S.version||'b20260317.1615';f.resolvedAt=new Date().toISOString();
+  f.status='resolved';f.resolutionNote=note;f.resolvedInVersion=S.version||'b20260317.2127';f.resolvedAt=new Date().toISOString();
   save();closeResolveSheet();renderFeedbackTab();updateFeedbackBadge();
 }
 function renderFeedbackStats(){
@@ -4478,7 +4627,7 @@ function generateBrief(){
   const testers=[...new Set(S.feedback.map(f=>f.tester).filter(t=>t&&t!=='anonymous'))];
   const open=S.feedback.filter(f=>f.status==='open');const resolved=S.feedback.filter(f=>f.status==='resolved');const closed=S.feedback.filter(f=>f.status==='closed');
   const catOrder=['bug','calc','ux','feature','idea'];
-  let b=`GET THE HAY OUT — DEV SESSION BRIEF\nGenerated: ${now}\nVersion: ${S.version||'b20260317.1615'}\nTesters: ${testers.length?testers.join(', '):'anonymous'}\nOpen: ${open.length} · Awaiting: ${resolved.length} · Closed: ${closed.length}\n${'═'.repeat(52)}\n`;
+  let b=`GET THE HAY OUT — DEV SESSION BRIEF\nGenerated: ${now}\nVersion: ${S.version||'b20260317.2127'}\nTesters: ${testers.length?testers.join(', '):'anonymous'}\nOpen: ${open.length} · Awaiting: ${resolved.length} · Closed: ${closed.length}\n${'═'.repeat(52)}\n`;
   if(open.length){b+=`\nOPEN ITEMS (${open.length})\n${'─'.repeat(52)}\n`;catOrder.forEach(cat=>{const items=open.filter(f=>f.cat===cat);if(!items.length)return;b+=`\n[${(CAT[cat]||CAT.idea).label.toUpperCase()}]\n`;items.forEach((f,i)=>{const d=new Date(f.ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});const ctx=f.ctx.activeEvent?`screen:${f.ctx.screen} event:${f.ctx.activeEvent.pasture} day${f.ctx.activeEvent.day}`:`screen:${f.ctx.screen}`;b+=`${i+1}. ${f.note}\n   [${ctx}] — ${f.tester}, ${f.version||'?'}, ${d}${f.linkedTo?' ⚠ regression':''}\n`;});});}
   if(resolved.length){b+=`\n${'═'.repeat(52)}\nAWAITING CONFIRMATION (${resolved.length})\n${'─'.repeat(52)}\n`;resolved.forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fix in ${f.resolvedInVersion}: ${f.resolutionNote}\n`;});}
   if(closed.length){b+=`\n${'═'.repeat(52)}\nCLOSED (last 10)\n${'─'.repeat(52)}\n`;closed.slice(-10).forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fixed in ${f.resolvedInVersion||'?'}: ${f.resolutionNote||'—'}. Confirmed: ${f.confirmedBy||'?'}\n`;});}
@@ -7027,7 +7176,7 @@ function closeResetSheet(){
 async function executeReset(){
   if(document.getElementById('reset-confirm-input').value!=='YES')return;
   const mode=document.getElementById('reset-confirm-btn').dataset.mode||'all';
-  const ver=S.version||'b20260317.1615';
+  const ver=S.version||'b20260317.2127';
   if(mode==='events'){
     // Events-only reset — preserve setup data
     S.events=[];
@@ -8715,9 +8864,10 @@ function renderRotationCalendar(containerId){
       const padEntry=evPaddocks(ev).find(p=>p.pastureName===pasture);
       if(!padEntry) return;
       const effectiveStart=padEntry.dateAdded||ev.dateIn;
+      const effectiveEnd=padEntry.dateRemoved||(ev.dateOut||todayStr());
       weeks.forEach(w=>{
         const we = weekEnd(w);
-        if(effectiveStart <= we && (ev.dateOut||todayStr()) >= w) weekMap[w]=ev;
+        if(effectiveStart <= we && effectiveEnd >= w) weekMap[w]=ev;
       });
     });
 
