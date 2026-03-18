@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260318.1048" id="app-version-meta"/>
+<meta name="app-version" content="b20260318.1101" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -1088,6 +1088,43 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
         </div>
         <button class="btn btn-green btn-sm" onclick="addAnimalClass()">Add class</button>
       </div>
+      <!-- Treatment types -->
+      <div class="card">
+        <div class="sec">Treatment types</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:10px;line-height:1.6;">
+          Define treatment categories for health event logging — e.g. Vaccinate, Deworm, Castrate.
+        </div>
+        <div id="treatment-types-list"></div>
+        <div class="div"></div>
+        <div style="display:flex;gap:8px;align-items:flex-end;">
+          <div class="field" style="flex:1;margin:0;">
+            <label>Treatment name</label>
+            <input type="text" id="tt-name" placeholder="e.g. Vaccinate — BVD"/>
+          </div>
+          <button class="btn btn-green btn-sm" style="width:auto;padding:10px 16px;" onclick="addTreatmentType()">Add</button>
+        </div>
+      </div>
+
+      <!-- AI Bulls -->
+      <div class="card">
+        <div class="sec">AI sire list</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:10px;line-height:1.6;">
+          Store your AI sires here. Name and registration number are snapshotted on each breeding record so edits don't affect history.
+        </div>
+        <div id="ai-bulls-list"></div>
+        <div class="div"></div>
+        <div class="two">
+          <div class="field"><label>Sire name *</label><input type="text" id="ab-name" placeholder="e.g. Connealy Confidence"/></div>
+          <div class="field"><label>Reg # <span style="font-size:10px;color:var(--text2);">optional</span></label><input type="text" id="ab-reg" placeholder="e.g. 17760326"/></div>
+        </div>
+        <div class="two">
+          <div class="field"><label>Breed <span style="font-size:10px;color:var(--text2);">optional</span></label><input type="text" id="ab-breed" placeholder="e.g. Angus"/></div>
+          <div class="field"><label>EPDs <span style="font-size:10px;color:var(--text2);">optional</span></label><input type="text" id="ab-epds" placeholder="e.g. CE+8 BW-1.2 WW+68"/></div>
+        </div>
+        <div class="field"><label>Notes <span style="font-size:10px;color:var(--text2);">optional</span></label><input type="text" id="ab-notes" placeholder="Tank location, straw count, etc."/></div>
+        <button class="btn btn-green btn-sm" style="width:auto;padding:10px 20px;" onclick="addAIBull()">Add sire</button>
+      </div>
+
 
       <!-- Animal Groups -->
       <div class="card">
@@ -1558,7 +1595,7 @@ if(!S.settings.manureVolumeRate)S.settings.manureVolumeRate=65;
 if(!S.settings.manureLoadLbs)S.settings.manureLoadLbs=8000;
 if(!S.settings.manureVolumeUnit)S.settings.manureVolumeUnit='loads';
 if(!S.settings.homeStats)S.settings.homeStats=['pasture_dmi','feed_cost','pasture_pct','npk_lbs_acre','npk_val_acre'];
-if(!S.version)S.version='b20260318.1048';
+if(!S.version)S.version='b20260318.1101';
 if(!S.settings.homeStatPeriod)S.settings.homeStatPeriod='7d';
 if(!S.settings.auWeight)S.settings.auWeight=1000;
 if(!S.settings.recoveryRequired===undefined)S.settings.recoveryRequired=false;
@@ -2030,7 +2067,8 @@ function mergeData(local,remote){
 function ensureDataArrays(){
   const arrays=['pastures','events','feedTypes','batches','manureBatches',
                 'inputProducts','inputApplications','animalClasses','animalGroups',
-                'animals','users','todos','feedback','surveys'];
+                'animals','users','todos','feedback','surveys',
+                'treatmentTypes','aiBulls'];
   arrays.forEach(k=>{if(!Array.isArray(S[k]))S[k]=[];});
   if(!S.herd)S.herd={name:'',type:'',count:0,weight:0,dmi:2.5};
   if(S._paddocksMigrated===undefined)S._paddocksMigrated=false;
@@ -4255,6 +4293,96 @@ function applyEePaddocksToEvent(ev){
 
 // ─── END MULTI-PADDOCK HELPERS ────────────────────────────────────────────────
 
+
+// ─── TREATMENT TYPES ──────────────────────────────────────────────────────────
+function addTreatmentType(){
+  const name = document.getElementById('tt-name').value.trim();
+  if(!name){ alert('Enter a treatment name'); return; }
+  if(!S.treatmentTypes) S.treatmentTypes=[];
+  if(S.treatmentTypes.find(t=>t.name.toLowerCase()===name.toLowerCase())){
+    alert('Treatment type already exists'); return;
+  }
+  S.treatmentTypes.push({id:'TT-'+Date.now(), name, archived:false});
+  save(); renderTreatmentTypesList();
+  document.getElementById('tt-name').value='';
+}
+
+function renderTreatmentTypesList(){
+  const el = document.getElementById('treatment-types-list');
+  if(!el) return;
+  const types = S.treatmentTypes||[];
+  if(!types.length){ el.innerHTML='<div style="font-size:13px;color:var(--text2);margin-bottom:8px;">No treatment types yet</div>'; return; }
+  el.innerHTML = types.map((t,i)=>
+    t.archived
+      ?`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);opacity:0.45;">
+          <span style="font-size:13px;">${t.name} <span class="badge bb">archived</span></span>
+          <button class="btn btn-outline btn-xs" onclick="unarchiveTreatmentType('${t.id}')">Unarchive</button>
+        </div>`
+      :`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);">
+          <span style="font-size:13px;font-weight:500;">💉 ${t.name}</span>
+          <button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;" onclick="archiveTreatmentType('${t.id}')">×</button>
+        </div>`
+  ).join('');
+}
+
+function archiveTreatmentType(id){
+  const t = (S.treatmentTypes||[]).find(x=>x.id===id);
+  if(t){ t.archived=true; save(); renderTreatmentTypesList(); }
+}
+function unarchiveTreatmentType(id){
+  const t = (S.treatmentTypes||[]).find(x=>x.id===id);
+  if(t){ t.archived=false; save(); renderTreatmentTypesList(); }
+}
+
+// ─── AI BULLS ─────────────────────────────────────────────────────────────────
+function addAIBull(){
+  const name = document.getElementById('ab-name').value.trim();
+  if(!name){ alert('Enter a sire name'); return; }
+  if(!S.aiBulls) S.aiBulls=[];
+  S.aiBulls.push({
+    id: 'BULL-'+Date.now(),
+    name,
+    regNum:  document.getElementById('ab-reg').value.trim()||null,
+    breed:   document.getElementById('ab-breed').value.trim()||null,
+    epds:    document.getElementById('ab-epds').value.trim()||null,
+    notes:   document.getElementById('ab-notes').value.trim()||null,
+    archived:false,
+  });
+  save(); renderAIBullsList();
+  ['ab-name','ab-reg','ab-breed','ab-epds','ab-notes'].forEach(id=>document.getElementById(id).value='');
+}
+
+function renderAIBullsList(){
+  const el = document.getElementById('ai-bulls-list');
+  if(!el) return;
+  const bulls = S.aiBulls||[];
+  if(!bulls.length){ el.innerHTML='<div style="font-size:13px;color:var(--text2);margin-bottom:8px;">No AI sires yet</div>'; return; }
+  el.innerHTML = bulls.map(b=>
+    b.archived
+      ?`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);opacity:0.45;">
+          <span style="font-size:13px;">${b.name} <span class="badge bb">archived</span></span>
+          <button class="btn btn-outline btn-xs" onclick="unarchiveAIBull('${b.id}')">Unarchive</button>
+        </div>`
+      :`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);">
+          <div>
+            <div style="font-size:13px;font-weight:600;">${b.name}${b.regNum?' <span style="font-size:11px;color:var(--text2);">'+b.regNum+'</span>':''}</div>
+            <div style="font-size:11px;color:var(--text2);">${[b.breed,b.epds,b.notes].filter(Boolean).join(' · ')}</div>
+          </div>
+          <button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;" onclick="archiveAIBull('${b.id}')">×</button>
+        </div>`
+  ).join('');
+}
+
+function archiveAIBull(id){
+  const b = (S.aiBulls||[]).find(x=>x.id===id);
+  if(b){ b.archived=true; save(); renderAIBullsList(); }
+}
+function unarchiveAIBull(id){
+  const b = (S.aiBulls||[]).find(x=>x.id===id);
+  if(b){ b.archived=false; save(); renderAIBullsList(); }
+}
+// ─── END TREATMENT TYPES / AI BULLS ──────────────────────────────────────────
+
 function renderEventsLog(){
   const ae=getActive();
   const ab=document.getElementById('ev-active-banner');
@@ -4522,7 +4650,7 @@ function loadSettings(){
   if(st.manureVolumeRate&&document.getElementById('s-manure-rate'))document.getElementById('s-manure-rate').value=st.manureVolumeRate;
   if(st.manureLoadLbs&&document.getElementById('s-load-lbs'))document.getElementById('s-load-lbs').value=st.manureLoadLbs;
   if(st.manureVolumeUnit&&document.getElementById('s-vol-unit'))document.getElementById('s-vol-unit').value=st.manureVolumeUnit;
-  document.getElementById('s-ver').value=S.version||'b20260318.1048';document.getElementById('s-tester').value=S.testerName||'';
+  document.getElementById('s-ver').value=S.version||'b20260318.1101';document.getElementById('s-tester').value=S.testerName||'';
   // Stat settings
   const spEl=document.getElementById('s-stat-period');
   if(spEl)spEl.value=S.settings.homeStatPeriod||'7d';
@@ -4536,6 +4664,8 @@ function loadSettings(){
   if(recMaxLoad)recMaxLoad.value=S.settings.recoveryMaxDays||60;
   renderStatsMetricList();
   renderThresholdsList();
+  renderTreatmentTypesList();
+  renderAIBullsList();
   // Populate build info panel
   const _metaVer = document.getElementById('app-version-meta')?.getAttribute('content')||'—';
   const _stampEl = document.getElementById('s-build-stamp');
@@ -4621,7 +4751,7 @@ function updateHeader(){
   }
   document.getElementById('hdr-sub').textContent=sub;
   const _vTag=document.getElementById('ver-tag');
-  if(_vTag)_vTag.textContent=S.version||'b20260318.1048';
+  if(_vTag)_vTag.textContent=S.version||'b20260318.1101';
   // Keep meta tag in sync so SW registration uses the right version
   const _vMeta=document.getElementById('app-version-meta');
   if(_vMeta&&S.version)_vMeta.setAttribute('content',S.version);
@@ -4643,7 +4773,7 @@ function saveFeedbackItem(){
   const note=document.getElementById('fb-note').value.trim();
   if(!note){document.getElementById('fb-note').style.borderColor='var(--red)';setTimeout(()=>document.getElementById('fb-note').style.borderColor='',1500);return;}
   const ae=getActive();
-  S.feedback.push({id:Date.now(),cat:selCatVal||'idea',note,tester:S.testerName||(getActiveUser()?getActiveUser().name:'anonymous'),version:S.version||'b20260318.1048',status:'open',ctx:{screen:curScreen,activeEvent:ae?{pasture:ae.pasture,day:daysBetween(ae.dateIn,todayStr())}:null},ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:null});
+  S.feedback.push({id:Date.now(),cat:selCatVal||'idea',note,tester:S.testerName||(getActiveUser()?getActiveUser().name:'anonymous'),version:S.version||'b20260318.1101',status:'open',ctx:{screen:curScreen,activeEvent:ae?{pasture:ae.pasture,day:daysBetween(ae.dateIn,todayStr())}:null},ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:null});
   save();closeFeedbackSheet();updateFeedbackBadge();if(curScreen==='feedback')renderFeedbackTab();
 }
 function renderFeedbackTab(){renderConfirmSection();renderFeedbackStats();renderFeedbackList();}
@@ -4659,12 +4789,12 @@ function confirmFixed(id){const f=S.feedback.find(x=>x.id===id);if(!f)return;f.s
 function reopenIssue(id){
   const orig=S.feedback.find(x=>x.id===id);if(!orig)return;
   orig.status='closed';orig.confirmedBy=S.testerName||'anonymous';orig.confirmedAt=new Date().toISOString();
-  S.feedback.push({id:Date.now(),cat:orig.cat,note:`[Regression] ${orig.note}`,tester:S.testerName||'anonymous',version:S.version||'b20260318.1048',status:'open',ctx:orig.ctx,ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:orig.id});
+  S.feedback.push({id:Date.now(),cat:orig.cat,note:`[Regression] ${orig.note}`,tester:S.testerName||'anonymous',version:S.version||'b20260318.1101',status:'open',ctx:orig.ctx,ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:orig.id});
   save();renderFeedbackTab();updateFeedbackBadge();
 }
 function openResolveSheet(id){
   document.getElementById('resolve-id').value=id;document.getElementById('resolve-note').value='';
-  document.getElementById('resolve-ver-label').textContent=S.version||'b20260318.1048';
+  document.getElementById('resolve-ver-label').textContent=S.version||'b20260318.1101';
   document.getElementById('resolve-sheet-wrap').classList.add('open');setTimeout(()=>document.getElementById('resolve-note').focus(),300);
 }
 function closeResolveSheet(){document.getElementById('resolve-sheet-wrap').classList.remove('open');}
@@ -4672,7 +4802,7 @@ function saveResolve(){
   const id=parseInt(document.getElementById('resolve-id').value);const note=document.getElementById('resolve-note').value.trim();
   if(!note){alert('Describe what was changed');return;}
   const f=S.feedback.find(x=>x.id===id);if(!f)return;
-  f.status='resolved';f.resolutionNote=note;f.resolvedInVersion=S.version||'b20260318.1048';f.resolvedAt=new Date().toISOString();
+  f.status='resolved';f.resolutionNote=note;f.resolvedInVersion=S.version||'b20260318.1101';f.resolvedAt=new Date().toISOString();
   save();closeResolveSheet();renderFeedbackTab();updateFeedbackBadge();
 }
 function renderFeedbackStats(){
@@ -4705,7 +4835,7 @@ function generateBrief(){
   const testers=[...new Set(S.feedback.map(f=>f.tester).filter(t=>t&&t!=='anonymous'))];
   const open=S.feedback.filter(f=>f.status==='open');const resolved=S.feedback.filter(f=>f.status==='resolved');const closed=S.feedback.filter(f=>f.status==='closed');
   const catOrder=['bug','calc','ux','feature','idea'];
-  let b=`GET THE HAY OUT — DEV SESSION BRIEF\nGenerated: ${now}\nVersion: ${S.version||'b20260318.1048'}\nTesters: ${testers.length?testers.join(', '):'anonymous'}\nOpen: ${open.length} · Awaiting: ${resolved.length} · Closed: ${closed.length}\n${'═'.repeat(52)}\n`;
+  let b=`GET THE HAY OUT — DEV SESSION BRIEF\nGenerated: ${now}\nVersion: ${S.version||'b20260318.1101'}\nTesters: ${testers.length?testers.join(', '):'anonymous'}\nOpen: ${open.length} · Awaiting: ${resolved.length} · Closed: ${closed.length}\n${'═'.repeat(52)}\n`;
   if(open.length){b+=`\nOPEN ITEMS (${open.length})\n${'─'.repeat(52)}\n`;catOrder.forEach(cat=>{const items=open.filter(f=>f.cat===cat);if(!items.length)return;b+=`\n[${(CAT[cat]||CAT.idea).label.toUpperCase()}]\n`;items.forEach((f,i)=>{const d=new Date(f.ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});const ctx=f.ctx.activeEvent?`screen:${f.ctx.screen} event:${f.ctx.activeEvent.pasture} day${f.ctx.activeEvent.day}`:`screen:${f.ctx.screen}`;b+=`${i+1}. ${f.note}\n   [${ctx}] — ${f.tester}, ${f.version||'?'}, ${d}${f.linkedTo?' ⚠ regression':''}\n`;});});}
   if(resolved.length){b+=`\n${'═'.repeat(52)}\nAWAITING CONFIRMATION (${resolved.length})\n${'─'.repeat(52)}\n`;resolved.forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fix in ${f.resolvedInVersion}: ${f.resolutionNote}\n`;});}
   if(closed.length){b+=`\n${'═'.repeat(52)}\nCLOSED (last 10)\n${'─'.repeat(52)}\n`;closed.slice(-10).forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fixed in ${f.resolvedInVersion||'?'}: ${f.resolutionNote||'—'}. Confirmed: ${f.confirmedBy||'?'}\n`;});}
@@ -4954,6 +5084,266 @@ function getAnyActiveEvent(){return S.events.find(e=>e.status==='open')||null;}
 // Override legacy getActive() to return first open event (for backward compat in calcConsumedDMI etc)
 function getActive(){return getAnyActiveEvent();}
 
+
+
+// ─── ANIMAL HEALTH EVENTS ─────────────────────────────────────────────────────
+
+function ensureAnimalHealthEvents(a){
+  if(!Array.isArray(a.healthEvents)) a.healthEvents = [];
+  return a.healthEvents;
+}
+
+let _aeEvtAnimalId = null;
+
+function openAnimalEventSheet(animalId, type, editEventId){
+  const a = getAnimalById(animalId);
+  if(!a) return;
+  _aeEvtAnimalId = animalId;
+  document.getElementById('ae-evt-animal-id').value = animalId;
+  document.getElementById('ae-evt-type').value = type;
+  document.getElementById('ae-evt-edit-id').value = editEventId||'';
+  const label = a.tagNum||(a.systemId||'Animal');
+  document.getElementById('ae-evt-animal-label').textContent = label;
+  document.getElementById('ae-evt-note-section').style.display      = type==='note'      ?'block':'none';
+  document.getElementById('ae-evt-treatment-section').style.display = type==='treatment' ?'block':'none';
+  document.getElementById('ae-evt-breeding-section').style.display  = (type==='breeding'||type==='heat')?'block':'none';
+  const titles = {note:'Add note',treatment:'Log treatment',breeding:'Log breeding event',heat:'Log heat'};
+  document.getElementById('ae-evt-title').textContent = editEventId?'Edit event':(titles[type]||'Add event');
+  document.getElementById('ae-evt-delete-wrap').style.display = editEventId?'block':'none';
+  const existing = editEventId?(ensureAnimalHealthEvents(a).find(e=>e.id===editEventId)||null):null;
+  document.getElementById('ae-evt-date').value = existing?existing.date:todayStr();
+  document.getElementById('ae-evt-time').value = existing?(existing.time||''):'';
+  if(type==='note'){
+    document.getElementById('ae-evt-note-text').value = existing?.text||'';
+  }
+  if(type==='treatment'){
+    populateTreatmentTypeSelect();
+    document.getElementById('ae-evt-treatment-type').value = existing?.treatmentTypeId||'';
+    onTreatmentTypeChange();
+    document.getElementById('ae-evt-treatment-custom').value  = existing?.treatmentName||'';
+    document.getElementById('ae-evt-treatment-product').value = existing?.product||'';
+    document.getElementById('ae-evt-treatment-dose').value    = existing?.dose||'';
+    document.getElementById('ae-evt-withdrawal').value        = existing?.withdrawalDate||'';
+    document.getElementById('ae-evt-treatment-notes').value   = existing?.notes||'';
+  }
+  if(type==='breeding'||type==='heat'){
+    populateAIBullSelect();
+    const bullSel = document.getElementById('ae-evt-bull-animal');
+    bullSel.innerHTML = '<option value="">— select from herd —</option>' +
+      S.animals.filter(x=>x.sex==='male'&&x.active!==false)
+        .sort((a,b)=>(a.tagNum||'').localeCompare(b.tagNum||''))
+        .map(x=>`<option value="${x.id}">${x.tagNum||x.systemId}${x.weightLbs?' · '+x.weightLbs+' lbs':''}</option>`)
+        .join('');
+    const subtype = existing?.subtype||(type==='heat'?'heat':'ai');
+    document.getElementById('ae-evt-breeding-subtype').value = subtype;
+    onBreedingSubtypeChange();
+    if(existing){
+      if(subtype==='ai'){
+        document.getElementById('ae-evt-ai-bull').value          = existing.aiBullId||'';
+        document.getElementById('ae-evt-ai-sire-freeform').value = existing.sireName||'';
+        document.getElementById('ae-evt-semen-id').value         = existing.semenId||'';
+        document.getElementById('ae-evt-ai-tech').value          = existing.tech||'';
+        onAIBullChange();
+      } else if(subtype==='bull'){
+        document.getElementById('ae-evt-bull-animal').value   = existing.bullAnimalId||'';
+        document.getElementById('ae-evt-bull-freeform').value = existing.sireName||'';
+      } else {
+        document.getElementById('ae-evt-heat-notes').value = existing.notes||'';
+      }
+      document.getElementById('ae-evt-expected-calving').value = existing.expectedCalving||'';
+    } else {
+      ['ae-evt-ai-bull','ae-evt-ai-sire-freeform','ae-evt-semen-id','ae-evt-ai-tech',
+       'ae-evt-bull-animal','ae-evt-bull-freeform','ae-evt-heat-notes','ae-evt-expected-calving']
+        .forEach(id=>{ const el=document.getElementById(id); if(el)el.value=''; });
+      document.getElementById('ae-evt-calving-hint').textContent='';
+    }
+  }
+  document.getElementById('animal-event-wrap').classList.add('open');
+}
+
+function closeAnimalEventSheet(){
+  document.getElementById('animal-event-wrap').classList.remove('open');
+  _aeEvtAnimalId = null;
+}
+
+function populateTreatmentTypeSelect(){
+  const sel = document.getElementById('ae-evt-treatment-type');
+  sel.innerHTML =
+    '<option value="">— select —</option>' +
+    (S.treatmentTypes||[]).filter(t=>!t.archived)
+      .map(t=>`<option value="${t.id}">${t.name}</option>`).join('') +
+    '<option value="__custom__">+ Custom (type below)</option>';
+}
+
+function onTreatmentTypeChange(){
+  const v = document.getElementById('ae-evt-treatment-type').value;
+  document.getElementById('ae-evt-treatment-custom-wrap').style.display = v==='__custom__'?'block':'none';
+}
+
+function populateAIBullSelect(){
+  const sel = document.getElementById('ae-evt-ai-bull');
+  sel.innerHTML =
+    '<option value="">— select sire —</option>' +
+    (S.aiBulls||[]).filter(b=>!b.archived)
+      .map(b=>`<option value="${b.id}">${b.name}${b.regNum?' ('+b.regNum+')':''}</option>`).join('') +
+    '<option value="__custom__">+ Enter below</option>';
+}
+
+function onAIBullChange(){
+  const v = document.getElementById('ae-evt-ai-bull').value;
+  const wrapEl = document.getElementById('ae-evt-ai-details-wrap');
+  const infoEl = document.getElementById('ae-evt-ai-bull-info');
+  if(!v||v==='__custom__'){ wrapEl.style.display='none'; return; }
+  const bull = (S.aiBulls||[]).find(b=>b.id===v);
+  if(!bull){ wrapEl.style.display='none'; return; }
+  wrapEl.style.display='block';
+  infoEl.innerHTML = `<strong>${bull.name}</strong>` +
+    (bull.regNum?` · Reg: ${bull.regNum}`:'') +
+    (bull.breed?` · ${bull.breed}`:'') +
+    (bull.epds?` · EPDs: ${bull.epds}`:'') +
+    (bull.notes?`<br><span style="color:var(--text2);">${bull.notes}</span>`:'');
+}
+
+function onBreedingSubtypeChange(){
+  const v = document.getElementById('ae-evt-breeding-subtype').value;
+  document.getElementById('ae-evt-ai-fields').style.display   = v==='ai'  ?'block':'none';
+  document.getElementById('ae-evt-bull-fields').style.display = v==='bull'?'block':'none';
+  document.getElementById('ae-evt-heat-fields').style.display = v==='heat'?'block':'none';
+  // Auto-calc calving only for breeding events
+  if(v!=='heat'){
+    const d = document.getElementById('ae-evt-date').value;
+    if(d && !document.getElementById('ae-evt-expected-calving').value){
+      const cd = new Date(d+'T12:00:00'); cd.setDate(cd.getDate()+283);
+      document.getElementById('ae-evt-expected-calving').value = cd.toISOString().slice(0,10);
+      document.getElementById('ae-evt-calving-hint').textContent =
+        'Expected: '+cd.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    }
+  }
+}
+
+function saveAnimalEvent(){
+  const animalId = parseInt(document.getElementById('ae-evt-animal-id').value);
+  const type     = document.getElementById('ae-evt-type').value;
+  const editId   = document.getElementById('ae-evt-edit-id').value||null;
+  const a = getAnimalById(animalId);
+  if(!a){ alert('Animal not found'); return; }
+  ensureAnimalHealthEvents(a);
+  const date = document.getElementById('ae-evt-date').value;
+  const time = document.getElementById('ae-evt-time').value||null;
+  if(!date){ alert('Date is required'); return; }
+  let evt = { id: editId||Date.now(), type, date, time, createdAt: new Date().toISOString() };
+
+  if(type==='note'){
+    const text = document.getElementById('ae-evt-note-text').value.trim();
+    if(!text){ alert('Enter a note'); return; }
+    evt.text = text;
+  }
+
+  if(type==='treatment'){
+    const typeId = document.getElementById('ae-evt-treatment-type').value;
+    const custom = document.getElementById('ae-evt-treatment-custom').value.trim();
+    const tt = typeId&&typeId!=='__custom__'?(S.treatmentTypes||[]).find(t=>t.id===typeId):null;
+    const tName = tt?tt.name:(custom||'');
+    if(!tName){ alert('Select or enter a treatment type'); return; }
+    evt.treatmentTypeId = tt?typeId:null;
+    evt.treatmentName   = tName;
+    evt.product         = document.getElementById('ae-evt-treatment-product').value.trim()||null;
+    evt.dose            = document.getElementById('ae-evt-treatment-dose').value.trim()||null;
+    evt.withdrawalDate  = document.getElementById('ae-evt-withdrawal').value||null;
+    evt.notes           = document.getElementById('ae-evt-treatment-notes').value.trim()||null;
+  }
+
+  if(type==='breeding'||type==='heat'){
+    const subtype = document.getElementById('ae-evt-breeding-subtype').value;
+    evt.subtype = subtype;
+    evt.type    = subtype==='heat'?'heat':'breeding';
+    if(subtype==='ai'){
+      const aiBullId = document.getElementById('ae-evt-ai-bull').value;
+      const bull = aiBullId&&aiBullId!=='__custom__'?(S.aiBulls||[]).find(b=>b.id===aiBullId):null;
+      evt.aiBullId   = bull?aiBullId:null;
+      evt.sireName   = bull?bull.name:(document.getElementById('ae-evt-ai-sire-freeform').value.trim()||null);
+      evt.sireRegNum = bull?(bull.regNum||null):null;
+      evt.semenId    = document.getElementById('ae-evt-semen-id').value.trim()||null;
+      evt.tech       = document.getElementById('ae-evt-ai-tech').value.trim()||null;
+      if(!evt.sireName){ alert('Enter or select a sire'); return; }
+    } else if(subtype==='bull'){
+      const bullAnimalId = document.getElementById('ae-evt-bull-animal').value;
+      const bullAnimal = bullAnimalId?getAnimalById(parseInt(bullAnimalId)):null;
+      evt.bullAnimalId = bullAnimal?bullAnimal.id:null;
+      evt.bullSystemId = bullAnimal?bullAnimal.systemId:null;  // snapshot — survives tag edits
+      evt.sireName     = bullAnimal?(bullAnimal.tagNum||bullAnimal.systemId):
+                         (document.getElementById('ae-evt-bull-freeform').value.trim()||null);
+      if(!evt.sireName){ alert('Select or enter a bull'); return; }
+    } else {
+      evt.notes = document.getElementById('ae-evt-heat-notes').value.trim()||null;
+    }
+    evt.expectedCalving = document.getElementById('ae-evt-expected-calving').value||null;
+  }
+
+  if(editId){
+    const idx = a.healthEvents.findIndex(e=>e.id===editId);
+    if(idx>=0) a.healthEvents[idx]=evt; else a.healthEvents.push(evt);
+  } else {
+    a.healthEvents.push(evt);
+  }
+  save();
+  closeAnimalEventSheet();
+  renderAnimalList();
+  if(document.getElementById('ae-sheet-wrap').classList.contains('open')) openAnimalEdit(animalId);
+  showAnimalEventToast(evt);
+}
+
+function deleteAnimalEvent(){
+  const animalId = parseInt(document.getElementById('ae-evt-animal-id').value);
+  const editId   = document.getElementById('ae-evt-edit-id').value;
+  const a = getAnimalById(animalId);
+  if(!a||!editId) return;
+  if(!confirm('Delete this event record?')) return;
+  a.healthEvents = (a.healthEvents||[]).filter(e=>e.id!==editId);
+  save(); closeAnimalEventSheet(); renderAnimalList();
+}
+
+function showAnimalEventToast(evt){
+  const msgs = {note:'Note saved',treatment:'Treatment logged: '+(evt.treatmentName||''),
+    breeding:'Breeding recorded',heat:'Heat recorded'};
+  const el = document.getElementById('survey-toast');
+  if(!el) return;
+  el.textContent = msgs[evt.type]||'Event saved';
+  el.style.opacity='1';
+  setTimeout(()=>el.style.opacity='0',2500);
+}
+
+function openAnimalWeightSheet(animalId){
+  const a = getAnimalById(animalId);
+  if(!a) return;
+  document.getElementById('aw-animal-id').value = animalId;
+  document.getElementById('aw-animal-label').textContent =
+    (a.tagNum||a.systemId||'Animal')+(a.weightLbs?' · current: '+a.weightLbs+' lbs':'');
+  document.getElementById('aw-weight').value = '';
+  document.getElementById('aw-date').value   = todayStr();
+  document.getElementById('aw-note').value   = '';
+  document.getElementById('animal-weight-wrap').classList.add('open');
+}
+
+function closeAnimalWeightSheet(){
+  document.getElementById('animal-weight-wrap').classList.remove('open');
+}
+
+function saveAnimalWeight(){
+  const id = parseInt(document.getElementById('aw-animal-id').value);
+  const wt = parseFloat(document.getElementById('aw-weight').value);
+  const a  = getAnimalById(id);
+  if(!a){ alert('Animal not found'); return; }
+  if(!wt||wt<=0){ alert('Enter a valid weight'); return; }
+  const date = document.getElementById('aw-date').value||todayStr();
+  const note = document.getElementById('aw-note').value.trim();
+  a.weightLbs = wt;
+  if(!a.weightHistory) a.weightHistory=[];
+  a.weightHistory.push({date,weightLbs:wt,note:note||'Weight update'});
+  save(); closeAnimalWeightSheet(); renderAnimalList(); renderGroupsList();
+}
+
+// ─── END ANIMAL HEALTH EVENTS ─────────────────────────────────────────────────
 
 // ── Animal Classes UI ────────────────────────────────────────────────────────
 function addAnimalClass(){
@@ -5407,14 +5797,28 @@ function renderAnimalList(){
       const displayWt=a.weightLbs||(cls?cls.defaultWeightLbs:null);
       const isCulled=a.active===false;
       const cullBadge=isCulled?`<span class="badge br" style="font-size:10px;">${a.cullRecord?a.cullRecord.reason:'culled'}</span>`:'';
-      return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--border);cursor:pointer;opacity:${isCulled?'0.55':'1'};" onclick="openAnimalEdit(${a.id})">
-        <div style="flex:1;min-width:0;">
-          <div style="font-size:13px;font-weight:600;">${primaryLabel}${secondaryLabel} <span style="font-size:12px;color:var(--text2);">${sexIcon}</span> ${cullBadge}</div>
-          <div style="font-size:11px;color:var(--text2);">${cls?cls.name:'No class'}${hasDam?' · dam recorded':''}${isCulled&&a.cullRecord?' · '+a.cullRecord.date:''}</div>
+      // Last event summary for animal
+      const lastEvt = (a.healthEvents||[]).slice().reverse()[0];
+      const lastEvtBadge = lastEvt
+        ? `<span style="font-size:10px;color:var(--text2);"> · ${lastEvt.type==='treatment'?'💉':lastEvt.type==='breeding'?'♀':lastEvt.type==='heat'?'🌡':'📝'} ${dLabel(lastEvt.date)}</span>`
+        : '';
+      return `<div style="padding:8px 0;border-bottom:0.5px solid var(--border);opacity:${isCulled?'0.55':'1'};">
+        <div style="display:flex;align-items:center;gap:10px;" onclick="openAnimalEdit(${a.id})" style="cursor:pointer;">
+          <div style="flex:1;min-width:0;cursor:pointer;">
+            <div style="font-size:13px;font-weight:600;">${primaryLabel}${secondaryLabel} <span style="font-size:12px;color:var(--text2);">${sexIcon}</span> ${cullBadge}</div>
+            <div style="font-size:11px;color:var(--text2);">${cls?cls.name:'No class'}${hasDam?' · dam':''}${lastEvtBadge}${isCulled&&a.cullRecord?' · '+a.cullRecord.date:''}</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0;cursor:pointer;">
+            <div style="font-size:13px;font-weight:600;">${displayWt?displayWt+' lbs':'no wt'}${!a.weightLbs&&displayWt?'<span style="font-size:10px;color:var(--text3);"> (est)</span>':''}</div>
+            <div style="font-size:11px;color:var(--text2);">${grp?grp.name:'unassigned'}</div>
+          </div>
         </div>
-        <div style="text-align:right;flex-shrink:0;">
-          <div style="font-size:13px;font-weight:600;">${displayWt?displayWt+' lbs':'no wt'}${!a.weightLbs&&displayWt?'<span style="font-size:10px;color:var(--text3);"> (est)</span>':''}</div>
-          <div style="font-size:11px;color:var(--text2);">${grp?grp.name:'unassigned'}</div>
+        <div style="display:flex;gap:5px;margin-top:5px;flex-wrap:wrap;">
+          <button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openAnimalEdit(${a.id})">Edit</button>
+          <button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openAnimalWeightSheet(${a.id})">⚖ Weight</button>
+          <button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openAnimalEventSheet(${a.id},'note')">📝 Note</button>
+          <button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openAnimalEventSheet(${a.id},'treatment')">💉 Treatment</button>
+          ${a.sex==='female'?`<button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openAnimalEventSheet(${a.id},'breeding')">♀ Breeding</button>`:''}
         </div>
       </div>`;
     }).join('')+
@@ -5474,6 +5878,40 @@ function openAnimalEdit(animalId){
   } else {histEl.style.display='none';}
   const displayName=a.tagNum||(a.systemId||'Animal');
   document.getElementById('ae-title').textContent=displayName;
+  // Health event history
+  const healthEl = document.getElementById('ae-health-events');
+  if(healthEl){
+    const evts = [...(a.healthEvents||[])].reverse();
+    if(!evts.length){
+      healthEl.innerHTML='<div style="font-size:13px;color:var(--text2);">No events logged yet</div>';
+    } else {
+      healthEl.innerHTML = evts.map(e=>{
+        const icon = e.type==='treatment'?'💉':e.type==='breeding'?'♀':e.type==='heat'?'🌡':'📝';
+        const title = e.type==='treatment'?(e.treatmentName||'Treatment'):
+                      e.type==='breeding'?('Bred — '+(e.subtype==='ai'?'AI '+(e.sireName||''):'Bull '+(e.sireName||''))):
+                      e.type==='heat'?'Observed heat':
+                      (e.text?.slice(0,60)||'Note');
+        const detail = [
+          e.product?e.product+(e.dose?' @ '+e.dose:''):'',
+          e.withdrawalDate?'Withdrawal: '+dLabel(e.withdrawalDate):'',
+          e.semenId?'Semen: '+e.semenId:'',
+          e.tech?'Tech: '+e.tech:'',
+          e.expectedCalving?'Expected calving: '+dLabel(e.expectedCalving):'',
+          e.notes||'',
+        ].filter(Boolean).join(' · ');
+        const timeStr = e.time?' '+e.time:'';
+        return `<div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--border);">
+          <span style="font-size:16px;flex-shrink:0;">${icon}</span>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;font-weight:600;">${title}</div>
+            <div style="font-size:11px;color:var(--text2);">${dLabel(e.date)}${timeStr}${detail?' · '+detail:''}</div>
+          </div>
+          <button class="btn btn-outline btn-xs" onclick="openAnimalEventSheet(${a.id},'${e.type}','${e.id}')">Edit</button>
+        </div>`;
+      }).join('');
+    }
+  }
+
   // Cull section
   const cullEl=document.getElementById('ae-cull-section');
   if(a.active===false&&a.cullRecord){
@@ -7254,7 +7692,7 @@ function closeResetSheet(){
 async function executeReset(){
   if(document.getElementById('reset-confirm-input').value!=='YES')return;
   const mode=document.getElementById('reset-confirm-btn').dataset.mode||'all';
-  const ver=S.version||'b20260318.1048';
+  const ver=S.version||'b20260318.1101';
   if(mode==='events'){
     // Events-only reset — preserve setup data
     S.events=[];
@@ -10390,6 +10828,184 @@ if ('serviceWorker' in navigator) {
 }
 // ─── END SERVICE WORKER REGISTRATION ─────────────────────────────────────────
 </script>
+
+<!-- ANIMAL EVENT SHEET (Note / Treatment / Breeding) -->
+<div class="sheet-wrap" id="animal-event-wrap">
+  <div class="sheet-backdrop" onclick="closeAnimalEventSheet()"></div>
+  <div class="sheet" style="max-height:92vh;overflow-y:auto;">
+    <div class="sheet-handle"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div style="font-size:16px;font-weight:600;" id="ae-evt-title">Add event</div>
+      <div style="font-size:12px;color:var(--text2);" id="ae-evt-animal-label"></div>
+    </div>
+    <input type="hidden" id="ae-evt-animal-id"/>
+    <input type="hidden" id="ae-evt-type"/>
+    <input type="hidden" id="ae-evt-edit-id"/>
+
+    <!-- Common: date + time -->
+    <div class="two" style="margin-bottom:10px;">
+      <div class="field">
+        <label>Date</label>
+        <input type="date" id="ae-evt-date"/>
+      </div>
+      <div class="field">
+        <label>Time <span style="font-size:10px;color:var(--text2);">optional</span></label>
+        <input type="time" id="ae-evt-time"/>
+      </div>
+    </div>
+
+    <!-- NOTE section -->
+    <div id="ae-evt-note-section">
+      <div class="field">
+        <label>Note</label>
+        <textarea id="ae-evt-note-text" rows="3"
+          style="width:100%;padding:8px;border:0.5px solid var(--border2);border-radius:var(--radius);
+                 font-size:14px;background:var(--bg);color:var(--text);font-family:inherit;resize:vertical;"
+          placeholder="Enter note…"></textarea>
+      </div>
+    </div>
+
+    <!-- TREATMENT section -->
+    <div id="ae-evt-treatment-section" style="display:none;">
+      <div class="field">
+        <label>Treatment type</label>
+        <select id="ae-evt-treatment-type" onchange="onTreatmentTypeChange()">
+          <option value="">— select —</option>
+        </select>
+      </div>
+      <div id="ae-evt-treatment-custom-wrap" style="display:none;" class="field">
+        <label>Custom treatment name</label>
+        <input type="text" id="ae-evt-treatment-custom" placeholder="e.g. Pinkeye treatment"/>
+      </div>
+      <div class="two">
+        <div class="field">
+          <label>Product / drug <span style="font-size:10px;color:var(--text2);">optional</span></label>
+          <input type="text" id="ae-evt-treatment-product" placeholder="e.g. Draxxin"/>
+        </div>
+        <div class="field">
+          <label>Dose <span style="font-size:10px;color:var(--text2);">optional</span></label>
+          <input type="text" id="ae-evt-treatment-dose" placeholder="e.g. 3ml"/>
+        </div>
+      </div>
+      <div class="field">
+        <label>Withdrawal date <span style="font-size:10px;color:var(--text2);">optional</span></label>
+        <input type="date" id="ae-evt-withdrawal"/>
+      </div>
+      <div class="field">
+        <label>Notes <span style="font-size:10px;color:var(--text2);">optional</span></label>
+        <textarea id="ae-evt-treatment-notes" rows="2"
+          style="width:100%;padding:8px;border:0.5px solid var(--border2);border-radius:var(--radius);
+                 font-size:14px;background:var(--bg);color:var(--text);font-family:inherit;resize:vertical;"
+          placeholder="Additional notes…"></textarea>
+      </div>
+    </div>
+
+    <!-- BREEDING section -->
+    <div id="ae-evt-breeding-section" style="display:none;">
+      <div class="field">
+        <label>Event subtype</label>
+        <select id="ae-evt-breeding-subtype" onchange="onBreedingSubtypeChange()">
+          <option value="heat">Observed heat</option>
+          <option value="ai">Bred — AI</option>
+          <option value="bull">Bred — Bull</option>
+        </select>
+      </div>
+
+      <!-- AI fields -->
+      <div id="ae-evt-ai-fields">
+        <div class="field">
+          <label>AI sire</label>
+          <select id="ae-evt-ai-bull" onchange="onAIBullChange()">
+            <option value="">— select or type below —</option>
+          </select>
+        </div>
+        <div id="ae-evt-ai-details-wrap" style="padding:8px 10px;background:var(--bg2);border-radius:var(--radius);margin-bottom:10px;display:none;">
+          <div style="font-size:12px;color:var(--text2);" id="ae-evt-ai-bull-info"></div>
+        </div>
+        <div class="field">
+          <label>Free-form sire name <span style="font-size:10px;color:var(--text2);">if not in list</span></label>
+          <input type="text" id="ae-evt-ai-sire-freeform" placeholder="Sire name or registration"/>
+        </div>
+        <div class="field">
+          <label>Semen straw / tank ID <span style="font-size:10px;color:var(--text2);">optional</span></label>
+          <input type="text" id="ae-evt-semen-id" placeholder="Tank location or straw ID"/>
+        </div>
+        <div class="field">
+          <label>Technician <span style="font-size:10px;color:var(--text2);">optional</span></label>
+          <input type="text" id="ae-evt-ai-tech" placeholder="Name"/>
+        </div>
+      </div>
+
+      <!-- Natural bull fields -->
+      <div id="ae-evt-bull-fields" style="display:none;">
+        <div class="field">
+          <label>Bull (from animal list)</label>
+          <select id="ae-evt-bull-animal">
+            <option value="">— select from herd —</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Free-form bull name <span style="font-size:10px;color:var(--text2);">if not in list</span></label>
+          <input type="text" id="ae-evt-bull-freeform" placeholder="Bull name or tag"/>
+        </div>
+      </div>
+
+      <!-- Heat fields (no bull needed) -->
+      <div id="ae-evt-heat-fields">
+        <div class="field">
+          <label>Notes <span style="font-size:10px;color:var(--text2);">optional</span></label>
+          <textarea id="ae-evt-heat-notes" rows="2"
+            style="width:100%;padding:8px;border:0.5px solid var(--border2);border-radius:var(--radius);
+                   font-size:14px;background:var(--bg);color:var(--text);font-family:inherit;resize:vertical;"
+            placeholder="e.g. Standing heat, mucus noted"></textarea>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Expected calving date <span style="font-size:10px;color:var(--text2);">optional — auto-calc +283d</span></label>
+        <input type="date" id="ae-evt-expected-calving"/>
+        <div style="font-size:11px;color:var(--text2);margin-top:3px;" id="ae-evt-calving-hint"></div>
+      </div>
+    </div>
+
+    <div class="btn-row" style="margin-top:16px;">
+      <button class="btn btn-green" onclick="saveAnimalEvent()">Save</button>
+      <button class="btn btn-outline" onclick="closeAnimalEventSheet()">Cancel</button>
+    </div>
+    <div id="ae-evt-delete-wrap" style="display:none;margin-top:8px;">
+      <button class="btn btn-red btn-sm" style="width:auto;" onclick="deleteAnimalEvent()">Delete event</button>
+    </div>
+  </div>
+</div>
+
+<!-- ANIMAL QUICK WEIGHT SHEET -->
+<div class="sheet-wrap" id="animal-weight-wrap">
+  <div class="sheet-backdrop" onclick="closeAnimalWeightSheet()"></div>
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:4px;">Update weight</div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:14px;" id="aw-animal-label"></div>
+    <input type="hidden" id="aw-animal-id"/>
+    <div class="two">
+      <div class="field">
+        <label>New weight (lbs)</label>
+        <input type="number" id="aw-weight" placeholder="0" step="1"/>
+      </div>
+      <div class="field">
+        <label>Date</label>
+        <input type="date" id="aw-date"/>
+      </div>
+    </div>
+    <div class="field">
+      <label>Note <span style="font-size:10px;color:var(--text2);">optional</span></label>
+      <input type="text" id="aw-note" placeholder="e.g. Pre-shipping weight"/>
+    </div>
+    <div class="btn-row" style="margin-top:12px;">
+      <button class="btn btn-green" onclick="saveAnimalWeight()">Save weight</button>
+      <button class="btn btn-outline" onclick="closeAnimalWeightSheet()">Cancel</button>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>
