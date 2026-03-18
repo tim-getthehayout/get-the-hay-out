@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260318.1147" id="app-version-meta"/>
+<meta name="app-version" content="b20260318.1220" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -531,16 +531,16 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
     <!-- FEED -->
     <div id="s-feed" class="scr">
 
-      <!-- ── Feed overview stats ── -->
+      <!-- ── Dashboard ── -->
       <div class="card" id="feed-overview-card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
           <div class="sec" style="margin:0;">Feed on hand</div>
-          <span style="font-size:11px;color:var(--text2);">dry matter basis</span>
+          <button class="btn btn-outline btn-xs" onclick="openFeedGoalSheet()" id="feed-goal-btn">Goal: 90d</button>
         </div>
         <div id="feed-stats-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;"></div>
         <div id="feed-days-bar-wrap" style="display:none;">
           <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text2);margin-bottom:4px;">
-            <span>Days of feed on hand</span>
+            <span>Days on hand vs goal</span>
             <span id="feed-days-label">—</span>
           </div>
           <div class="prog"><div class="prog-fill" id="feed-days-bar" style="width:0%;background:var(--green);"></div></div>
@@ -548,59 +548,13 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
         </div>
       </div>
 
-      <!-- ── Active event feeding (shown only when group is actively grazing) ── -->
-      <div id="feed-active-section" style="display:none;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-          <div style="font-size:15px;font-weight:600;">Log feeding</div>
-          <button class="btn btn-outline btn-xs" onclick="nav('home',document.getElementById('bn-home'))">← Home</button>
-        </div>
-        <div id="feed-group-tabs" style="display:none;margin-bottom:8px;"></div>
-        <div id="feed-banner" style="margin-bottom:8px;"></div>
-        <div class="card">
-          <div class="field"><label>Date fed</label><input type="date" id="ff-date"/></div>
-          <div id="ff-batch-sel"></div>
-          <div id="ff-qty-wrap" style="display:none;">
-            <div class="div"></div>
-            <div class="sec" style="margin-bottom:8px;">Quantities</div>
-            <div id="ff-qty-lines"></div>
-          </div>
-          <div class="div"></div>
-          <div class="card-inset">
-            <div class="two">
-              <div><div style="font-size:11px;color:var(--text2);">Feed DMI</div><div style="font-size:17px;font-weight:600;" id="ff-dmi-out">0 lbs</div></div>
-              <div><div style="font-size:11px;color:var(--text2);">Feed cost</div><div style="font-size:17px;font-weight:600;color:var(--amber);" id="ff-cost-out">$0.00</div></div>
-            </div>
-          </div>
-          <button class="btn btn-green" onclick="saveFeedEntry()">Save feeding entry</button>
-        </div>
-        <div class="card">
-          <div class="sec">Feedings this event</div>
-          <div id="ff-history"></div>
-          <div id="ff-running" style="display:none;padding-top:10px;border-top:0.5px solid var(--border);font-size:12px;color:var(--text2);margin-top:4px;"></div>
-        </div>
-      </div>
+      <!-- ── Primary action ── -->
+      <button class="btn btn-green" style="width:100%;margin-bottom:10px;font-size:15px;padding:14px;"
+        onclick="openQuickFeedSheet()">🌾 Feed Animals</button>
+      <button class="btn btn-outline btn-sm" style="width:auto;margin-bottom:16px;"
+        onclick="openFeedTypesSheet()">Manage feed types</button>
 
-      <!-- ── Feed types ── -->
-      <div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <div class="sec" style="margin:0;">Feed types</div>
-        </div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.5;">Define each type once — batches reference them for DM% and unit.</div>
-        <div id="ft-list"></div>
-        <div class="div"></div>
-        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Add feed type</div>
-        <div class="two">
-          <div class="field"><label>Name</label><input type="text" id="ft-name" placeholder="Round bale"/></div>
-          <div class="field"><label>Unit</label><select id="ft-unit"><option value="bale">bale</option><option value="sq bale">sq bale</option><option value="ton">ton</option><option value="lb">lb</option><option value="bag">bag</option></select></div>
-        </div>
-        <div class="two">
-          <div class="field"><label>DM %</label><input type="number" id="ft-dm" placeholder="85"/></div>
-          <div class="field"><label>Category</label><select id="ft-cat"><option value="hay">Hay/forage</option><option value="silage">Silage</option><option value="grain">Grain/supp</option></select></div>
-        </div>
-        <button class="btn btn-green btn-sm" onclick="addFeedType()">Add feed type</button>
-      </div>
-
-      <!-- ── Feed inventory (batches) ── -->
+      <!-- ── Feed inventory ── -->
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
           <div class="sec" style="margin:0;">Feed inventory</div>
@@ -621,6 +575,22 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
           <div class="field"><label>Total cost ($)</label><input type="number" id="b-tcost" step="0.01" placeholder="4000" oninput="calcBatchFromTotal()"/></div>
         </div>
         <button class="btn btn-green btn-sm" onclick="addBatch()">Add batch</button>
+      </div>
+
+      <!-- legacy hidden feed form divs — kept so existing saveFeedEntry() refs don't break -->
+      <div style="display:none;">
+        <div id="feed-no-event"></div>
+        <div id="feed-form">
+          <div id="feed-banner"></div>
+          <div id="feed-group-tabs"></div>
+          <input type="date" id="ff-date"/>
+          <div id="ff-batch-sel"></div>
+          <div id="ff-qty-wrap"><div id="ff-qty-lines"></div></div>
+          <div id="ff-dmi-out"></div>
+          <div id="ff-cost-out"></div>
+          <div id="ff-history"></div>
+          <div id="ff-running"></div>
+        </div>
       </div>
 
     </div>
@@ -2475,10 +2445,6 @@ function toggleGroupCard(gId){
   if(card)card.classList.toggle('expanded');
 }
 
-function goFeedGroup(gId){
-  ffActiveGroupId=gId;
-  nav('feed', document.getElementById('bn-feed')||document.getElementById('dbn-feed'));
-}
 
 function moveGroup(gId){
   wizGroupId=gId;
@@ -2669,106 +2635,74 @@ let ffLines=[];
 let ffActiveGroupId=null;
 
 function renderFeedScreen(){
-  // ── Overview stats ─────────────────────────────────────────────────────────
   renderFeedOverview();
-
-  // ── Feed types + batches ───────────────────────────────────────────────────
-  renderFeedTypes();
   renderBatchListS();
   populateBatchTypeSelect();
-
-  // ── Active event feeding section ───────────────────────────────────────────
-  const active = getActiveEvents();
-  const activeSection = document.getElementById('feed-active-section');
-  if(!active.length){
-    if(activeSection) activeSection.style.display='none';
-    return;
-  }
-  if(activeSection) activeSection.style.display='block';
-
-  const tabsEl = document.getElementById('feed-group-tabs');
-  if(active.length>1){
-    tabsEl.style.display='block';
-    if(!ffActiveGroupId||!active.find(e=>e.groupId===ffActiveGroupId))ffActiveGroupId=active[0].groupId;
-    tabsEl.innerHTML=active.map(ae=>{
-      const g=getGroupById(ae.groupId);const gName=g?g.name:(ae.groupName||'Herd');
-      const on=ae.groupId===ffActiveGroupId;
-      return `<button class="fp${on?' on':''}" onclick="ffActiveGroupId=${ae.groupId};renderFeedScreen();" style="border-left:3px solid ${g?g.color:'var(--green)'};">${gName}<br><span style="font-size:10px;font-weight:400;">${ae.pasture}</span></button>`;
-    }).join('');
-  } else {
-    tabsEl.style.display='none';
-    ffActiveGroupId=active[0].groupId;
-  }
-  const ae=active.find(e=>e.groupId===ffActiveGroupId)||active[0];
-  const g=getGroupById(ae.groupId);const gColor=g?g.color:'#639922';const gName=g?g.name:(ae.groupName||'Herd');
-  document.getElementById('feed-banner').innerHTML=`<div class="banner ban-green" style="border-left:3px solid ${gColor};"><div style="font-size:14px;font-weight:600;color:var(--green-d);">Feeding: ${gName} at ${evDisplayName(ae)}</div><div style="font-size:12px;color:var(--green-d);opacity:0.85;">Day ${daysBetween(ae.dateIn,todayStr())} · in since ${dLabel(ae.dateIn)}</div></div>`;
-  document.getElementById('ff-date').value=todayStr();
-  ffLines=[];renderFFBatches();renderFFHistory(ae);
 }
 
-// ── Feed overview stats ───────────────────────────────────────────────────────
+// ── Feed overview + days bar ──────────────────────────────────────────────────
 function renderFeedOverview(){
-  const grid = document.getElementById('feed-stats-grid');
+  const grid   = document.getElementById('feed-stats-grid');
   const barWrap = document.getElementById('feed-days-bar-wrap');
   if(!grid) return;
 
-  // Total DM on hand across all active (non-archived, remaining > 0) batches
-  let totalDMLbs = 0;
-  let totalCost = 0;
-  let batchCount = 0;
-  (S.batches||[]).filter(b=>!b.archived && b.remaining>0).forEach(b=>{
-    const asFedLbs = b.wt ? b.remaining * b.wt : b.remaining; // lbs as-fed
+  const goal = S.settings.feedDayGoal || 90;
+
+  // Update goal button label
+  const goalBtn = document.getElementById('feed-goal-btn');
+  if(goalBtn) goalBtn.textContent = 'Goal: '+goal+'d';
+
+  // Total DM on hand (dry matter lbs) + value
+  let totalDMLbs=0, totalCost=0, batchCount=0;
+  (S.batches||[]).filter(b=>!b.archived&&b.remaining>0).forEach(b=>{
+    const asFedLbs = b.wt ? b.remaining*b.wt : b.remaining;
     totalDMLbs += asFedLbs * (b.dm/100);
     totalCost  += b.remaining * (b.cpu||0);
     batchCount++;
   });
 
-  // Daily DMI run rate: sum across all animals on farm (all active groups)
-  let totalDailyDMI = 0;
-  let totalHead = 0;
+  // Daily DMI run rate from animal groups
+  let totalDailyDMI=0, totalHead=0;
   (S.animalGroups||[]).forEach(g=>{
     const t = getGroupTotals(g);
     totalDailyDMI += t.dmiTarget||0;
     totalHead += t.totalHead||0;
   });
 
-  // Days of feed on hand
-  const daysOnHand = totalDailyDMI > 0 ? totalDMLbs / totalDailyDMI : null;
+  const daysOnHand = totalDailyDMI>0 ? totalDMLbs/totalDailyDMI : null;
 
-  // Format helpers
-  const fmtDM = v => v>=1000 ? (v/1000).toFixed(1)+'k lbs' : Math.round(v).toLocaleString()+' lbs';
-  const fmtDays = v => v!=null ? Math.floor(v)+'d' : '—';
+  const fmtDM   = v => v>=1000 ? (v/1000).toFixed(1)+'k lbs' : Math.round(v).toLocaleString()+' lbs';
+  const fmtDays = v => v!=null  ? Math.floor(v)+'d' : '—';
 
-  // Color for days on hand: green=60+, amber=21–60, red<21
-  const daysColor = daysOnHand===null ? 'var(--text2)'
-    : daysOnHand>=60 ? 'var(--green-d)'
-    : daysOnHand>=21 ? 'var(--amber-d)'
+  const pctOfGoal = daysOnHand!=null ? daysOnHand/goal : null;
+  const daysColor = pctOfGoal===null ? 'var(--text2)'
+    : pctOfGoal>=1    ? 'var(--green-d)'
+    : pctOfGoal>=0.33 ? 'var(--amber-d)'
     : 'var(--red-d)';
-  const daysBg = daysOnHand===null ? 'var(--bg2)'
-    : daysOnHand>=60 ? 'var(--green-l)'
-    : daysOnHand>=21 ? 'var(--amber-l)'
+  const daysBg = pctOfGoal===null ? 'var(--bg2)'
+    : pctOfGoal>=1    ? 'var(--green-l)'
+    : pctOfGoal>=0.33 ? 'var(--amber-l)'
     : 'var(--red-l)';
+
+  const statsSub = daysOnHand!=null
+    ? (pctOfGoal>=1 ? 'At or above goal ('+goal+'d)' : pctOfGoal>=0.33 ? 'Below goal — monitor closely' : 'Critical — restock soon')
+    : (totalDailyDMI===0 ? 'No animals set up' : 'No feed in inventory');
 
   grid.innerHTML = [
     {
-      label:'DM on hand',
+      label:'DM on hand', color:'var(--green-d)', bg:'var(--green-l)',
       value: batchCount ? fmtDM(totalDMLbs) : '—',
-      sub: batchCount ? batchCount+' batch'+(batchCount!==1?'es':'')+' · $'+totalCost.toFixed(0)+' value' : 'No batches in inventory',
-      color:'var(--green-d)', bg:'var(--green-l)',
+      sub:   batchCount ? batchCount+' batch'+(batchCount!==1?'es':'')+' · $'+totalCost.toFixed(0) : 'No batches',
     },
     {
-      label:'Daily run rate',
-      value: totalDailyDMI > 0 ? fmtDM(totalDailyDMI)+'/day' : '—',
-      sub: totalHead ? totalHead+' head across '+((S.animalGroups||[]).length)+' group'+((S.animalGroups||[]).length!==1?'s':'') : 'Add animals to calculate',
-      color:'var(--amber-d)', bg:'var(--amber-l)',
+      label:'Daily run rate', color:'var(--amber-d)', bg:'var(--amber-l)',
+      value: totalDailyDMI>0 ? fmtDM(totalDailyDMI)+'/d' : '—',
+      sub:   totalHead ? totalHead+' head · '+(S.animalGroups||[]).length+' group'+((S.animalGroups||[]).length!==1?'s':'') : 'No animals',
     },
     {
-      label:'Days on hand',
+      label:'Days on hand', color:daysColor, bg:daysBg,
       value: fmtDays(daysOnHand),
-      sub: daysOnHand!=null
-        ? (daysOnHand>=60?'Good supply':daysOnHand>=21?'Watch closely':'Running low')
-        : totalDailyDMI===0 ? 'No animals' : 'No feed',
-      color: daysColor, bg: daysBg,
+      sub:   statsSub,
     },
   ].map(m=>`
     <div style="background:${m.bg};border-radius:var(--radius);padding:10px 12px;">
@@ -2777,25 +2711,253 @@ function renderFeedOverview(){
       <div style="font-size:10px;color:${m.color};opacity:.75;margin-top:3px;line-height:1.3;">${m.sub}</div>
     </div>`).join('');
 
-  // Days bar
   if(daysOnHand!=null && totalDailyDMI>0 && barWrap){
     barWrap.style.display='block';
-    const target = 90; // 90-day target as 100%
-    const pct = Math.min(100, Math.round((daysOnHand/target)*100));
-    const barColor = daysOnHand>=60?'var(--green)':daysOnHand>=21?'var(--amber)':'var(--red)';
-    document.getElementById('feed-days-label').textContent = Math.floor(daysOnHand)+' days';
+    const pct = Math.min(100,Math.round((daysOnHand/goal)*100));
+    const barColor = pctOfGoal>=1?'var(--green)':pctOfGoal>=0.33?'var(--amber)':'var(--red)';
+    document.getElementById('feed-days-label').textContent = Math.floor(daysOnHand)+'d / '+goal+'d goal';
     document.getElementById('feed-days-bar').style.width = pct+'%';
     document.getElementById('feed-days-bar').style.background = barColor;
-    const hint = daysOnHand>=60
-      ? 'Good winter supply (90d = full bar)'
-      : daysOnHand>=21
-      ? 'Getting low — consider purchasing feed'
-      : 'Critical — less than 3 weeks of feed on hand';
-    document.getElementById('feed-days-hint').textContent = hint;
+    document.getElementById('feed-days-hint').textContent =
+      pctOfGoal>=1 ? 'On target — '+Math.floor(daysOnHand)+' days of feed at current run rate'
+      : pctOfGoal>=0.33 ? 'Watch closely — '+Math.floor(daysOnHand)+' days remaining'
+      : 'Critical — less than 1/3 of goal remaining';
   } else if(barWrap){
     barWrap.style.display='none';
   }
 }
+
+// ── QUICK FEED SHEET ──────────────────────────────────────────────────────────
+let qfLines = [];       // [{batchId, qty}]
+let qfEventId = null;   // currently selected event id
+
+function openQuickFeedSheet(preselectGroupId){
+  qfLines = [];
+  qfEventId = null;
+  const active = getActiveEvents();
+  if(!active.length){
+    alert('No active grazing events. Move a group to a location first.');
+    return;
+  }
+  // Pre-select if only one event or groupId passed
+  if(preselectGroupId){
+    const ev = active.find(e=>e.groupId===preselectGroupId);
+    if(ev){ qfSelectEvent(ev.id); }
+    else   { qfShowEventStep(active); }
+  } else if(active.length===1){
+    qfSelectEvent(active[0].id);
+  } else {
+    qfShowEventStep(active);
+  }
+  document.getElementById('quick-feed-wrap').classList.add('open');
+}
+
+function closeQuickFeedSheet(){
+  document.getElementById('quick-feed-wrap').classList.remove('open');
+  qfLines=[];
+  qfEventId=null;
+}
+
+function qfShowEventStep(active){
+  const events = active || getActiveEvents();
+  const listEl = document.getElementById('qf-event-list');
+  listEl.innerHTML = events.map(ev=>{
+    const g = getGroupById(ev.groupId);
+    const gColor = g?g.color:'#639922';
+    const days = daysBetween(ev.dateIn, todayStr());
+    const feedings = (ev.feedEntries||[]).length;
+    return `<div style="display:flex;align-items:center;gap:12px;padding:12px;
+        border:0.5px solid var(--border);border-radius:var(--radius-l);margin-bottom:8px;
+        cursor:pointer;border-left:3px solid ${gColor};"
+        onclick="qfSelectEvent(${ev.id})">
+      <div style="flex:1;">
+        <div style="font-size:14px;font-weight:600;">${g?g.name:'Herd'}</div>
+        <div style="font-size:12px;color:var(--text2);">${evDisplayName(ev)} · Day ${days}</div>
+        <div style="font-size:11px;color:var(--text2);">${feedings} feeding${feedings!==1?'s':''} this event</div>
+      </div>
+      <div style="font-size:20px;color:var(--green-d);">→</div>
+    </div>`;
+  }).join('');
+  document.getElementById('qf-step-event').style.display='block';
+  document.getElementById('qf-step-form').style.display='none';
+}
+
+function qfSelectEvent(eventId){
+  qfEventId = eventId;
+  const ev = S.events.find(e=>e.id===eventId);
+  if(!ev) return;
+  const g = getGroupById(ev.groupId);
+  const active = getActiveEvents();
+
+  document.getElementById('qf-form-title').textContent = (g?g.name:'Herd')+' — Log feeding';
+  document.getElementById('qf-form-subtitle').textContent = evDisplayName(ev)+' · Day '+daysBetween(ev.dateIn,todayStr());
+
+  // Show change button only when multiple events exist
+  const changeBtn = document.getElementById('qf-change-event-btn');
+  if(changeBtn) changeBtn.style.display = active.length>1 ? 'block' : 'none';
+
+  // Default date = today, time = now
+  const now = new Date();
+  document.getElementById('qf-date').value = todayStr();
+  document.getElementById('qf-time').value =
+    String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+
+  qfLines=[];
+  renderQFBatches();
+
+  document.getElementById('qf-step-event').style.display='none';
+  document.getElementById('qf-step-form').style.display='block';
+}
+
+function renderQFBatches(){
+  const el = document.getElementById('qf-batch-sel');
+  const active = (S.batches||[]).filter(b=>!b.archived&&b.remaining>0);
+  if(!active.length){
+    el.innerHTML='<div style="font-size:13px;color:var(--text2);padding:8px;">No feed batches on hand — add inventory first.</div>';
+    return;
+  }
+  const byType={};
+  active.forEach(b=>{ if(!byType[b.typeName])byType[b.typeName]=[]; byType[b.typeName].push(b); });
+  el.innerHTML = Object.entries(byType).map(([type,batches])=>
+    `<div style="font-size:11px;font-weight:600;color:var(--text2);margin:8px 0 4px;text-transform:uppercase;letter-spacing:.4px;">${type}</div>`+
+    batches.map(b=>{
+      const on = qfLines.find(l=>l.batchId===b.id);
+      return `<div class="batch-sel${on?' on':''}" onclick="toggleQFBatch(${b.id})">
+        <div>
+          <div style="font-size:13px;font-weight:600;">${b.label}</div>
+          <div style="font-size:11px;color:var(--text2);">${b.remaining.toFixed(1)} ${b.unit}s · ${b.dm}% DM${b.cpu?' · $'+b.cpu.toFixed(2)+'/'+b.unit:''}</div>
+        </div>
+        <div class="chk">${on?'<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>':''}</div>
+      </div>`;
+    }).join('')
+  ).join('');
+  renderQFQtyLines();
+}
+
+function toggleQFBatch(id){
+  const i = qfLines.findIndex(l=>l.batchId===id);
+  if(i>=0) qfLines.splice(i,1); else qfLines.push({batchId:id,qty:0});
+  renderQFBatches();
+}
+
+function renderQFQtyLines(){
+  const wrap = document.getElementById('qf-qty-wrap');
+  const el   = document.getElementById('qf-qty-lines');
+  if(!qfLines.length){ wrap.style.display='none'; calcQFTotals(); return; }
+  wrap.style.display='block';
+  el.innerHTML = qfLines.map((l,i)=>{
+    const b = S.batches.find(x=>x.id===l.batchId);
+    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+      <div style="flex:1;font-size:14px;font-weight:500;">${b.label}
+        <span style="font-size:11px;color:var(--text2);">${b.unit}s</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button class="qty-btn" onclick="adjQF(${i},-0.5)">−</button>
+        <span class="qty-val">${l.qty}</span>
+        <button class="qty-btn" onclick="adjQF(${i},0.5)">+</button>
+      </div>
+    </div>`;
+  }).join('');
+  calcQFTotals();
+}
+
+function adjQF(i,d){
+  qfLines[i].qty = Math.max(0, +(qfLines[i].qty+d).toFixed(1));
+  renderQFQtyLines();
+}
+
+function calcQFTotals(){
+  let dmi=0, cost=0;
+  qfLines.forEach(l=>{
+    const b = S.batches.find(x=>x.id===l.batchId);
+    if(!b||!l.qty) return;
+    const af = b.wt ? l.qty*b.wt : l.qty;
+    dmi  += af * (b.dm/100);
+    cost += l.qty * (b.cpu||0);
+  });
+  const dmiEl  = document.getElementById('qf-dmi-out');
+  const costEl = document.getElementById('qf-cost-out');
+  if(dmiEl)  dmiEl.textContent  = Math.round(dmi).toLocaleString()+' lbs';
+  if(costEl) costEl.textContent = '$'+cost.toFixed(2);
+}
+
+function saveQuickFeed(){
+  if(!qfEventId){ alert('Select an event first'); return; }
+  if(!qfLines.some(l=>l.qty>0)){ alert('Select at least one batch and enter a quantity'); return; }
+  const ev = S.events.find(e=>e.id===qfEventId);
+  if(!ev){ alert('Event not found'); return; }
+  const date = document.getElementById('qf-date').value || todayStr();
+  const time = document.getElementById('qf-time').value || null;
+  if(!ev.feedEntries) ev.feedEntries=[];
+  const entry = {
+    id:   Date.now(),
+    date,
+    time,
+    lines: qfLines.filter(l=>l.qty>0).map(l=>({...l})),
+  };
+  ev.feedEntries.push(entry);
+  ev.updatedAt = new Date().toISOString();
+  // Decrement batch inventory
+  entry.lines.forEach(l=>{
+    const b = S.batches.find(x=>x.id===l.batchId);
+    if(b&&l.qty>0) b.remaining = Math.max(0, +(b.remaining-l.qty).toFixed(2));
+  });
+  save();
+  closeQuickFeedSheet();
+  renderFeedOverview();
+  renderBatchListS();
+  // Toast
+  const g = getGroupById(ev.groupId);
+  const gName = g?g.name:'Herd';
+  showSurveyToast('Feeding saved for '+gName);
+}
+
+// ── FEED TYPES SHEET ──────────────────────────────────────────────────────────
+function openFeedTypesSheet(){
+  renderFeedTypes();
+  populateBatchTypeSelect();
+  document.getElementById('feed-types-wrap').classList.add('open');
+}
+function closeFeedTypesSheet(){
+  document.getElementById('feed-types-wrap').classList.remove('open');
+  // Refresh batch type select after any changes
+  populateBatchTypeSelect();
+}
+
+function addFeedTypeFromSheet(){
+  addFeedType(); // existing function — writes to ft-name/ft-unit/ft-dm/ft-cat
+}
+
+// ── FEED GOAL SHEET ───────────────────────────────────────────────────────────
+function openFeedGoalSheet(){
+  const goal = S.settings.feedDayGoal || 90;
+  document.getElementById('feed-goal-days').value = goal;
+  document.getElementById('feed-goal-wrap').classList.add('open');
+}
+function closeFeedGoalSheet(){
+  document.getElementById('feed-goal-wrap').classList.remove('open');
+}
+function saveFeedGoal(){
+  const v = parseInt(document.getElementById('feed-goal-days').value)||90;
+  if(v<7||v>365){ alert('Enter a goal between 7 and 365 days'); return; }
+  S.settings.feedDayGoal = v;
+  S.settings.updatedAt = new Date().toISOString();
+  save();
+  closeFeedGoalSheet();
+  renderFeedOverview();
+}
+
+// Update goFeedGroup to open quick feed sheet pre-selecting that group
+function goFeedGroup(gId){
+  ffActiveGroupId = gId;
+  nav('feed', document.getElementById('bn-feed')||document.getElementById('dbn-feed'));
+  // Open quick feed sheet after nav renders the screen
+  setTimeout(()=>openQuickFeedSheet(gId), 80);
+}
+
+// ─── END QUICK FEED ───────────────────────────────────────────────────────────
+
+
 function renderFFBatches(){
   const el=document.getElementById('ff-batch-sel');
   const active=S.batches.filter(b=>b.remaining>0);
@@ -4614,7 +4776,7 @@ function loadSettings(){
   if(st.manureVolumeRate&&document.getElementById('s-manure-rate'))document.getElementById('s-manure-rate').value=st.manureVolumeRate;
   if(st.manureLoadLbs&&document.getElementById('s-load-lbs'))document.getElementById('s-load-lbs').value=st.manureLoadLbs;
   if(st.manureVolumeUnit&&document.getElementById('s-vol-unit'))document.getElementById('s-vol-unit').value=st.manureVolumeUnit;
-  document.getElementById('s-ver').value=S.version||'b20260318.1147';document.getElementById('s-tester').value=S.testerName||'';
+  document.getElementById('s-ver').value=S.version||'b20260318.1220';document.getElementById('s-tester').value=S.testerName||'';
   // Stat settings
   const spEl=document.getElementById('s-stat-period');
   if(spEl)spEl.value=S.settings.homeStatPeriod||'7d';
@@ -4714,7 +4876,7 @@ function updateHeader(){
   }
   document.getElementById('hdr-sub').textContent=sub;
   const _vTag=document.getElementById('ver-tag');
-  if(_vTag)_vTag.textContent=S.version||'b20260318.1147';
+  if(_vTag)_vTag.textContent=S.version||'b20260318.1220';
   // Keep meta tag in sync so SW registration uses the right version
   const _vMeta=document.getElementById('app-version-meta');
   if(_vMeta&&S.version)_vMeta.setAttribute('content',S.version);
@@ -4736,7 +4898,7 @@ function saveFeedbackItem(){
   const note=document.getElementById('fb-note').value.trim();
   if(!note){document.getElementById('fb-note').style.borderColor='var(--red)';setTimeout(()=>document.getElementById('fb-note').style.borderColor='',1500);return;}
   const ae=getActive();
-  S.feedback.push({id:Date.now(),cat:selCatVal||'idea',note,tester:S.testerName||(getActiveUser()?getActiveUser().name:'anonymous'),version:S.version||'b20260318.1147',status:'open',ctx:{screen:curScreen,activeEvent:ae?{pasture:ae.pasture,day:daysBetween(ae.dateIn,todayStr())}:null},ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:null});
+  S.feedback.push({id:Date.now(),cat:selCatVal||'idea',note,tester:S.testerName||(getActiveUser()?getActiveUser().name:'anonymous'),version:S.version||'b20260318.1220',status:'open',ctx:{screen:curScreen,activeEvent:ae?{pasture:ae.pasture,day:daysBetween(ae.dateIn,todayStr())}:null},ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:null});
   save();closeFeedbackSheet();updateFeedbackBadge();if(curScreen==='feedback')renderFeedbackTab();
 }
 function renderFeedbackTab(){renderConfirmSection();renderFeedbackStats();renderFeedbackList();}
@@ -4752,12 +4914,12 @@ function confirmFixed(id){const f=S.feedback.find(x=>x.id===id);if(!f)return;f.s
 function reopenIssue(id){
   const orig=S.feedback.find(x=>x.id===id);if(!orig)return;
   orig.status='closed';orig.confirmedBy=S.testerName||'anonymous';orig.confirmedAt=new Date().toISOString();
-  S.feedback.push({id:Date.now(),cat:orig.cat,note:`[Regression] ${orig.note}`,tester:S.testerName||'anonymous',version:S.version||'b20260318.1147',status:'open',ctx:orig.ctx,ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:orig.id});
+  S.feedback.push({id:Date.now(),cat:orig.cat,note:`[Regression] ${orig.note}`,tester:S.testerName||'anonymous',version:S.version||'b20260318.1220',status:'open',ctx:orig.ctx,ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:orig.id});
   save();renderFeedbackTab();updateFeedbackBadge();
 }
 function openResolveSheet(id){
   document.getElementById('resolve-id').value=id;document.getElementById('resolve-note').value='';
-  document.getElementById('resolve-ver-label').textContent=S.version||'b20260318.1147';
+  document.getElementById('resolve-ver-label').textContent=S.version||'b20260318.1220';
   document.getElementById('resolve-sheet-wrap').classList.add('open');setTimeout(()=>document.getElementById('resolve-note').focus(),300);
 }
 function closeResolveSheet(){document.getElementById('resolve-sheet-wrap').classList.remove('open');}
@@ -4765,7 +4927,7 @@ function saveResolve(){
   const id=parseInt(document.getElementById('resolve-id').value);const note=document.getElementById('resolve-note').value.trim();
   if(!note){alert('Describe what was changed');return;}
   const f=S.feedback.find(x=>x.id===id);if(!f)return;
-  f.status='resolved';f.resolutionNote=note;f.resolvedInVersion=S.version||'b20260318.1147';f.resolvedAt=new Date().toISOString();
+  f.status='resolved';f.resolutionNote=note;f.resolvedInVersion=S.version||'b20260318.1220';f.resolvedAt=new Date().toISOString();
   save();closeResolveSheet();renderFeedbackTab();updateFeedbackBadge();
 }
 function renderFeedbackStats(){
@@ -4798,7 +4960,7 @@ function generateBrief(){
   const testers=[...new Set(S.feedback.map(f=>f.tester).filter(t=>t&&t!=='anonymous'))];
   const open=S.feedback.filter(f=>f.status==='open');const resolved=S.feedback.filter(f=>f.status==='resolved');const closed=S.feedback.filter(f=>f.status==='closed');
   const catOrder=['bug','calc','ux','feature','idea'];
-  let b=`GET THE HAY OUT — DEV SESSION BRIEF\nGenerated: ${now}\nVersion: ${S.version||'b20260318.1147'}\nTesters: ${testers.length?testers.join(', '):'anonymous'}\nOpen: ${open.length} · Awaiting: ${resolved.length} · Closed: ${closed.length}\n${'═'.repeat(52)}\n`;
+  let b=`GET THE HAY OUT — DEV SESSION BRIEF\nGenerated: ${now}\nVersion: ${S.version||'b20260318.1220'}\nTesters: ${testers.length?testers.join(', '):'anonymous'}\nOpen: ${open.length} · Awaiting: ${resolved.length} · Closed: ${closed.length}\n${'═'.repeat(52)}\n`;
   if(open.length){b+=`\nOPEN ITEMS (${open.length})\n${'─'.repeat(52)}\n`;catOrder.forEach(cat=>{const items=open.filter(f=>f.cat===cat);if(!items.length)return;b+=`\n[${(CAT[cat]||CAT.idea).label.toUpperCase()}]\n`;items.forEach((f,i)=>{const d=new Date(f.ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});const ctx=f.ctx.activeEvent?`screen:${f.ctx.screen} event:${f.ctx.activeEvent.pasture} day${f.ctx.activeEvent.day}`:`screen:${f.ctx.screen}`;b+=`${i+1}. ${f.note}\n   [${ctx}] — ${f.tester}, ${f.version||'?'}, ${d}${f.linkedTo?' ⚠ regression':''}\n`;});});}
   if(resolved.length){b+=`\n${'═'.repeat(52)}\nAWAITING CONFIRMATION (${resolved.length})\n${'─'.repeat(52)}\n`;resolved.forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fix in ${f.resolvedInVersion}: ${f.resolutionNote}\n`;});}
   if(closed.length){b+=`\n${'═'.repeat(52)}\nCLOSED (last 10)\n${'─'.repeat(52)}\n`;closed.slice(-10).forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fixed in ${f.resolvedInVersion||'?'}: ${f.resolutionNote||'—'}. Confirmed: ${f.confirmedBy||'?'}\n`;});}
@@ -7738,7 +7900,7 @@ function closeResetSheet(){
 async function executeReset(){
   if(document.getElementById('reset-confirm-input').value!=='YES')return;
   const mode=document.getElementById('reset-confirm-btn').dataset.mode||'all';
-  const ver=S.version||'b20260318.1147';
+  const ver=S.version||'b20260318.1220';
   if(mode==='events'){
     // Events-only reset — preserve setup data
     S.events=[];
@@ -11169,6 +11331,147 @@ if ('serviceWorker' in navigator) {
     </div>
     <div class="field"><label>Notes</label><input type="text" id="mab-notes" placeholder="Tank location, straw count, etc."/></div>
     <button class="btn btn-green btn-sm" style="width:auto;padding:10px 20px;" onclick="addAIBullFromSheet()">Add sire</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     QUICK FEED SHEET  — "Feed Animals"
+     Step 1: pick event (skip if only one open)
+     Step 2: pick batches + quantities, date/time, save
+     ═══════════════════════════════════════════════════════════════════════ -->
+<div class="sheet-wrap" id="quick-feed-wrap">
+  <div class="sheet-backdrop" onclick="closeQuickFeedSheet()"></div>
+  <div class="sheet" style="max-height:92vh;overflow-y:auto;">
+    <div class="sheet-handle"></div>
+
+    <!-- Step 1: Event selection (hidden when pre-selected) -->
+    <div id="qf-step-event">
+      <div style="font-size:16px;font-weight:600;margin-bottom:4px;">Feed animals</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:14px;">Select which group you are feeding</div>
+      <div id="qf-event-list"></div>
+    </div>
+
+    <!-- Step 2: Feed entry form -->
+    <div id="qf-step-form" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div>
+          <div style="font-size:16px;font-weight:600;" id="qf-form-title">Log feeding</div>
+          <div style="font-size:12px;color:var(--text2);" id="qf-form-subtitle"></div>
+        </div>
+        <button class="btn btn-outline btn-xs" id="qf-change-event-btn"
+          onclick="qfShowEventStep()" style="display:none;">Change</button>
+      </div>
+
+      <!-- Date + time -->
+      <div class="two" style="margin-bottom:10px;">
+        <div class="field">
+          <label>Date</label>
+          <input type="date" id="qf-date"/>
+        </div>
+        <div class="field">
+          <label>Time <span style="font-size:10px;color:var(--text2);">optional</span></label>
+          <input type="time" id="qf-time"/>
+        </div>
+      </div>
+
+      <!-- Batch picker -->
+      <div style="font-size:13px;font-weight:600;margin-bottom:6px;">Select feed</div>
+      <div style="font-size:11px;color:var(--text2);margin-bottom:8px;">Tap a batch to add it, then set the quantity.</div>
+      <div id="qf-batch-sel" style="margin-bottom:8px;"></div>
+
+      <!-- Quantity lines -->
+      <div id="qf-qty-wrap" style="display:none;">
+        <div class="div"></div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Quantities</div>
+        <div id="qf-qty-lines"></div>
+      </div>
+
+      <!-- Totals preview -->
+      <div class="card-inset" style="margin-top:10px;">
+        <div class="two">
+          <div>
+            <div style="font-size:11px;color:var(--text2);">Feed DMI</div>
+            <div style="font-size:18px;font-weight:700;" id="qf-dmi-out">0 lbs</div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--text2);">Feed cost</div>
+            <div style="font-size:18px;font-weight:700;color:var(--amber);" id="qf-cost-out">$0.00</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="btn-row" style="margin-top:14px;">
+        <button class="btn btn-green" onclick="saveQuickFeed()">Save feeding</button>
+        <button class="btn btn-outline" onclick="closeQuickFeedSheet()">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     FEED TYPES SHEET
+     ═══════════════════════════════════════════════════════════════════════ -->
+<div class="sheet-wrap" id="feed-types-wrap">
+  <div class="sheet-backdrop" onclick="closeFeedTypesSheet()"></div>
+  <div class="sheet" style="max-height:90vh;overflow-y:auto;">
+    <div class="sheet-handle"></div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:4px;">Feed types</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:14px;">Define each type once — batches reference them for DM% and unit.</div>
+    <div id="ft-list" style="margin-bottom:12px;"></div>
+    <div class="div"></div>
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Add feed type</div>
+    <div class="two">
+      <div class="field"><label>Name</label><input type="text" id="ft-name" placeholder="Round bale"/></div>
+      <div class="field"><label>Unit</label>
+        <select id="ft-unit">
+          <option value="bale">bale</option>
+          <option value="sq bale">sq bale</option>
+          <option value="ton">ton</option>
+          <option value="lb">lb</option>
+          <option value="bag">bag</option>
+        </select>
+      </div>
+    </div>
+    <div class="two">
+      <div class="field"><label>DM %</label><input type="number" id="ft-dm" placeholder="85"/></div>
+      <div class="field"><label>Category</label>
+        <select id="ft-cat">
+          <option value="hay">Hay/forage</option>
+          <option value="silage">Silage</option>
+          <option value="grain">Grain/supp</option>
+        </select>
+      </div>
+    </div>
+    <div class="btn-row" style="margin-top:8px;">
+      <button class="btn btn-green" onclick="addFeedTypeFromSheet()">Add type</button>
+      <button class="btn btn-outline" onclick="closeFeedTypesSheet()">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     FEED GOAL SHEET
+     ═══════════════════════════════════════════════════════════════════════ -->
+<div class="sheet-wrap" id="feed-goal-wrap">
+  <div class="sheet-backdrop" onclick="closeFeedGoalSheet()"></div>
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:4px;">Stored feed goal</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:16px;">
+      Set how many days of stored feed you want to keep on hand. The progress bar on the feed screen measures against this goal.
+    </div>
+    <div class="field">
+      <label>Goal — days of feed on hand</label>
+      <input type="number" id="feed-goal-days" placeholder="90" min="7" max="365" step="1"
+        style="max-width:120px;font-size:20px;font-weight:700;text-align:center;"/>
+      <div style="font-size:11px;color:var(--text2);margin-top:4px;">
+        Typical: 90d for winter, 180d for year-round hay-based operations
+      </div>
+    </div>
+    <div class="btn-row" style="margin-top:14px;">
+      <button class="btn btn-green" onclick="saveFeedGoal()">Save goal</button>
+      <button class="btn btn-outline" onclick="closeFeedGoalSheet()">Cancel</button>
+    </div>
   </div>
 </div>
 
