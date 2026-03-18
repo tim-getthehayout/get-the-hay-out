@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260318.1220" id="app-version-meta"/>
+<meta name="app-version" content="b20260318.1228" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -342,7 +342,12 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
     bottom: 24px;
   }
   .sheet-wrap{
+    /* Keep full-screen for backdrop; sheet itself re-centers in content area */
+  }
+  .sheet{
+    /* Center sheet in content area right of 220px sidebar */
     left: calc(220px + ((100vw - 220px) / 2));
+    transform: translateX(-50%);
   }
   /* User picker modal also needs recentering */
   .user-picker-wrap{
@@ -2821,17 +2826,44 @@ function renderQFBatches(){
   el.innerHTML = Object.entries(byType).map(([type,batches])=>
     `<div style="font-size:11px;font-weight:600;color:var(--text2);margin:8px 0 4px;text-transform:uppercase;letter-spacing:.4px;">${type}</div>`+
     batches.map(b=>{
-      const on = qfLines.find(l=>l.batchId===b.id);
-      return `<div class="batch-sel${on?' on':''}" onclick="toggleQFBatch(${b.id})">
-        <div>
-          <div style="font-size:13px;font-weight:600;">${b.label}</div>
-          <div style="font-size:11px;color:var(--text2);">${b.remaining.toFixed(1)} ${b.unit}s · ${b.dm}% DM${b.cpu?' · $'+b.cpu.toFixed(2)+'/'+b.unit:''}</div>
+      const lineIdx = qfLines.findIndex(l=>l.batchId===b.id);
+      const on = lineIdx >= 0;
+      const line = on ? qfLines[lineIdx] : null;
+      const qtyRow = on ? `
+        <div style="padding:8px 10px 4px;background:var(--green-l);border-top:0.5px solid var(--green-l2);"
+             onclick="event.stopPropagation()">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="flex:1;font-size:12px;color:var(--green-d);font-weight:500;">
+              Quantity (${b.unit}s)
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <button class="qty-btn" style="background:var(--green-l2);" onclick="adjQF(${lineIdx},-0.5)">−</button>
+              <span class="qty-val" style="min-width:32px;text-align:center;">${line.qty}</span>
+              <button class="qty-btn" style="background:var(--green-l2);" onclick="adjQF(${lineIdx},0.5)">+</button>
+            </div>
+          </div>
+          ${line.qty>0 ? `<div style="font-size:11px;color:var(--green-d);margin-top:3px;opacity:.8;">
+            ${b.wt?(line.qty*b.wt).toLocaleString()+' lbs as-fed · ':''
+            }${Math.round((b.wt?line.qty*b.wt:line.qty)*(b.dm/100)).toLocaleString()} lbs DM
+            ${b.cpu?' · $'+(line.qty*(b.cpu||0)).toFixed(2):''}
+          </div>`:''}
+        </div>` : '';
+      return `<div style="border:0.5px solid ${on?'var(--green)':'var(--border)'};
+          border-radius:var(--radius);margin-bottom:4px;overflow:hidden;
+          background:${on?'var(--green-l)':'var(--bg)'};">
+        <div class="batch-sel" style="border:none;border-radius:0;background:transparent;margin:0;"
+             onclick="toggleQFBatch(${b.id})">
+          <div>
+            <div style="font-size:13px;font-weight:600;">${b.label}</div>
+            <div style="font-size:11px;color:var(--text2);">${b.remaining.toFixed(1)} ${b.unit}s · ${b.dm}% DM${b.cpu?' · $'+b.cpu.toFixed(2)+'/'+b.unit:''}</div>
+          </div>
+          <div class="chk">${on?'<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>':''}</div>
         </div>
-        <div class="chk">${on?'<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>':''}</div>
+        ${qtyRow}
       </div>`;
     }).join('')
   ).join('');
-  renderQFQtyLines();
+  calcQFTotals();
 }
 
 function toggleQFBatch(id){
@@ -2840,31 +2872,13 @@ function toggleQFBatch(id){
   renderQFBatches();
 }
 
-function renderQFQtyLines(){
-  const wrap = document.getElementById('qf-qty-wrap');
-  const el   = document.getElementById('qf-qty-lines');
-  if(!qfLines.length){ wrap.style.display='none'; calcQFTotals(); return; }
-  wrap.style.display='block';
-  el.innerHTML = qfLines.map((l,i)=>{
-    const b = S.batches.find(x=>x.id===l.batchId);
-    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-      <div style="flex:1;font-size:14px;font-weight:500;">${b.label}
-        <span style="font-size:11px;color:var(--text2);">${b.unit}s</span>
-      </div>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <button class="qty-btn" onclick="adjQF(${i},-0.5)">−</button>
-        <span class="qty-val">${l.qty}</span>
-        <button class="qty-btn" onclick="adjQF(${i},0.5)">+</button>
-      </div>
-    </div>`;
-  }).join('');
-  calcQFTotals();
-}
-
+// adjQF now re-renders the whole batch list so inline qty stays in sync
 function adjQF(i,d){
   qfLines[i].qty = Math.max(0, +(qfLines[i].qty+d).toFixed(1));
-  renderQFQtyLines();
+  renderQFBatches();
 }
+
+function renderQFQtyLines(){ /* inline now — no-op kept for compat */ }
 
 function calcQFTotals(){
   let dmi=0, cost=0;
@@ -4776,7 +4790,7 @@ function loadSettings(){
   if(st.manureVolumeRate&&document.getElementById('s-manure-rate'))document.getElementById('s-manure-rate').value=st.manureVolumeRate;
   if(st.manureLoadLbs&&document.getElementById('s-load-lbs'))document.getElementById('s-load-lbs').value=st.manureLoadLbs;
   if(st.manureVolumeUnit&&document.getElementById('s-vol-unit'))document.getElementById('s-vol-unit').value=st.manureVolumeUnit;
-  document.getElementById('s-ver').value=S.version||'b20260318.1220';document.getElementById('s-tester').value=S.testerName||'';
+  document.getElementById('s-ver').value=S.version||'b20260318.1228';document.getElementById('s-tester').value=S.testerName||'';
   // Stat settings
   const spEl=document.getElementById('s-stat-period');
   if(spEl)spEl.value=S.settings.homeStatPeriod||'7d';
@@ -4876,7 +4890,7 @@ function updateHeader(){
   }
   document.getElementById('hdr-sub').textContent=sub;
   const _vTag=document.getElementById('ver-tag');
-  if(_vTag)_vTag.textContent=S.version||'b20260318.1220';
+  if(_vTag)_vTag.textContent=S.version||'b20260318.1228';
   // Keep meta tag in sync so SW registration uses the right version
   const _vMeta=document.getElementById('app-version-meta');
   if(_vMeta&&S.version)_vMeta.setAttribute('content',S.version);
@@ -4898,7 +4912,7 @@ function saveFeedbackItem(){
   const note=document.getElementById('fb-note').value.trim();
   if(!note){document.getElementById('fb-note').style.borderColor='var(--red)';setTimeout(()=>document.getElementById('fb-note').style.borderColor='',1500);return;}
   const ae=getActive();
-  S.feedback.push({id:Date.now(),cat:selCatVal||'idea',note,tester:S.testerName||(getActiveUser()?getActiveUser().name:'anonymous'),version:S.version||'b20260318.1220',status:'open',ctx:{screen:curScreen,activeEvent:ae?{pasture:ae.pasture,day:daysBetween(ae.dateIn,todayStr())}:null},ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:null});
+  S.feedback.push({id:Date.now(),cat:selCatVal||'idea',note,tester:S.testerName||(getActiveUser()?getActiveUser().name:'anonymous'),version:S.version||'b20260318.1228',status:'open',ctx:{screen:curScreen,activeEvent:ae?{pasture:ae.pasture,day:daysBetween(ae.dateIn,todayStr())}:null},ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:null});
   save();closeFeedbackSheet();updateFeedbackBadge();if(curScreen==='feedback')renderFeedbackTab();
 }
 function renderFeedbackTab(){renderConfirmSection();renderFeedbackStats();renderFeedbackList();}
@@ -4914,12 +4928,12 @@ function confirmFixed(id){const f=S.feedback.find(x=>x.id===id);if(!f)return;f.s
 function reopenIssue(id){
   const orig=S.feedback.find(x=>x.id===id);if(!orig)return;
   orig.status='closed';orig.confirmedBy=S.testerName||'anonymous';orig.confirmedAt=new Date().toISOString();
-  S.feedback.push({id:Date.now(),cat:orig.cat,note:`[Regression] ${orig.note}`,tester:S.testerName||'anonymous',version:S.version||'b20260318.1220',status:'open',ctx:orig.ctx,ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:orig.id});
+  S.feedback.push({id:Date.now(),cat:orig.cat,note:`[Regression] ${orig.note}`,tester:S.testerName||'anonymous',version:S.version||'b20260318.1228',status:'open',ctx:orig.ctx,ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:orig.id});
   save();renderFeedbackTab();updateFeedbackBadge();
 }
 function openResolveSheet(id){
   document.getElementById('resolve-id').value=id;document.getElementById('resolve-note').value='';
-  document.getElementById('resolve-ver-label').textContent=S.version||'b20260318.1220';
+  document.getElementById('resolve-ver-label').textContent=S.version||'b20260318.1228';
   document.getElementById('resolve-sheet-wrap').classList.add('open');setTimeout(()=>document.getElementById('resolve-note').focus(),300);
 }
 function closeResolveSheet(){document.getElementById('resolve-sheet-wrap').classList.remove('open');}
@@ -4927,7 +4941,7 @@ function saveResolve(){
   const id=parseInt(document.getElementById('resolve-id').value);const note=document.getElementById('resolve-note').value.trim();
   if(!note){alert('Describe what was changed');return;}
   const f=S.feedback.find(x=>x.id===id);if(!f)return;
-  f.status='resolved';f.resolutionNote=note;f.resolvedInVersion=S.version||'b20260318.1220';f.resolvedAt=new Date().toISOString();
+  f.status='resolved';f.resolutionNote=note;f.resolvedInVersion=S.version||'b20260318.1228';f.resolvedAt=new Date().toISOString();
   save();closeResolveSheet();renderFeedbackTab();updateFeedbackBadge();
 }
 function renderFeedbackStats(){
@@ -4960,7 +4974,7 @@ function generateBrief(){
   const testers=[...new Set(S.feedback.map(f=>f.tester).filter(t=>t&&t!=='anonymous'))];
   const open=S.feedback.filter(f=>f.status==='open');const resolved=S.feedback.filter(f=>f.status==='resolved');const closed=S.feedback.filter(f=>f.status==='closed');
   const catOrder=['bug','calc','ux','feature','idea'];
-  let b=`GET THE HAY OUT — DEV SESSION BRIEF\nGenerated: ${now}\nVersion: ${S.version||'b20260318.1220'}\nTesters: ${testers.length?testers.join(', '):'anonymous'}\nOpen: ${open.length} · Awaiting: ${resolved.length} · Closed: ${closed.length}\n${'═'.repeat(52)}\n`;
+  let b=`GET THE HAY OUT — DEV SESSION BRIEF\nGenerated: ${now}\nVersion: ${S.version||'b20260318.1228'}\nTesters: ${testers.length?testers.join(', '):'anonymous'}\nOpen: ${open.length} · Awaiting: ${resolved.length} · Closed: ${closed.length}\n${'═'.repeat(52)}\n`;
   if(open.length){b+=`\nOPEN ITEMS (${open.length})\n${'─'.repeat(52)}\n`;catOrder.forEach(cat=>{const items=open.filter(f=>f.cat===cat);if(!items.length)return;b+=`\n[${(CAT[cat]||CAT.idea).label.toUpperCase()}]\n`;items.forEach((f,i)=>{const d=new Date(f.ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});const ctx=f.ctx.activeEvent?`screen:${f.ctx.screen} event:${f.ctx.activeEvent.pasture} day${f.ctx.activeEvent.day}`:`screen:${f.ctx.screen}`;b+=`${i+1}. ${f.note}\n   [${ctx}] — ${f.tester}, ${f.version||'?'}, ${d}${f.linkedTo?' ⚠ regression':''}\n`;});});}
   if(resolved.length){b+=`\n${'═'.repeat(52)}\nAWAITING CONFIRMATION (${resolved.length})\n${'─'.repeat(52)}\n`;resolved.forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fix in ${f.resolvedInVersion}: ${f.resolutionNote}\n`;});}
   if(closed.length){b+=`\n${'═'.repeat(52)}\nCLOSED (last 10)\n${'─'.repeat(52)}\n`;closed.slice(-10).forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fixed in ${f.resolvedInVersion||'?'}: ${f.resolutionNote||'—'}. Confirmed: ${f.confirmedBy||'?'}\n`;});}
@@ -7900,7 +7914,7 @@ function closeResetSheet(){
 async function executeReset(){
   if(document.getElementById('reset-confirm-input').value!=='YES')return;
   const mode=document.getElementById('reset-confirm-btn').dataset.mode||'all';
-  const ver=S.version||'b20260318.1220';
+  const ver=S.version||'b20260318.1228';
   if(mode==='events'){
     // Events-only reset — preserve setup data
     S.events=[];
@@ -8845,26 +8859,36 @@ function renderAnimalsScreen(){
     const primaryLabel = a.tagNum||a.systemId||'—';
     const ae = grp ? getActiveEventForGroup(grp.id) : null;
 
-    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:0.5px solid var(--border);opacity:${isCulled?'0.5':'1'};">
-      <!-- Checkbox for multi-select -->
-      <div onclick="toggleAnimalScreenSelect(${a.id})" style="width:22px;height:22px;border-radius:6px;border:1.5px solid ${isSelected?'var(--green)':'var(--border2)'};background:${isSelected?'var(--green)':'transparent'};display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;">
-        ${isSelected?'<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>':''}
-      </div>
-      <!-- Main row taps to edit -->
-      <div style="flex:1;min-width:0;cursor:pointer;" onclick="openAnimalEdit(${a.id})">
-        <div style="font-size:13px;font-weight:600;">${primaryLabel}
-          <span style="font-size:11px;color:var(--text2);font-weight:400;">${sexIcon}</span>
-          ${isCulled?`<span class="badge br" style="font-size:10px;">${a.cullRecord?a.cullRecord.reason:'culled'}</span>`:''}
-          ${ae?`<span class="badge bt" style="font-size:10px;">${ae.pasture}</span>`:''}
+    return `<div style="padding:8px 0;border-bottom:0.5px solid var(--border);opacity:${isCulled?'0.5':'1'};">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <!-- Checkbox for multi-select -->
+        <div onclick="toggleAnimalScreenSelect(${a.id})" style="width:22px;height:22px;border-radius:6px;border:1.5px solid ${isSelected?'var(--green)':'var(--border2)'};background:${isSelected?'var(--green)':'transparent'};display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;">
+          ${isSelected?'<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>':''}
         </div>
-        <div style="font-size:11px;color:var(--text2);">${cls?cls.name:'No class'} · ${grp?grp.name:'unassigned'}</div>
-      </div>
-      <div style="text-align:right;flex-shrink:0;display:flex;align-items:center;gap:6px;">
-        <div style="cursor:pointer;" onclick="openAnimalEdit(${a.id})">
-          <div style="font-size:13px;font-weight:600;">${displayWt?displayWt+' lbs':'no wt'}</div>
+        <!-- Main row taps to edit -->
+        <div style="flex:1;min-width:0;cursor:pointer;" onclick="openAnimalEdit(${a.id})">
+          <div style="font-size:13px;font-weight:600;">${primaryLabel}
+            <span style="font-size:11px;color:var(--text2);font-weight:400;">${sexIcon}</span>
+            ${isCulled?`<span class="badge br" style="font-size:10px;">${a.cullRecord?a.cullRecord.reason:'culled'}</span>`:''}
+            ${ae?`<span class="badge bt" style="font-size:10px;">${ae.pasture}</span>`:''}
+          </div>
+          <div style="font-size:11px;color:var(--text2);">${cls?cls.name:'No class'} · ${grp?grp.name:'unassigned'}</div>
         </div>
-        <button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:18px;padding:2px 6px;flex-shrink:0;"
-          onclick="deleteAnimalFromScreen(${a.id})">×</button>
+        <div style="text-align:right;flex-shrink:0;display:flex;align-items:center;gap:6px;">
+          <div style="cursor:pointer;" onclick="openAnimalEdit(${a.id})">
+            <div style="font-size:13px;font-weight:600;">${displayWt?displayWt+' lbs':'no wt'}</div>
+          </div>
+          <button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:18px;padding:2px 6px;flex-shrink:0;"
+            onclick="deleteAnimalFromScreen(${a.id})">×</button>
+        </div>
+      </div>
+      <!-- Action buttons -->
+      <div style="display:flex;gap:5px;margin-top:5px;margin-left:30px;flex-wrap:wrap;">
+        <button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openAnimalEdit(${a.id})">Edit</button>
+        <button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openAnimalWeightSheet(${a.id})">⚖ Weight</button>
+        <button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openAnimalEventSheet(${a.id},'note')">📝 Note</button>
+        <button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openAnimalEventSheet(${a.id},'treatment')">💉 Treatment</button>
+        ${a.sex==='female'?`<button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openAnimalEventSheet(${a.id},'breeding')">♀ Breeding</button>`:''}
       </div>
     </div>`;
   }).join('');
@@ -11379,14 +11403,8 @@ if ('serviceWorker' in navigator) {
       <div style="font-size:11px;color:var(--text2);margin-bottom:8px;">Tap a batch to add it, then set the quantity.</div>
       <div id="qf-batch-sel" style="margin-bottom:8px;"></div>
 
-      <!-- Quantity lines -->
-      <div id="qf-qty-wrap" style="display:none;">
-        <div class="div"></div>
-        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Quantities</div>
-        <div id="qf-qty-lines"></div>
-      </div>
-
-      <!-- Totals preview -->
+      <!-- Totals preview (qty now inline under each batch) -->
+      <div id="qf-qty-wrap" style="display:none;"><div id="qf-qty-lines"></div></div>
       <div class="card-inset" style="margin-top:10px;">
         <div class="two">
           <div>
