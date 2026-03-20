@@ -1031,7 +1031,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
         <div style="font-size:13px;color:var(--text2);margin-bottom:12px;">Export all farm data as a JSON backup. Import on another device or restore from backup.</div>
         <div class="btn-row">
           <button class="btn btn-outline" onclick="exportDataJSON()">Export backup</button>
-          <button class="btn btn-outline" onclick="triggerImport()">Import backup</button>
+          <button class="btn btn-outline" onclick="triggerImport()">Restore backup</button>
         </div>
         <div class="div"></div>
         <div style="font-size:13px;font-weight:600;margin-bottom:6px;">Historical events</div>
@@ -3166,11 +3166,10 @@ function initWizFromGroup(){
     document.getElementById('ws0-banner').innerHTML=`<div style="font-size:14px;font-weight:600;color:var(--amber-d);">Closing: ${evDisplayName(ae)}${g?' ('+g.name+')':''}</div><div style="font-size:12px;color:var(--amber-d);opacity:0.85;margin-top:2px;">In ${dLabel(ae.dateIn)} · ${daysBetween(ae.dateIn,todayStr())} days · ${(ae.feedEntries||[]).length} feedings</div>`;
     if(ae.heightIn)document.getElementById('w-pregraze-disp').value=ae.heightIn;
     showPaddockTasksInWiz(evPrimaryPaddock(ae).pastureName,'w-paddock-tasks','w-paddock-tasks-list');
-    // Update recovery label with the actual paddock name(s)
-    const paddockNames = (ae.paddocks||[]).map(p=>p.pastureName).filter(Boolean);
-    const paddockLabel = paddockNames.length ? paddockNames.join(' + ') : (ae.pasture||'this paddock');
-    const recLabel = document.getElementById('w-recovery-label');
-    if(recLabel) recLabel.textContent = `How many days before ${paddockLabel} will be ready to graze again?`;
+    const paddockNames=(ae.paddocks||[]).map(p=>p.pastureName).filter(Boolean);
+    const paddockLabel=paddockNames.length?paddockNames.join(' + '):(ae.pasture||'this paddock');
+    const recLabel=document.getElementById('w-recovery-label');
+    if(recLabel)recLabel.textContent=`How many days before ${paddockLabel} will be ready to graze again?`;
   }
   const _wout=document.getElementById('w-out-date');if(_wout)_wout.value=todayStr();
   const _win=document.getElementById('w-in-date');if(_win)_win.value=todayStr();
@@ -3333,8 +3332,9 @@ function wizCloseEvent(){
   ae.recoveryMinDays=parseInt(document.getElementById('w-rec-min')?.value)||null;
   ae.recoveryMaxDays=parseInt(document.getElementById('w-rec-max')?.value)||null;
   ae.status='closed';
+  const isCon=ae.locationType==='confinement';
   const _closedPad=getPastureForEvent(ae);
-  const _residOM=ae.locationType!=='confinement'?calcResidualOM(ae.feedEntries||[],feedRes):0;
+  const _residOM=!isCon?calcResidualOM(ae.feedEntries||[],feedRes):0;
   // Snapshot acres from all paddocks
   const _totalAcres=evTotalAcres(ae)||(_closedPad?parseFloat(_closedPad.acres)||null:null);
   ae.totals={days,storedDMI:sdmi,pastureDMI:pdmi,cost,pct,npk,npkVal,
@@ -3436,7 +3436,6 @@ function wizCloseEvent(){
     ae.totals.pastureDMI=null;ae.totals.pct=null;
   }
   save();
-  const isCon=ae.locationType==='confinement';
   let summaryExtra='';
   if(isCon&&ae.totals.capturedNPK){
     const cn=ae.totals.capturedNPK;const st=S.settings;
