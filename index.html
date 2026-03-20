@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260320.1035" id="app-version-meta"/>
+<meta name="app-version" content="b20260320.1036" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -735,7 +735,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
                 <div class="sec" style="margin:0;">Estimated recovery window</div>
                 <span id="w-recovery-badge" class="badge bb" style="font-size:10px;"></span>
               </div>
-              <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.5;" id="w-recovery-label">
+              <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.5;">
                 How many days before this paddock is ready to graze again?
               </div>
               <div class="two">
@@ -808,15 +808,6 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
           <div class="div"></div>
           <div class="sec" style="margin-bottom:6px;">Initial feeding (optional)</div>
           <div id="w-feed-sel"></div><div id="w-feed-lines"></div>
-          <div class="div"></div>
-          <!-- 100% stored feed flag -->
-          <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;">
-            <input type="checkbox" id="w-no-pasture" style="width:18px;height:18px;accent-color:var(--amber);flex-shrink:0;margin-top:2px;">
-            <div>
-              <div style="font-size:13px;font-weight:500;">100% stored feed (no pasture available)</div>
-              <div style="font-size:11px;color:var(--text2);">Bale grazing, drought feeding, winter lot — pasture DMI set to zero</div>
-            </div>
-          </div>
           <div class="div"></div>
           <!-- Tasks on destination paddock -->
           <div id="w-dest-tasks" style="display:none;">
@@ -1031,7 +1022,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
         <div style="font-size:13px;color:var(--text2);margin-bottom:12px;">Export all farm data as a JSON backup. Import on another device or restore from backup.</div>
         <div class="btn-row">
           <button class="btn btn-outline" onclick="exportDataJSON()">Export backup</button>
-          <button class="btn btn-outline" onclick="triggerImport()">Restore backup</button>
+          <button class="btn btn-outline" onclick="triggerImport()">Import backup</button>
         </div>
         <div class="div"></div>
         <div style="font-size:13px;font-weight:600;margin-bottom:6px;">Historical events</div>
@@ -2033,10 +2024,12 @@ function ensureDataArrays(){
 }
 
 function exportDataJSON(){
-  const ts=new Date().toISOString().slice(0,10);
+  const now=new Date();
+  const ts=now.toISOString().slice(0,10);
+  const hhmm=now.toTimeString().slice(0,5).replace(':','');
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,2)],{type:'application/json'}));
-  a.download=`gthy-backup-${ts}.json`;a.click();
+  a.download=`gthy-backup-${ts}-${hhmm}.json`;a.click();
 }
 function triggerImport(){document.getElementById('import-file').click();}
 function importDataJSON(event){
@@ -3166,10 +3159,6 @@ function initWizFromGroup(){
     document.getElementById('ws0-banner').innerHTML=`<div style="font-size:14px;font-weight:600;color:var(--amber-d);">Closing: ${evDisplayName(ae)}${g?' ('+g.name+')':''}</div><div style="font-size:12px;color:var(--amber-d);opacity:0.85;margin-top:2px;">In ${dLabel(ae.dateIn)} · ${daysBetween(ae.dateIn,todayStr())} days · ${(ae.feedEntries||[]).length} feedings</div>`;
     if(ae.heightIn)document.getElementById('w-pregraze-disp').value=ae.heightIn;
     showPaddockTasksInWiz(evPrimaryPaddock(ae).pastureName,'w-paddock-tasks','w-paddock-tasks-list');
-    const paddockNames=(ae.paddocks||[]).map(p=>p.pastureName).filter(Boolean);
-    const paddockLabel=paddockNames.length?paddockNames.join(' + '):(ae.pasture||'this paddock');
-    const recLabel=document.getElementById('w-recovery-label');
-    if(recLabel)recLabel.textContent=`How many days before ${paddockLabel} will be ready to graze again?`;
   }
   const _wout=document.getElementById('w-out-date');if(_wout)_wout.value=todayStr();
   const _win=document.getElementById('w-in-date');if(_win)_win.value=todayStr();
@@ -3332,9 +3321,8 @@ function wizCloseEvent(){
   ae.recoveryMinDays=parseInt(document.getElementById('w-rec-min')?.value)||null;
   ae.recoveryMaxDays=parseInt(document.getElementById('w-rec-max')?.value)||null;
   ae.status='closed';
-  const isCon=ae.locationType==='confinement';
   const _closedPad=getPastureForEvent(ae);
-  const _residOM=!isCon?calcResidualOM(ae.feedEntries||[],feedRes):0;
+  const _residOM=ae.locationType!=='confinement'?calcResidualOM(ae.feedEntries||[],feedRes):0;
   // Snapshot acres from all paddocks
   const _totalAcres=evTotalAcres(ae)||(_closedPad?parseFloat(_closedPad.acres)||null:null);
   ae.totals={days,storedDMI:sdmi,pastureDMI:pdmi,cost,pct,npk,npkVal,
@@ -3436,6 +3424,7 @@ function wizCloseEvent(){
     ae.totals.pastureDMI=null;ae.totals.pct=null;
   }
   save();
+  const isCon=ae.locationType==='confinement';
   let summaryExtra='';
   if(isCon&&ae.totals.capturedNPK){
     const cn=ae.totals.capturedNPK;const st=S.settings;
