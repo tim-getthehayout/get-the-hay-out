@@ -1,39 +1,30 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // GTHY Service Worker
 //
-// The cache version is derived automatically from the app version passed
-// as a query parameter when registering: navigator.serviceWorker.register('/sw.js?v=v1.2')
-//
-// To push an update: bump S.version in Settings → the HTML embeds it as a
-// <meta name="app-version"> tag → SW registration reads it → new cache name
-// → old cache cleared → users get the fresh version on next open.
-//
-// You never need to manually edit this file to trigger an update.
+// Cache version is derived from the ?v= query param set at registration time.
+// The SW does NOT call skipWaiting() on install — it waits for an explicit
+// SKIP_WAITING message from the page so the user can back up first.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Read version from our own registration URL query string (?v=v1.2)
 const _swUrl    = new URL(self.location.href);
 const _appVer   = _swUrl.searchParams.get('v') || 'v1.0';
 const CACHE_NAME = 'gthy-' + _appVer;
 
-// Files to precache on install
-const PRECACHE_URLS = [
-  '/',
-  '/index.html',
-];
+const PRECACHE_URLS = ['/', '/index.html'];
 
 // ── Install ──────────────────────────────────────────────────────────────────
+// Cache assets but DO NOT skipWaiting — stay in 'waiting' state so the page
+// can show the update banner and let the user back up before reloading.
 self.addEventListener('install', event => {
   console.log('[SW] Installing cache:', CACHE_NAME);
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => cache.addAll(PRECACHE_URLS))
-      .then(() => self.skipWaiting())
+    // No self.skipWaiting() here — wait for explicit message from page
   );
 });
 
 // ── Activate ─────────────────────────────────────────────────────────────────
-// Delete every cache that isn't the current version.
 self.addEventListener('activate', event => {
   console.log('[SW] Activating, clearing old caches except:', CACHE_NAME);
   event.waitUntil(
@@ -51,8 +42,7 @@ self.addEventListener('activate', event => {
 });
 
 // ── Fetch ────────────────────────────────────────────────────────────────────
-// Network-first for HTML (always fresh when online).
-// Cache-first for everything else (CDN scripts load fast offline).
+// Network-first for HTML, cache-first for assets.
 self.addEventListener('fetch', event => {
   const req = event.request;
   if (req.method !== 'GET') return;
@@ -62,7 +52,6 @@ self.addEventListener('fetch', event => {
     (req.headers.get('accept') || '').includes('text/html');
 
   if (isNavigation) {
-    // Network-first: always try to fetch fresh HTML
     event.respondWith(
       fetch(req)
         .then(res => {
@@ -79,7 +68,6 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Cache-first for assets (CDN scripts, etc.)
   event.respondWith(
     caches.match(req).then(cached => {
       if (cached) return cached;
@@ -94,6 +82,10 @@ self.addEventListener('fetch', event => {
 });
 
 // ── Message handler ──────────────────────────────────────────────────────────
+// The page sends SKIP_WAITING when the user clicks "Update now".
 self.addEventListener('message', event => {
-  if (event.data === 'SKIP_WAITING') self.skipWaiting();
+  if (event.data === 'SKIP_WAITING') {
+    console.log('[SW] SKIP_WAITING received — activating new version');
+    self.skipWaiting();
+  }
 });
