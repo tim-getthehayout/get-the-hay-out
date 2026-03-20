@@ -5,8 +5,8 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260320.0904" id="app-version-meta"/>
-<meta http-equiv="Pragma" content="no-cache"/>/>
+<meta name="app-version" content="b20260320.0946" id="app-version-meta"/>
+<meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
 <meta name="apple-mobile-web-app-title" content="Get The Hay Out"/>
@@ -399,6 +399,51 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 </head>
 <body>
+
+<!-- UPDATE AVAILABLE BANNER -->
+<div id="update-banner" style="
+  display:none;
+  position:fixed;
+  top:0;left:0;right:0;
+  z-index:9999;
+  background:var(--green-d);
+  color:white;
+  padding:12px 16px;
+  box-shadow:0 2px 12px rgba(0,0,0,0.25);
+  font-family:inherit;
+">
+  <div style="display:flex;align-items:flex-start;gap:12px;max-width:680px;margin:0 auto;">
+    <div style="font-size:18px;flex-shrink:0;margin-top:1px;">🌿</div>
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:14px;font-weight:600;margin-bottom:2px;">New version available</div>
+      <div style="font-size:12px;opacity:0.88;line-height:1.4;">
+        Back up your data first, then tap Update to reload the latest version.
+        Drive-connected users are already synced.
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+        <button onclick="exportDataJSON();this.textContent='✓ Backed up';this.style.opacity='0.6';"
+          style="padding:7px 14px;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.5);
+                 border-radius:var(--radius);color:white;font-size:13px;font-weight:600;cursor:pointer;
+                 font-family:inherit;">
+          💾 Back up now
+        </button>
+        <button onclick="applyAppUpdate()"
+          style="padding:7px 14px;background:white;border:none;
+                 border-radius:var(--radius);color:var(--green-d);font-size:13px;font-weight:700;
+                 cursor:pointer;font-family:inherit;">
+          ↻ Update now
+        </button>
+        <button onclick="document.getElementById('update-banner').style.display='none';"
+          style="padding:7px 14px;background:transparent;border:1px solid rgba(255,255,255,0.35);
+                 border-radius:var(--radius);color:rgba(255,255,255,0.8);font-size:13px;
+                 cursor:pointer;font-family:inherit;">
+          Later
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="app">
 
   <!-- DESKTOP SIDEBAR NAV -->
@@ -698,11 +743,13 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
                   <label>Min days <span id="w-rec-min-req" style="color:var(--red);display:none;">*</span></label>
                   <input type="number" id="w-rec-min" min="1" max="365" step="1" placeholder="30"
                     oninput="updateRecoveryPreview()"/>
+                  <div id="w-rec-min-date" style="font-size:11px;font-weight:600;color:var(--green-d);margin-top:3px;min-height:14px;"></div>
                 </div>
                 <div class="field">
                   <label>Max days <span id="w-rec-max-req" style="color:var(--red);display:none;">*</span></label>
                   <input type="number" id="w-rec-max" min="1" max="365" step="1" placeholder="60"
                     oninput="updateRecoveryPreview()"/>
+                  <div id="w-rec-max-date" style="font-size:11px;font-weight:600;color:var(--amber-d);margin-top:3px;min-height:14px;"></div>
                 </div>
               </div>
               <div id="w-recovery-preview" style="font-size:12px;color:var(--text2);display:none;
@@ -1127,7 +1174,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
         <div class="two">
           <div class="field">
             <label>Version string</label>
-            <input type="text" id="s-ver" placeholder="v1.0"/>
+            <input type="text" id="s-ver" readonly style="opacity:0.6;cursor:default;background:var(--bg2);" title="Version is set at deploy time — not editable"/>
             <div style="font-size:11px;color:var(--text2);margin-top:4px;">Bump this when deploying (e.g. v1.2 → v1.3) to push updates to iOS.</div>
           </div>
           <div class="field"><label>Your name (tester)</label><input type="text" id="s-tester" placeholder="Name"/></div>
@@ -1266,6 +1313,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
         </div>
       </div>
 
+      <button class="btn btn-outline btn-sm" style="width:auto;margin-bottom:12px;" onclick="checkForAppUpdate()">↻ Check for update</button>
       <button class="btn btn-green" onclick="saveSettings()">Save settings</button>
       <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
         <button class="btn btn-outline btn-sm" onclick="exportCSV()">Export events CSV</button>
@@ -1406,6 +1454,50 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 </div>
 
 <script>
+// ─── APP UPDATE BANNER ────────────────────────────────────────────────────────
+
+function showUpdateBanner(){
+  const banner = document.getElementById('update-banner');
+  if(banner) banner.style.display = 'block';
+}
+
+
+function checkForAppUpdate(){
+  if(!('serviceWorker' in navigator)){
+    alert('Service worker not supported in this browser.');
+    return;
+  }
+  const btn = event.target;
+  btn.textContent = 'Checking…';
+  btn.disabled = true;
+  navigator.serviceWorker.getRegistration('/').then(reg=>{
+    if(!reg){ btn.textContent='↻ Check for update'; btn.disabled=false; return; }
+    reg.update().then(()=>{
+      // If a worker is already waiting, show banner immediately
+      if(reg.waiting && navigator.serviceWorker.controller){
+        window._pendingUpdateWorker = reg.waiting;
+        showUpdateBanner();
+        btn.textContent='Update ready — see banner above';
+      } else {
+        btn.textContent='✓ Up to date';
+        setTimeout(()=>{ btn.textContent='↻ Check for update'; btn.disabled=false; }, 3000);
+      }
+    }).catch(()=>{ btn.textContent='↻ Check for update'; btn.disabled=false; });
+  });
+}
+
+function applyAppUpdate(){
+  // Tell the waiting SW to take over — controllerchange will trigger reload
+  if(window._pendingUpdateWorker){
+    window._pendingUpdateWorker.postMessage('SKIP_WAITING');
+  } else {
+    // Fallback: hard reload bypassing cache
+    window.location.reload(true);
+  }
+}
+
+// ─── END APP UPDATE BANNER ───────────────────────────────────────────────────
+
 // ─── DATA ─────────────────────────────────────────────────────────────────────
 let S = JSON.parse(localStorage.getItem('gthy')||'{}');
 if(!S.pastures)S.pastures=[];
@@ -3143,19 +3235,35 @@ function updateRecoveryPreview(){
   const maxVal = parseInt(document.getElementById('w-rec-max')?.value)||null;
   const prev = document.getElementById('w-recovery-preview');
   if(!prev) return;
-  if(!minVal && !maxVal){ prev.style.display='none'; return; }
+  if(!minVal && !maxVal){
+    prev.style.display='none';
+    const minD = document.getElementById('w-rec-min-date');
+    const maxD = document.getElementById('w-rec-max-date');
+    if(minD) minD.textContent='';
+    if(maxD) maxD.textContent='';
+    return;
+  }
   const outDate = document.getElementById('w-out-date')?.value || todayStr();
   const outD = new Date(outDate+'T12:00:00');
+  const fmt  = d => d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
   const parts = [];
   if(minVal){
     const minRet = new Date(outD); minRet.setDate(minRet.getDate()+minVal);
-    parts.push('Earliest return: <strong>'+minRet.toLocaleDateString('en-US',{month:'short',day:'numeric'})+'</strong> ('+minVal+'d)');
+    parts.push('<div style="display:flex;justify-content:space-between;padding:3px 0;">' +
+      '<span style="color:var(--text2);">Earliest return <span style="font-weight:500;">('+minVal+'d)</span></span>' +
+      '<strong style="color:var(--green-d);">'+fmt(minRet)+'</strong></div>');
+    const minD = document.getElementById('w-rec-min-date');
+    if(minD) minD.textContent = fmt(minRet);
   }
   if(maxVal){
     const maxRet = new Date(outD); maxRet.setDate(maxRet.getDate()+maxVal);
-    parts.push('Window closes: <strong>'+maxRet.toLocaleDateString('en-US',{month:'short',day:'numeric'})+'</strong> ('+maxVal+'d)');
+    parts.push('<div style="display:flex;justify-content:space-between;padding:3px 0;">' +
+      '<span style="color:var(--text2);">Window closes <span style="font-weight:500;">('+maxVal+'d)</span></span>' +
+      '<strong style="color:var(--amber-d);">'+fmt(maxRet)+'</strong></div>');
+    const maxD = document.getElementById('w-rec-max-date');
+    if(maxD) maxD.textContent = fmt(maxRet);
   }
-  prev.innerHTML = parts.join(' &nbsp;·&nbsp; ');
+  prev.innerHTML = parts.join('');
   prev.style.display = 'block';
 }
 
@@ -3652,17 +3760,27 @@ function switchEventsView(view){
 
 // Rating color: 1=red, 5-6=amber, 8-10=deep green
 function surveyRatingColor(r){
-  if(!r) return 'var(--bg2)';
-  if(r<=3) return '#E24B4A';
-  if(r<=5) return '#BA7517';
-  if(r<=7) return '#639922';
+  if(r==null||r==='') return 'var(--text2)';
+  if(r<=25) return '#E24B4A';
+  if(r<=50) return '#BA7517';
+  if(r<=75) return '#639922';
   return '#3B6D11';
 }
+function surveyRatingLabel(r){
+  if(r==null||r==='') return '—';
+  if(r<=15)  return 'Bare / overgrazed';
+  if(r<=30)  return 'Very poor';
+  if(r<=45)  return 'Poor';
+  if(r<=60)  return 'Fair';
+  if(r<=75)  return 'Good';
+  if(r<=90)  return 'Very good';
+  return 'Excellent';
+}
 function surveyRatingBg(r){
-  if(!r) return 'var(--bg2)';
-  if(r<=3) return 'var(--red-l)';
-  if(r<=5) return 'var(--amber-l)';
-  if(r<=7) return 'var(--green-l)';
+  if(r==null||r==='') return 'var(--bg2)';
+  if(r<=25) return 'var(--red-l)';
+  if(r<=50) return 'var(--amber-l)';
+  if(r<=75) return 'var(--green-l)';
   return '#C2E0A0';
 }
 
@@ -3748,15 +3866,24 @@ function renderSurveyPaddocks(){
       ? Math.round((new Date(todayStr()+'T12:00:00')-new Date(lastEv.dateOut+'T12:00:00'))/86400000)
       : null;
 
-    // Rating buttons
-    const ratingBtns = [1,2,3,4,5,6,7,8,9,10].map(n=>{
-      const selected = surveyRatings[p.id]===n;
-      const color = surveyRatingColor(n);
-      return `<button onclick="setSurveyRating('${p.id}','${p.name}',${n})"
-        style="width:34px;height:34px;border-radius:8px;border:2px solid ${selected?color:'var(--border2)'};
-               background:${selected?color:'var(--bg2)'};color:${selected?'white':'var(--text2)'};
-               font-size:13px;font-weight:${selected?'700':'400'};cursor:pointer;flex-shrink:0;">${n}</button>`;
-    }).join('');
+    // Rating slider + number (0-100)
+    const curRatingSingle = surveyRatings[p.id]??null;
+    const ratingBtns = `
+      <div style="display:flex;align-items:center;gap:10px;">
+        <input type="range" id="survey-slider-${p.id}" min="0" max="100" step="1"
+          value="${curRatingSingle??50}"
+          oninput="setSurveyRating('${p.id}','${p.name}',this.value)"
+          style="flex:1;accent-color:${surveyRatingColor(curRatingSingle??50)};cursor:pointer;height:20px;"/>
+        <input type="number" id="survey-num-${p.id}" min="0" max="100" step="1"
+          value="${curRatingSingle??''}"
+          placeholder="0–100"
+          oninput="setSurveyRating('${p.id}','${p.name}',this.value)"
+          style="width:68px;padding:6px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);
+                 font-size:16px;font-weight:700;text-align:center;background:var(--bg);color:var(--text);font-family:inherit;"/>
+      </div>
+      <div style="height:8px;border-radius:4px;background:var(--bg2);margin-top:6px;overflow:hidden;">
+        <div id="survey-bar-${p.id}" style="height:100%;width:${curRatingSingle??0}%;background:${surveyRatingColor(curRatingSingle??0)};border-radius:4px;transition:width 0.15s,background 0.15s;"></div>
+      </div>`;
 
     // Recovery values
     const srcMin = lastEv ? lastEv.recoveryMinDays : p.recoveryMinDays;
@@ -3836,15 +3963,23 @@ function renderSurveyPaddocks(){
     const daysSince = lastEv&&lastEv.dateOut ?
       Math.round((new Date(todayStr()+'T12:00:00')-new Date(lastEv.dateOut+'T12:00:00'))/86400000) : null;
 
-    const ratingBtns = [1,2,3,4,5,6,7,8,9,10].map(n=>{
-      const selected = surveyRatings[p.id]===n;
-      const color = surveyRatingColor(n);
-      return `<button onclick="setSurveyRating('${p.id}','${p.name}',${n})"
-        style="width:30px;height:30px;border-radius:6px;border:2px solid ${selected?color:'var(--border2)'};
-               background:${selected?color:'var(--bg2)'};color:${selected?'white':'var(--text2)'};
-               font-size:12px;font-weight:${selected?'700':'400'};cursor:pointer;
-               transition:all 0.1s;flex-shrink:0;">${n}</button>`;
-    }).join('');
+    const curRating = surveyRatings[p.id]??null;
+    const ratingBtns = `
+      <div style="display:flex;align-items:center;gap:10px;">
+        <input type="range" id="survey-slider-${p.id}" min="0" max="100" step="1"
+          value="${curRating??50}"
+          oninput="setSurveyRating('${p.id}','${p.name}',this.value)"
+          style="flex:1;accent-color:${surveyRatingColor(curRating??50)};cursor:pointer;"/>
+        <input type="number" id="survey-num-${p.id}" min="0" max="100" step="1"
+          value="${curRating??''}"
+          placeholder="0-100"
+          oninput="setSurveyRating('${p.id}','${p.name}',this.value)"
+          style="width:60px;padding:5px 6px;border:0.5px solid var(--border2);border-radius:var(--radius);
+                 font-size:14px;font-weight:600;text-align:center;background:var(--bg);color:var(--text);font-family:inherit;"/>
+      </div>
+      <div style="height:6px;border-radius:3px;background:var(--bg2);margin-top:4px;overflow:hidden;">
+        <div id="survey-bar-${p.id}" style="height:100%;width:${curRating??0}%;background:${surveyRatingColor(curRating??0)};border-radius:3px;transition:width 0.15s,background 0.15s;"></div>
+      </div>`;
 
     const activeNote = activeEv
       ? `<span class="badge bt" style="font-size:10px;">Active · Day ${daysBetween(activeEv.dateIn,todayStr())}</span>`
@@ -4002,25 +4137,30 @@ function renderSurveyRecoveryPreview(pastureId){
 }
 
 function setSurveyRating(pastureId, pastureName, rating){
+  // rating = 0-100 integer
+  rating = Math.max(0, Math.min(100, parseInt(rating)||0));
   surveyRatings[pastureId] = rating;
-  // Re-render just the buttons for this pasture (fast, no full re-render)
-  const btnsEl = document.getElementById('rating-btns-'+pastureId);
-  if(btnsEl){
-    btnsEl.querySelectorAll('button').forEach((btn,i)=>{
-      const n = i+1;
-      const selected = n === rating;
-      const color = surveyRatingColor(n);
-      btn.style.border = `2px solid ${selected?color:'var(--border2)'}`;
-      btn.style.background = selected ? color : 'var(--bg2)';
-      btn.style.color = selected ? 'white' : 'var(--text2)';
-      btn.style.fontWeight = selected ? '700' : '400';
-    });
+
+  // Sync slider
+  const slider = document.getElementById('survey-slider-'+pastureId);
+  if(slider && parseInt(slider.value)!==rating) slider.value = rating;
+
+  // Sync number input
+  const numEl = document.getElementById('survey-num-'+pastureId);
+  if(numEl && parseInt(numEl.value)!==rating) numEl.value = rating;
+
+  // Update color bar
+  const barEl = document.getElementById('survey-bar-'+pastureId);
+  if(barEl){
+    barEl.style.width = rating+'%';
+    barEl.style.background = surveyRatingColor(rating);
   }
+
+  // Update label
   const selEl = document.getElementById('survey-selected-'+pastureId);
   if(selEl){
-    const colors=['','#E24B4A','#E24B4A','#E24B4A','#BA7517','#BA7517','#639922','#639922','#3B6D11','#3B6D11','#3B6D11'];
-    const labels=['','Very poor','Poor','Below avg','Fair','Moderate','Good','Very good','Excellent','Outstanding','Perfect'];
-    selEl.innerHTML = `<span style="color:${colors[rating]};font-weight:600;">${rating}/10 — ${labels[rating]}</span>`;
+    const color = surveyRatingColor(rating);
+    selEl.innerHTML = `<span style="color:${color};font-weight:600;">${rating}/100 — ${surveyRatingLabel(rating)}</span>`;
   }
 }
 
@@ -4843,6 +4983,45 @@ function renderEventsLog(){
 
 
 
+
+// ── Recovery date helpers ─────────────────────────────────────────────────────
+function getExpectedGrazeDates(pasture){
+  // Returns {earliest, latest, lastOut} or null
+  const lastEv = lastClosedEventForPasture(pasture.id, pasture.name);
+  const baseDate = lastEv?.dateOut || null;
+  if(!baseDate) return null;
+  const minDays = lastEv.recoveryMinDays || pasture.recoveryMinDays || S.settings.recoveryMinDays || null;
+  const maxDays = lastEv.recoveryMaxDays || pasture.recoveryMaxDays || S.settings.recoveryMaxDays || null;
+  if(!minDays && !maxDays) return null;
+  const base = new Date(baseDate+'T12:00:00');
+  const earliest = minDays ? new Date(base.getTime() + minDays*86400000) : null;
+  const latest   = maxDays ? new Date(base.getTime() + maxDays*86400000) : null;
+  return { earliest, latest, lastOut: base, minDays, maxDays };
+}
+
+function recoveryDateLine(pasture, inline=false){
+  const r = getExpectedGrazeDates(pasture);
+  if(!r) return '';
+  const fmt = d => d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  const today = new Date(todayStr()+'T12:00:00');
+  const daysRested = Math.round((today - r.lastOut)/86400000);
+  let status='', statusColor='var(--text2)';
+  if(r.latest && today > r.latest){ status='⚠ window closing'; statusColor='var(--amber-d)'; }
+  else if(r.earliest && today >= r.earliest){ status='✓ ready'; statusColor='var(--green-d)'; }
+  else if(r.earliest){ const d=Math.round((r.earliest-today)/86400000); status=d+'d until ready'; }
+  const minStr = r.earliest ? `${r.minDays}d → <strong>${fmt(r.earliest)}</strong>` : '';
+  const maxStr = r.latest   ? `${r.maxDays}d → <strong>${fmt(r.latest)}</strong>`   : '';
+  if(inline){
+    return `<span style="font-size:11px;color:var(--text2);">↻ ${[minStr,maxStr].filter(Boolean).join(' – ')}</span>`+
+      (status?` <span style="font-size:11px;color:${statusColor};font-weight:600;">${status}</span>`:'');
+  }
+  return `<div style="font-size:11px;color:var(--text2);margin-top:3px;">` +
+    `↻ Recovery: ${[minStr,maxStr].filter(Boolean).join(' – ')}` +
+    (status?` &nbsp;<span style="color:${statusColor};font-weight:600;">${status}</span>`:'') +
+    `</div>`;
+}
+// ─── END RECOVERY DATE HELPERS ────────────────────────────────────────────────
+
 function renderPastures(){
   renderInputApplicationsList();
   const el=document.getElementById('pasture-list');
@@ -4879,11 +5058,21 @@ function renderPastures(){
       const ba=be.length?Math.round(be.reduce((s,e)=>s+(e.totals?e.totals.pct||0:0),0)/be.length):0;
       return pastureSortDir*(aa-ba);
     }
+    if(pastureSortCol==='graze'){
+      const ar=getExpectedGrazeDates(a); const br=getExpectedGrazeDates(b);
+      const at=ar?.earliest?.getTime()??Infinity;
+      const bt=br?.earliest?.getTime()??Infinity;
+      return pastureSortDir*(at-bt);
+    }
+    if(pastureSortCol==='survey'){
+      const al=latestSurveyRating(a.id,a.name); const bl=latestSurveyRating(b.id,b.name);
+      return pastureSortDir*((al?.rating??-1)-(bl?.rating??-1));
+    }
     return 0;
   });
   el.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0 6px;border-bottom:0.5px solid var(--border);font-size:11px;margin-bottom:6px;">
     <div>${pastureSortHdr('name','Name')} · ${pastureSortHdr('acres','Acres')}</div>
-    <div>${pastureSortHdr('avg','Avg %')}</div>
+    <div>${pastureSortHdr('graze','Exp. Graze')} · ${pastureSortHdr('survey','Survey')} · ${pastureSortHdr('avg','Avg %')}</div>
   </div>` + sortedPastureList.map((p)=>{ const i=S.pastures.indexOf(p);
     if(p.archived) return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:0.5px solid var(--border);opacity:0.45;">
       <div><div style="font-size:13px;font-weight:500;">${p.name} <span class="badge bb">archived</span></div><div style="font-size:11px;color:var(--text2);">${p.acres||0} ac</div></div>
@@ -4919,7 +5108,7 @@ function renderPastures(){
       const remLbs=batches.reduce((s,b)=>s+getBatchRemaining(b),0);
       if(remLbs>0){const vol=volLbsToDisplay(remLbs);manureLine=`<div style="font-size:11px;color:var(--amber-d);margin-top:3px;">~${vol.val} ${vol.unit} in storage</div>`;}
     }
-    return `<div class="chip"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><div style="font-size:14px;font-weight:600;">${p.name} ${isActive?'<span class="badge bt">active</span>':''} ${isCon?'<span class="badge bb">confinement</span>':''}</div><div style="font-size:12px;color:var(--text2);margin-top:2px;">${detail}</div>${npkLine}${manureLine}</div><div style="display:flex;gap:6px;align-items:center;">${typeBadge}${avg!==null?`<span class="badge ${avg>=60?'bg':'ba'}">${avg}% avg</span>`:''} ${openTasks?`<span class="badge ba">${openTasks} task${openTasks!==1?'s':''}</span>`:''}${(()=>{const lr=latestSurveyRating(p.id,p.name);return lr?`<span style="font-size:11px;font-weight:700;color:${surveyRatingColor(lr.rating)};background:${surveyRatingBg(lr.rating)};padding:2px 7px;border-radius:10px;" title="Survey ${dLabel(lr.date)}">${lr.rating}/10</span>`:'';})()}<button class="btn btn-outline btn-xs" onclick="openLocEdit(${i})">Edit</button><button class="btn btn-outline btn-xs" onclick="openSurveySheet('${p.id}')">📋 Survey</button><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:20px;padding:2px 6px;" onclick="tryDeletePasture(${i})">×</button></div></div></div>`;
+    return `<div class="chip"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><div style="font-size:14px;font-weight:600;">${p.name} ${isActive?'<span class="badge bt">active</span>':''} ${isCon?'<span class="badge bb">confinement</span>':''}</div><div style="font-size:12px;color:var(--text2);margin-top:2px;">${detail}</div>${npkLine}${manureLine}${(()=>{return !isCon?recoveryDateLine(p,true):'';})()}</div><div style="display:flex;gap:6px;align-items:center;">${typeBadge}${avg!==null?`<span class="badge ${avg>=60?'bg':'ba'}">${avg}% avg</span>`:''} ${openTasks?`<span class="badge ba">${openTasks} task${openTasks!==1?'s':''}</span>`:''}${(()=>{const lr=latestSurveyRating(p.id,p.name);return lr?`<span style="font-size:11px;font-weight:700;color:${surveyRatingColor(lr.rating)};background:${surveyRatingBg(lr.rating)};padding:2px 7px;border-radius:10px;" title="Survey ${dLabel(lr.date)}">${lr.rating}</span>`:'';})()}<button class="btn btn-outline btn-xs" onclick="openLocEdit(${i})">Edit</button><button class="btn btn-outline btn-xs" onclick="openSurveySheet('${p.id}')">📋 Survey</button><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:20px;padding:2px 6px;" onclick="tryDeletePasture(${i})">×</button></div></div></div>`;
   }).join('');
 }
 
@@ -4933,7 +5122,7 @@ function saveSettings(){
   const checkedStats=[];
   document.querySelectorAll('.stat-metric-cb:checked').forEach(cb=>checkedStats.push(cb.value));
   if(checkedStats.length)S.settings.homeStats=checkedStats;
-  S.version=document.getElementById('s-ver').value||'v1.0';
+  // S.version no longer stored in data — version is baked into HTML
   S.testerName=document.getElementById('s-tester').value||'';
   // AU weight + thresholds
   const auWtEl=document.getElementById('s-au-weight');
@@ -4967,7 +5156,7 @@ function loadSettings(){
   if(st.manureVolumeRate&&document.getElementById('s-manure-rate'))document.getElementById('s-manure-rate').value=st.manureVolumeRate;
   if(st.manureLoadLbs&&document.getElementById('s-load-lbs'))document.getElementById('s-load-lbs').value=st.manureLoadLbs;
   if(st.manureVolumeUnit&&document.getElementById('s-vol-unit'))document.getElementById('s-vol-unit').value=st.manureVolumeUnit;
-  document.getElementById('s-ver').value=S.version||'b20260320.0904';document.getElementById('s-tester').value=S.testerName||'';
+  document.getElementById('s-ver').value=document.getElementById('app-version-meta')?.getAttribute('content')||'';document.getElementById('s-tester').value=S.testerName||'';
   // Stat settings
   const spEl=document.getElementById('s-stat-period');
   if(spEl)spEl.value=S.settings.homeStatPeriod||'7d';
@@ -5075,11 +5264,10 @@ function updateHeader(){
     sub='Set up your operation in Settings';
   }
   document.getElementById('hdr-sub').textContent=sub;
+  // Version always comes from the baked-in HTML meta tag — never from S.version
+  const _appVer = document.getElementById('app-version-meta')?.getAttribute('content') || '';
   const _vTag=document.getElementById('ver-tag');
-  if(_vTag)_vTag.textContent=S.version||'b20260320.0904';
-  // Keep meta tag in sync so SW registration uses the right version
-  const _vMeta=document.getElementById('app-version-meta');
-  if(_vMeta&&S.version)_vMeta.setAttribute('content',S.version);
+  if(_vTag)_vTag.textContent=_appVer;
   syncSidebarOpName();
 }
 
@@ -5098,7 +5286,7 @@ function saveFeedbackItem(){
   const note=document.getElementById('fb-note').value.trim();
   if(!note){document.getElementById('fb-note').style.borderColor='var(--red)';setTimeout(()=>document.getElementById('fb-note').style.borderColor='',1500);return;}
   const ae=getActive();
-  S.feedback.push({id:Date.now(),cat:selCatVal||'idea',note,tester:S.testerName||(getActiveUser()?getActiveUser().name:'anonymous'),version:S.version||'b20260320.0904',status:'open',ctx:{screen:curScreen,activeEvent:ae?{pasture:ae.pasture,day:daysBetween(ae.dateIn,todayStr())}:null},ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:null});
+  S.feedback.push({id:Date.now(),cat:selCatVal||'idea',note,tester:S.testerName||(getActiveUser()?getActiveUser().name:'anonymous'),version:S.version||'b20260320.0946',status:'open',ctx:{screen:curScreen,activeEvent:ae?{pasture:ae.pasture,day:daysBetween(ae.dateIn,todayStr())}:null},ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:null});
   save();closeFeedbackSheet();updateFeedbackBadge();if(curScreen==='feedback')renderFeedbackTab();
 }
 function renderFeedbackTab(){renderConfirmSection();renderFeedbackStats();renderFeedbackList();}
@@ -5114,12 +5302,12 @@ function confirmFixed(id){const f=S.feedback.find(x=>x.id===id);if(!f)return;f.s
 function reopenIssue(id){
   const orig=S.feedback.find(x=>x.id===id);if(!orig)return;
   orig.status='closed';orig.confirmedBy=S.testerName||'anonymous';orig.confirmedAt=new Date().toISOString();
-  S.feedback.push({id:Date.now(),cat:orig.cat,note:`[Regression] ${orig.note}`,tester:S.testerName||'anonymous',version:S.version||'b20260320.0904',status:'open',ctx:orig.ctx,ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:orig.id});
+  S.feedback.push({id:Date.now(),cat:orig.cat,note:`[Regression] ${orig.note}`,tester:S.testerName||'anonymous',version:S.version||'b20260320.0946',status:'open',ctx:orig.ctx,ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:orig.id});
   save();renderFeedbackTab();updateFeedbackBadge();
 }
 function openResolveSheet(id){
   document.getElementById('resolve-id').value=id;document.getElementById('resolve-note').value='';
-  document.getElementById('resolve-ver-label').textContent=S.version||'b20260320.0904';
+  document.getElementById('resolve-ver-label').textContent=S.version||'b20260320.0946';
   document.getElementById('resolve-sheet-wrap').classList.add('open');setTimeout(()=>document.getElementById('resolve-note').focus(),300);
 }
 function closeResolveSheet(){document.getElementById('resolve-sheet-wrap').classList.remove('open');}
@@ -5127,7 +5315,7 @@ function saveResolve(){
   const id=parseInt(document.getElementById('resolve-id').value);const note=document.getElementById('resolve-note').value.trim();
   if(!note){alert('Describe what was changed');return;}
   const f=S.feedback.find(x=>x.id===id);if(!f)return;
-  f.status='resolved';f.resolutionNote=note;f.resolvedInVersion=S.version||'b20260320.0904';f.resolvedAt=new Date().toISOString();
+  f.status='resolved';f.resolutionNote=note;f.resolvedInVersion=S.version||'b20260320.0946';f.resolvedAt=new Date().toISOString();
   save();closeResolveSheet();renderFeedbackTab();updateFeedbackBadge();
 }
 function renderFeedbackStats(){
@@ -5160,7 +5348,7 @@ function generateBrief(){
   const testers=[...new Set(S.feedback.map(f=>f.tester).filter(t=>t&&t!=='anonymous'))];
   const open=S.feedback.filter(f=>f.status==='open');const resolved=S.feedback.filter(f=>f.status==='resolved');const closed=S.feedback.filter(f=>f.status==='closed');
   const catOrder=['bug','calc','ux','feature','idea'];
-  let b=`GET THE HAY OUT — DEV SESSION BRIEF\nGenerated: ${now}\nVersion: ${S.version||'b20260320.0904'}\nTesters: ${testers.length?testers.join(', '):'anonymous'}\nOpen: ${open.length} · Awaiting: ${resolved.length} · Closed: ${closed.length}\n${'═'.repeat(52)}\n`;
+  let b=`GET THE HAY OUT — DEV SESSION BRIEF\nGenerated: ${now}\nVersion: ${S.version||'b20260320.0946'}\nTesters: ${testers.length?testers.join(', '):'anonymous'}\nOpen: ${open.length} · Awaiting: ${resolved.length} · Closed: ${closed.length}\n${'═'.repeat(52)}\n`;
   if(open.length){b+=`\nOPEN ITEMS (${open.length})\n${'─'.repeat(52)}\n`;catOrder.forEach(cat=>{const items=open.filter(f=>f.cat===cat);if(!items.length)return;b+=`\n[${(CAT[cat]||CAT.idea).label.toUpperCase()}]\n`;items.forEach((f,i)=>{const d=new Date(f.ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});const ctx=f.ctx.activeEvent?`screen:${f.ctx.screen} event:${f.ctx.activeEvent.pasture} day${f.ctx.activeEvent.day}`:`screen:${f.ctx.screen}`;b+=`${i+1}. ${f.note}\n   [${ctx}] — ${f.tester}, ${f.version||'?'}, ${d}${f.linkedTo?' ⚠ regression':''}\n`;});});}
   if(resolved.length){b+=`\n${'═'.repeat(52)}\nAWAITING CONFIRMATION (${resolved.length})\n${'─'.repeat(52)}\n`;resolved.forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fix in ${f.resolvedInVersion}: ${f.resolutionNote}\n`;});}
   if(closed.length){b+=`\n${'═'.repeat(52)}\nCLOSED (last 10)\n${'─'.repeat(52)}\n`;closed.slice(-10).forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fixed in ${f.resolvedInVersion||'?'}: ${f.resolutionNote||'—'}. Confirmed: ${f.confirmedBy||'?'}\n`;});}
@@ -8100,7 +8288,7 @@ function closeResetSheet(){
 async function executeReset(){
   if(document.getElementById('reset-confirm-input').value!=='YES')return;
   const mode=document.getElementById('reset-confirm-btn').dataset.mode||'all';
-  const ver=S.version||'b20260320.0904';
+  const ver=S.version||'b20260320.0946';
   if(mode==='events'){
     // Events-only reset — preserve setup data
     S.events=[];
@@ -9149,6 +9337,12 @@ function openAnimalMoveSheet(mode){
     });
   }
 
+  // Default date to today, time to now
+  const _amNow = new Date();
+  document.getElementById('am-date').value = todayStr();
+  document.getElementById('am-time').value =
+    String(_amNow.getHours()).padStart(2,'0')+':'+String(_amNow.getMinutes()).padStart(2,'0');
+
   document.getElementById('animal-move-wrap').classList.add('open');
 }
 function closeAnimalMoveSheet(){document.getElementById('animal-move-wrap').classList.remove('open');}
@@ -9164,47 +9358,77 @@ function saveAnimalMove(){
   const ids = [...animalScreenSelected];
   if(!ids.length) return;
 
+  const moveDate = document.getElementById('am-date').value || todayStr();
+  const moveTime = document.getElementById('am-time').value || null;
+
+  // Helper: log a group-change note on each animal's health record
+  function logGroupChange(animalId, fromGroupName, toGroupName){
+    const a = getAnimalById(animalId);
+    if(!a) return;
+    ensureAnimalHealthEvents(a);
+    a.healthEvents.push({
+      id:        Date.now() + animalId,
+      type:      'note',
+      date:      moveDate,
+      time:      moveTime,
+      text:      'Group change: ' + (fromGroupName ? fromGroupName + ' → ' : '') + toGroupName,
+      createdAt: new Date().toISOString(),
+      _groupChange: true,  // flag for filtering if needed
+    });
+  }
+
   if(animalMoveMode === 'existing'){
     const targetId = parseInt(document.getElementById('am-group-select').value);
     if(!targetId){alert('Select a group');return;}
     const targetGrp = S.animalGroups.find(g=>g.id===targetId);
     if(!targetGrp){alert('Group not found');return;}
-    // Remove from current groups
+
     ids.forEach(id=>{
+      const fromGrp = getAnimalGroup(id);
+      const fromName = fromGrp ? fromGrp.name : null;
+      // Remove from current group
       S.animalGroups.forEach(g=>{
         if((g.animalIds||[]).includes(id)) g.animalIds = g.animalIds.filter(x=>x!==id);
       });
+      // Log the change
+      logGroupChange(id, fromName, targetGrp.name);
     });
     // Add to target
     if(!targetGrp.animalIds) targetGrp.animalIds = [];
     ids.forEach(id=>{ if(!targetGrp.animalIds.includes(id)) targetGrp.animalIds.push(id); });
+
     save();
     closeAnimalMoveSheet();
     clearAnimalSelection();
     renderAnimalsScreen();
     renderGroupsList();
     renderHome();
-    alert(`${ids.length} animal${ids.length!==1?'s':''} moved to ${targetGrp.name}.`);
+    showSurveyToast(`${ids.length} animal${ids.length!==1?'s':''} moved to ${targetGrp.name}`);
 
   } else {
     // New group
     const name = document.getElementById('am-new-name').value.trim();
     if(!name){alert('Enter a name for the new group');return;}
-    // Remove from current groups
+
     ids.forEach(id=>{
+      const fromGrp = getAnimalGroup(id);
+      const fromName = fromGrp ? fromGrp.name : null;
       S.animalGroups.forEach(g=>{
         if((g.animalIds||[]).includes(id)) g.animalIds = g.animalIds.filter(x=>x!==id);
       });
+      logGroupChange(id, fromName, name);
     });
+
     const newId = Date.now();
     S.animalGroups.push({id:newId, archived:false, name, color:amNewColor, animalIds:[...ids]});
+
     save();
     closeAnimalMoveSheet();
     clearAnimalSelection();
     renderAnimalsScreen();
     renderGroupsList();
     renderHome();
-    alert(`New group "${name}" created with ${ids.length} animal${ids.length!==1?'s':''}.`);
+    showSurveyToast(`New group "${name}" created with ${ids.length} animal${ids.length!==1?'s':''}`);
   }
 }
 
@@ -11120,6 +11344,21 @@ detectMode(); // must run last — reads DOM
     <div style="font-size:13px;font-weight:600;margin-bottom:2px;" id="am-animal-count"></div>
     <div style="font-size:12px;color:var(--text2);margin-bottom:14px;" id="am-animal-list"></div>
 
+    <!-- Date + time — shared by both modes -->
+    <div class="two" style="margin-bottom:12px;">
+      <div class="field">
+        <label>Date</label>
+        <input type="date" id="am-date"/>
+      </div>
+      <div class="field">
+        <label>Time <span style="font-size:10px;color:var(--text2);">optional</span></label>
+        <input type="time" id="am-time"/>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:12px;">
+      Defaults to now — adjust if recording a past move.
+    </div>
+
     <!-- Move to existing group -->
     <div id="am-existing-section">
       <div class="field"><label>Move to group</label>
@@ -11203,19 +11442,25 @@ if ('serviceWorker' in navigator) {
           }
         });
 
-        // When a new SW is waiting to activate, reload to pick it up
-        // This fires after the new SW has installed and is ready
+        // When a new SW finishes installing, show the update banner
+        // instead of auto-reloading — let the user back up first
         reg.addEventListener('updatefound', () => {
           const newWorker = reg.installing;
           if (!newWorker) return;
           newWorker.addEventListener('statechange', () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              // New version available — tell the SW to take over, then reload
-              console.log('[GTHY] New version available — reloading');
-              newWorker.postMessage('SKIP_WAITING');
+              console.log('[GTHY] New version ready — showing update banner');
+              window._pendingUpdateWorker = newWorker;
+              showUpdateBanner();
             }
           });
         });
+
+        // Also check if a SW is already waiting when page loads (e.g. tab was backgrounded)
+        if (reg.waiting && navigator.serviceWorker.controller) {
+          window._pendingUpdateWorker = reg.waiting;
+          showUpdateBanner();
+        }
       })
       .catch(err => console.warn('[GTHY] SW registration failed:', err));
 
