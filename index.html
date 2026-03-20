@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260320.1034" id="app-version-meta"/>
+<meta name="app-version" content="b20260320.1035" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -735,7 +735,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
                 <div class="sec" style="margin:0;">Estimated recovery window</div>
                 <span id="w-recovery-badge" class="badge bb" style="font-size:10px;"></span>
               </div>
-              <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.5;">
+              <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.5;" id="w-recovery-label">
                 How many days before this paddock is ready to graze again?
               </div>
               <div class="two">
@@ -808,6 +808,15 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
           <div class="div"></div>
           <div class="sec" style="margin-bottom:6px;">Initial feeding (optional)</div>
           <div id="w-feed-sel"></div><div id="w-feed-lines"></div>
+          <div class="div"></div>
+          <!-- 100% stored feed flag -->
+          <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;">
+            <input type="checkbox" id="w-no-pasture" style="width:18px;height:18px;accent-color:var(--amber);flex-shrink:0;margin-top:2px;">
+            <div>
+              <div style="font-size:13px;font-weight:500;">100% stored feed (no pasture available)</div>
+              <div style="font-size:11px;color:var(--text2);">Bale grazing, drought feeding, winter lot — pasture DMI set to zero</div>
+            </div>
+          </div>
           <div class="div"></div>
           <!-- Tasks on destination paddock -->
           <div id="w-dest-tasks" style="display:none;">
@@ -1022,7 +1031,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
         <div style="font-size:13px;color:var(--text2);margin-bottom:12px;">Export all farm data as a JSON backup. Import on another device or restore from backup.</div>
         <div class="btn-row">
           <button class="btn btn-outline" onclick="exportDataJSON()">Export backup</button>
-          <button class="btn btn-outline" onclick="triggerImport()">Restore backup</button>
+          <button class="btn btn-outline" onclick="triggerImport()">Import backup</button>
         </div>
         <div class="div"></div>
         <div style="font-size:13px;font-weight:600;margin-bottom:6px;">Historical events</div>
@@ -2037,24 +2046,36 @@ function importDataJSON(event){
     try{
       const imported=JSON.parse(e.target.result);
       if(!imported.herd&&!imported.events&&!imported.pastures)throw new Error('Not a Get The Hay Out backup file');
-      if(!confirm(`Restore backup from ${file.name}?\n\nThis will REPLACE all current data with the backup. This cannot be undone.`))return;
-      S=JSON.parse(JSON.stringify(imported)); // full replacement — no merge
+      if(!confirm(`Import backup from ${file.name}? Will merge with existing data.`))return;
+      S=mergeData(S,imported);
+      // Union-merge setup arrays: mergeData picks one side wholesale based on
+      // setupUpdatedAt — we need to explicitly add any imported items not in the result
+      ['pastures','feedTypes','animalClasses','inputProducts','animalGroups'].forEach(key=>{
+        const importedItems = imported[key]||[];
+        if(!importedItems.length) return;
+        const existing = S[key]||[];
+        // Use name as key for setup arrays (id may not exist on imported items)
+        const nameKey = key==='pastures'?'name':key==='feedTypes'?'name':'name';
+        const existingNames = new Set(existing.map(x=>x[nameKey]||x.id));
+        let added = 0;
+        importedItems.forEach(item=>{
+          const k = item[nameKey]||item.id;
+          if(k && !existingNames.has(k)){
+            existing.push(item);
+            existingNames.add(k);
+            added++;
+          }
+        });
+        S[key] = existing;
+      });
+      stampSetup(); // advance timestamp so this merged result wins on next sync
       migrateSystemIds();
       migrateToPaddocksField();
       ensureDataArrays();
-      // Cancel any pending Drive sync so it cannot re-merge old remote data back over the restore
-      if(syncTimer){clearTimeout(syncTimer);syncTimer=null;}
-      if(syncRetryTimer){clearTimeout(syncRetryTimer);syncRetryTimer=null;}
-      saveLocal();
-      // If Drive is connected, force-write the restored data directly — bypass fetch+merge
-      if(driveState.connected&&driveState.accessToken){
-        driveWriteFile(JSON.stringify(S,null,2))
-          .then(()=>{driveState.lastSync=new Date().toISOString();driveState.lastSyncOk=true;saveDriveState();setSyncStatus('ok','Restored & synced to Drive');})
-          .catch(()=>{setSyncStatus('warn','Restored locally — Drive write failed, sync manually');});
-      }
+      save();
       renderCurrentScreen();
       const el=document.getElementById('import-status');el.style.display='block';
-      el.textContent='Restore successful — data rolled back to backup from '+file.name;
+      el.textContent='Import successful — '+(imported.events||[]).length+' events, '+(imported.pastures||[]).length+' paddocks merged.';
       setTimeout(()=>{el.style.display='none';},5000);
     }catch(err){alert('Import failed: '+err.message);}
     event.target.value='';
@@ -3145,6 +3166,11 @@ function initWizFromGroup(){
     document.getElementById('ws0-banner').innerHTML=`<div style="font-size:14px;font-weight:600;color:var(--amber-d);">Closing: ${evDisplayName(ae)}${g?' ('+g.name+')':''}</div><div style="font-size:12px;color:var(--amber-d);opacity:0.85;margin-top:2px;">In ${dLabel(ae.dateIn)} · ${daysBetween(ae.dateIn,todayStr())} days · ${(ae.feedEntries||[]).length} feedings</div>`;
     if(ae.heightIn)document.getElementById('w-pregraze-disp').value=ae.heightIn;
     showPaddockTasksInWiz(evPrimaryPaddock(ae).pastureName,'w-paddock-tasks','w-paddock-tasks-list');
+    // Update recovery label with the actual paddock name(s)
+    const paddockNames = (ae.paddocks||[]).map(p=>p.pastureName).filter(Boolean);
+    const paddockLabel = paddockNames.length ? paddockNames.join(' + ') : (ae.pasture||'this paddock');
+    const recLabel = document.getElementById('w-recovery-label');
+    if(recLabel) recLabel.textContent = `How many days before ${paddockLabel} will be ready to graze again?`;
   }
   const _wout=document.getElementById('w-out-date');if(_wout)_wout.value=todayStr();
   const _win=document.getElementById('w-in-date');if(_win)_win.value=todayStr();
