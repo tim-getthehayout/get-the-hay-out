@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260320.1033" id="app-version-meta"/>
+<meta name="app-version" content="b20260320.1034" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -2042,7 +2042,16 @@ function importDataJSON(event){
       migrateSystemIds();
       migrateToPaddocksField();
       ensureDataArrays();
-      save();
+      // Cancel any pending Drive sync so it cannot re-merge old remote data back over the restore
+      if(syncTimer){clearTimeout(syncTimer);syncTimer=null;}
+      if(syncRetryTimer){clearTimeout(syncRetryTimer);syncRetryTimer=null;}
+      saveLocal();
+      // If Drive is connected, force-write the restored data directly — bypass fetch+merge
+      if(driveState.connected&&driveState.accessToken){
+        driveWriteFile(JSON.stringify(S,null,2))
+          .then(()=>{driveState.lastSync=new Date().toISOString();driveState.lastSyncOk=true;saveDriveState();setSyncStatus('ok','Restored & synced to Drive');})
+          .catch(()=>{setSyncStatus('warn','Restored locally — Drive write failed, sync manually');});
+      }
       renderCurrentScreen();
       const el=document.getElementById('import-status');el.style.display='block';
       el.textContent='Restore successful — data rolled back to backup from '+file.name;
