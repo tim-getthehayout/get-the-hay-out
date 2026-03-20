@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260320.0956" id="app-version-meta"/>
+<meta name="app-version" content="b20260320.1002" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -1313,7 +1313,10 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
         </div>
       </div>
 
-      <button class="btn btn-outline btn-sm" style="width:auto;margin-bottom:12px;" onclick="checkForAppUpdate()">↻ Check for update</button>
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+        <button class="btn btn-outline btn-sm" style="width:auto;" onclick="checkForAppUpdate()" id="check-update-btn">↻ Check for update</button>
+        <button class="btn btn-green btn-sm" style="width:auto;display:none;" id="apply-update-btn" onclick="applyAppUpdate()">↻ Update now</button>
+      </div>
       <button class="btn btn-green" onclick="saveSettings()">Save settings</button>
       <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
         <button class="btn btn-outline btn-sm" onclick="exportCSV()">Export events CSV</button>
@@ -1467,32 +1470,49 @@ function checkForAppUpdate(){
     alert('Service worker not supported in this browser.');
     return;
   }
-  const btn = event.target;
-  btn.textContent = 'Checking…';
-  btn.disabled = true;
+  const btn = document.getElementById('check-update-btn') || event?.target;
+  const applyBtn = document.getElementById('apply-update-btn');
+  if(btn){ btn.textContent = 'Checking…'; btn.disabled = true; }
   navigator.serviceWorker.getRegistration('/').then(reg=>{
-    if(!reg){ btn.textContent='↻ Check for update'; btn.disabled=false; return; }
+    if(!reg){
+      if(btn){ btn.textContent='↻ Check for update'; btn.disabled=false; }
+      return;
+    }
+    window._swRegistration = reg;
     reg.update().then(()=>{
-      // If a worker is already waiting, show banner immediately
       if(reg.waiting && navigator.serviceWorker.controller){
         window._pendingUpdateWorker = reg.waiting;
         showUpdateBanner();
-        btn.textContent='Update ready — see banner above';
+        if(btn){ btn.textContent='Update ready ↑'; btn.disabled=false; }
+        if(applyBtn) applyBtn.style.display='inline-block';
       } else {
-        btn.textContent='✓ Up to date';
-        setTimeout(()=>{ btn.textContent='↻ Check for update'; btn.disabled=false; }, 3000);
+        if(btn){ btn.textContent='✓ Up to date'; }
+        if(applyBtn) applyBtn.style.display='none';
+        setTimeout(()=>{
+          if(btn){ btn.textContent='↻ Check for update'; btn.disabled=false; }
+        }, 3000);
       }
-    }).catch(()=>{ btn.textContent='↻ Check for update'; btn.disabled=false; });
+    }).catch(()=>{
+      if(btn){ btn.textContent='↻ Check for update'; btn.disabled=false; }
+    });
   });
 }
 
 function applyAppUpdate(){
-  // Tell the waiting SW to take over — controllerchange will trigger reload
-  if(window._pendingUpdateWorker){
-    window._pendingUpdateWorker.postMessage('SKIP_WAITING');
+  // Re-query the waiting worker at click time in case the reference was stale
+  const worker =
+    window._pendingUpdateWorker ||
+    (window._swRegistration && window._swRegistration.waiting) ||
+    null;
+
+  if(worker){
+    worker.postMessage('SKIP_WAITING');
+    // controllerchange event will fire reload — but set a safety timeout
+    // in case it doesn't fire (e.g. already the controller on iOS)
+    setTimeout(() => window.location.reload(), 1500);
   } else {
-    // Fallback: hard reload bypassing cache
-    window.location.reload(true);
+    // No waiting worker found — just reload; browser will fetch fresh HTML
+    window.location.reload();
   }
 }
 
@@ -5286,7 +5306,7 @@ function saveFeedbackItem(){
   const note=document.getElementById('fb-note').value.trim();
   if(!note){document.getElementById('fb-note').style.borderColor='var(--red)';setTimeout(()=>document.getElementById('fb-note').style.borderColor='',1500);return;}
   const ae=getActive();
-  S.feedback.push({id:Date.now(),cat:selCatVal||'idea',note,tester:S.testerName||(getActiveUser()?getActiveUser().name:'anonymous'),version:S.version||'b20260320.0956',status:'open',ctx:{screen:curScreen,activeEvent:ae?{pasture:ae.pasture,day:daysBetween(ae.dateIn,todayStr())}:null},ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:null});
+  S.feedback.push({id:Date.now(),cat:selCatVal||'idea',note,tester:S.testerName||(getActiveUser()?getActiveUser().name:'anonymous'),version:S.version||'b20260320.1002',status:'open',ctx:{screen:curScreen,activeEvent:ae?{pasture:ae.pasture,day:daysBetween(ae.dateIn,todayStr())}:null},ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:null});
   save();closeFeedbackSheet();updateFeedbackBadge();if(curScreen==='feedback')renderFeedbackTab();
 }
 function renderFeedbackTab(){renderConfirmSection();renderFeedbackStats();renderFeedbackList();}
@@ -5302,12 +5322,12 @@ function confirmFixed(id){const f=S.feedback.find(x=>x.id===id);if(!f)return;f.s
 function reopenIssue(id){
   const orig=S.feedback.find(x=>x.id===id);if(!orig)return;
   orig.status='closed';orig.confirmedBy=S.testerName||'anonymous';orig.confirmedAt=new Date().toISOString();
-  S.feedback.push({id:Date.now(),cat:orig.cat,note:`[Regression] ${orig.note}`,tester:S.testerName||'anonymous',version:S.version||'b20260320.0956',status:'open',ctx:orig.ctx,ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:orig.id});
+  S.feedback.push({id:Date.now(),cat:orig.cat,note:`[Regression] ${orig.note}`,tester:S.testerName||'anonymous',version:S.version||'b20260320.1002',status:'open',ctx:orig.ctx,ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:orig.id});
   save();renderFeedbackTab();updateFeedbackBadge();
 }
 function openResolveSheet(id){
   document.getElementById('resolve-id').value=id;document.getElementById('resolve-note').value='';
-  document.getElementById('resolve-ver-label').textContent=S.version||'b20260320.0956';
+  document.getElementById('resolve-ver-label').textContent=S.version||'b20260320.1002';
   document.getElementById('resolve-sheet-wrap').classList.add('open');setTimeout(()=>document.getElementById('resolve-note').focus(),300);
 }
 function closeResolveSheet(){document.getElementById('resolve-sheet-wrap').classList.remove('open');}
@@ -5315,7 +5335,7 @@ function saveResolve(){
   const id=parseInt(document.getElementById('resolve-id').value);const note=document.getElementById('resolve-note').value.trim();
   if(!note){alert('Describe what was changed');return;}
   const f=S.feedback.find(x=>x.id===id);if(!f)return;
-  f.status='resolved';f.resolutionNote=note;f.resolvedInVersion=S.version||'b20260320.0956';f.resolvedAt=new Date().toISOString();
+  f.status='resolved';f.resolutionNote=note;f.resolvedInVersion=S.version||'b20260320.1002';f.resolvedAt=new Date().toISOString();
   save();closeResolveSheet();renderFeedbackTab();updateFeedbackBadge();
 }
 function renderFeedbackStats(){
@@ -5348,7 +5368,7 @@ function generateBrief(){
   const testers=[...new Set(S.feedback.map(f=>f.tester).filter(t=>t&&t!=='anonymous'))];
   const open=S.feedback.filter(f=>f.status==='open');const resolved=S.feedback.filter(f=>f.status==='resolved');const closed=S.feedback.filter(f=>f.status==='closed');
   const catOrder=['bug','calc','ux','feature','idea'];
-  let b=`GET THE HAY OUT — DEV SESSION BRIEF\nGenerated: ${now}\nVersion: ${S.version||'b20260320.0956'}\nTesters: ${testers.length?testers.join(', '):'anonymous'}\nOpen: ${open.length} · Awaiting: ${resolved.length} · Closed: ${closed.length}\n${'═'.repeat(52)}\n`;
+  let b=`GET THE HAY OUT — DEV SESSION BRIEF\nGenerated: ${now}\nVersion: ${S.version||'b20260320.1002'}\nTesters: ${testers.length?testers.join(', '):'anonymous'}\nOpen: ${open.length} · Awaiting: ${resolved.length} · Closed: ${closed.length}\n${'═'.repeat(52)}\n`;
   if(open.length){b+=`\nOPEN ITEMS (${open.length})\n${'─'.repeat(52)}\n`;catOrder.forEach(cat=>{const items=open.filter(f=>f.cat===cat);if(!items.length)return;b+=`\n[${(CAT[cat]||CAT.idea).label.toUpperCase()}]\n`;items.forEach((f,i)=>{const d=new Date(f.ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});const ctx=f.ctx.activeEvent?`screen:${f.ctx.screen} event:${f.ctx.activeEvent.pasture} day${f.ctx.activeEvent.day}`:`screen:${f.ctx.screen}`;b+=`${i+1}. ${f.note}\n   [${ctx}] — ${f.tester}, ${f.version||'?'}, ${d}${f.linkedTo?' ⚠ regression':''}\n`;});});}
   if(resolved.length){b+=`\n${'═'.repeat(52)}\nAWAITING CONFIRMATION (${resolved.length})\n${'─'.repeat(52)}\n`;resolved.forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fix in ${f.resolvedInVersion}: ${f.resolutionNote}\n`;});}
   if(closed.length){b+=`\n${'═'.repeat(52)}\nCLOSED (last 10)\n${'─'.repeat(52)}\n`;closed.slice(-10).forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fixed in ${f.resolvedInVersion||'?'}: ${f.resolutionNote||'—'}. Confirmed: ${f.confirmedBy||'?'}\n`;});}
@@ -8288,7 +8308,7 @@ function closeResetSheet(){
 async function executeReset(){
   if(document.getElementById('reset-confirm-input').value!=='YES')return;
   const mode=document.getElementById('reset-confirm-btn').dataset.mode||'all';
-  const ver=S.version||'b20260320.0956';
+  const ver=S.version||'b20260320.1002';
   if(mode==='events'){
     // Events-only reset — preserve setup data
     S.events=[];
@@ -11451,6 +11471,8 @@ if ('serviceWorker' in navigator) {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
               console.log('[GTHY] New version ready — showing update banner');
               window._pendingUpdateWorker = newWorker;
+              // Also store on the registration so applyAppUpdate can find it
+              if(window._swRegistration) window._swRegistration._waitingWorker = newWorker;
               showUpdateBanner();
             }
           });
@@ -11459,8 +11481,11 @@ if ('serviceWorker' in navigator) {
         // Also check if a SW is already waiting when page loads (e.g. tab was backgrounded)
         if (reg.waiting && navigator.serviceWorker.controller) {
           window._pendingUpdateWorker = reg.waiting;
+          window._swRegistration = reg;
           showUpdateBanner();
         }
+        // Store registration globally so applyAppUpdate can re-query it
+        window._swRegistration = reg;
       })
       .catch(err => console.warn('[GTHY] SW registration failed:', err));
 
