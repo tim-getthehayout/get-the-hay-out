@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260320.1039" id="app-version-meta"/>
+<meta name="app-version" content="b20260320.1040" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -6068,6 +6068,7 @@ function renderGroupsList(){
         <div style="display:flex;gap:6px;align-items:center;">
           ${ae?`<button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openSplitSheet(${g.id})">Split</button>`:''}
           <button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openWtSheet(${g.id})">Weights</button>
+          <button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openEditGroupSheet(${g.id})">Edit</button>
           ${g.archived?`<button class="btn btn-outline btn-xs" onclick="event.stopPropagation();unarchive('group',${g.id})">Unarchive</button>`:`<button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:18px;padding:2px 4px;" onclick="event.stopPropagation();tryDeleteAnimalGroup(${i})">×</button>`}
         </div>
       </div>
@@ -7065,6 +7066,103 @@ function addAnimalGroup(){
 }
 
 // ─── END INDIVIDUAL ANIMALS ───────────────────────────────────────────────────
+
+// ─── ADD / EDIT GROUP SHEET ───────────────────────────────────────────────────
+let _agSelectedIds = new Set();
+
+function selAGColor(el, color){
+  document.getElementById('ag-color').value = color;
+  document.querySelectorAll('#ag-color-picker div').forEach(d => d.style.border = '2px solid transparent');
+  el.style.border = '2px solid var(--text)';
+}
+
+function renderAGAnimalPicker(){
+  const el = document.getElementById('ag-animal-picker'); if(!el) return;
+  const editId = document.getElementById('ag-edit-id').value;
+  const editGrpId = editId ? parseInt(editId) : null;
+  // Show all active animals
+  const animals = S.animals.filter(a => a.active !== false);
+  if(!animals.length){ el.innerHTML='<div style="font-size:13px;color:var(--text2);">No animals yet</div>'; return; }
+  el.innerHTML = animals.map(a => {
+    const cls = S.animalClasses.find(c => c.id === a.classId);
+    const grp = getAnimalGroup(a.id);
+    const inOtherGroup = grp && grp.id !== editGrpId;
+    const sel = _agSelectedIds.has(a.id);
+    return `<div onclick="${inOtherGroup?'':'toggleAGAnimal('+a.id+')'}" style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:0.5px solid var(--border);cursor:${inOtherGroup?'default':'pointer'};opacity:${inOtherGroup?0.4:1};">
+      <div style="width:18px;height:18px;border-radius:4px;border:1.5px solid var(--border2);background:${sel?'var(--green)':'transparent'};flex-shrink:0;display:flex;align-items:center;justify-content:center;">
+        ${sel?'<span style="color:white;font-size:12px;">✓</span>':''}
+      </div>
+      <div style="font-size:13px;flex:1;">${escHtml(a.tagNum||a.systemId||'?')} <span style="color:var(--text2);">${cls?escHtml(cls.name):''}${inOtherGroup?' · <em>'+escHtml(grp.name)+'</em>':''}</span></div>
+    </div>`;
+  }).join('');
+}
+
+function toggleAGAnimal(id){
+  if(_agSelectedIds.has(id)) _agSelectedIds.delete(id);
+  else _agSelectedIds.add(id);
+  renderAGAnimalPicker();
+}
+
+function openAddGroupSheet(){
+  document.getElementById('add-group-title').textContent = 'Add group';
+  document.getElementById('ag-edit-id').value = '';
+  document.getElementById('ag-name').value = '';
+  document.getElementById('ag-color').value = '#639922';
+  document.querySelectorAll('#ag-color-picker div').forEach((d,i) => d.style.border = i===0?'2px solid var(--text)':'2px solid transparent');
+  document.getElementById('ag-delete-wrap').style.display = 'none';
+  _agSelectedIds = new Set();
+  renderAGAnimalPicker();
+  document.getElementById('add-group-wrap').classList.add('open');
+}
+
+function openEditGroupSheet(groupId){
+  const g = S.animalGroups.find(x => x.id === groupId); if(!g) return;
+  document.getElementById('add-group-title').textContent = 'Edit group';
+  document.getElementById('ag-edit-id').value = groupId;
+  document.getElementById('ag-name').value = g.name || '';
+  document.getElementById('ag-color').value = g.color || '#639922';
+  document.querySelectorAll('#ag-color-picker div').forEach(d => {
+    d.style.border = d.dataset.color === g.color ? '2px solid var(--text)' : '2px solid transparent';
+  });
+  document.getElementById('ag-delete-wrap').style.display = 'block';
+  _agSelectedIds = new Set(g.animalIds || []);
+  renderAGAnimalPicker();
+  document.getElementById('add-group-wrap').classList.add('open');
+}
+
+function closeAddGroupSheet(){
+  document.getElementById('add-group-wrap').classList.remove('open');
+}
+
+function saveGroupFromSheet(){
+  const name = document.getElementById('ag-name').value.trim();
+  if(!name){ alert('Enter a group name'); return; }
+  const color = document.getElementById('ag-color').value || '#639922';
+  const editId = document.getElementById('ag-edit-id').value;
+  const newIds = [..._agSelectedIds];
+  if(editId){
+    // Edit existing
+    const g = S.animalGroups.find(x => String(x.id) === String(editId)); if(!g) return;
+    g.name = name; g.color = color; g.animalIds = newIds;
+  } else {
+    // Remove these animals from any existing group first
+    newIds.forEach(aid => {
+      S.animalGroups.forEach(g => { g.animalIds = (g.animalIds||[]).filter(x => x !== aid); });
+    });
+    S.animalGroups.push({ id: Date.now(), archived: false, name, color, animalIds: newIds });
+  }
+  stampSetup(); save(); closeAddGroupSheet(); renderGroupsList(); renderAnimalsScreen();
+}
+
+function deleteGroupFromSheet(){
+  const editId = document.getElementById('ag-edit-id').value; if(!editId) return;
+  const g = S.animalGroups.find(x => String(x.id) === String(editId));
+  if(!g) return;
+  if(!confirm('Delete group "'+g.name+'"? Animals will become unassigned.')) return;
+  S.animalGroups = S.animalGroups.filter(x => String(x.id) !== String(editId));
+  stampSetup(); save(); closeAddGroupSheet(); renderGroupsList(); renderAnimalsScreen();
+}
+// ─── END ADD / EDIT GROUP SHEET ───────────────────────────────────────────────
 
 
 // ─── SETUP TEMPLATE EXPORT / IMPORT ─────────────────────────────────────────
