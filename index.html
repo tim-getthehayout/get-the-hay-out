@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260320.1037" id="app-version-meta"/>
+<meta name="app-version" content="b20260320.1038" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -666,6 +666,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
           <input type="checkbox" id="animals-show-culled" onchange="renderAnimalsScreen()" style="accent-color:var(--amber);">
           Show culled
         </label>
+        <button class="btn btn-green btn-xs" style="white-space:nowrap;" onclick="openNewAnimalSheet()">+ Add animal</button>
       </div>
       <!-- Selection action bar (hidden until animals selected) -->
       <div id="animals-action-bar" style="display:none;position:sticky;top:0;z-index:30;background:var(--green);color:white;padding:10px 14px;border-radius:var(--radius);margin-bottom:10px;display:none;">
@@ -681,16 +682,17 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
           </div>
         </div>
       </div>
+      <!-- Management config buttons -->
+      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;">
+        <button class="btn btn-outline btn-xs" onclick="openManageClassesSheet()">🐄 Classes</button>
+        <button class="btn btn-outline btn-xs" onclick="openManageTreatmentTypesSheet()">💉 Treatments</button>
+        <button class="btn btn-outline btn-xs" onclick="openManageAIBullsSheet()">🐂 AI Sires</button>
+      </div>
       <!-- Groups summary -->
       <div class="card" style="margin-bottom:8px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
           <div class="sec" style="margin:0;">Groups</div>
           <button class="btn btn-green btn-xs" onclick="openAddGroupSheet()">+ Add group</button>
-        </div>
-        <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;">
-          <button class="btn btn-outline btn-xs" onclick="openManageClassesSheet()">🐄 Classes</button>
-          <button class="btn btn-outline btn-xs" onclick="openManageTreatmentTypesSheet()">💉 Treatments</button>
-          <button class="btn btn-outline btn-xs" onclick="openManageAIBullsSheet()">🐂 AI Sires</button>
         </div>
         <div id="groups-list"></div>
       </div>
@@ -4676,100 +4678,6 @@ function unarchiveAIBull(id){
 }
 // ─── END TREATMENT TYPES / AI BULLS ──────────────────────────────────────────
 
-// ─── MANAGE CLASSES SHEET ─────────────────────────────────────────────────────
-function openManageClassesSheet(){
-  renderMcClassesList();
-  document.getElementById('manage-classes-wrap').classList.add('open');
-}
-function closeManageClassesSheet(){
-  document.getElementById('manage-classes-wrap').classList.remove('open');
-}
-function renderMcClassesList(){
-  const el=document.getElementById('mc-classes-list');if(!el)return;
-  if(!S.animalClasses||!S.animalClasses.length){
-    el.innerHTML='<div style="font-size:13px;color:var(--text2);margin-bottom:8px;">No classes yet — add below</div>';return;
-  }
-  el.innerHTML=S.animalClasses.map((c,i)=>c.archived
-    ?`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);opacity:0.45;"><span style="font-size:13px;"><strong>${c.name}</strong> <span class="badge bb">archived</span></span><button class="btn btn-outline btn-xs" onclick="unarchive('class',${c.id});renderMcClassesList();">Unarchive</button></div>`
-    :`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);font-size:13px;"><span><strong>${escHtml(c.name)}</strong> <span class="badge bb">${escHtml(c.species||'')}</span> <span class="badge bt">${c.defaultWeightLbs} lbs</span> <span class="badge bg">${c.dmiPct}% DMI</span></span><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;" onclick="tryDeleteAnimalClass(${i});renderMcClassesList();">×</button></div>`
-  ).join('');
-}
-function addClassFromSheet(){
-  const name=document.getElementById('mc-cls-name').value.trim();
-  if(!name){alert('Enter a class name');return;}
-  if(!S.animalClasses)S.animalClasses=[];
-  S.animalClasses.push({
-    id:Date.now(),archived:false,name,
-    species:document.getElementById('mc-cls-species').value,
-    defaultWeightLbs:parseFloat(document.getElementById('mc-cls-wt').value)||1000,
-    dmiPct:parseFloat(document.getElementById('mc-cls-dmi').value)||2.5,
-  });
-  stampSetup();save();renderMcClassesList();renderClassesList();
-  document.getElementById('mc-cls-name').value='';
-  document.getElementById('mc-cls-wt').value='';
-  document.getElementById('mc-cls-dmi').value='';
-}
-
-// ─── MANAGE TREATMENT TYPES SHEET ────────────────────────────────────────────
-function openManageTreatmentTypesSheet(){
-  renderMtTypesList();
-  document.getElementById('manage-treatments-wrap').classList.add('open');
-}
-function closeManageTreatmentTypesSheet(){
-  document.getElementById('manage-treatments-wrap').classList.remove('open');
-}
-function renderMtTypesList(){
-  const el=document.getElementById('mt-types-list');if(!el)return;
-  const types=S.treatmentTypes||[];
-  if(!types.length){el.innerHTML='<div style="font-size:13px;color:var(--text2);margin-bottom:8px;">No treatment types yet — add below</div>';return;}
-  el.innerHTML=types.map(t=>t.archived
-    ?`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);opacity:0.45;"><span style="font-size:13px;">${escHtml(t.name)} <span class="badge bb">archived</span></span><button class="btn btn-outline btn-xs" onclick="unarchiveTreatmentType('${t.id}');renderMtTypesList();">Unarchive</button></div>`
-    :`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);"><span style="font-size:13px;font-weight:500;">💉 ${escHtml(t.name)}</span><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;" onclick="archiveTreatmentType('${t.id}');renderMtTypesList();">×</button></div>`
-  ).join('');
-}
-function addTreatmentTypeFromSheet(){
-  const name=document.getElementById('mt-name').value.trim();
-  if(!name){alert('Enter a treatment name');return;}
-  if(!S.treatmentTypes)S.treatmentTypes=[];
-  if(S.treatmentTypes.find(t=>t.name.toLowerCase()===name.toLowerCase())){alert('Treatment type already exists');return;}
-  S.treatmentTypes.push({id:'TT-'+Date.now(),name,archived:false});
-  save();renderMtTypesList();renderTreatmentTypesList();
-  document.getElementById('mt-name').value='';
-}
-
-// ─── MANAGE AI SIRES SHEET ────────────────────────────────────────────────────
-function openManageAIBullsSheet(){
-  renderMabBullsList();
-  document.getElementById('manage-ai-bulls-wrap').classList.add('open');
-}
-function closeManageAIBullsSheet(){
-  document.getElementById('manage-ai-bulls-wrap').classList.remove('open');
-}
-function renderMabBullsList(){
-  const el=document.getElementById('mab-bulls-list');if(!el)return;
-  const bulls=S.aiBulls||[];
-  if(!bulls.length){el.innerHTML='<div style="font-size:13px;color:var(--text2);margin-bottom:8px;">No AI sires yet — add below</div>';return;}
-  el.innerHTML=bulls.map(b=>b.archived
-    ?`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);opacity:0.45;"><span style="font-size:13px;">${escHtml(b.name)} <span class="badge bb">archived</span></span><button class="btn btn-outline btn-xs" onclick="unarchiveAIBull('${b.id}');renderMabBullsList();">Unarchive</button></div>`
-    :`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);"><div><div style="font-size:13px;font-weight:600;">${escHtml(b.name)}${b.regNum?' <span style="font-size:11px;color:var(--text2);">'+escHtml(b.regNum)+'</span>':''}</div><div style="font-size:11px;color:var(--text2);">${[b.breed,b.epds,b.notes].filter(Boolean).map(escHtml).join(' · ')}</div></div><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;" onclick="archiveAIBull('${b.id}');renderMabBullsList();">×</button></div>`
-  ).join('');
-}
-function addAIBullFromSheet(){
-  const name=document.getElementById('mab-name').value.trim();
-  if(!name){alert('Enter a sire name');return;}
-  if(!S.aiBulls)S.aiBulls=[];
-  S.aiBulls.push({
-    id:'BULL-'+Date.now(),name,archived:false,
-    regNum:document.getElementById('mab-reg').value.trim()||null,
-    breed:document.getElementById('mab-breed').value.trim()||null,
-    epds:document.getElementById('mab-epds').value.trim()||null,
-    notes:document.getElementById('mab-notes').value.trim()||null,
-  });
-  save();renderMabBullsList();renderAIBullsList();
-  ['mab-name','mab-reg','mab-breed','mab-epds','mab-notes'].forEach(id=>document.getElementById(id).value='');
-}
-// ─── END MANAGEMENT SHEETS ────────────────────────────────────────────────────
-
 
 // ─── BATCH ADJUSTMENT / RECONCILE ─────────────────────────────────────────────
 // Adjustments are stored on each batch as b.adjustments[]
@@ -6040,11 +5948,11 @@ function updateGrpWtDefault(i){
 function renderGroupsList(){
   const el=document.getElementById('groups-list');if(!el)return;
   if(!S.animalGroups.length){el.innerHTML='<div style="font-size:13px;color:var(--text2);margin-bottom:8px;">No groups yet</div>';return;}
+  const activeFilter=document.getElementById('animals-group-filter')?.value||'';
   el.innerHTML=S.animalGroups.map((g,i)=>{
     const t=getGroupTotals(g);
     const ae=getActiveEventForGroup(g.id);
     const loc=ae?ae.pasture:'—';
-    // Build breakdown from individual animals if available, else legacy classes
     let breakdown='';
     if(g.animalIds&&g.animalIds.length>0){
       const animals=getGroupAnimals(g.id);
@@ -6054,21 +5962,31 @@ function renderGroupsList(){
     } else if(g.classes){
       breakdown=g.classes.map(c=>{const cls=S.animalClasses.find(x=>x.id===c.classId);return`${c.count} ${cls?cls.name:'?'}`;}).join(', ');
     }
-    return `<div class="chip" style="border-left:3px solid ${g.color||'var(--green)'};margin-bottom:6px;${g.archived?'opacity:0.5;':''};">
+    const isActive=String(g.id)===String(activeFilter);
+    return `<div class="chip" style="border-left:3px solid ${g.color||'var(--green)'};margin-bottom:6px;${g.archived?'opacity:0.5;':''}cursor:pointer;${isActive?'background:var(--green-l,#f0f9ec);':''}" onclick="filterAnimalsByGroup(${g.id})">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;">
         <div>
-          <div style="font-size:14px;font-weight:600;">${g.name} ${ae?`<span class="badge bt">active · ${loc}</span>`:''}</div>
+          <div style="font-size:14px;font-weight:600;">${g.name} ${ae?`<span class="badge bt">active · ${loc}</span>`:'<span class="badge bb">unplaced</span>'}${isActive?' <span class="badge bg">filtered</span>':''}</div>
           <div style="font-size:12px;color:var(--text2);margin-top:2px;">${breakdown}</div>
           <div style="font-size:12px;color:var(--text2);">${t.totalHead} head · avg ${t.avgWeight} lbs · DMI target ${Math.round(t.dmiTarget).toLocaleString()} lbs/day</div>
         </div>
         <div style="display:flex;gap:6px;align-items:center;">
-          ${ae?`<button class="btn btn-outline btn-xs" onclick="openSplitSheet(${g.id})">Split</button>`:''}
-          <button class="btn btn-outline btn-xs" onclick="openWtSheet(${g.id})">Weights</button>
-          ${g.archived?`<button class="btn btn-outline btn-xs" onclick="unarchive('group',${g.id})">Unarchive</button>`:`<button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:18px;padding:2px 4px;" onclick="tryDeleteAnimalGroup(${i})">×</button>`}
+          ${ae?`<button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openSplitSheet(${g.id})">Split</button>`:''}
+          <button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openWtSheet(${g.id})">Weights</button>
+          ${g.archived?`<button class="btn btn-outline btn-xs" onclick="event.stopPropagation();unarchive('group',${g.id})">Unarchive</button>`:`<button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:18px;padding:2px 4px;" onclick="event.stopPropagation();tryDeleteAnimalGroup(${i})">×</button>`}
         </div>
       </div>
     </div>`;
   }).join('');
+}
+
+function filterAnimalsByGroup(groupId){
+  const gf=document.getElementById('animals-group-filter');
+  if(!gf)return;
+  // Toggle off if already filtering by this group
+  if(String(gf.value)===String(groupId)){gf.value='';}
+  else{gf.value=String(groupId);}
+  renderAnimalsScreen();
 }
 
 
@@ -6762,6 +6680,29 @@ function renderAnimalList(){
 }
 
 // ── Animal edit ───────────────────────────────────────────────────────────────
+function openNewAnimalSheet(){
+  document.getElementById('ae-id').value='__new__';
+  document.getElementById('ae-sysid-display').textContent='(auto-assigned)';
+  document.getElementById('ae-tag').value='';
+  document.getElementById('ae-eid').value='';
+  document.getElementById('ae-sex').value='female';
+  document.getElementById('ae-wt').value='';
+  document.getElementById('ae-notes').value='';
+  document.getElementById('ae-sire').value='';
+  populateAnimalClassSelect('ae-class',null);
+  // Pre-select current group filter if one is active
+  const gf=document.getElementById('animals-group-filter');
+  const preGrpId=gf&&gf.value&&gf.value!=='unassigned'?parseInt(gf.value):null;
+  populateAnimalGroupSelect('ae-group',preGrpId);
+  const damSel=document.getElementById('ae-dam');
+  damSel.innerHTML='<option value="">— unknown —</option>'+
+    S.animals.filter(x=>['female','cow','heifer','ewe','doe'].includes(x.sex||'female'))
+      .map(x=>`<option value="${x.id}">${x.systemId||x.tagNum||'Animal'} ${x.tagNum?'('+x.tagNum+')':''}</option>`)
+      .join('');
+  document.getElementById('ae-calving-section').style.display='block';
+  document.getElementById('ae-sheet-wrap').classList.add('open');
+}
+
 function openAnimalEdit(animalId){
   const a=getAnimalById(animalId);if(!a)return;
   // Ensure legacy animals get a systemId on first edit
@@ -6864,7 +6805,34 @@ function openAnimalEdit(animalId){
 function closeAnimalEdit(){document.getElementById('ae-sheet-wrap').classList.remove('open');}
 
 function saveAnimalEdit(){
-  const id=parseInt(document.getElementById('ae-id').value);
+  const rawId=document.getElementById('ae-id').value;
+  // ── New animal path ──────────────────────────────────────────────────────────
+  if(rawId==='__new__'){
+    const newTag=document.getElementById('ae-tag').value.trim()||null;
+    if(newTag&&S.animals.find(x=>x.tagNum===newTag)){alert('Ear tag '+newTag+' already exists');return;}
+    const newWt=parseFloat(document.getElementById('ae-wt').value)||null;
+    const newId=Date.now();
+    const sysId=generateSystemId();
+    const newA={
+      id:newId,systemId:sysId,tagNum:newTag,
+      eid:document.getElementById('ae-eid').value.trim()||null,
+      sex:document.getElementById('ae-sex').value,
+      classId:parseInt(document.getElementById('ae-class').value)||null,
+      weightLbs:newWt,
+      weightHistory:newWt?[{date:new Date().toISOString().slice(0,10),weightLbs:newWt,note:'Initial weight'}]:[],
+      notes:document.getElementById('ae-notes').value.trim(),
+      sireTag:document.getElementById('ae-sire').value.trim()||null,
+      damId:parseInt(document.getElementById('ae-dam').value)||null,
+      active:true,cullRecord:null,calvingRecords:[],createdAt:new Date().toISOString()
+    };
+    S.animals.push(newA);
+    const newGrpId=parseInt(document.getElementById('ae-group').value)||null;
+    if(newGrpId){const g=S.animalGroups.find(x=>x.id===newGrpId);if(g){if(!g.animalIds)g.animalIds=[];g.animalIds.push(newId);}}
+    save();closeAnimalEdit();renderAnimalsScreen();renderGroupsList();
+    return;
+  }
+  // ── Edit existing animal path ────────────────────────────────────────────────
+  const id=parseInt(rawId);
   const a=getAnimalById(id);if(!a)return;
   const newWt=parseFloat(document.getElementById('ae-wt').value)||null;
   const newTag=document.getElementById('ae-tag').value.trim()||null;
@@ -9491,6 +9459,7 @@ function renderAnimalsScreen(){
 
   const el = document.getElementById('animals-screen-list');
   if(!el) return;
+  renderGroupsList(); // keep group filter badge in sync
 
   const groupFilter = document.getElementById('animals-group-filter')?.value || '';
   const showCulled  = document.getElementById('animals-show-culled')?.checked || false;
