@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260320.1038" id="app-version-meta"/>
+<meta name="app-version" content="b20260320.1039" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -737,7 +737,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
                 <div class="sec" style="margin:0;">Estimated recovery window</div>
                 <span id="w-recovery-badge" class="badge bb" style="font-size:10px;"></span>
               </div>
-              <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.5;">
+              <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.5;" id="w-recovery-label">
                 How many days before this paddock is ready to graze again?
               </div>
               <div class="two">
@@ -810,6 +810,15 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
           <div class="div"></div>
           <div class="sec" style="margin-bottom:6px;">Initial feeding (optional)</div>
           <div id="w-feed-sel"></div><div id="w-feed-lines"></div>
+          <div class="div"></div>
+          <!-- 100% stored feed flag -->
+          <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;">
+            <input type="checkbox" id="w-no-pasture" style="width:18px;height:18px;accent-color:var(--amber);flex-shrink:0;margin-top:2px;">
+            <div>
+              <div style="font-size:13px;font-weight:500;">100% stored feed (no pasture available)</div>
+              <div style="font-size:11px;color:var(--text2);">Bale grazing, drought feeding, winter lot — pasture DMI set to zero</div>
+            </div>
+          </div>
           <div class="div"></div>
           <!-- Tasks on destination paddock -->
           <div id="w-dest-tasks" style="display:none;">
@@ -1024,7 +1033,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
         <div style="font-size:13px;color:var(--text2);margin-bottom:12px;">Export all farm data as a JSON backup. Import on another device or restore from backup.</div>
         <div class="btn-row">
           <button class="btn btn-outline" onclick="exportDataJSON()">Export backup</button>
-          <button class="btn btn-outline" onclick="triggerImport()">Import backup</button>
+          <button class="btn btn-outline" onclick="triggerImport()">Restore backup</button>
         </div>
         <div class="div"></div>
         <div style="font-size:13px;font-weight:600;margin-bottom:6px;">Historical events</div>
@@ -2026,10 +2035,12 @@ function ensureDataArrays(){
 }
 
 function exportDataJSON(){
-  const ts=new Date().toISOString().slice(0,10);
+  const now=new Date();
+  const ts=now.toISOString().slice(0,10);
+  const hhmm=now.toTimeString().slice(0,5).replace(':','');
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,2)],{type:'application/json'}));
-  a.download=`gthy-backup-${ts}.json`;a.click();
+  a.download=`gthy-backup-${ts}-${hhmm}.json`;a.click();
 }
 function triggerImport(){document.getElementById('import-file').click();}
 function importDataJSON(event){
@@ -2039,36 +2050,22 @@ function importDataJSON(event){
     try{
       const imported=JSON.parse(e.target.result);
       if(!imported.herd&&!imported.events&&!imported.pastures)throw new Error('Not a Get The Hay Out backup file');
-      if(!confirm(`Import backup from ${file.name}? Will merge with existing data.`))return;
-      S=mergeData(S,imported);
-      // Union-merge setup arrays: mergeData picks one side wholesale based on
-      // setupUpdatedAt — we need to explicitly add any imported items not in the result
-      ['pastures','feedTypes','animalClasses','inputProducts','animalGroups'].forEach(key=>{
-        const importedItems = imported[key]||[];
-        if(!importedItems.length) return;
-        const existing = S[key]||[];
-        // Use name as key for setup arrays (id may not exist on imported items)
-        const nameKey = key==='pastures'?'name':key==='feedTypes'?'name':'name';
-        const existingNames = new Set(existing.map(x=>x[nameKey]||x.id));
-        let added = 0;
-        importedItems.forEach(item=>{
-          const k = item[nameKey]||item.id;
-          if(k && !existingNames.has(k)){
-            existing.push(item);
-            existingNames.add(k);
-            added++;
-          }
-        });
-        S[key] = existing;
-      });
-      stampSetup(); // advance timestamp so this merged result wins on next sync
+      if(!confirm(`Restore backup from ${file.name}?\n\nThis will REPLACE all current data with the backup. This cannot be undone.`))return;
+      S=JSON.parse(JSON.stringify(imported));
       migrateSystemIds();
       migrateToPaddocksField();
       ensureDataArrays();
-      save();
+      if(syncTimer){clearTimeout(syncTimer);syncTimer=null;}
+      if(syncRetryTimer){clearTimeout(syncRetryTimer);syncRetryTimer=null;}
+      saveLocal();
+      if(driveState.connected&&driveState.accessToken){
+        driveWriteFile(JSON.stringify(S,null,2))
+          .then(()=>{driveState.lastSync=new Date().toISOString();driveState.lastSyncOk=true;saveDriveState();setSyncStatus('ok','Restored & synced to Drive');})
+          .catch(()=>{setSyncStatus('warn','Restored locally — Drive write failed, sync manually');});
+      }
       renderCurrentScreen();
       const el=document.getElementById('import-status');el.style.display='block';
-      el.textContent='Import successful — '+(imported.events||[]).length+' events, '+(imported.pastures||[]).length+' paddocks merged.';
+      el.textContent='Restore successful — data rolled back to backup from '+file.name;
       setTimeout(()=>{el.style.display='none';},5000);
     }catch(err){alert('Import failed: '+err.message);}
     event.target.value='';
@@ -3159,6 +3156,10 @@ function initWizFromGroup(){
     document.getElementById('ws0-banner').innerHTML=`<div style="font-size:14px;font-weight:600;color:var(--amber-d);">Closing: ${evDisplayName(ae)}${g?' ('+g.name+')':''}</div><div style="font-size:12px;color:var(--amber-d);opacity:0.85;margin-top:2px;">In ${dLabel(ae.dateIn)} · ${daysBetween(ae.dateIn,todayStr())} days · ${(ae.feedEntries||[]).length} feedings</div>`;
     if(ae.heightIn)document.getElementById('w-pregraze-disp').value=ae.heightIn;
     showPaddockTasksInWiz(evPrimaryPaddock(ae).pastureName,'w-paddock-tasks','w-paddock-tasks-list');
+    const paddockNames=(ae.paddocks||[]).map(p=>p.pastureName).filter(Boolean);
+    const paddockLabel=paddockNames.length?paddockNames.join(' + '):(ae.pasture||'this paddock');
+    const recLabel=document.getElementById('w-recovery-label');
+    if(recLabel)recLabel.textContent=`How many days before ${paddockLabel} will be ready to graze again?`;
   }
   const _wout=document.getElementById('w-out-date');if(_wout)_wout.value=todayStr();
   const _win=document.getElementById('w-in-date');if(_win)_win.value=todayStr();
@@ -3321,8 +3322,9 @@ function wizCloseEvent(){
   ae.recoveryMinDays=parseInt(document.getElementById('w-rec-min')?.value)||null;
   ae.recoveryMaxDays=parseInt(document.getElementById('w-rec-max')?.value)||null;
   ae.status='closed';
+  const isCon=ae.locationType==='confinement';
   const _closedPad=getPastureForEvent(ae);
-  const _residOM=ae.locationType!=='confinement'?calcResidualOM(ae.feedEntries||[],feedRes):0;
+  const _residOM=!isCon?calcResidualOM(ae.feedEntries||[],feedRes):0;
   // Snapshot acres from all paddocks
   const _totalAcres=evTotalAcres(ae)||(_closedPad?parseFloat(_closedPad.acres)||null:null);
   ae.totals={days,storedDMI:sdmi,pastureDMI:pdmi,cost,pct,npk,npkVal,
@@ -3424,7 +3426,6 @@ function wizCloseEvent(){
     ae.totals.pastureDMI=null;ae.totals.pct=null;
   }
   save();
-  const isCon=ae.locationType==='confinement';
   let summaryExtra='';
   if(isCon&&ae.totals.capturedNPK){
     const cn=ae.totals.capturedNPK;const st=S.settings;
@@ -4677,6 +4678,100 @@ function unarchiveAIBull(id){
   if(b){ b.archived=false; save(); renderAIBullsList(); }
 }
 // ─── END TREATMENT TYPES / AI BULLS ──────────────────────────────────────────
+
+// ─── MANAGE CLASSES SHEET ─────────────────────────────────────────────────────
+function openManageClassesSheet(){
+  renderMcClassesList();
+  document.getElementById('manage-classes-wrap').classList.add('open');
+}
+function closeManageClassesSheet(){
+  document.getElementById('manage-classes-wrap').classList.remove('open');
+}
+function renderMcClassesList(){
+  const el=document.getElementById('mc-classes-list');if(!el)return;
+  if(!S.animalClasses||!S.animalClasses.length){
+    el.innerHTML='<div style="font-size:13px;color:var(--text2);margin-bottom:8px;">No classes yet — add below</div>';return;
+  }
+  el.innerHTML=S.animalClasses.map((c,i)=>c.archived
+    ?`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);opacity:0.45;"><span style="font-size:13px;"><strong>${c.name}</strong> <span class="badge bb">archived</span></span><button class="btn btn-outline btn-xs" onclick="unarchive('class',${c.id});renderMcClassesList();">Unarchive</button></div>`
+    :`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);font-size:13px;"><span><strong>${escHtml(c.name)}</strong> <span class="badge bb">${escHtml(c.species||'')}</span> <span class="badge bt">${c.defaultWeightLbs} lbs</span> <span class="badge bg">${c.dmiPct}% DMI</span></span><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;" onclick="tryDeleteAnimalClass(${i});renderMcClassesList();">×</button></div>`
+  ).join('');
+}
+function addClassFromSheet(){
+  const name=document.getElementById('mc-cls-name').value.trim();
+  if(!name){alert('Enter a class name');return;}
+  if(!S.animalClasses)S.animalClasses=[];
+  S.animalClasses.push({
+    id:Date.now(),archived:false,name,
+    species:document.getElementById('mc-cls-species').value,
+    defaultWeightLbs:parseFloat(document.getElementById('mc-cls-wt').value)||1000,
+    dmiPct:parseFloat(document.getElementById('mc-cls-dmi').value)||2.5,
+  });
+  stampSetup();save();renderMcClassesList();renderClassesList();
+  document.getElementById('mc-cls-name').value='';
+  document.getElementById('mc-cls-wt').value='';
+  document.getElementById('mc-cls-dmi').value='';
+}
+
+// ─── MANAGE TREATMENT TYPES SHEET ────────────────────────────────────────────
+function openManageTreatmentTypesSheet(){
+  renderMtTypesList();
+  document.getElementById('manage-treatments-wrap').classList.add('open');
+}
+function closeManageTreatmentTypesSheet(){
+  document.getElementById('manage-treatments-wrap').classList.remove('open');
+}
+function renderMtTypesList(){
+  const el=document.getElementById('mt-types-list');if(!el)return;
+  const types=S.treatmentTypes||[];
+  if(!types.length){el.innerHTML='<div style="font-size:13px;color:var(--text2);margin-bottom:8px;">No treatment types yet — add below</div>';return;}
+  el.innerHTML=types.map(t=>t.archived
+    ?`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);opacity:0.45;"><span style="font-size:13px;">${escHtml(t.name)} <span class="badge bb">archived</span></span><button class="btn btn-outline btn-xs" onclick="unarchiveTreatmentType('${t.id}');renderMtTypesList();">Unarchive</button></div>`
+    :`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);"><span style="font-size:13px;font-weight:500;">💉 ${escHtml(t.name)}</span><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;" onclick="archiveTreatmentType('${t.id}');renderMtTypesList();">×</button></div>`
+  ).join('');
+}
+function addTreatmentTypeFromSheet(){
+  const name=document.getElementById('mt-name').value.trim();
+  if(!name){alert('Enter a treatment name');return;}
+  if(!S.treatmentTypes)S.treatmentTypes=[];
+  if(S.treatmentTypes.find(t=>t.name.toLowerCase()===name.toLowerCase())){alert('Treatment type already exists');return;}
+  S.treatmentTypes.push({id:'TT-'+Date.now(),name,archived:false});
+  save();renderMtTypesList();renderTreatmentTypesList();
+  document.getElementById('mt-name').value='';
+}
+
+// ─── MANAGE AI SIRES SHEET ────────────────────────────────────────────────────
+function openManageAIBullsSheet(){
+  renderMabBullsList();
+  document.getElementById('manage-ai-bulls-wrap').classList.add('open');
+}
+function closeManageAIBullsSheet(){
+  document.getElementById('manage-ai-bulls-wrap').classList.remove('open');
+}
+function renderMabBullsList(){
+  const el=document.getElementById('mab-bulls-list');if(!el)return;
+  const bulls=S.aiBulls||[];
+  if(!bulls.length){el.innerHTML='<div style="font-size:13px;color:var(--text2);margin-bottom:8px;">No AI sires yet — add below</div>';return;}
+  el.innerHTML=bulls.map(b=>b.archived
+    ?`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);opacity:0.45;"><span style="font-size:13px;">${escHtml(b.name)} <span class="badge bb">archived</span></span><button class="btn btn-outline btn-xs" onclick="unarchiveAIBull('${b.id}');renderMabBullsList();">Unarchive</button></div>`
+    :`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);"><div><div style="font-size:13px;font-weight:600;">${escHtml(b.name)}${b.regNum?' <span style="font-size:11px;color:var(--text2);">'+escHtml(b.regNum)+'</span>':''}</div><div style="font-size:11px;color:var(--text2);">${[b.breed,b.epds,b.notes].filter(Boolean).map(escHtml).join(' · ')}</div></div><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;" onclick="archiveAIBull('${b.id}');renderMabBullsList();">×</button></div>`
+  ).join('');
+}
+function addAIBullFromSheet(){
+  const name=document.getElementById('mab-name').value.trim();
+  if(!name){alert('Enter a sire name');return;}
+  if(!S.aiBulls)S.aiBulls=[];
+  S.aiBulls.push({
+    id:'BULL-'+Date.now(),name,archived:false,
+    regNum:document.getElementById('mab-reg').value.trim()||null,
+    breed:document.getElementById('mab-breed').value.trim()||null,
+    epds:document.getElementById('mab-epds').value.trim()||null,
+    notes:document.getElementById('mab-notes').value.trim()||null,
+  });
+  save();renderMabBullsList();renderAIBullsList();
+  ['mab-name','mab-reg','mab-breed','mab-epds','mab-notes'].forEach(id=>document.getElementById(id).value='');
+}
+// ─── END MANAGEMENT SHEETS ────────────────────────────────────────────────────
 
 
 // ─── BATCH ADJUSTMENT / RECONCILE ─────────────────────────────────────────────
