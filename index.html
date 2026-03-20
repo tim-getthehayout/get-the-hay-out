@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260320.1036" id="app-version-meta"/>
+<meta name="app-version" content="b20260320.1037" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -2024,12 +2024,10 @@ function ensureDataArrays(){
 }
 
 function exportDataJSON(){
-  const now=new Date();
-  const ts=now.toISOString().slice(0,10);
-  const hhmm=now.toTimeString().slice(0,5).replace(':','');
+  const ts=new Date().toISOString().slice(0,10);
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,2)],{type:'application/json'}));
-  a.download=`gthy-backup-${ts}-${hhmm}.json`;a.click();
+  a.download=`gthy-backup-${ts}.json`;a.click();
 }
 function triggerImport(){document.getElementById('import-file').click();}
 function importDataJSON(event){
@@ -4677,6 +4675,100 @@ function unarchiveAIBull(id){
   if(b){ b.archived=false; save(); renderAIBullsList(); }
 }
 // ─── END TREATMENT TYPES / AI BULLS ──────────────────────────────────────────
+
+// ─── MANAGE CLASSES SHEET ─────────────────────────────────────────────────────
+function openManageClassesSheet(){
+  renderMcClassesList();
+  document.getElementById('manage-classes-wrap').classList.add('open');
+}
+function closeManageClassesSheet(){
+  document.getElementById('manage-classes-wrap').classList.remove('open');
+}
+function renderMcClassesList(){
+  const el=document.getElementById('mc-classes-list');if(!el)return;
+  if(!S.animalClasses||!S.animalClasses.length){
+    el.innerHTML='<div style="font-size:13px;color:var(--text2);margin-bottom:8px;">No classes yet — add below</div>';return;
+  }
+  el.innerHTML=S.animalClasses.map((c,i)=>c.archived
+    ?`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);opacity:0.45;"><span style="font-size:13px;"><strong>${c.name}</strong> <span class="badge bb">archived</span></span><button class="btn btn-outline btn-xs" onclick="unarchive('class',${c.id});renderMcClassesList();">Unarchive</button></div>`
+    :`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);font-size:13px;"><span><strong>${escHtml(c.name)}</strong> <span class="badge bb">${escHtml(c.species||'')}</span> <span class="badge bt">${c.defaultWeightLbs} lbs</span> <span class="badge bg">${c.dmiPct}% DMI</span></span><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;" onclick="tryDeleteAnimalClass(${i});renderMcClassesList();">×</button></div>`
+  ).join('');
+}
+function addClassFromSheet(){
+  const name=document.getElementById('mc-cls-name').value.trim();
+  if(!name){alert('Enter a class name');return;}
+  if(!S.animalClasses)S.animalClasses=[];
+  S.animalClasses.push({
+    id:Date.now(),archived:false,name,
+    species:document.getElementById('mc-cls-species').value,
+    defaultWeightLbs:parseFloat(document.getElementById('mc-cls-wt').value)||1000,
+    dmiPct:parseFloat(document.getElementById('mc-cls-dmi').value)||2.5,
+  });
+  stampSetup();save();renderMcClassesList();renderClassesList();
+  document.getElementById('mc-cls-name').value='';
+  document.getElementById('mc-cls-wt').value='';
+  document.getElementById('mc-cls-dmi').value='';
+}
+
+// ─── MANAGE TREATMENT TYPES SHEET ────────────────────────────────────────────
+function openManageTreatmentTypesSheet(){
+  renderMtTypesList();
+  document.getElementById('manage-treatments-wrap').classList.add('open');
+}
+function closeManageTreatmentTypesSheet(){
+  document.getElementById('manage-treatments-wrap').classList.remove('open');
+}
+function renderMtTypesList(){
+  const el=document.getElementById('mt-types-list');if(!el)return;
+  const types=S.treatmentTypes||[];
+  if(!types.length){el.innerHTML='<div style="font-size:13px;color:var(--text2);margin-bottom:8px;">No treatment types yet — add below</div>';return;}
+  el.innerHTML=types.map(t=>t.archived
+    ?`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);opacity:0.45;"><span style="font-size:13px;">${escHtml(t.name)} <span class="badge bb">archived</span></span><button class="btn btn-outline btn-xs" onclick="unarchiveTreatmentType('${t.id}');renderMtTypesList();">Unarchive</button></div>`
+    :`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);"><span style="font-size:13px;font-weight:500;">💉 ${escHtml(t.name)}</span><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;" onclick="archiveTreatmentType('${t.id}');renderMtTypesList();">×</button></div>`
+  ).join('');
+}
+function addTreatmentTypeFromSheet(){
+  const name=document.getElementById('mt-name').value.trim();
+  if(!name){alert('Enter a treatment name');return;}
+  if(!S.treatmentTypes)S.treatmentTypes=[];
+  if(S.treatmentTypes.find(t=>t.name.toLowerCase()===name.toLowerCase())){alert('Treatment type already exists');return;}
+  S.treatmentTypes.push({id:'TT-'+Date.now(),name,archived:false});
+  save();renderMtTypesList();renderTreatmentTypesList();
+  document.getElementById('mt-name').value='';
+}
+
+// ─── MANAGE AI SIRES SHEET ────────────────────────────────────────────────────
+function openManageAIBullsSheet(){
+  renderMabBullsList();
+  document.getElementById('manage-ai-bulls-wrap').classList.add('open');
+}
+function closeManageAIBullsSheet(){
+  document.getElementById('manage-ai-bulls-wrap').classList.remove('open');
+}
+function renderMabBullsList(){
+  const el=document.getElementById('mab-bulls-list');if(!el)return;
+  const bulls=S.aiBulls||[];
+  if(!bulls.length){el.innerHTML='<div style="font-size:13px;color:var(--text2);margin-bottom:8px;">No AI sires yet — add below</div>';return;}
+  el.innerHTML=bulls.map(b=>b.archived
+    ?`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);opacity:0.45;"><span style="font-size:13px;">${escHtml(b.name)} <span class="badge bb">archived</span></span><button class="btn btn-outline btn-xs" onclick="unarchiveAIBull('${b.id}');renderMabBullsList();">Unarchive</button></div>`
+    :`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);"><div><div style="font-size:13px;font-weight:600;">${escHtml(b.name)}${b.regNum?' <span style="font-size:11px;color:var(--text2);">'+escHtml(b.regNum)+'</span>':''}</div><div style="font-size:11px;color:var(--text2);">${[b.breed,b.epds,b.notes].filter(Boolean).map(escHtml).join(' · ')}</div></div><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;" onclick="archiveAIBull('${b.id}');renderMabBullsList();">×</button></div>`
+  ).join('');
+}
+function addAIBullFromSheet(){
+  const name=document.getElementById('mab-name').value.trim();
+  if(!name){alert('Enter a sire name');return;}
+  if(!S.aiBulls)S.aiBulls=[];
+  S.aiBulls.push({
+    id:'BULL-'+Date.now(),name,archived:false,
+    regNum:document.getElementById('mab-reg').value.trim()||null,
+    breed:document.getElementById('mab-breed').value.trim()||null,
+    epds:document.getElementById('mab-epds').value.trim()||null,
+    notes:document.getElementById('mab-notes').value.trim()||null,
+  });
+  save();renderMabBullsList();renderAIBullsList();
+  ['mab-name','mab-reg','mab-breed','mab-epds','mab-notes'].forEach(id=>document.getElementById(id).value='');
+}
+// ─── END MANAGEMENT SHEETS ────────────────────────────────────────────────────
 
 
 // ─── BATCH ADJUSTMENT / RECONCILE ─────────────────────────────────────────────
