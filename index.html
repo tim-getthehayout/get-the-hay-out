@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260320.1032" id="app-version-meta"/>
+<meta name="app-version" content="b20260320.1033" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -1022,7 +1022,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
         <div style="font-size:13px;color:var(--text2);margin-bottom:12px;">Export all farm data as a JSON backup. Import on another device or restore from backup.</div>
         <div class="btn-row">
           <button class="btn btn-outline" onclick="exportDataJSON()">Export backup</button>
-          <button class="btn btn-outline" onclick="triggerImport()">Import backup</button>
+          <button class="btn btn-outline" onclick="triggerImport()">Restore backup</button>
         </div>
         <div class="div"></div>
         <div style="font-size:13px;font-weight:600;margin-bottom:6px;">Historical events</div>
@@ -2037,36 +2037,15 @@ function importDataJSON(event){
     try{
       const imported=JSON.parse(e.target.result);
       if(!imported.herd&&!imported.events&&!imported.pastures)throw new Error('Not a Get The Hay Out backup file');
-      if(!confirm(`Import backup from ${file.name}? Will merge with existing data.`))return;
-      S=mergeData(S,imported);
-      // Union-merge setup arrays: mergeData picks one side wholesale based on
-      // setupUpdatedAt — we need to explicitly add any imported items not in the result
-      ['pastures','feedTypes','animalClasses','inputProducts','animalGroups'].forEach(key=>{
-        const importedItems = imported[key]||[];
-        if(!importedItems.length) return;
-        const existing = S[key]||[];
-        // Use name as key for setup arrays (id may not exist on imported items)
-        const nameKey = key==='pastures'?'name':key==='feedTypes'?'name':'name';
-        const existingNames = new Set(existing.map(x=>x[nameKey]||x.id));
-        let added = 0;
-        importedItems.forEach(item=>{
-          const k = item[nameKey]||item.id;
-          if(k && !existingNames.has(k)){
-            existing.push(item);
-            existingNames.add(k);
-            added++;
-          }
-        });
-        S[key] = existing;
-      });
-      stampSetup(); // advance timestamp so this merged result wins on next sync
+      if(!confirm(`Restore backup from ${file.name}?\n\nThis will REPLACE all current data with the backup. This cannot be undone.`))return;
+      S=JSON.parse(JSON.stringify(imported)); // full replacement — no merge
       migrateSystemIds();
       migrateToPaddocksField();
       ensureDataArrays();
       save();
       renderCurrentScreen();
       const el=document.getElementById('import-status');el.style.display='block';
-      el.textContent='Import successful — '+(imported.events||[]).length+' events, '+(imported.pastures||[]).length+' paddocks merged.';
+      el.textContent='Restore successful — data rolled back to backup from '+file.name;
       setTimeout(()=>{el.style.display='none';},5000);
     }catch(err){alert('Import failed: '+err.message);}
     event.target.value='';
