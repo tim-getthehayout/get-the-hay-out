@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260318.1233" id="app-version-meta"/>
+<meta name="app-version" content="b20260320.0904" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -1053,48 +1053,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
         <div class="field"><label>Operation name</label><input type="text" id="s-name" placeholder="e.g. Smith Angus Farm"/></div>
       </div>
 
-      <!-- Animal Classes -->
-      <div class="card">
-        <div class="sec">Individual animals</div>
-        <div style="font-size:13px;color:var(--text2);margin-bottom:10px;line-height:1.6;">Add each animal with their tag number, EID, sex, class, and current weight. Animals are then assigned to groups.</div>
-        <!-- Search/filter bar -->
-        <div style="display:flex;gap:8px;margin-bottom:10px;">
-          <input type="text" id="animal-search" placeholder="Search by tag or EID…" oninput="renderAnimalList()" style="flex:1;padding:7px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:14px;background:var(--bg);color:var(--text);font-family:inherit;"/>
-          <select id="animal-filter-group" onchange="renderAnimalList()" style="padding:7px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;">
-            <option value="">All groups</option>
-          </select>
-        </div>
-        <div id="animal-list"></div>
-        <div class="div"></div>
-        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Add animal</div>
-        <div class="field"><label>Ear tag # <span style="font-size:11px;color:var(--text2);font-weight:400;">(optional — can be added or changed later)</span></label>
-          <input type="text" id="a-tag" placeholder="T-001 (leave blank to auto-assign)"/>
-        </div>
-        <div class="field"><label>EID # <span style="font-size:11px;color:var(--text2);font-weight:400;">(optional)</span></label>
-          <input type="text" id="a-eid" placeholder="840-…"/>
-        </div>
-        <div class="two">
-          <div class="field"><label>Sex</label>
-            <select id="a-sex">
-              <option value="female">Female</option>
-              <option value="male">Male</option>
-            </select>
-          </div>
-          <div class="field"><label>Class</label>
-            <select id="a-class"><option value="">— select class —</option></select>
-          </div>
-        </div>
-        <div class="two">
-          <div class="field"><label>Current weight (lbs)</label><input type="number" id="a-wt" placeholder="1200" step="1"/></div>
-          <div class="field"><label>Assign to group (optional)</label>
-            <select id="a-group"><option value="">— unassigned —</option></select>
-          </div>
-        </div>
-        <div class="field"><label>Notes (optional)</label><input type="text" id="a-notes" placeholder="Dam, sire, breed notes…"/></div>
-        <button class="btn btn-green btn-sm" onclick="addAnimal()">Add animal</button>
-      </div>
 
-      <!-- Stats settings -->
       <div class="card">
         <div class="sec">Home screen stats</div>
         <div style="font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.6;">Choose which metrics appear on the Home screen. Changes take effect after saving.</div>
@@ -4556,6 +4515,224 @@ function unarchiveAIBull(id){
 }
 // ─── END TREATMENT TYPES / AI BULLS ──────────────────────────────────────────
 
+
+// ─── BATCH ADJUSTMENT / RECONCILE ─────────────────────────────────────────────
+// Adjustments are stored on each batch as b.adjustments[]
+// Each: { id, date, time, reason, qty (new actual on hand), delta, notes,
+//         saleValue (if Sold), createdAt }
+
+function ensureBatchAdjustments(b){
+  if(!Array.isArray(b.adjustments)) b.adjustments=[];
+  return b.adjustments;
+}
+
+function openBatchAdjSheet(batchId, mode){
+  const b = S.batches.find(x=>x.id===batchId);
+  if(!b) return;
+  ensureBatchAdjustments(b);
+
+  document.getElementById('ba-batch-id').value = batchId;
+  document.getElementById('ba-mode').value     = mode;
+  document.getElementById('ba-subtitle').textContent =
+    b.label + ' · ' + b.remaining.toFixed(1) + ' of ' + b.qty + ' ' + b.unit + 's remaining';
+
+  // ── Edit mode: show original entry fields pre-filled ──────────────────────
+  const editFields = document.getElementById('ba-edit-fields');
+  const adjDivider = document.getElementById('ba-adj-divider');
+  if(mode === 'edit'){
+    document.getElementById('ba-title').textContent = 'Edit batch entry';
+    document.getElementById('ba-adj-heading').textContent = 'Adjustment reason';
+    document.getElementById('ba-qty-label').textContent   = 'Actual on hand now';
+    editFields.style.display = 'block';
+    adjDivider.style.display = 'block';
+    document.getElementById('ba-label').value    = b.label;
+    document.getElementById('ba-date').value     = b.date || todayStr();
+    document.getElementById('ba-orig-qty').value = b.qty;
+    document.getElementById('ba-unit').value     = b.unit;
+    document.getElementById('ba-wt').value       = b.wt || '';
+    document.getElementById('ba-cpu').value      = b.cpu || '';
+    // Show note about downstream effect
+    const used = S.events.some(e=>allFeedEntries(e).some(fe=>fe.lines.some(l=>l.batchId===b.id)));
+    document.getElementById('ba-edit-note').textContent = used
+      ? 'Note: this batch has been used in feeding events. Changing the original quantity will adjust remaining proportionally.'
+      : '';
+    // Pre-select "Entry Error"
+    document.getElementById('ba-adj-reason').value = 'Entry Error';
+  } else {
+    document.getElementById('ba-title').textContent = 'Reconcile inventory';
+    document.getElementById('ba-adj-heading').textContent = 'Record actual count';
+    document.getElementById('ba-qty-label').textContent   = 'Actual on hand (your count)';
+    editFields.style.display = 'none';
+    adjDivider.style.display = 'none';
+    // Pre-select "Reconciliation Adjustment"
+    document.getElementById('ba-adj-reason').value = 'Reconciliation Adjustment';
+  }
+
+  // ── Common adj fields ──────────────────────────────────────────────────────
+  const now = new Date();
+  document.getElementById('ba-adj-date').value  = todayStr();
+  document.getElementById('ba-adj-time').value  =
+    String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+  document.getElementById('ba-adj-qty').value   = b.remaining.toFixed(1); // default = no change
+  document.getElementById('ba-adj-unit-label').textContent = b.unit + 's';
+  document.getElementById('ba-adj-notes').value = '';
+  document.getElementById('ba-adj-sale-value').value = '';
+
+  onBaReasonChange();
+  onBaAdjQtyChange();
+
+  // ── History ────────────────────────────────────────────────────────────────
+  const histWrap = document.getElementById('ba-history-wrap');
+  const histList  = document.getElementById('ba-history-list');
+  const adjs = b.adjustments;
+  if(adjs.length){
+    histWrap.style.display = 'block';
+    histList.innerHTML = [...adjs].reverse().map(a=>{
+      const reasonColor = {
+        'Entry Error':               'var(--blue-d)',
+        'Waste':                     'var(--amber-d)',
+        'Sold':                      'var(--green-d)',
+        'Reconciliation Adjustment': 'var(--teal-d)',
+      }[a.reason] || 'var(--text2)';
+      const sign = a.delta >= 0 ? '+' : '';
+      return `<div style="display:flex;justify-content:space-between;align-items:flex-start;
+          padding:7px 0;border-bottom:0.5px solid var(--border);">
+        <div>
+          <div style="font-size:12px;font-weight:600;color:${reasonColor};">${a.reason}</div>
+          <div style="font-size:11px;color:var(--text2);">${dLabel(a.date)}${a.time?' '+a.time:''}</div>
+          ${a.notes?`<div style="font-size:11px;color:var(--text2);">${a.notes}</div>`:''}
+          ${a.saleValue?`<div style="font-size:11px;color:var(--green-d);">Sale: $${parseFloat(a.saleValue).toFixed(2)}</div>`:''}
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="font-size:13px;font-weight:600;color:${a.delta<0?'var(--red-d)':'var(--green-d)'};">
+            ${sign}${a.delta.toFixed(1)} ${b.unit}s
+          </div>
+          <div style="font-size:11px;color:var(--text2);">→ ${a.newQty.toFixed(1)} remaining</div>
+        </div>
+      </div>`;
+    }).join('');
+  } else {
+    histWrap.style.display = 'none';
+  }
+
+  // Archive button — only show if batch is depleted or user might want to close it out
+  document.getElementById('ba-archive-wrap').style.display = b.remaining <= 0 ? 'block' : 'none';
+
+  document.getElementById('batch-adj-wrap').classList.add('open');
+}
+
+function closeBatchAdjSheet(){
+  document.getElementById('batch-adj-wrap').classList.remove('open');
+}
+
+function onBaReasonChange(){
+  const r = document.getElementById('ba-adj-reason').value;
+  document.getElementById('ba-sold-fields').style.display = r==='Sold' ? 'block' : 'none';
+}
+
+function onBaQtyChange(){
+  // In edit mode: as orig qty changes, update the adj qty hint
+  onBaAdjQtyChange();
+}
+
+function onBaAdjQtyChange(){
+  const batchId = parseInt(document.getElementById('ba-batch-id').value);
+  const b = S.batches.find(x=>x.id===batchId);
+  if(!b) return;
+  const newQty = parseFloat(document.getElementById('ba-adj-qty').value);
+  const diffEl = document.getElementById('ba-adj-diff');
+  if(isNaN(newQty)){ diffEl.textContent=''; return; }
+  const delta = newQty - b.remaining;
+  const sign  = delta >= 0 ? '+' : '';
+  const color = delta < 0 ? 'var(--amber-d)' : delta > 0 ? 'var(--green-d)' : 'var(--text2)';
+  diffEl.innerHTML = delta === 0
+    ? '<span style="color:var(--text2);">No change from current</span>'
+    : `<span style="color:${color};">${sign}${delta.toFixed(1)} ${b.unit}s from current (${b.remaining.toFixed(1)} → ${newQty.toFixed(1)})</span>`;
+}
+
+function saveBatchAdj(){
+  const batchId = parseInt(document.getElementById('ba-batch-id').value);
+  const mode    = document.getElementById('ba-mode').value;
+  const b = S.batches.find(x=>x.id===batchId);
+  if(!b){ alert('Batch not found'); return; }
+  ensureBatchAdjustments(b);
+
+  const adjQty   = parseFloat(document.getElementById('ba-adj-qty').value);
+  const adjDate  = document.getElementById('ba-adj-date').value || todayStr();
+  const adjTime  = document.getElementById('ba-adj-time').value || null;
+  const reason   = document.getElementById('ba-adj-reason').value;
+  const notes    = document.getElementById('ba-adj-notes').value.trim();
+  const saleVal  = document.getElementById('ba-adj-sale-value').value;
+
+  if(isNaN(adjQty) || adjQty < 0){ alert('Enter a valid quantity on hand'); return; }
+
+  // ── Edit mode: update original batch fields ────────────────────────────────
+  if(mode === 'edit'){
+    const newOrigQty = parseFloat(document.getElementById('ba-orig-qty').value);
+    if(!newOrigQty || newOrigQty <= 0){ alert('Enter a valid original quantity'); return; }
+
+    const newLabel = document.getElementById('ba-label').value.trim() || b.label;
+    const newWt    = parseFloat(document.getElementById('ba-wt').value) || b.wt;
+    const newCpu   = parseFloat(document.getElementById('ba-cpu').value);
+    const newDate  = document.getElementById('ba-date').value || b.date;
+
+    // Adjust remaining proportionally if orig qty changed
+    if(newOrigQty !== b.qty){
+      const consumed = b.qty - b.remaining;
+      b.remaining = Math.max(0, newOrigQty - consumed);
+      b.qty = newOrigQty;
+    }
+    b.label = newLabel;
+    b.wt    = newWt || null;
+    b.cpu   = isNaN(newCpu) ? b.cpu : newCpu;
+    b.date  = newDate;
+  }
+
+  // ── Record adjustment if qty changed or reason is meaningful ──────────────
+  const prevRemaining = b.remaining;
+  const delta = adjQty - b.remaining;
+
+  // Always record the adjustment for history, even if delta is 0 (confirms count)
+  b.adjustments.push({
+    id:        Date.now(),
+    date:      adjDate,
+    time:      adjTime,
+    reason,
+    delta:     parseFloat(delta.toFixed(2)),
+    prevQty:   parseFloat(b.remaining.toFixed(2)),
+    newQty:    parseFloat(adjQty.toFixed(2)),
+    notes:     notes || null,
+    saleValue: reason === 'Sold' && saleVal ? parseFloat(saleVal) : null,
+    createdAt: new Date().toISOString(),
+  });
+
+  // Apply the qty change
+  b.remaining = parseFloat(adjQty.toFixed(2));
+
+  save();
+  closeBatchAdjSheet();
+  renderBatchListS();
+  renderFeedOverview();
+  showSurveyToast(
+    delta === 0
+      ? 'Inventory confirmed: ' + adjQty.toFixed(1) + ' ' + b.unit + 's'
+      : (delta < 0 ? '▼' : '▲') + ' ' + Math.abs(delta).toFixed(1) + ' ' + b.unit + 's — ' + reason
+  );
+}
+
+function archiveBatchFromAdj(){
+  const batchId = parseInt(document.getElementById('ba-batch-id').value);
+  const b = S.batches.find(x=>x.id===batchId);
+  if(!b) return;
+  if(!confirm('Archive "'+b.label+'"? It will be hidden from new entries but history is preserved.')) return;
+  b.archived = true;
+  stampSetup(); save();
+  closeBatchAdjSheet();
+  renderBatchListS();
+  renderFeedOverview();
+}
+// ─── END BATCH ADJUSTMENT ─────────────────────────────────────────────────────
+
 function renderEventsLog(){
   const ae=getActive();
   const ab=document.getElementById('ev-active-banner');
@@ -4790,7 +4967,7 @@ function loadSettings(){
   if(st.manureVolumeRate&&document.getElementById('s-manure-rate'))document.getElementById('s-manure-rate').value=st.manureVolumeRate;
   if(st.manureLoadLbs&&document.getElementById('s-load-lbs'))document.getElementById('s-load-lbs').value=st.manureLoadLbs;
   if(st.manureVolumeUnit&&document.getElementById('s-vol-unit'))document.getElementById('s-vol-unit').value=st.manureVolumeUnit;
-  document.getElementById('s-ver').value=S.version||'b20260318.1233';document.getElementById('s-tester').value=S.testerName||'';
+  document.getElementById('s-ver').value=S.version||'b20260320.0904';document.getElementById('s-tester').value=S.testerName||'';
   // Stat settings
   const spEl=document.getElementById('s-stat-period');
   if(spEl)spEl.value=S.settings.homeStatPeriod||'7d';
@@ -4867,13 +5044,22 @@ function renderBatchListS(){
       <span style="color:var(--text2);">${b.label} <span class="badge bb">archived</span></span>
       <button class="btn btn-outline btn-xs" onclick="unarchive('batch',${b.id})">Unarchive</button></div>`;
     const pct=Math.round(b.remaining/b.qty*100);
-    return `<div style="margin-bottom:10px;"><div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-bottom:3px;">
-      <span style="font-weight:600;">${b.label}</span>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <span style="color:var(--text2);">${b.remaining.toFixed(1)}/${b.qty} ${b.unit}s · $${(b.cpu||0).toFixed(2)}/${b.unit}</span>
-        <button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;padding:0 4px;" onclick="tryDeleteBatch(${i})">×</button>
-      </div></div>
-      <div class="prog"><div class="prog-fill" style="width:${pct}%;background:${pct>30?'var(--green)':'var(--amber)'};" ></div></div></div>`;
+    const adjCount=(b.adjustments||[]).length;
+    const lastAdj=adjCount?(b.adjustments[adjCount-1]):{};
+    const adjNote=adjCount?`<span style="font-size:10px;color:var(--text2);"> · ${adjCount} adjustment${adjCount!==1?'s':''}</span>`:'';
+    return `<div style="margin-bottom:12px;padding-bottom:10px;border-bottom:0.5px solid var(--border);">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
+        <div>
+          <div style="font-size:13px;font-weight:600;">${b.label}</div>
+          <div style="font-size:11px;color:var(--text2);">${b.remaining.toFixed(1)} of ${b.qty} ${b.unit}s remaining · $${(b.cpu||0).toFixed(2)}/${b.unit}${adjNote}</div>
+        </div>
+        <div style="display:flex;gap:5px;flex-shrink:0;">
+          <button class="btn btn-outline btn-xs" onclick="openBatchAdjSheet(${b.id},'edit')">Edit</button>
+          <button class="btn btn-outline btn-xs" onclick="openBatchAdjSheet(${b.id},'reconcile')">Reconcile</button>
+        </div>
+      </div>
+      <div class="prog"><div class="prog-fill" style="width:${pct}%;background:${pct>30?'var(--green)':'var(--amber)'};" ></div></div>
+    </div>`;
   }).join('');
 }
 function updateHeader(){
@@ -4890,7 +5076,7 @@ function updateHeader(){
   }
   document.getElementById('hdr-sub').textContent=sub;
   const _vTag=document.getElementById('ver-tag');
-  if(_vTag)_vTag.textContent=S.version||'b20260318.1233';
+  if(_vTag)_vTag.textContent=S.version||'b20260320.0904';
   // Keep meta tag in sync so SW registration uses the right version
   const _vMeta=document.getElementById('app-version-meta');
   if(_vMeta&&S.version)_vMeta.setAttribute('content',S.version);
@@ -4912,7 +5098,7 @@ function saveFeedbackItem(){
   const note=document.getElementById('fb-note').value.trim();
   if(!note){document.getElementById('fb-note').style.borderColor='var(--red)';setTimeout(()=>document.getElementById('fb-note').style.borderColor='',1500);return;}
   const ae=getActive();
-  S.feedback.push({id:Date.now(),cat:selCatVal||'idea',note,tester:S.testerName||(getActiveUser()?getActiveUser().name:'anonymous'),version:S.version||'b20260318.1233',status:'open',ctx:{screen:curScreen,activeEvent:ae?{pasture:ae.pasture,day:daysBetween(ae.dateIn,todayStr())}:null},ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:null});
+  S.feedback.push({id:Date.now(),cat:selCatVal||'idea',note,tester:S.testerName||(getActiveUser()?getActiveUser().name:'anonymous'),version:S.version||'b20260320.0904',status:'open',ctx:{screen:curScreen,activeEvent:ae?{pasture:ae.pasture,day:daysBetween(ae.dateIn,todayStr())}:null},ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:null});
   save();closeFeedbackSheet();updateFeedbackBadge();if(curScreen==='feedback')renderFeedbackTab();
 }
 function renderFeedbackTab(){renderConfirmSection();renderFeedbackStats();renderFeedbackList();}
@@ -4928,12 +5114,12 @@ function confirmFixed(id){const f=S.feedback.find(x=>x.id===id);if(!f)return;f.s
 function reopenIssue(id){
   const orig=S.feedback.find(x=>x.id===id);if(!orig)return;
   orig.status='closed';orig.confirmedBy=S.testerName||'anonymous';orig.confirmedAt=new Date().toISOString();
-  S.feedback.push({id:Date.now(),cat:orig.cat,note:`[Regression] ${orig.note}`,tester:S.testerName||'anonymous',version:S.version||'b20260318.1233',status:'open',ctx:orig.ctx,ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:orig.id});
+  S.feedback.push({id:Date.now(),cat:orig.cat,note:`[Regression] ${orig.note}`,tester:S.testerName||'anonymous',version:S.version||'b20260320.0904',status:'open',ctx:orig.ctx,ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:orig.id});
   save();renderFeedbackTab();updateFeedbackBadge();
 }
 function openResolveSheet(id){
   document.getElementById('resolve-id').value=id;document.getElementById('resolve-note').value='';
-  document.getElementById('resolve-ver-label').textContent=S.version||'b20260318.1233';
+  document.getElementById('resolve-ver-label').textContent=S.version||'b20260320.0904';
   document.getElementById('resolve-sheet-wrap').classList.add('open');setTimeout(()=>document.getElementById('resolve-note').focus(),300);
 }
 function closeResolveSheet(){document.getElementById('resolve-sheet-wrap').classList.remove('open');}
@@ -4941,7 +5127,7 @@ function saveResolve(){
   const id=parseInt(document.getElementById('resolve-id').value);const note=document.getElementById('resolve-note').value.trim();
   if(!note){alert('Describe what was changed');return;}
   const f=S.feedback.find(x=>x.id===id);if(!f)return;
-  f.status='resolved';f.resolutionNote=note;f.resolvedInVersion=S.version||'b20260318.1233';f.resolvedAt=new Date().toISOString();
+  f.status='resolved';f.resolutionNote=note;f.resolvedInVersion=S.version||'b20260320.0904';f.resolvedAt=new Date().toISOString();
   save();closeResolveSheet();renderFeedbackTab();updateFeedbackBadge();
 }
 function renderFeedbackStats(){
@@ -4974,7 +5160,7 @@ function generateBrief(){
   const testers=[...new Set(S.feedback.map(f=>f.tester).filter(t=>t&&t!=='anonymous'))];
   const open=S.feedback.filter(f=>f.status==='open');const resolved=S.feedback.filter(f=>f.status==='resolved');const closed=S.feedback.filter(f=>f.status==='closed');
   const catOrder=['bug','calc','ux','feature','idea'];
-  let b=`GET THE HAY OUT — DEV SESSION BRIEF\nGenerated: ${now}\nVersion: ${S.version||'b20260318.1233'}\nTesters: ${testers.length?testers.join(', '):'anonymous'}\nOpen: ${open.length} · Awaiting: ${resolved.length} · Closed: ${closed.length}\n${'═'.repeat(52)}\n`;
+  let b=`GET THE HAY OUT — DEV SESSION BRIEF\nGenerated: ${now}\nVersion: ${S.version||'b20260320.0904'}\nTesters: ${testers.length?testers.join(', '):'anonymous'}\nOpen: ${open.length} · Awaiting: ${resolved.length} · Closed: ${closed.length}\n${'═'.repeat(52)}\n`;
   if(open.length){b+=`\nOPEN ITEMS (${open.length})\n${'─'.repeat(52)}\n`;catOrder.forEach(cat=>{const items=open.filter(f=>f.cat===cat);if(!items.length)return;b+=`\n[${(CAT[cat]||CAT.idea).label.toUpperCase()}]\n`;items.forEach((f,i)=>{const d=new Date(f.ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});const ctx=f.ctx.activeEvent?`screen:${f.ctx.screen} event:${f.ctx.activeEvent.pasture} day${f.ctx.activeEvent.day}`:`screen:${f.ctx.screen}`;b+=`${i+1}. ${f.note}\n   [${ctx}] — ${f.tester}, ${f.version||'?'}, ${d}${f.linkedTo?' ⚠ regression':''}\n`;});});}
   if(resolved.length){b+=`\n${'═'.repeat(52)}\nAWAITING CONFIRMATION (${resolved.length})\n${'─'.repeat(52)}\n`;resolved.forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fix in ${f.resolvedInVersion}: ${f.resolutionNote}\n`;});}
   if(closed.length){b+=`\n${'═'.repeat(52)}\nCLOSED (last 10)\n${'─'.repeat(52)}\n`;closed.slice(-10).forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fixed in ${f.resolvedInVersion||'?'}: ${f.resolutionNote||'—'}. Confirmed: ${f.confirmedBy||'?'}\n`;});}
@@ -7914,7 +8100,7 @@ function closeResetSheet(){
 async function executeReset(){
   if(document.getElementById('reset-confirm-input').value!=='YES')return;
   const mode=document.getElementById('reset-confirm-btn').dataset.mode||'all';
-  const ver=S.version||'b20260318.1233';
+  const ver=S.version||'b20260320.0904';
   if(mode==='events'){
     // Events-only reset — preserve setup data
     S.events=[];
@@ -11489,6 +11675,99 @@ if ('serviceWorker' in navigator) {
     <div class="btn-row" style="margin-top:14px;">
       <button class="btn btn-green" onclick="saveFeedGoal()">Save goal</button>
       <button class="btn btn-outline" onclick="closeFeedGoalSheet()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- BATCH ADJUSTMENT / RECONCILE SHEET -->
+<div class="sheet-wrap" id="batch-adj-wrap">
+  <div class="sheet-backdrop" onclick="closeBatchAdjSheet()"></div>
+  <div class="sheet" style="max-height:92vh;overflow-y:auto;">
+    <div class="sheet-handle"></div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:2px;" id="ba-title">Edit batch</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:14px;" id="ba-subtitle"></div>
+    <input type="hidden" id="ba-batch-id"/>
+    <input type="hidden" id="ba-mode"/><!-- 'edit' | 'reconcile' -->
+
+    <!-- ── Original entry fields (shown in edit mode) ── -->
+    <div id="ba-edit-fields">
+      <div class="two">
+        <div class="field"><label>Label</label><input type="text" id="ba-label"/></div>
+        <div class="field"><label>Date received</label><input type="date" id="ba-date"/></div>
+      </div>
+      <div class="two">
+        <div class="field"><label>Original quantity</label><input type="number" id="ba-orig-qty" step="0.5" oninput="onBaQtyChange()"/></div>
+        <div class="field"><label>Unit</label><input type="text" id="ba-unit" disabled style="opacity:.6;"/></div>
+      </div>
+      <div class="two">
+        <div class="field"><label>Wt per unit (lbs)</label><input type="number" id="ba-wt" step="1" placeholder="850"/></div>
+        <div class="field"><label>Cost per unit ($)</label><input type="number" id="ba-cpu" step="0.01" placeholder="0.00"/></div>
+      </div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:12px;" id="ba-edit-note"></div>
+    </div>
+
+    <!-- ── Adjustment fields (shown in both modes) ── -->
+    <div id="ba-adj-fields">
+      <div class="div" id="ba-adj-divider"></div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px;" id="ba-adj-heading">Record adjustment</div>
+
+      <div class="two">
+        <div class="field">
+          <label>Date</label>
+          <input type="date" id="ba-adj-date"/>
+        </div>
+        <div class="field">
+          <label>Time <span style="font-size:10px;color:var(--text2);">optional</span></label>
+          <input type="time" id="ba-adj-time"/>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Reason</label>
+        <select id="ba-adj-reason" onchange="onBaReasonChange()">
+          <option value="Entry Error">Entry Error</option>
+          <option value="Waste">Waste</option>
+          <option value="Sold">Sold</option>
+          <option value="Reconciliation Adjustment">Reconciliation Adjustment</option>
+        </select>
+      </div>
+
+      <!-- Sold: value field -->
+      <div class="field" id="ba-sold-fields" style="display:none;">
+        <label>Sale value ($) <span style="font-size:10px;color:var(--text2);">optional</span></label>
+        <input type="number" id="ba-adj-sale-value" step="0.01" placeholder="0.00"/>
+      </div>
+
+      <div class="field">
+        <label id="ba-qty-label">Actual on hand now</label>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <input type="number" id="ba-adj-qty" step="0.5" style="flex:1;"
+            oninput="onBaAdjQtyChange()"/>
+          <span style="font-size:13px;color:var(--text2);" id="ba-adj-unit-label"></span>
+        </div>
+        <div style="font-size:11px;color:var(--text2);margin-top:3px;" id="ba-adj-diff"></div>
+      </div>
+
+      <div class="field">
+        <label>Notes <span style="font-size:10px;color:var(--text2);">optional</span></label>
+        <input type="text" id="ba-adj-notes" placeholder="e.g. Counted bales in barn"/>
+      </div>
+    </div>
+
+    <!-- ── Adjustment history ── -->
+    <div id="ba-history-wrap" style="display:none;">
+      <div class="div"></div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Adjustment history</div>
+      <div id="ba-history-list"></div>
+    </div>
+
+    <div class="btn-row" style="margin-top:16px;">
+      <button class="btn btn-green" onclick="saveBatchAdj()">Save</button>
+      <button class="btn btn-outline" onclick="closeBatchAdjSheet()">Cancel</button>
+    </div>
+    <div id="ba-archive-wrap" style="margin-top:8px;display:none;">
+      <button class="btn btn-amber btn-sm" style="width:auto;" onclick="archiveBatchFromAdj()">Archive batch</button>
     </div>
   </div>
 </div>
