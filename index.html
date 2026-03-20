@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260320.1009" id="app-version-meta"/>
+<meta name="app-version" content="b20260320.1013" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -5307,7 +5307,7 @@ function saveFeedbackItem(){
   const note=document.getElementById('fb-note').value.trim();
   if(!note){document.getElementById('fb-note').style.borderColor='var(--red)';setTimeout(()=>document.getElementById('fb-note').style.borderColor='',1500);return;}
   const ae=getActive();
-  S.feedback.push({id:Date.now(),cat:selCatVal||'idea',note,tester:S.testerName||(getActiveUser()?getActiveUser().name:'anonymous'),version:S.version||'b20260320.1009',status:'open',ctx:{screen:curScreen,activeEvent:ae?{pasture:ae.pasture,day:daysBetween(ae.dateIn,todayStr())}:null},ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:null});
+  S.feedback.push({id:Date.now(),cat:selCatVal||'idea',note,tester:S.testerName||(getActiveUser()?getActiveUser().name:'anonymous'),version:S.version||'b20260320.1013',status:'open',ctx:{screen:curScreen,activeEvent:ae?{pasture:ae.pasture,day:daysBetween(ae.dateIn,todayStr())}:null},ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:null});
   save();closeFeedbackSheet();updateFeedbackBadge();if(curScreen==='feedback')renderFeedbackTab();
 }
 function renderFeedbackTab(){renderConfirmSection();renderFeedbackStats();renderFeedbackList();}
@@ -5323,12 +5323,12 @@ function confirmFixed(id){const f=S.feedback.find(x=>x.id===id);if(!f)return;f.s
 function reopenIssue(id){
   const orig=S.feedback.find(x=>x.id===id);if(!orig)return;
   orig.status='closed';orig.confirmedBy=S.testerName||'anonymous';orig.confirmedAt=new Date().toISOString();
-  S.feedback.push({id:Date.now(),cat:orig.cat,note:`[Regression] ${orig.note}`,tester:S.testerName||'anonymous',version:S.version||'b20260320.1009',status:'open',ctx:orig.ctx,ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:orig.id});
+  S.feedback.push({id:Date.now(),cat:orig.cat,note:`[Regression] ${orig.note}`,tester:S.testerName||'anonymous',version:S.version||'b20260320.1013',status:'open',ctx:orig.ctx,ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:orig.id});
   save();renderFeedbackTab();updateFeedbackBadge();
 }
 function openResolveSheet(id){
   document.getElementById('resolve-id').value=id;document.getElementById('resolve-note').value='';
-  document.getElementById('resolve-ver-label').textContent=S.version||'b20260320.1009';
+  document.getElementById('resolve-ver-label').textContent=S.version||'b20260320.1013';
   document.getElementById('resolve-sheet-wrap').classList.add('open');setTimeout(()=>document.getElementById('resolve-note').focus(),300);
 }
 function closeResolveSheet(){document.getElementById('resolve-sheet-wrap').classList.remove('open');}
@@ -5336,7 +5336,7 @@ function saveResolve(){
   const id=parseInt(document.getElementById('resolve-id').value);const note=document.getElementById('resolve-note').value.trim();
   if(!note){alert('Describe what was changed');return;}
   const f=S.feedback.find(x=>x.id===id);if(!f)return;
-  f.status='resolved';f.resolutionNote=note;f.resolvedInVersion=S.version||'b20260320.1009';f.resolvedAt=new Date().toISOString();
+  f.status='resolved';f.resolutionNote=note;f.resolvedInVersion=S.version||'b20260320.1013';f.resolvedAt=new Date().toISOString();
   save();closeResolveSheet();renderFeedbackTab();updateFeedbackBadge();
 }
 function renderFeedbackStats(){
@@ -5369,7 +5369,7 @@ function generateBrief(){
   const testers=[...new Set(S.feedback.map(f=>f.tester).filter(t=>t&&t!=='anonymous'))];
   const open=S.feedback.filter(f=>f.status==='open');const resolved=S.feedback.filter(f=>f.status==='resolved');const closed=S.feedback.filter(f=>f.status==='closed');
   const catOrder=['bug','calc','ux','feature','idea'];
-  let b=`GET THE HAY OUT — DEV SESSION BRIEF\nGenerated: ${now}\nVersion: ${S.version||'b20260320.1009'}\nTesters: ${testers.length?testers.join(', '):'anonymous'}\nOpen: ${open.length} · Awaiting: ${resolved.length} · Closed: ${closed.length}\n${'═'.repeat(52)}\n`;
+  let b=`GET THE HAY OUT — DEV SESSION BRIEF\nGenerated: ${now}\nVersion: ${S.version||'b20260320.1013'}\nTesters: ${testers.length?testers.join(', '):'anonymous'}\nOpen: ${open.length} · Awaiting: ${resolved.length} · Closed: ${closed.length}\n${'═'.repeat(52)}\n`;
   if(open.length){b+=`\nOPEN ITEMS (${open.length})\n${'─'.repeat(52)}\n`;catOrder.forEach(cat=>{const items=open.filter(f=>f.cat===cat);if(!items.length)return;b+=`\n[${(CAT[cat]||CAT.idea).label.toUpperCase()}]\n`;items.forEach((f,i)=>{const d=new Date(f.ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});const ctx=f.ctx.activeEvent?`screen:${f.ctx.screen} event:${f.ctx.activeEvent.pasture} day${f.ctx.activeEvent.day}`:`screen:${f.ctx.screen}`;b+=`${i+1}. ${f.note}\n   [${ctx}] — ${f.tester}, ${f.version||'?'}, ${d}${f.linkedTo?' ⚠ regression':''}\n`;});});}
   if(resolved.length){b+=`\n${'═'.repeat(52)}\nAWAITING CONFIRMATION (${resolved.length})\n${'─'.repeat(52)}\n`;resolved.forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fix in ${f.resolvedInVersion}: ${f.resolutionNote}\n`;});}
   if(closed.length){b+=`\n${'═'.repeat(52)}\nCLOSED (last 10)\n${'─'.repeat(52)}\n`;closed.slice(-10).forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fixed in ${f.resolvedInVersion||'?'}: ${f.resolutionNote||'—'}. Confirmed: ${f.confirmedBy||'?'}\n`;});}
@@ -8309,7 +8309,7 @@ function closeResetSheet(){
 async function executeReset(){
   if(document.getElementById('reset-confirm-input').value!=='YES')return;
   const mode=document.getElementById('reset-confirm-btn').dataset.mode||'all';
-  const ver=S.version||'b20260320.1009';
+  const ver=S.version||'b20260320.1013';
   if(mode==='events'){
     // Events-only reset — preserve setup data
     S.events=[];
@@ -11449,48 +11449,59 @@ detectMode(); // must run last — reads DOM
 // ─── SERVICE WORKER REGISTRATION ─────────────────────────────────────────────
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    // Read app version from meta tag — passed to sw.js as query param
-    // so the SW cache name updates automatically with every version bump
     const _appVer = document.getElementById('app-version-meta')?.getAttribute('content') || 'v1.0';
-    navigator.serviceWorker.register('/sw.js?v=' + encodeURIComponent(_appVer), { scope: '/' })
-      .then(reg => {
-        console.log('[GTHY] SW registered v' + _appVer + ', scope:', reg.scope);
 
-        // Check for updates every time the app gains focus (user switches back)
-        document.addEventListener('visibilitychange', () => {
-          if (document.visibilityState === 'visible') {
-            reg.update().catch(() => {});
-          }
-        });
-
-        // When a new SW finishes installing, show the update banner
-        // instead of auto-reloading — let the user back up first
-        reg.addEventListener('updatefound', () => {
-          const newWorker = reg.installing;
-          if (!newWorker) return;
-          newWorker.addEventListener('statechange', () => {
-            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              console.log('[GTHY] New version ready — showing update banner');
-              window._pendingUpdateWorker = newWorker;
-              // Also store on the registration so applyAppUpdate can find it
-              if(window._swRegistration) window._swRegistration._waitingWorker = newWorker;
-              showUpdateBanner();
-            }
-          });
-        });
-
-        // Also check if a SW is already waiting when page loads (e.g. tab was backgrounded)
-        if (reg.waiting && navigator.serviceWorker.controller) {
-          window._pendingUpdateWorker = reg.waiting;
-          window._swRegistration = reg;
+    // Helper: attach statechange to any worker that's currently installing
+    function watchWorker(worker) {
+      if (!worker) return;
+      worker.addEventListener('statechange', () => {
+        if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+          console.log('[GTHY] New version installed, waiting — showing banner');
+          window._pendingUpdateWorker = worker;
+          window._swRegistration && (window._swRegistration._waitingWorker = worker);
           showUpdateBanner();
         }
-        // Store registration globally so applyAppUpdate can re-query it
+      });
+    }
+
+    // Helper: check reg for any waiting/installing worker and act immediately
+    function checkRegState(reg) {
+      if (!reg) return;
+      window._swRegistration = reg;
+      if (reg.waiting && navigator.serviceWorker.controller) {
+        // Already waiting — show banner immediately (covers backgrounded tab case)
+        window._pendingUpdateWorker = reg.waiting;
+        showUpdateBanner();
+      } else if (reg.installing) {
+        // Mid-install when we checked — watch it
+        watchWorker(reg.installing);
+      }
+    }
+
+    navigator.serviceWorker.register('/sw.js?v=' + encodeURIComponent(_appVer), { scope: '/' })
+      .then(reg => {
+        console.log('[GTHY] SW registered v' + _appVer);
         window._swRegistration = reg;
+
+        // Check immediately — worker may already be installing or waiting
+        // (race condition: updatefound can fire before .then() runs)
+        checkRegState(reg);
+
+        // Watch for future updates found during this session
+        reg.addEventListener('updatefound', () => {
+          console.log('[GTHY] Update found — watching new worker');
+          watchWorker(reg.installing);
+        });
+
+        // Re-check after every visibility restore (user switches back to app)
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState !== 'visible') return;
+          reg.update().then(() => checkRegState(reg)).catch(() => {});
+        });
       })
       .catch(err => console.warn('[GTHY] SW registration failed:', err));
 
-    // When the SW has taken over (after SKIP_WAITING), reload once
+    // When the SW takes over (after SKIP_WAITING), reload once
     let reloadPending = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (reloadPending) return;
