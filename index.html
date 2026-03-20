@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260320.1013" id="app-version-meta"/>
+<meta name="app-version" content="b20260320.1032" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -5307,7 +5307,7 @@ function saveFeedbackItem(){
   const note=document.getElementById('fb-note').value.trim();
   if(!note){document.getElementById('fb-note').style.borderColor='var(--red)';setTimeout(()=>document.getElementById('fb-note').style.borderColor='',1500);return;}
   const ae=getActive();
-  S.feedback.push({id:Date.now(),cat:selCatVal||'idea',note,tester:S.testerName||(getActiveUser()?getActiveUser().name:'anonymous'),version:S.version||'b20260320.1013',status:'open',ctx:{screen:curScreen,activeEvent:ae?{pasture:ae.pasture,day:daysBetween(ae.dateIn,todayStr())}:null},ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:null});
+  S.feedback.push({id:Date.now(),cat:selCatVal||'idea',note,tester:S.testerName||(getActiveUser()?getActiveUser().name:'anonymous'),version:S.version||'b20260320.1032',status:'open',ctx:{screen:curScreen,activeEvent:ae?{pasture:ae.pasture,day:daysBetween(ae.dateIn,todayStr())}:null},ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:null});
   save();closeFeedbackSheet();updateFeedbackBadge();if(curScreen==='feedback')renderFeedbackTab();
 }
 function renderFeedbackTab(){renderConfirmSection();renderFeedbackStats();renderFeedbackList();}
@@ -5323,12 +5323,12 @@ function confirmFixed(id){const f=S.feedback.find(x=>x.id===id);if(!f)return;f.s
 function reopenIssue(id){
   const orig=S.feedback.find(x=>x.id===id);if(!orig)return;
   orig.status='closed';orig.confirmedBy=S.testerName||'anonymous';orig.confirmedAt=new Date().toISOString();
-  S.feedback.push({id:Date.now(),cat:orig.cat,note:`[Regression] ${orig.note}`,tester:S.testerName||'anonymous',version:S.version||'b20260320.1013',status:'open',ctx:orig.ctx,ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:orig.id});
+  S.feedback.push({id:Date.now(),cat:orig.cat,note:`[Regression] ${orig.note}`,tester:S.testerName||'anonymous',version:S.version||'b20260320.1032',status:'open',ctx:orig.ctx,ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:orig.id});
   save();renderFeedbackTab();updateFeedbackBadge();
 }
 function openResolveSheet(id){
   document.getElementById('resolve-id').value=id;document.getElementById('resolve-note').value='';
-  document.getElementById('resolve-ver-label').textContent=S.version||'b20260320.1013';
+  document.getElementById('resolve-ver-label').textContent=S.version||'b20260320.1032';
   document.getElementById('resolve-sheet-wrap').classList.add('open');setTimeout(()=>document.getElementById('resolve-note').focus(),300);
 }
 function closeResolveSheet(){document.getElementById('resolve-sheet-wrap').classList.remove('open');}
@@ -5336,7 +5336,7 @@ function saveResolve(){
   const id=parseInt(document.getElementById('resolve-id').value);const note=document.getElementById('resolve-note').value.trim();
   if(!note){alert('Describe what was changed');return;}
   const f=S.feedback.find(x=>x.id===id);if(!f)return;
-  f.status='resolved';f.resolutionNote=note;f.resolvedInVersion=S.version||'b20260320.1013';f.resolvedAt=new Date().toISOString();
+  f.status='resolved';f.resolutionNote=note;f.resolvedInVersion=S.version||'b20260320.1032';f.resolvedAt=new Date().toISOString();
   save();closeResolveSheet();renderFeedbackTab();updateFeedbackBadge();
 }
 function renderFeedbackStats(){
@@ -5369,7 +5369,7 @@ function generateBrief(){
   const testers=[...new Set(S.feedback.map(f=>f.tester).filter(t=>t&&t!=='anonymous'))];
   const open=S.feedback.filter(f=>f.status==='open');const resolved=S.feedback.filter(f=>f.status==='resolved');const closed=S.feedback.filter(f=>f.status==='closed');
   const catOrder=['bug','calc','ux','feature','idea'];
-  let b=`GET THE HAY OUT — DEV SESSION BRIEF\nGenerated: ${now}\nVersion: ${S.version||'b20260320.1013'}\nTesters: ${testers.length?testers.join(', '):'anonymous'}\nOpen: ${open.length} · Awaiting: ${resolved.length} · Closed: ${closed.length}\n${'═'.repeat(52)}\n`;
+  let b=`GET THE HAY OUT — DEV SESSION BRIEF\nGenerated: ${now}\nVersion: ${S.version||'b20260320.1032'}\nTesters: ${testers.length?testers.join(', '):'anonymous'}\nOpen: ${open.length} · Awaiting: ${resolved.length} · Closed: ${closed.length}\n${'═'.repeat(52)}\n`;
   if(open.length){b+=`\nOPEN ITEMS (${open.length})\n${'─'.repeat(52)}\n`;catOrder.forEach(cat=>{const items=open.filter(f=>f.cat===cat);if(!items.length)return;b+=`\n[${(CAT[cat]||CAT.idea).label.toUpperCase()}]\n`;items.forEach((f,i)=>{const d=new Date(f.ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});const ctx=f.ctx.activeEvent?`screen:${f.ctx.screen} event:${f.ctx.activeEvent.pasture} day${f.ctx.activeEvent.day}`:`screen:${f.ctx.screen}`;b+=`${i+1}. ${f.note}\n   [${ctx}] — ${f.tester}, ${f.version||'?'}, ${d}${f.linkedTo?' ⚠ regression':''}\n`;});});}
   if(resolved.length){b+=`\n${'═'.repeat(52)}\nAWAITING CONFIRMATION (${resolved.length})\n${'─'.repeat(52)}\n`;resolved.forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fix in ${f.resolvedInVersion}: ${f.resolutionNote}\n`;});}
   if(closed.length){b+=`\n${'═'.repeat(52)}\nCLOSED (last 10)\n${'─'.repeat(52)}\n`;closed.slice(-10).forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fixed in ${f.resolvedInVersion||'?'}: ${f.resolutionNote||'—'}. Confirmed: ${f.confirmedBy||'?'}\n`;});}
@@ -5978,78 +5978,303 @@ function renderGroupsList(){
 }
 
 
-// ── Split group ───────────────────────────────────────────────────────────────
-let splitSrcColor='#1D9E75';
+// ── Split group ──────────────────────────────────────────────────────────────
 
-function selSplitColor(el,color){
-  splitSrcColor=color;
-  document.getElementById('split-color').value=color;
-  document.querySelectorAll('#split-color-picker div').forEach(d=>d.style.border='2px solid transparent');
-  el.style.border='2px solid var(--text)';
+let splitSrcColor = '#1D9E75';
+let _splitSelectedIds = new Set();
+
+function selSplitColor(el, color){
+  splitSrcColor = color;
+  document.getElementById('split-color').value = color;
+  document.querySelectorAll('#split-color-picker div').forEach(d => d.style.border = '2px solid transparent');
+  el.style.border = '2px solid var(--text)';
 }
 
 function openSplitSheet(groupId){
-  const g=getGroupById(groupId);if(!g)return;
-  document.getElementById('split-source-id').value=groupId;
-  splitSrcColor='#1D9E75';
-  document.getElementById('split-source-info').innerHTML=
-    `<strong>${g.name}</strong> · ${g.classes.map(c=>{const cls=S.animalClasses.find(x=>x.id===c.classId);return`${c.count} ${cls?cls.name:'?'}`;}).join(', ')}`;
-  // Build class rows with max counts
-  document.getElementById('split-class-rows').innerHTML=g.classes.map((c,i)=>{
-    const cls=S.animalClasses.find(x=>x.id===c.classId);
-    return `<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
-      <div style="flex:2;font-size:13px;font-weight:500;">${cls?cls.name:'Unknown'} <span style="color:var(--text2);font-size:11px;">(${c.count} available)</span></div>
-      <input type="number" id="split-cls-${i}" placeholder="0" min="0" max="${c.count}" step="1" value="0"
-        oninput="calcSplitPreview()" style="flex:1;padding:7px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);font-size:14px;font-family:inherit;"/>
-      <div style="flex:0.5;font-size:11px;color:var(--text2);">to move</div>
-    </div>`;
-  }).join('');
-  document.getElementById('split-new-name').value='';
-  document.getElementById('split-preview').style.display='none';
+  const g = getGroupById(groupId);
+  if(!g){ alert('Group not found'); return; }
+  _splitSelectedIds = new Set();
+  splitSrcColor = '#1D9E75';
+
+  document.getElementById('split-source-id').value = groupId;
+
+  // Source label
+  const ae = getActiveEventForGroup(groupId);
+  const t  = getGroupTotals(g);
+  document.getElementById('split-source-label').textContent =
+    g.name + ' · ' + t.totalHead + ' head' + (ae ? ' · at ' + evDisplayName(ae) : ' · unplaced');
+
+  // Date/time defaults
+  const now = new Date();
+  document.getElementById('split-date').value = todayStr();
+  document.getElementById('split-time').value =
+    String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+
+  // Reset destination
+  document.getElementById('split-dest-new').checked = true;
+  document.getElementById('split-new-name').value = '';
+  document.getElementById('split-color').value = '#1D9E75';
+  document.querySelectorAll('#split-color-picker div').forEach((d,i) =>
+    d.style.border = i===0 ? '2px solid var(--text)' : '2px solid transparent'
+  );
+
+  // Show/hide placement option based on whether source has active event
+  document.getElementById('split-placement-field').style.display = ae ? 'block' : 'none';
+  document.getElementById('split-placement').value = ae ? 'same' : 'unplaced';
+
+  // Populate existing groups dropdown (exclude source)
+  const existingSel = document.getElementById('split-existing-group');
+  existingSel.innerHTML = '<option value="">— select group —</option>' +
+    S.animalGroups
+      .filter(x => !x.archived && x.id !== groupId)
+      .map(x => {
+        const xt = getGroupTotals(x);
+        const xae = getActiveEventForGroup(x.id);
+        return `<option value="${x.id}">${x.name} (${xt.totalHead} head${xae?' · at '+evDisplayName(xae):''})</option>`;
+      }).join('');
+
+  onSplitDestChange();
+  renderSplitAnimalPicker(groupId);
+  document.getElementById('split-preview').style.display = 'none';
+
   document.getElementById('split-sheet-wrap').classList.add('open');
 }
-function closeSplitSheet(){document.getElementById('split-sheet-wrap').classList.remove('open');}
 
-function calcSplitPreview(){
-  const gId=parseInt(document.getElementById('split-source-id').value);
-  const g=getGroupById(gId);if(!g)return;
-  const movedCounts=g.classes.map((c,i)=>({...c,count:parseInt(document.getElementById('split-cls-'+i).value)||0}));
-  const remainCounts=g.classes.map((c,i)=>({...c,count:c.count-(parseInt(document.getElementById('split-cls-'+i).value)||0)}));
-  const movedTotal=movedCounts.reduce((s,c)=>s+c.count,0);
-  if(movedTotal<=0){document.getElementById('split-preview').style.display='none';return;}
-  const newGTotals=getGroupTotals({...g,classes:movedCounts.filter(c=>c.count>0)});
-  const remGTotals=getGroupTotals({...g,classes:remainCounts.filter(c=>c.count>0)});
-  document.getElementById('split-preview').style.display='block';
-  document.getElementById('split-preview-content').innerHTML=`
-    <div class="two" style="gap:8px;">
-      <div><div style="font-size:11px;color:var(--text2);">${g.name} (remaining)</div><div style="font-size:13px;font-weight:600;">${remGTotals.totalHead} head · ${Math.round(remGTotals.dmiTarget).toLocaleString()} lbs DMI/day</div></div>
-      <div><div style="font-size:11px;color:var(--text2);">New group</div><div style="font-size:13px;font-weight:600;">${newGTotals.totalHead} head · ${Math.round(newGTotals.dmiTarget).toLocaleString()} lbs DMI/day</div></div>
+function closeSplitSheet(){
+  document.getElementById('split-sheet-wrap').classList.remove('open');
+}
+
+function onSplitDestChange(){
+  const dest = document.querySelector('input[name="split-dest"]:checked')?.value;
+  document.getElementById('split-new-fields').style.display      = dest==='new'      ? 'block' : 'none';
+  document.getElementById('split-existing-fields').style.display = dest==='existing' ? 'block' : 'none';
+  updateSplitExistingEventNote();
+  renderSplitPreview();
+}
+
+function updateSplitExistingEventNote(){
+  const gId  = parseInt(document.getElementById('split-existing-group').value);
+  const note = document.getElementById('split-existing-event-note');
+  if(!gId){ note.style.display='none'; return; }
+  const destAe = getActiveEventForGroup(gId);
+  if(destAe){
+    note.style.display = 'block';
+    note.textContent = 'These animals will be added to the active event at ' +
+      evDisplayName(destAe) + '. The event head count will update immediately.';
+  } else {
+    note.style.display = 'block';
+    note.textContent = 'This group has no active event. Animals will be added unplaced — place via Move on the Home screen.';
+  }
+}
+
+function renderSplitAnimalPicker(groupId){
+  const el = document.getElementById('split-animal-picker');
+  const animals = getGroupAnimals(groupId).filter(a => a.active !== false);
+  if(!animals.length){
+    el.innerHTML = '<div style="font-size:13px;color:var(--text2);">No individual animals in this group.</div>';
+    return;
+  }
+  el.innerHTML = animals.map(a => {
+    const cls = S.animalClasses.find(c => c.id === a.classId);
+    const on  = _splitSelectedIds.has(a.id);
+    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;
+        background:${on?'var(--green-l)':'var(--bg2)'};border-radius:var(--radius);
+        margin-bottom:4px;cursor:pointer;border:0.5px solid ${on?'var(--green-l2)':'var(--border)'};"
+        onclick="toggleSplitAnimal(${a.id})">
+      <div style="width:16px;height:16px;border-radius:50%;flex-shrink:0;
+          border:1.5px solid ${on?'var(--green)':'var(--border2)'};
+          background:${on?'var(--green)':'transparent'};
+          display:flex;align-items:center;justify-content:center;">
+        ${on?'<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><polyline points="1.5,5 4,7.5 8.5,2" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>':''}
+      </div>
+      <div style="flex:1;font-size:13px;">
+        <strong>${a.tagNum||a.systemId}</strong>
+        <span style="color:var(--text2);font-size:11px;"> · ${a.sex==='male'?'♂':'♀'}${cls?' · '+cls.name:''} · ${a.weightLbs||'?'} lbs</span>
+      </div>
     </div>`;
+  }).join('');
+}
+
+function toggleSplitAnimal(id){
+  if(_splitSelectedIds.has(id)) _splitSelectedIds.delete(id);
+  else _splitSelectedIds.add(id);
+  const gId = parseInt(document.getElementById('split-source-id').value);
+  renderSplitAnimalPicker(gId);
+  renderSplitPreview();
+}
+
+function renderSplitPreview(){
+  const gId  = parseInt(document.getElementById('split-source-id').value);
+  const g    = getGroupById(gId);
+  const dest = document.querySelector('input[name="split-dest"]:checked')?.value;
+  const el   = document.getElementById('split-preview');
+  const content = document.getElementById('split-preview-content');
+  if(!g || _splitSelectedIds.size === 0){ el.style.display='none'; return; }
+
+  const allAnimals   = getGroupAnimals(gId).filter(a=>a.active!==false);
+  const splitAnimals = allAnimals.filter(a=>_splitSelectedIds.has(a.id));
+  const remAnimals   = allAnimals.filter(a=>!_splitSelectedIds.has(a.id));
+
+  const fmtGroup = (name, animals, color) => {
+    const wt  = animals.reduce((s,a)=>s+(a.weightLbs||0),0);
+    const avg = animals.length ? Math.round(wt/animals.length) : 0;
+    let dmi=0;
+    animals.forEach(a=>{ const cls=S.animalClasses.find(c=>c.id===a.classId); dmi+=(a.weightLbs||0)*((cls?cls.dmiPct:2.5)/100); });
+    return `<div style="padding:8px 10px;background:var(--bg2);border-radius:var(--radius);
+        border-left:3px solid ${color||'var(--green)'};">
+      <div style="font-size:12px;font-weight:600;">${name}</div>
+      <div style="font-size:11px;color:var(--text2);">${animals.length} head · avg ${avg} lbs · ${Math.round(dmi).toLocaleString()} lbs DMI/day</div>
+    </div>`;
+  };
+
+  let destName = 'New group';
+  let destColor = splitSrcColor;
+  if(dest === 'new'){
+    destName  = document.getElementById('split-new-name').value.trim() || 'New group';
+    destColor = document.getElementById('split-color').value || splitSrcColor;
+  } else {
+    const destGId = parseInt(document.getElementById('split-existing-group').value);
+    const destG   = destGId ? getGroupById(destGId) : null;
+    destName  = destG ? destG.name : 'Existing group';
+    destColor = destG ? (destG.color||'var(--green)') : 'var(--green)';
+  }
+
+  content.innerHTML =
+    fmtGroup(g.name + ' (remaining)', remAnimals, g.color||'var(--green)') +
+    '<div style="text-align:center;font-size:18px;padding:4px 0;color:var(--text2);">↓</div>' +
+    fmtGroup(destName, splitAnimals, destColor);
+
+  el.style.display = 'block';
 }
 
 function saveSplit(){
-  const gId=parseInt(document.getElementById('split-source-id').value);
-  const g=getGroupById(gId);if(!g)return;
-  const newName=document.getElementById('split-new-name').value.trim();
-  if(!newName){alert('Name the new group');return;}
-  const movedCounts=g.classes.map((c,i)=>({...c,count:parseInt(document.getElementById('split-cls-'+i).value)||0}));
-  const movedTotal=movedCounts.reduce((s,c)=>s+c.count,0);
-  if(movedTotal<=0){alert('Enter at least 1 animal to move');return;}
-  // Validate not moving more than available
-  for(let i=0;i<g.classes.length;i++){
-    if(movedCounts[i].count>g.classes[i].count){alert('Cannot move more than available for '+S.animalClasses.find(c=>c.id===g.classes[i].classId)?.name);return;}
+  const gId      = parseInt(document.getElementById('split-source-id').value);
+  const g        = getGroupById(gId);
+  if(!g){ alert('Source group not found'); return; }
+
+  const splitIds = [..._splitSelectedIds];
+  if(!splitIds.length){ alert('Select at least one animal to split off'); return; }
+
+  const dest      = document.querySelector('input[name="split-dest"]:checked')?.value;
+  const splitDate = document.getElementById('split-date').value || todayStr();
+  const splitTime = document.getElementById('split-time').value || null;
+
+  const allAnimals = getGroupAnimals(gId);
+  const splitAnimals = allAnimals.filter(a => splitIds.includes(a.id));
+
+  // ── Log group-change note on each split animal ──────────────────────────────
+  splitAnimals.forEach(a => {
+    ensureAnimalHealthEvents(a);
+    a.healthEvents.push({
+      id: Date.now() + a.id,
+      type: 'note',
+      date: splitDate,
+      time: splitTime,
+      text: 'Split from group: ' + g.name,
+      createdAt: new Date().toISOString(),
+      _groupChange: true,
+    });
+  });
+
+  // ── Remove split animals from source group ──────────────────────────────────
+  g.animalIds = (g.animalIds||[]).filter(id => !splitIds.includes(id));
+
+  // ── Update source group's active event head/wt snapshot ────────────────────
+  const srcAe = getActiveEventForGroup(gId);
+  if(srcAe){
+    const srcT    = getGroupTotals(g);
+    srcAe.head    = srcT.totalHead;
+    srcAe.wt      = srcT.avgWeight;
+    srcAe.updatedAt = new Date().toISOString();
   }
-  // Deduct from source
-  g.classes=g.classes.map((c,i)=>({...c,count:c.count-movedCounts[i].count})).filter(c=>c.count>0);
-  // Create new group
-  const newId=Date.now();
-  S.animalGroups.push({id:newId,archived:false,name:newName,color:splitSrcColor,classes:movedCounts.filter(c=>c.count>0)});
-  // Update source group's open event snapshot
-  const ae=getActiveEventForGroup(gId);
-  if(ae){const t=getGroupTotals(g);ae.head=t.totalHead;ae.wt=t.avgWeight;}
-  save();closeSplitSheet();
-  renderGroupsList();renderHome();
-  alert(`Split complete. ${newName} has ${movedTotal} head. Use Move Herd to assign them to a location.`);
+
+  // ── Destination: new group ──────────────────────────────────────────────────
+  if(dest === 'new'){
+    const newName = document.getElementById('split-new-name').value.trim();
+    if(!newName){ alert('Enter a name for the new group'); return; }
+
+    const newGId = Date.now();
+    const newG   = { id:newGId, archived:false, name:newName,
+                     color:document.getElementById('split-color').value||splitSrcColor,
+                     animalIds:[...splitIds] };
+    S.animalGroups.push(newG);
+
+    const placement = document.getElementById('split-placement').value;
+    if(placement === 'same' && srcAe){
+      // Scenario B: open a new event at the same location for the split group
+      const srcPads = evPaddocks(srcAe);
+      const newEvId = Date.now() + 1;
+      const newEv = {
+        id:       newEvId,
+        status:   'open',
+        pasture:  srcAe.pasture,
+        pastureId:srcAe.pastureId,
+        locationType: srcAe.locationType,
+        paddocks: srcPads.map(p => ({...p, dateAdded: splitDate})),
+        groupId:  newGId,
+        groupName:newName,
+        dateIn:   splitDate,
+        noPasture:srcAe.noPasture||false,
+        head:     splitAnimals.length,
+        wt:       splitAnimals.length ? Math.round(splitAnimals.reduce((s,a)=>s+(a.weightLbs||0),0)/splitAnimals.length) : 0,
+        heightIn: srcAe.heightIn||null,
+        feedEntries: [],
+        subMoves:    [],
+      };
+      S.events.push(newEv);
+      showSurveyToast(`Split complete — ${newName} placed at ${evDisplayName(srcAe)}`);
+    } else {
+      showSurveyToast(`Split complete — ${newName} unplaced. Use Move on Home to place them.`);
+    }
+
+  // ── Destination: existing group ─────────────────────────────────────────────
+  } else {
+    const destGId = parseInt(document.getElementById('split-existing-group').value);
+    if(!destGId){ alert('Select a destination group'); return; }
+    const destG = getGroupById(destGId);
+    if(!destG){ alert('Destination group not found'); return; }
+
+    // Remove animals from any other groups first
+    splitIds.forEach(id => {
+      S.animalGroups.forEach(gr => {
+        if(gr.id !== destGId) gr.animalIds = (gr.animalIds||[]).filter(x => x !== id);
+      });
+    });
+    if(!destG.animalIds) destG.animalIds = [];
+    splitIds.forEach(id => { if(!destG.animalIds.includes(id)) destG.animalIds.push(id); });
+
+    // Log group change note
+    splitAnimals.forEach(a => {
+      ensureAnimalHealthEvents(a);
+      a.healthEvents.push({
+        id: Date.now() + a.id + 1,
+        type: 'note',
+        date: splitDate,
+        time: splitTime,
+        text: 'Moved to group: ' + destG.name,
+        createdAt: new Date().toISOString(),
+        _groupChange: true,
+      });
+    });
+
+    // Update destination event head/wt if it has an active event (Scenario C)
+    const destAe = getActiveEventForGroup(destGId);
+    if(destAe){
+      const destT  = getGroupTotals(destG);
+      destAe.head  = destT.totalHead;
+      destAe.wt    = destT.avgWeight;
+      destAe.updatedAt = new Date().toISOString();
+    }
+
+    showSurveyToast(`${splitIds.length} animal${splitIds.length!==1?'s':''} moved to ${destG.name}`);
+  }
+
+  stampSetup();
+  save();
+  closeSplitSheet();
+  renderGroupsList();
+  renderAnimalsScreen();
+  renderHome();
 }
 
 // ── Move wizard with group selection ─────────────────────────────────────────
@@ -8309,7 +8534,7 @@ function closeResetSheet(){
 async function executeReset(){
   if(document.getElementById('reset-confirm-input').value!=='YES')return;
   const mode=document.getElementById('reset-confirm-btn').dataset.mode||'all';
-  const ver=S.version||'b20260320.1013';
+  const ver=S.version||'b20260320.1032';
   if(mode==='events'){
     // Events-only reset — preserve setup data
     S.events=[];
@@ -10783,39 +11008,95 @@ detectMode(); // must run last — reads DOM
 <!-- SPLIT GROUP SHEET -->
 <div class="sheet-wrap" id="split-sheet-wrap">
   <div class="sheet-backdrop" onclick="closeSplitSheet()"></div>
-  <div class="sheet">
+  <div class="sheet" style="max-height:92vh;overflow-y:auto;">
     <div class="sheet-handle"></div>
-    <div style="font-size:16px;font-weight:600;margin-bottom:4px;">Split group</div>
-    <div style="font-size:13px;color:var(--text2);margin-bottom:14px;">Move some animals from an existing group into a new group. Both groups' DMI and NPK will recalculate immediately.</div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:2px;">Split group</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:14px;" id="split-source-label"></div>
     <input type="hidden" id="split-source-id"/>
-    <div class="field"><label>Source group</label>
-      <div id="split-source-info" style="padding:8px 12px;background:var(--bg2);border-radius:var(--radius);font-size:13px;"></div>
-    </div>
-    <div class="sec" style="margin-bottom:8px;">Animals to move to new group</div>
-    <div id="split-class-rows"></div>
-    <div class="field"><label>New group name</label><input type="text" id="split-new-name" placeholder="e.g. Yearlings, Dry cows…"/></div>
-    <div class="field"><label>New group color</label>
-      <div style="display:flex;gap:8px;margin-top:4px;" id="split-color-picker">
-        <div onclick="selSplitColor(this,'#1D9E75')" style="width:28px;height:28px;border-radius:50%;background:#1D9E75;cursor:pointer;border:2px solid var(--text);" data-color="#1D9E75"></div>
-        <div onclick="selSplitColor(this,'#185FA5')" style="width:28px;height:28px;border-radius:50%;background:#185FA5;cursor:pointer;border:2px solid transparent;" data-color="#185FA5"></div>
-        <div onclick="selSplitColor(this,'#BA7517')" style="width:28px;height:28px;border-radius:50%;background:#BA7517;cursor:pointer;border:2px solid transparent;" data-color="#BA7517"></div>
-        <div onclick="selSplitColor(this,'#534AB7')" style="width:28px;height:28px;border-radius:50%;background:#534AB7;cursor:pointer;border:2px solid transparent;" data-color="#534AB7"></div>
-        <div onclick="selSplitColor(this,'#E24B4A')" style="width:28px;height:28px;border-radius:50%;background:#E24B4A;cursor:pointer;border:2px solid transparent;" data-color="#E24B4A"></div>
+
+    <!-- Date / time of split -->
+    <div class="two" style="margin-bottom:12px;">
+      <div class="field">
+        <label>Split date</label>
+        <input type="date" id="split-date"/>
       </div>
-      <input type="hidden" id="split-color" value="#1D9E75"/>
+      <div class="field">
+        <label>Time <span style="font-size:10px;color:var(--text2);">optional</span></label>
+        <input type="time" id="split-time"/>
+      </div>
     </div>
-    <div id="split-preview" style="display:none;margin-bottom:12px;" class="card-inset">
-      <div class="sec" style="margin-bottom:6px;">After split</div>
+
+    <!-- Animal picker -->
+    <div style="font-size:13px;font-weight:600;margin-bottom:6px;">Animals to split off</div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:8px;">Tap to select individual animals.</div>
+    <div id="split-animal-picker" style="max-height:200px;overflow-y:auto;margin-bottom:12px;"></div>
+
+    <!-- Destination -->
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Where are these animals going?</div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;">
+      <label style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:0.5px solid var(--border);border-radius:var(--radius);cursor:pointer;" id="split-dest-new-lbl">
+        <input type="radio" name="split-dest" value="new" id="split-dest-new" onchange="onSplitDestChange()" style="accent-color:var(--green);" checked/>
+        <span style="font-size:13px;">New group</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:0.5px solid var(--border);border-radius:var(--radius);cursor:pointer;" id="split-dest-existing-lbl">
+        <input type="radio" name="split-dest" value="existing" id="split-dest-existing" onchange="onSplitDestChange()" style="accent-color:var(--green);"/>
+        <span style="font-size:13px;">Existing group</span>
+      </label>
+    </div>
+
+    <!-- New group fields -->
+    <div id="split-new-fields">
+      <div class="two">
+        <div class="field">
+          <label>New group name</label>
+          <input type="text" id="split-new-name" placeholder="e.g. Dry cows, Yearlings…"/>
+        </div>
+        <div class="field">
+          <label>Color</label>
+          <div style="display:flex;gap:7px;margin-top:4px;" id="split-color-picker">
+            <div onclick="selSplitColor(this,'#1D9E75')" style="width:26px;height:26px;border-radius:50%;background:#1D9E75;cursor:pointer;border:2px solid var(--text);" data-color="#1D9E75"></div>
+            <div onclick="selSplitColor(this,'#639922')" style="width:26px;height:26px;border-radius:50%;background:#639922;cursor:pointer;border:2px solid transparent;" data-color="#639922"></div>
+            <div onclick="selSplitColor(this,'#185FA5')" style="width:26px;height:26px;border-radius:50%;background:#185FA5;cursor:pointer;border:2px solid transparent;" data-color="#185FA5"></div>
+            <div onclick="selSplitColor(this,'#BA7517')" style="width:26px;height:26px;border-radius:50%;background:#BA7517;cursor:pointer;border:2px solid transparent;" data-color="#BA7517"></div>
+            <div onclick="selSplitColor(this,'#534AB7')" style="width:26px;height:26px;border-radius:50%;background:#534AB7;cursor:pointer;border:2px solid transparent;" data-color="#534AB7"></div>
+            <div onclick="selSplitColor(this,'#E24B4A')" style="width:26px;height:26px;border-radius:50%;background:#E24B4A;cursor:pointer;border:2px solid transparent;" data-color="#E24B4A"></div>
+          </div>
+          <input type="hidden" id="split-color" value="#1D9E75"/>
+        </div>
+      </div>
+      <!-- Placement for new group -->
+      <div class="field" id="split-placement-field">
+        <label>Placement after split</label>
+        <select id="split-placement" onchange="renderSplitPreview()">
+          <option value="same">Same location as source group</option>
+          <option value="unplaced">Unplaced — place later via Move</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Existing group fields -->
+    <div id="split-existing-fields" style="display:none;">
+      <div class="field">
+        <label>Move into group</label>
+        <select id="split-existing-group" onchange="renderSplitPreview()">
+          <option value="">— select group —</option>
+        </select>
+      </div>
+      <div id="split-existing-event-note" style="display:none;font-size:12px;padding:8px 10px;background:var(--teal-l);border-radius:var(--radius);color:var(--teal-d);margin-top:4px;"></div>
+    </div>
+
+    <!-- Preview -->
+    <div id="split-preview" style="display:none;margin-top:12px;" class="card-inset">
+      <div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--text2);">After split</div>
       <div id="split-preview-content"></div>
     </div>
-    <div class="btn-row">
-      <button class="btn btn-amber" onclick="saveSplit()">Split group</button>
+
+    <div class="btn-row" style="margin-top:16px;">
+      <button class="btn btn-green" onclick="saveSplit()">Confirm split</button>
       <button class="btn btn-outline" onclick="closeSplitSheet()">Cancel</button>
     </div>
   </div>
 </div>
-
-<!-- LOCATION EDIT SHEET -->
 <div class="sheet-wrap" id="loc-edit-wrap">
   <div class="sheet-backdrop" onclick="closeLocEdit()"></div>
   <div class="sheet">
