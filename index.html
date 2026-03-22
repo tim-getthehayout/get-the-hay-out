@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260322.2021" id="app-version-meta"/>
+<meta name="app-version" content="b20260322.2100" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -11403,6 +11403,8 @@ function renderWeaningDashboard(){
 
   // Bulk action bar (shown when items are checked)
   const checkedValid=shown.filter(x=>weanChecked.has(x.a.id)&&x.status!=='weaned');
+  const selectableShown=shown.filter(x=>x.status!=='weaned');
+  const allSelected=selectableShown.length>0&&selectableShown.every(x=>weanChecked.has(x.a.id));
   const bulkBar=checkedValid.length>0
     ? `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--teal-l);border-radius:var(--radius);margin-bottom:10px;flex-wrap:wrap;">
         <span style="font-size:13px;font-weight:600;color:var(--teal-d);">${checkedValid.length} animal${checkedValid.length!==1?'s':''} selected</span>
@@ -11431,7 +11433,7 @@ function renderWeaningDashboard(){
     else if(status==='pending'){badge='<span class="badge bg">'+daysVal+'d away</span>';}
     else if(status==='unknown'){badge='<span class="badge" style="background:var(--bg2);color:var(--text2);">No birth date</span>';}
     else if(status==='weaned'){badge='<span class="badge bg">Weaned '+dLabel(a.weanedDate)+'</span>';}
-    const disableCheck=status==='weaned'||status==='unknown';
+    const disableCheck=status==='weaned';
     return `<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:0.5px solid var(--border);">
       <input type="checkbox" ${checked?'checked':''} ${disableCheck?'disabled':''} onchange="weanToggleCheck(${a.id},this.checked)" style="margin-top:3px;width:16px;height:16px;accent-color:var(--teal);flex-shrink:0;${disableCheck?'opacity:0.3;':''}"/>
       <div style="flex:1;min-width:0;">
@@ -11447,8 +11449,15 @@ function renderWeaningDashboard(){
     </div>`;
   }
 
+  const selectAllBar=selectableShown.length>0
+    ? `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border2);margin-bottom:2px;">
+        <input type="checkbox" ${allSelected?'checked':''} onchange="weanSelectAll(this.checked,${JSON.stringify(selectableShown.map(x=>x.a.id))})" style="width:16px;height:16px;accent-color:var(--teal);flex-shrink:0;"/>
+        <span style="font-size:12px;color:var(--text2);">${allSelected?'Deselect all':'Select all visible'} (${selectableShown.length})</span>
+      </div>`
+    : '';
+
   const listHtml=shown.length
-    ? shown.map(weanRow).join('')
+    ? selectAllBar+shown.map(weanRow).join('')
     : `<div class="empty" style="padding:24px 0;">No animals match the selected filters.</div>`;
 
   el.innerHTML=`
@@ -11463,6 +11472,10 @@ function weanToggleFilter(key){
   if(weanFilters.has(key))weanFilters.delete(key);
   else weanFilters.add(key);
   weanChecked.clear();
+  renderWeaningDashboard();
+}
+function weanSelectAll(select,ids){
+  ids.forEach(id=>select?weanChecked.add(id):weanChecked.delete(id));
   renderWeaningDashboard();
 }
 function weanToggleCheck(id,checked){
