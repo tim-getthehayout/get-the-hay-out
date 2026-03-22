@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260322.1421" id="app-version-meta"/>
+<meta name="app-version" content="b20260322.1452" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -2996,14 +2996,16 @@ let qfEventId = null;   // currently selected event id
 function openQuickFeedSheet(preselectGroupId){
   qfLines = [];
   qfEventId = null;
+  if(!preselectGroupId) qfFromHome = false; // direct open from Feed screen button — no return-to-home
   const active = getActiveEvents();
   if(!active.length){
     alert('No active grazing events. Move a group to a location first.');
     return;
   }
   // Pre-select if only one event or groupId passed
+  // Use evGroups() — never read e.groupId directly (multi-group events store via groups[])
   if(preselectGroupId){
-    const ev = active.find(e=>e.groupId===preselectGroupId);
+    const ev = active.find(e=>evGroups(e).some(g=>g.groupId===preselectGroupId&&!g.dateRemoved));
     if(ev){ qfSelectEvent(ev.id); }
     else   { qfShowEventStep(active); }
   } else if(active.length===1){
@@ -3018,6 +3020,7 @@ function closeQuickFeedSheet(){
   document.getElementById('quick-feed-wrap').classList.remove('open');
   qfLines=[];
   qfEventId=null;
+  qfFromHome=false;
 }
 
 function qfShowEventStep(active){
@@ -3157,6 +3160,8 @@ function saveQuickFeed(){
   if(!qfLines.some(l=>l.qty>0)){ alert('Select at least one batch and enter a quantity'); return; }
   const ev = S.events.find(e=>e.id===qfEventId);
   if(!ev){ alert('Event not found'); return; }
+  // Guard: event should still be open — bail if it was closed by another action (e.g. Drive sync)
+  if(ev.status !== 'open'){ alert('This event is no longer open. Please refresh and try again.'); closeQuickFeedSheet(); return; }
   const date = document.getElementById('qf-date').value || todayStr();
   const time = document.getElementById('qf-time').value || null;
   if(!ev.feedEntries) ev.feedEntries=[];
@@ -3174,12 +3179,17 @@ function saveQuickFeed(){
     if(b&&l.qty>0) b.remaining = Math.max(0, +(b.remaining-l.qty).toFixed(2));
   });
   save();
-  closeQuickFeedSheet();
-  renderFeedOverview();
-  renderBatchListS();
-  // Toast
-  const g = getGroupById(ev.groupId);
-  const gName = g?g.name:'Herd';
+  const returnHome = qfFromHome;
+  closeQuickFeedSheet(); // resets qfFromHome
+  // Use evGroups() for group name — never read ev.groupId directly
+  const gs = evGroups(ev);
+  const gName = gs.length ? (getGroupById(gs[0].groupId)?.name || gs[0].groupName || 'Herd') : 'Herd';
+  if(returnHome){
+    nav('home', document.getElementById('bn-home')||document.getElementById('dbn-home'));
+  } else {
+    renderFeedOverview();
+    renderBatchListS();
+  }
   showSurveyToast('Feeding saved for '+gName);
 }
 
@@ -3219,11 +3229,13 @@ function saveFeedGoal(){
 }
 
 // Update goFeedGroup to open quick feed sheet pre-selecting that group
+let qfFromHome = false; // true when entry is via home screen group card Feed button
 function goFeedGroup(gId){
   ffActiveGroupId = gId;
+  qfFromHome = true;
   nav('feed', document.getElementById('bn-feed')||document.getElementById('dbn-feed'));
-  // Open quick feed sheet after nav renders the screen
-  setTimeout(()=>openQuickFeedSheet(gId), 80);
+  // Open quick feed sheet after nav renders the screen (150ms gives layout time on slow devices)
+  setTimeout(()=>openQuickFeedSheet(gId), 150);
 }
 
 // ─── END QUICK FEED ───────────────────────────────────────────────────────────
