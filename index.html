@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260322.0936" id="app-version-meta"/>
+<meta name="app-version" content="b20260320.1041" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -627,6 +627,23 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
         <button class="btn btn-green btn-sm" onclick="addBatch()">Add batch</button>
       </div>
 
+      <!-- legacy hidden feed form divs — kept so existing saveFeedEntry() refs don't break -->
+      <div style="display:none;">
+        <div id="feed-no-event"></div>
+        <div id="feed-form">
+          <div id="feed-banner"></div>
+          <div id="feed-group-tabs"></div>
+          <input type="date" id="ff-date"/>
+          <div id="ff-batch-sel"></div>
+          <div id="ff-qty-wrap"><div id="ff-qty-lines"></div></div>
+          <div id="ff-dmi-out"></div>
+          <div id="ff-cost-out"></div>
+          <div id="ff-history"></div>
+          <div id="ff-running"></div>
+        </div>
+      </div>
+
+    </div>
 
     <!-- ANIMALS SCREEN -->
     <div id="s-animals" class="scr">
@@ -1451,85 +1468,6 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 </div>
 
 <script>
-// ═══════════════════════════════════════════════════════════════════════════════
-// GET THE HAY OUT — JAVASCRIPT SECTION MAP  build: b20260322.0936
-// Search for the section header text to jump to that section.
-// Update line numbers at end of each session via SESSION_RULES.md protocol.
-// ═══════════════════════════════════════════════════════════════════════════════
-//
-// L1533   APP UPDATE BANNER        showUpdateBanner, checkForAppUpdate, applyAppUpdate
-// L1594   DATA                     S object init, localStorage keys, save helpers
-// L1682   GOOGLE DRIVE             driveConnect, sync, token refresh
-// L1984   EXPORT / IMPORT          mergeData, ensureDataArrays, exportDataJSON, importDataJSON
-// L2138   NAV                      nav(), renderCurrentScreen()
-// L2164   USER SYSTEM              addUser, renderUsersList, openUserPicker
-// L2238   DESKTOP DASHBOARD HDR    renderDesktopDashboardHeader
-// L2306   MOBILE PERFORMANCE       renderMobilePerformanceStrip
-// L2236   HOME                     renderHome, renderGroupCard, toggleGroupCard, moveGroup
-// L2594   TO-DO SYSTEM             openTodoSheet, saveTodo, renderTodos
-// L2771   FEED SCREEN              renderFeedScreen, renderFeedOverview
-//           ↳ Quick Feed Sheet       openQuickFeedSheet, saveQuickFeed
-//           ↳ Feed Types Sheet       openFeedTypesSheet
-//           ↳ Feed Goal Sheet        openFeedGoalSheet
-//           ↳ goFeedGroup            goFeedGroup (bridges home→feed+quick-feed)
-// L3107   MOVE WIZARD              initWiz, renderWizGroupSelector, wizCloseEvent, wizSaveNew
-// L3231   PASTURE RECOVERY         initRecoveryFields, validateRecoveryFields
-// L3534   EVENTS                   renderEventsLog, switchEventsView
-//           ↳ Rotation Calendar      renderRotationCalendar (engine L3534, render L3641)
-// L3785   PASTURE SURVEY           openSurveySheet, saveSurvey, renderSurveyPaddocks
-// L4342   MULTI-PADDOCK HELPERS    initWizPaddocks, addWizPaddock, applyWizPaddocksToEvent
-// L4466   EVENT EDIT MULTI-PAD     initEePaddocks, applyEePaddocksToEvent
-// L4597   TREATMENT TYPES          addTreatmentType, renderTreatmentTypesList
-// L4637   AI BULLS                 addAIBull, renderAIBullsList
-// L4686   MANAGE CLASSES SHEET     openManageClassesSheet, renderMcClassesList
-// L4720   MANAGE TREATMENT SHEET   openManageTreatmentTypesSheet
-// L4747   MANAGE AI SIRES SHEET    openManageAIBullsSheet
-// L4781   BATCH ADJUSTMENT         openBatchAdjSheet, saveBatchAdj, archiveBatchFromAdj
-// L5104   PASTURES                 renderPastures, openAddLocation, openLocEdit, saveLocEdit
-// L5237   SETTINGS                 loadSettings, saveSettings
-// L5396   FEEDBACK                 openFeedbackSheet, renderFeedbackTab, renderFeedbackList
-// L5466   DEV BRIEF                generateDevBrief (copy-to-clipboard context block)
-// L5486   EXPORT CSV               exportEventsCSV
-// L5505   MANURE SYSTEM            openSpreadSheet, saveSpread
-// L5661   ANIMAL CLASSES & GROUPS  renderClassesList, renderGroupsList, filterAnimalsByGroup
-// L5724   ANIMAL HEALTH EVENTS     openAnimalEventSheet, saveAnimalEvent
-// L6543   INDIVIDUAL ANIMALS       openNewAnimalSheet, openAnimalEdit, saveAnimalEdit
-// L6988   ADD / EDIT GROUP SHEET   openAddGroupSheet, openEditGroupSheet, saveGroupFromSheet
-// L7102   SETUP TEMPLATE           downloadEventsTemplate, importEventsFile (XLSX setup)
-// L7562   STATS ENGINE             metric registry, renderHomeStats, renderMetricPicker
-// L7921   CALVING                  openCalvingSheet, saveCalving
-// L8012   SUB-MOVE SYSTEM          openSubMoveSheet, saveSubMove
-// L8324   INPUT PRODUCTS           openApplyInputSheet, saveApplyInput, renderInputApplications
-// L8636   CULL SYSTEM              openCullSheet, saveCull, reactivateAnimal
-// L8687   RESET DATA               openResetSheet
-// L8786   HISTORICAL EVENTS IMPORT importEventsFile (CSV historical)
-// L9022   ERROR LOG                logError, exportErrorLog
-// L9079   EVENT EDIT               openEventEdit, saveEventEdit, deleteEvent
-// L9418   RECALCULATE TOTALS       recalcEventTotals
-// L9469   NPK RECALCULATION        recalcNpkValues
-// L9569   ANIMALS SCREEN           renderAnimalsScreen ◄ AUTHORITATIVE ANIMALS RENDER
-//           ↳ Animal Move Sheet      openAnimalMoveSheet, saveAnimalMove
-// L9887   DMI VARIANCE             calcDmiVariance, renderDmiVariance
-// L9945   MULTI-PADDOCK HELPERS    evPaddocks, evMatchesPasture, evDisplayName
-// L10021  ARCHIVE / ID SYSTEM      tryDeletePasture, tryDeleteFeedType, unarchive
-// L10222  SORT HELPERS             sortedPastures, sortedGroups, sortedAnimals
-// L10229  RESPONSIVE MODE          detectMode, syncSidebarNav, syncSidebarBadges
-// L10294  REPORTS SCREEN           renderReportsScreen, renderRotationCalendar (reports)
-//           ↳ NPK Dashboard          renderNpkDashboard
-//           ↳ Feed Trend Chart       renderFeedTrendChart
-//           ↳ Animal Performance     renderAnimalPerformance
-//           ↳ Survey Report          renderSurveyReport
-//           ↳ Season Summary         renderSeasonSummary, exportSeasonSummaryXLSX
-// L11110  INIT                     DOMContentLoaded bootstrap
-// L11920  SERVICE WORKER REG       navigator.serviceWorker.register
-//
-// ⚠ DEAD CODE REMOVED (do not re-add):
-//   renderAnimalList()     — targeted #animal-list which never existed in DOM
-//   renderFFBatches/QtyLines/saveFeedEntry/renderFFHistory — legacy feed form (replaced by Quick Feed sheet)
-//   addAnimalGroup()       — replaced by saveGroupFromSheet() via the Add/Edit Group sheet
-//
-// ═══════════════════════════════════════════════════════════════════════════════
-
 // ─── APP UPDATE BANNER ────────────────────────────────────────────────────────
 
 function showUpdateBanner(){
@@ -2158,7 +2096,7 @@ function renderCurrentScreen(){
   else if(curScreen==='pastures')renderPastures();
   else if(curScreen==='feedback')renderFeedbackTab();
   else if(curScreen==='reports'){renderReportsScreen();}
-  else if(curScreen==='settings'){loadSettings();renderUsersList();renderClassesList();renderGroupsList()renderGrpAnimalPicker();updateDriveUI();}
+  else if(curScreen==='settings'){loadSettings();renderUsersList();renderClassesList();renderGroupsList();renderAnimalList();renderGrpAnimalPicker();updateDriveUI();}
 }
 
 // ─── USER SYSTEM ──────────────────────────────────────────────────────────────
@@ -3103,6 +3041,67 @@ function goFeedGroup(gId){
 }
 
 // ─── END QUICK FEED ───────────────────────────────────────────────────────────
+
+
+function renderFFBatches(){
+  const el=document.getElementById('ff-batch-sel');
+  const active=S.batches.filter(b=>b.remaining>0);
+  if(!active.length){el.innerHTML='<div style="font-size:13px;color:var(--text2);">No batches — add in Settings</div>';return;}
+  const byType={};
+  active.forEach(b=>{if(!byType[b.typeName])byType[b.typeName]=[];byType[b.typeName].push(b);});
+  el.innerHTML=Object.entries(byType).map(([type,batches])=>
+    `<div style="font-size:12px;font-weight:600;color:var(--text2);margin:8px 0 4px;">${type}</div>`+
+    batches.map(b=>{const on=ffLines.find(l=>l.batchId===b.id);
+      return `<div class="batch-sel${on?' on':''}" onclick="toggleFFBatch(${b.id})"><div><div style="font-size:13px;font-weight:600;">${b.label}</div><div style="font-size:11px;color:var(--text2);">${b.remaining.toFixed(1)} ${b.unit}s · ${b.dm}% DM${b.cpu?' · $'+b.cpu.toFixed(2)+'/'+b.unit:''}</div></div><div class="chk">${on?'<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>':''}</div></div>`;
+    }).join('')
+  ).join('');
+  renderFFQtyLines();
+}
+function toggleFFBatch(id){const i=ffLines.findIndex(l=>l.batchId===id);if(i>=0)ffLines.splice(i,1);else ffLines.push({batchId:id,qty:0});renderFFBatches();}
+function renderFFQtyLines(){
+  const wrap=document.getElementById('ff-qty-wrap');const el=document.getElementById('ff-qty-lines');
+  if(!ffLines.length){wrap.style.display='none';calcFFTotals();return;}
+  wrap.style.display='block';
+  el.innerHTML=ffLines.map((l,i)=>{const b=S.batches.find(x=>x.id===l.batchId);
+    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"><div style="flex:1;font-size:14px;font-weight:500;">${b.label} <span style="font-size:11px;color:var(--text2);">${b.unit}s</span></div><div style="display:flex;align-items:center;gap:8px;"><button class="qty-btn" onclick="adjFF(${i},-0.5)">−</button><span class="qty-val">${l.qty}</span><button class="qty-btn" onclick="adjFF(${i},0.5)">+</button></div></div>`;
+  }).join('');
+  calcFFTotals();
+}
+function adjFF(i,d){ffLines[i].qty=Math.max(0,+(ffLines[i].qty+d).toFixed(1));renderFFQtyLines();}
+function calcFFTotals(){
+  let dmi=0,cost=0;
+  ffLines.forEach(l=>{const b=S.batches.find(x=>x.id===l.batchId);if(!b||!l.qty)return;const af=b.wt?l.qty*b.wt:l.qty;dmi+=af*(b.dm/100);cost+=l.qty*(b.cpu||0);});
+  document.getElementById('ff-dmi-out').textContent=Math.round(dmi)+' lbs';
+  document.getElementById('ff-cost-out').textContent='$'+cost.toFixed(2);
+}
+function saveFeedEntry(){
+  const active=getActiveEvents();
+  const ae=(ffActiveGroupId?active.find(e=>e.groupId===ffActiveGroupId):null)||active[0];
+  if(!ae){alert('No active event');return;}
+  if(!ffLines.length){alert('Select a feed batch');return;}
+  if(!ae.feedEntries)ae.feedEntries=[];
+  const entry={id:Date.now(),date:document.getElementById('ff-date').value,lines:[...ffLines]};
+  ae.feedEntries.push(entry);
+  ae.updatedAt=new Date().toISOString();
+  // Decrement batch inventory
+  entry.lines.forEach(l=>{
+    const b=S.batches.find(x=>x.id===l.batchId);
+    if(b&&l.qty>0)b.remaining=Math.max(0,+(b.remaining-l.qty).toFixed(2));
+  });
+  ffLines=[];save();renderFFBatches();renderFFHistory(ae);renderFeedOverview();
+}
+function renderFFHistory(ae){
+  const el=document.getElementById('ff-history');const rt=document.getElementById('ff-running');
+  if(!ae.feedEntries||!ae.feedEntries.length){el.innerHTML='<div class="empty">No feedings yet</div>';rt.style.display='none';return;}
+  el.innerHTML=ae.feedEntries.map(e=>{
+    let dmi=0,cost=0;
+    e.lines.forEach(l=>{const b=S.batches.find(x=>x.id===l.batchId);if(!b||!l.qty)return;dmi+=b.wt?l.qty*b.wt*(b.dm/100):l.qty*(b.dm/100);cost+=l.qty*(b.cpu||0);});
+    const desc=e.lines.filter(l=>l.qty>0).map(l=>{const b=S.batches.find(x=>x.id===l.batchId);return b?`${l.qty} ${b.unit} ${b.label}`:''}).filter(Boolean).join(', ');
+    return `<div class="feed-row"><div><div style="font-size:13px;font-weight:600;">${dLabel(e.date)}</div><div style="font-size:11px;color:var(--text2);">${desc||'—'}</div></div><div style="text-align:right;"><div style="font-size:12px;color:var(--green-d);">${Math.round(dmi)} lbs DMI</div><div style="font-size:12px;color:var(--text2);">$${cost.toFixed(2)}</div></div></div>`;
+  }).join('');
+  const total=calcConsumedDMI(ae.feedEntries,0);const tcost=calcEntryCost(ae.feedEntries);
+  rt.style.display='block';rt.innerHTML=`${ae.feedEntries.length} entries · ${Math.round(total).toLocaleString()} lbs stored DMI · <span style="color:var(--amber);">$${tcost.toFixed(2)}</span>`;
+}
 
 // ─── MOVE WIZARD ──────────────────────────────────────────────────────────────
 let wizFeedLines=[];
@@ -5408,7 +5407,7 @@ function saveFeedbackItem(){
   const note=document.getElementById('fb-note').value.trim();
   if(!note){document.getElementById('fb-note').style.borderColor='var(--red)';setTimeout(()=>document.getElementById('fb-note').style.borderColor='',1500);return;}
   const ae=getActive();
-  S.feedback.push({id:Date.now(),cat:selCatVal||'idea',note,tester:S.testerName||(getActiveUser()?getActiveUser().name:'anonymous'),version:S.version||'b20260322.0936',status:'open',ctx:{screen:curScreen,activeEvent:ae?{pasture:ae.pasture,day:daysBetween(ae.dateIn,todayStr())}:null},ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:null});
+  S.feedback.push({id:Date.now(),cat:selCatVal||'idea',note,tester:S.testerName||(getActiveUser()?getActiveUser().name:'anonymous'),version:S.version||'b20260320.1032',status:'open',ctx:{screen:curScreen,activeEvent:ae?{pasture:ae.pasture,day:daysBetween(ae.dateIn,todayStr())}:null},ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:null});
   save();closeFeedbackSheet();updateFeedbackBadge();if(curScreen==='feedback')renderFeedbackTab();
 }
 function renderFeedbackTab(){renderConfirmSection();renderFeedbackStats();renderFeedbackList();}
@@ -5424,12 +5423,12 @@ function confirmFixed(id){const f=S.feedback.find(x=>x.id===id);if(!f)return;f.s
 function reopenIssue(id){
   const orig=S.feedback.find(x=>x.id===id);if(!orig)return;
   orig.status='closed';orig.confirmedBy=S.testerName||'anonymous';orig.confirmedAt=new Date().toISOString();
-  S.feedback.push({id:Date.now(),cat:orig.cat,note:`[Regression] ${orig.note}`,tester:S.testerName||'anonymous',version:S.version||'b20260322.0936',status:'open',ctx:orig.ctx,ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:orig.id});
+  S.feedback.push({id:Date.now(),cat:orig.cat,note:`[Regression] ${orig.note}`,tester:S.testerName||'anonymous',version:S.version||'b20260320.1032',status:'open',ctx:orig.ctx,ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:orig.id});
   save();renderFeedbackTab();updateFeedbackBadge();
 }
 function openResolveSheet(id){
   document.getElementById('resolve-id').value=id;document.getElementById('resolve-note').value='';
-  document.getElementById('resolve-ver-label').textContent=S.version||'b20260322.0936';
+  document.getElementById('resolve-ver-label').textContent=S.version||'b20260320.1032';
   document.getElementById('resolve-sheet-wrap').classList.add('open');setTimeout(()=>document.getElementById('resolve-note').focus(),300);
 }
 function closeResolveSheet(){document.getElementById('resolve-sheet-wrap').classList.remove('open');}
@@ -5437,7 +5436,7 @@ function saveResolve(){
   const id=parseInt(document.getElementById('resolve-id').value);const note=document.getElementById('resolve-note').value.trim();
   if(!note){alert('Describe what was changed');return;}
   const f=S.feedback.find(x=>x.id===id);if(!f)return;
-  f.status='resolved';f.resolutionNote=note;f.resolvedInVersion=S.version||'b20260322.0936';f.resolvedAt=new Date().toISOString();
+  f.status='resolved';f.resolutionNote=note;f.resolvedInVersion=S.version||'b20260320.1032';f.resolvedAt=new Date().toISOString();
   save();closeResolveSheet();renderFeedbackTab();updateFeedbackBadge();
 }
 function renderFeedbackStats(){
@@ -5470,7 +5469,7 @@ function generateBrief(){
   const testers=[...new Set(S.feedback.map(f=>f.tester).filter(t=>t&&t!=='anonymous'))];
   const open=S.feedback.filter(f=>f.status==='open');const resolved=S.feedback.filter(f=>f.status==='resolved');const closed=S.feedback.filter(f=>f.status==='closed');
   const catOrder=['bug','calc','ux','feature','idea'];
-  let b=`GET THE HAY OUT — DEV SESSION BRIEF\nGenerated: ${now}\nVersion: ${S.version||'b20260322.0936'}\nTesters: ${testers.length?testers.join(', '):'anonymous'}\nOpen: ${open.length} · Awaiting: ${resolved.length} · Closed: ${closed.length}\n${'═'.repeat(52)}\n`;
+  let b=`GET THE HAY OUT — DEV SESSION BRIEF\nGenerated: ${now}\nVersion: ${S.version||'b20260320.1032'}\nTesters: ${testers.length?testers.join(', '):'anonymous'}\nOpen: ${open.length} · Awaiting: ${resolved.length} · Closed: ${closed.length}\n${'═'.repeat(52)}\n`;
   if(open.length){b+=`\nOPEN ITEMS (${open.length})\n${'─'.repeat(52)}\n`;catOrder.forEach(cat=>{const items=open.filter(f=>f.cat===cat);if(!items.length)return;b+=`\n[${(CAT[cat]||CAT.idea).label.toUpperCase()}]\n`;items.forEach((f,i)=>{const d=new Date(f.ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});const ctx=f.ctx.activeEvent?`screen:${f.ctx.screen} event:${f.ctx.activeEvent.pasture} day${f.ctx.activeEvent.day}`:`screen:${f.ctx.screen}`;b+=`${i+1}. ${f.note}\n   [${ctx}] — ${f.tester}, ${f.version||'?'}, ${d}${f.linkedTo?' ⚠ regression':''}\n`;});});}
   if(resolved.length){b+=`\n${'═'.repeat(52)}\nAWAITING CONFIRMATION (${resolved.length})\n${'─'.repeat(52)}\n`;resolved.forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fix in ${f.resolvedInVersion}: ${f.resolutionNote}\n`;});}
   if(closed.length){b+=`\n${'═'.repeat(52)}\nCLOSED (last 10)\n${'─'.repeat(52)}\n`;closed.slice(-10).forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fixed in ${f.resolvedInVersion||'?'}: ${f.resolutionNote||'—'}. Confirmed: ${f.confirmedBy||'?'}\n`;});}
@@ -5923,7 +5922,7 @@ function saveAnimalEvent(){
   }
   save();
   closeAnimalEventSheet();
-  
+  renderAnimalList();
   if(document.getElementById('ae-sheet-wrap').classList.contains('open')) openAnimalEdit(animalId);
   showAnimalEventToast(evt);
 }
@@ -5935,7 +5934,7 @@ function deleteAnimalEvent(){
   if(!a||!editId) return;
   if(!confirm('Delete this event record?')) return;
   a.healthEvents = (a.healthEvents||[]).filter(e=>e.id!==editId);
-  save(); closeAnimalEventSheet(); 
+  save(); closeAnimalEventSheet(); renderAnimalList();
 }
 
 function showAnimalEventToast(evt){
@@ -5975,7 +5974,7 @@ function saveAnimalWeight(){
   a.weightLbs = wt;
   if(!a.weightHistory) a.weightHistory=[];
   a.weightHistory.push({date,weightLbs:wt,note:note||'Weight update'});
-  save(); closeAnimalWeightSheet();  renderGroupsList();
+  save(); closeAnimalWeightSheet(); renderAnimalList(); renderGroupsList();
 }
 
 // ─── END ANIMAL HEALTH EVENTS ─────────────────────────────────────────────────
@@ -6070,7 +6069,6 @@ function renderGroupsList(){
           <div style="font-size:12px;color:var(--text2);">${t.totalHead} head · avg ${t.avgWeight} lbs · DMI target ${Math.round(t.dmiTarget).toLocaleString()} lbs/day</div>
         </div>
         <div style="display:flex;gap:6px;align-items:center;">
-          <button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openEditGroupSheet(${g.id})">Edit</button>
           ${ae?`<button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openSplitSheet(${g.id})">Split</button>`:''}
           <button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openWtSheet(${g.id})">Weights</button>
           ${g.archived?`<button class="btn btn-outline btn-xs" onclick="event.stopPropagation();unarchive('group',${g.id})">Unarchive</button>`:`<button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:18px;padding:2px 4px;" onclick="event.stopPropagation();tryDeleteAnimalGroup(${i})">×</button>`}
@@ -6687,7 +6685,7 @@ function addAnimal(){
     const g=S.animalGroups.find(x=>x.id===groupId);
     if(g){if(!g.animalIds)g.animalIds=[];g.animalIds.push(newId);}
   }
-  save()renderGroupsList();
+  save();renderAnimalList();renderGroupsList();
   ['a-tag','a-eid','a-wt','a-notes'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('a-sex').value='female';
   document.getElementById('a-group').value='';
@@ -6695,6 +6693,90 @@ function addAnimal(){
 }
 
 // ── Render animal list ────────────────────────────────────────────────────────
+function renderAnimalList(){
+  const el=document.getElementById('animal-list');if(!el)return;
+  // Populate selects
+  populateAnimalClassSelect('a-class');
+  populateAnimalGroupSelect('a-group');
+  // Update group filter options
+  const gf=document.getElementById('animal-filter-group');
+  if(gf){
+    const cur=gf.value;
+    gf.innerHTML='<option value="">All groups</option>'+
+      S.animalGroups.map(g=>`<option value="${g.id}"${String(g.id)===cur?' selected':''}>${g.name}</option>`).join('')+
+      '<option value="unassigned"'+(cur==='unassigned'?' selected':'')+'>Unassigned</option>';
+  }
+  if(!S.animals.length){
+    el.innerHTML='<div style="font-size:13px;color:var(--text2);margin-bottom:8px;">No animals yet — add above</div>';
+    return;
+  }
+  // Filter
+  const search=(document.getElementById('animal-search')||{value:''}).value.toLowerCase();
+  const gFilter=document.getElementById('animal-filter-group')?.value||'';
+  const showInactive=document.getElementById('animal-show-inactive')?.checked||false;
+  let animals=[...S.animals];
+  if(!showInactive)animals=animals.filter(a=>a.active!==false);
+  if(search)animals=animals.filter(a=>(a.tagNum||'').toLowerCase().includes(search)||(a.eid||'').toLowerCase().includes(search)||(a.systemId||'').toLowerCase().includes(search));
+  if(gFilter==='unassigned'){
+    const assigned=new Set(S.animalGroups.flatMap(g=>g.animalIds||[]));
+    animals=animals.filter(a=>!assigned.has(a.id));
+  } else if(gFilter){
+    const gId=parseInt(gFilter);
+    const g=S.animalGroups.find(x=>x.id===gId);
+    const ids=new Set(g?g.animalIds||[]:[]);
+    animals=animals.filter(a=>ids.has(a.id));
+  }
+  const total=animals.length;
+  const culledCount=S.animals.filter(a=>a.active===false).length;
+  const showInactiveChecked=document.getElementById('animal-show-inactive')?.checked||false;
+  el.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+    <span style="font-size:12px;color:var(--text2);">${total} animal${total!==1?'s':''} shown${culledCount>0?' ('+culledCount+' culled)':''}</span>
+    ${culledCount>0?`<label style="font-size:12px;color:var(--text2);display:flex;align-items:center;gap:4px;cursor:pointer;">
+      <input type="checkbox" id="animal-show-inactive" ${showInactiveChecked?'checked':''} onchange="renderAnimalList()" style="accent-color:var(--amber);">
+      Show culled
+    </label>`:''}
+  </div>`+
+    animals.slice(0,50).map(a=>{
+      const cls=S.animalClasses.find(c=>c.id===a.classId);
+      const grp=getAnimalGroup(a.id);
+      const isAuto=(a.tagNum||'').startsWith('AUTO-');
+      const sexIcon=a.sex==='male'?'♂':'♀';
+      // Ear tag is primary identifier; system ID shown as secondary
+      const primaryLabel=a.tagNum||a.systemId||'—';
+      const secondaryLabel=a.tagNum&&a.systemId?'<span style="font-size:10px;color:var(--text3);font-weight:400;font-family:Menlo,monospace;"> '+a.systemId+'</span>':'';
+      const hasDam=a.damId&&getAnimalById(a.damId);
+      // Use individual weight; fall back to class default if not set
+      const displayWt=a.weightLbs||(cls?cls.defaultWeightLbs:null);
+      const isCulled=a.active===false;
+      const cullBadge=isCulled?`<span class="badge br" style="font-size:10px;">${a.cullRecord?a.cullRecord.reason:'culled'}</span>`:'';
+      // Last event summary for animal
+      const lastEvt = (a.healthEvents||[]).slice().reverse()[0];
+      const lastEvtBadge = lastEvt
+        ? `<span style="font-size:10px;color:var(--text2);"> · ${lastEvt.type==='treatment'?'💉':lastEvt.type==='breeding'?'♀':lastEvt.type==='heat'?'🌡':'📝'} ${dLabel(lastEvt.date)}</span>`
+        : '';
+      return `<div style="padding:8px 0;border-bottom:0.5px solid var(--border);opacity:${isCulled?'0.55':'1'};">
+        <div style="display:flex;align-items:center;gap:10px;cursor:pointer;" onclick="openAnimalEdit(${a.id})">
+          <div style="flex:1;min-width:0;cursor:pointer;">
+            <div style="font-size:13px;font-weight:600;">${primaryLabel}${secondaryLabel} <span style="font-size:12px;color:var(--text2);">${sexIcon}</span> ${cullBadge}</div>
+            <div style="font-size:11px;color:var(--text2);">${cls?cls.name:'No class'}${hasDam?' · dam':''}${lastEvtBadge}${isCulled&&a.cullRecord?' · '+a.cullRecord.date:''}</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0;cursor:pointer;">
+            <div style="font-size:13px;font-weight:600;">${displayWt?displayWt+' lbs':'no wt'}${!a.weightLbs&&displayWt?'<span style="font-size:10px;color:var(--text3);"> (est)</span>':''}</div>
+            <div style="font-size:11px;color:var(--text2);">${grp?grp.name:'unassigned'}</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:5px;margin-top:5px;flex-wrap:wrap;">
+          <button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openAnimalEdit(${a.id})">Edit</button>
+          <button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openAnimalWeightSheet(${a.id})">⚖ Weight</button>
+          <button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openAnimalEventSheet(${a.id},'note')">📝 Note</button>
+          <button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openAnimalEventSheet(${a.id},'treatment')">💉 Treatment</button>
+          ${a.sex==='female'?`<button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openAnimalEventSheet(${a.id},'breeding')">♀ Breeding</button>`:''}
+        </div>
+      </div>`;
+    }).join('')+
+    (animals.length>50?`<div style="font-size:12px;color:var(--text2);padding:8px 0;">${animals.length-50} more — use search to filter</div>`:'');
+}
+
 // ── Animal edit ───────────────────────────────────────────────────────────────
 function openNewAnimalSheet(){
   document.getElementById('ae-id').value='__new__';
@@ -6876,7 +6958,7 @@ function saveAnimalEdit(){
     const newGrp=S.animalGroups.find(g=>g.id===newGrpId);
     if(newGrp){if(!newGrp.animalIds)newGrp.animalIds=[];if(!newGrp.animalIds.includes(id))newGrp.animalIds.push(id);}
   }
-  save();closeAnimalEdit()renderGroupsList();
+  save();closeAnimalEdit();renderAnimalList();renderGroupsList();
 }
 
 function deleteAnimal(){
@@ -6887,7 +6969,7 @@ function deleteAnimal(){
   // Remove from any group
   S.animalGroups.forEach(g=>{g.animalIds=(g.animalIds||[]).filter(x=>x!==id);});
   S.animals=S.animals.filter(x=>x.id!==id);
-  save();closeAnimalEdit()renderGroupsList();
+  save();closeAnimalEdit();renderAnimalList();renderGroupsList();
 }
 
 // ── Update Group Weights routine ─────────────────────────────────────────────
@@ -6932,7 +7014,7 @@ function commitWeightUpdates(){
     a.weightHistory.push({date,weightLbs:newWt,note:'Group weight update'});
     updated++;
   });
-  save();closeWtSheet();renderGroupsList()
+  save();closeWtSheet();renderGroupsList();renderAnimalList();
   if(updated>0){
     const g=S.animalGroups.find(x=>x.id===wtGroupId);
     const t=getGroupTotals(g);
@@ -6981,120 +7063,9 @@ function addAnimalGroup(){
   });
   // Update animals' group assignment tracking (group references animals, not reverse)
   grpSelectedAnimals.clear();
-  stampSetup();save();renderGroupsList()
+  stampSetup();save();renderGroupsList();renderAnimalList();
   document.getElementById('grp-name').value='';
 }
-
-// ─── ADD / EDIT GROUP SHEET ───────────────────────────────────────────────────
-let _agSelectedAnimals = new Set();
-
-function openAddGroupSheet(){
-  document.getElementById('add-group-title').textContent = 'Add group';
-  document.getElementById('ag-edit-id').value = '';
-  document.getElementById('ag-name').value = '';
-  document.getElementById('ag-color').value = '#639922';
-  document.querySelectorAll('#ag-color-picker div').forEach(d =>
-    d.style.border = d.dataset.color === '#639922' ? '2px solid var(--text)' : '2px solid transparent'
-  );
-  _agSelectedAnimals = new Set();
-  document.getElementById('ag-delete-wrap').style.display = 'none';
-  renderAGAnimalPicker();
-  document.getElementById('add-group-wrap').classList.add('open');
-}
-
-function openEditGroupSheet(groupId){
-  const g = S.animalGroups.find(x => x.id === groupId);
-  if(!g){ alert('Group not found'); return; }
-  document.getElementById('add-group-title').textContent = 'Edit group';
-  document.getElementById('ag-edit-id').value = String(groupId);
-  document.getElementById('ag-name').value = g.name || '';
-  const col = g.color || '#639922';
-  document.getElementById('ag-color').value = col;
-  document.querySelectorAll('#ag-color-picker div').forEach(d =>
-    d.style.border = d.dataset.color === col ? '2px solid var(--text)' : '2px solid transparent'
-  );
-  _agSelectedAnimals = new Set(g.animalIds || []);
-  document.getElementById('ag-delete-wrap').style.display = 'block';
-  renderAGAnimalPicker();
-  document.getElementById('add-group-wrap').classList.add('open');
-}
-
-function closeAddGroupSheet(){
-  document.getElementById('add-group-wrap').classList.remove('open');
-}
-
-function selAGColor(el, color){
-  document.getElementById('ag-color').value = color;
-  document.querySelectorAll('#ag-color-picker div').forEach(d =>
-    d.style.border = '2px solid transparent'
-  );
-  el.style.border = '2px solid var(--text)';
-}
-
-function renderAGAnimalPicker(){
-  const el = document.getElementById('ag-animal-picker'); if(!el) return;
-  const editId = document.getElementById('ag-edit-id').value;
-  const editGroupId = editId ? parseInt(editId) : null;
-  // Show all active animals; gray out those assigned to OTHER groups
-  const animals = S.animals.filter(a => a.active !== false);
-  if(!animals.length){
-    el.innerHTML = '<div style="font-size:12px;color:var(--text2);">No animals found. Add animals first.</div>';
-    return;
-  }
-  el.innerHTML = animals.map(a => {
-    const cls = S.animalClasses.find(c => c.id === a.classId);
-    const otherGroup = S.animalGroups.find(g => g.id !== editGroupId && (g.animalIds||[]).includes(a.id));
-    const on = _agSelectedAnimals.has(a.id);
-    const dimmed = !!otherGroup && !on;
-    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:${on?'var(--green-l)':'var(--bg2)'};border-radius:var(--radius);margin-bottom:4px;cursor:pointer;border:0.5px solid ${on?'var(--green-l2)':'var(--border)'};opacity:${dimmed?'0.45':'1'};" onclick="_agToggleAnimal(${a.id})">
-      <div style="width:16px;height:16px;border-radius:50%;border:1.5px solid ${on?'var(--green)':'var(--border2)'};background:${on?'var(--green)':'transparent'};display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-        ${on?'<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><polyline points="1.5,5 4,7.5 8.5,2" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>':''}
-      </div>
-      <div style="flex:1;font-size:13px;"><strong>${a.tagNum||a.systemId||'—'}</strong> <span style="color:var(--text2);font-size:11px;">${a.sex||''} · ${cls?cls.name:''} · ${a.weightLbs||'?'} lbs${otherGroup&&!on?' · <em>'+otherGroup.name+'</em>':''}</span></div>
-    </div>`;
-  }).join('');
-}
-
-function _agToggleAnimal(id){
-  if(_agSelectedAnimals.has(id)) _agSelectedAnimals.delete(id);
-  else _agSelectedAnimals.add(id);
-  renderAGAnimalPicker();
-}
-
-function saveGroupFromSheet(){
-  const name = document.getElementById('ag-name').value.trim();
-  if(!name){ alert('Enter a group name'); return; }
-  const color = document.getElementById('ag-color').value || '#639922';
-  const animalIds = [..._agSelectedAnimals];
-  const editId = document.getElementById('ag-edit-id').value;
-
-  if(editId){
-    // Edit existing group
-    const g = S.animalGroups.find(x => String(x.id) === String(editId));
-    if(!g){ alert('Group not found'); return; }
-    g.name = name;
-    g.color = color;
-    g.animalIds = animalIds;
-  } else {
-    // New group
-    S.animalGroups.push({ id: Date.now(), archived: false, name, color, animalIds });
-  }
-  stampSetup(); save();
-  renderGroupsList();
-  renderAnimalsScreen();
-  closeAddGroupSheet();
-}
-
-function deleteGroupFromSheet(){
-  const editId = document.getElementById('ag-edit-id').value;
-  if(!editId) return;
-  const idx = S.animalGroups.findIndex(x => String(x.id) === String(editId));
-  if(idx < 0) return;
-  closeAddGroupSheet();
-  tryDeleteAnimalGroup(idx);
-}
-// ─── END ADD / EDIT GROUP SHEET ───────────────────────────────────────────────
-
 
 // ─── END INDIVIDUAL ANIMALS ───────────────────────────────────────────────────
 
@@ -7532,7 +7503,7 @@ function importSetupFile(event){
       migrateSystemIds();
       migrateToPaddocksField();
       save();
-      renderGroupsList();renderClassesList();
+      renderAnimalList();renderGroupsList();renderClassesList();
       renderPastures();renderFeedTypes();renderBatchListS();
 
     }catch(err){
@@ -8003,7 +7974,7 @@ function saveCalving(){
   closeCalvingSheet();
   // Re-open dam's edit sheet to show updated calving history
   setTimeout(()=>openAnimalEdit(damId),200);
-  renderGroupsList();
+  renderAnimalList();renderGroupsList();
 }
 
 // ─── END CALVING ──────────────────────────────────────────────────────────────
@@ -8665,7 +8636,7 @@ function saveCull(){
   save();
   closeCullSheet();
   closeAnimalEdit();
-  renderGroupsList();renderHome();
+  renderAnimalList();renderGroupsList();renderHome();
   const grpNote=' Removed from group — DMI targets updated.';
   alert(`${a.systemId+(a.tagNum?' ('+a.tagNum+')':'')} marked as culled (${reason}).${grpNote}`);
 }
@@ -8677,7 +8648,7 @@ function reactivateAnimal(animalId){
   a.cullRecord=null;
   save();
   closeAnimalEdit();
-  renderGroupsList();
+  renderAnimalList();renderGroupsList();
   alert('Animal reactivated. Assign them to a group in Settings → Animal groups or via the animal edit screen.');
 }
 
@@ -8723,7 +8694,7 @@ function closeResetSheet(){
 async function executeReset(){
   if(document.getElementById('reset-confirm-input').value!=='YES')return;
   const mode=document.getElementById('reset-confirm-btn').dataset.mode||'all';
-  const ver=S.version||'b20260322.0936';
+  const ver=S.version||'b20260320.1032';
   if(mode==='events'){
     // Events-only reset — preserve setup data
     S.events=[];
