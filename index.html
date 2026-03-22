@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}]}">
+<link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260322.1930" id="app-version-meta"/>
+<meta name="app-version" content="b20260322.1353" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -394,6 +394,70 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 
 /* ── END DESKTOP LAYOUT ───────────────────────────────────────────────── */
 
+/* ── FIELD MODE ─────────────────────────────────────────────────────────
+   Activated by: ?field=* URL param, user profile fieldMode:true (mobile),
+   or in-app toggle. body.field-mode is the single CSS gate.
+   Hides nav chrome so the screen is task-focused.                        */
+
+/* Toggle button — hidden by default; shown only when field mode is active */
+#field-mode-toggle{display:none;}
+
+/* In field mode: hide all navigation and decorative chrome */
+body.field-mode .dsk-sidebar{display:none !important;}
+body.field-mode .bnav{display:none !important;}
+body.field-mode #sync-indicator{display:none !important;}
+body.field-mode #ver-tag{display:none !important;}
+body.field-mode .hdr-sub{display:none !important;}
+body.field-mode #field-mode-toggle{
+  display:inline-flex !important;
+  align-items:center;
+  gap:4px;
+  font-size:12px;
+  font-weight:600;
+  color:var(--green-d);
+  text-decoration:none;
+  background:transparent;
+  border:1px solid var(--green);
+  border-radius:var(--radius);
+  padding:4px 9px;
+  cursor:pointer;
+  font-family:inherit;
+  flex-shrink:0;
+  white-space:nowrap;
+}
+
+/* Collapse desktop grid to full-width when sidebar is hidden */
+body.field-mode.desktop .app{
+  grid-template-columns:1fr;
+  grid-template-areas:
+    "header"
+    "content";
+}
+body.field-mode.desktop .hdr{
+  border-left:none;
+}
+
+/* Show toggle button (detail mode) in normal view too — anchored to header */
+body:not(.field-mode) #field-mode-toggle{
+  display:inline-flex !important;
+  align-items:center;
+  gap:4px;
+  font-size:12px;
+  font-weight:600;
+  color:var(--text2);
+  text-decoration:none;
+  background:transparent;
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:4px 9px;
+  cursor:pointer;
+  font-family:inherit;
+  flex-shrink:0;
+  white-space:nowrap;
+}
+
+/* ── END FIELD MODE ──────────────────────────────────────────────────── */
+
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -515,6 +579,8 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
         <span id="sync-label">Drive</span>
       </div>
       <span class="ver-tag" id="ver-tag">v1.0</span>
+      <!-- Field mode toggle — label and action set by setFieldModeUI() -->
+      <button id="field-mode-toggle" onclick="toggleFieldMode()"></button>
       <!-- Active user avatar -->
       <div id="hdr-avatar" style="cursor:pointer;" onclick="openUserPicker()"></div>
       <!-- move-btn removed: actions now live in group cards on Home -->
@@ -2207,6 +2273,7 @@ function addUser(){
     role:document.getElementById('u-role').value,
     email:document.getElementById('u-email').value.trim(),
     color:document.getElementById('u-color').value||'#639922',
+    fieldMode:false,   // true = auto-enter field mode on mobile
   });
   save();renderUsersList();populateTodoAssign();
   document.getElementById('u-name').value='';document.getElementById('u-email').value='';
@@ -2441,7 +2508,36 @@ function renderMobilePerformanceStrip(){
 }
 // ─── END MOBILE PERFORMANCE STRIP ─────────────────────────────────────────────
 
+// ─── FIELD HOME (stub — tile grid session pending) ────────────────────────────
+// Full implementation: OI-0006. Tile grid + per-user module selection.
+function renderFieldHome(){
+  const grpsEl = document.getElementById('home-groups');
+  const noneEl = document.getElementById('home-no-groups');
+  if(noneEl) noneEl.style.display = 'none';
+  if(!grpsEl) return;
+  grpsEl.innerHTML = `
+    <div style="padding:24px 16px 12px;">
+      <div style="font-size:18px;font-weight:700;margin-bottom:4px;">Field Mode</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:20px;">
+        Quick-access tile grid coming soon. For now, use the Feed screen to log feedings.
+      </div>
+      <button class="btn btn-green" style="width:100%;font-size:16px;padding:16px;"
+        onclick="nav('feed',document.getElementById('bn-feed'));setTimeout(openQuickFeedSheet,120);">
+        🌾 Log Feed
+      </button>
+      <div style="margin-top:10px;font-size:12px;color:var(--text2);text-align:center;">
+        Tap <strong>← Detail</strong> in the header to return to the full app.
+      </div>
+    </div>`;
+}
+// ─── END FIELD HOME ───────────────────────────────────────────────────────────
+
 function renderHome(){
+  // Field mode gets its own home screen — delegate and return
+  if(document.body.classList.contains('field-mode')){
+    renderFieldHome();
+    return;
+  }
   // ── Remove stale move-btn reference (button was relocated) ────────────────
   const mvBtn=document.getElementById('move-btn');if(mvBtn)mvBtn.style.display='none';
   // ── Desktop: render enhanced dashboard header ─────────────────────────────
@@ -10801,6 +10897,75 @@ function syncSidebarOpName(){
 
 // ─── END RESPONSIVE MODE DETECTION ───────────────────────────────────────────
 
+// ─── FIELD MODE ───────────────────────────────────────────────────────────────
+// Activation priority (highest → lowest):
+//   1. ?field=* URL param  — one-shot, e.g. from PWA shortcut
+//   2. Active user profile  fieldMode:true + mobile   — persistent preference
+//   3. In-app toggle        — writes to user profile, re-applies immediately
+
+function setFieldModeUI(active){
+  const btn = document.getElementById('field-mode-toggle');
+  if(!btn) return;
+  if(active){
+    btn.textContent = '← Detail';
+    btn.title = 'Exit field mode';
+  } else {
+    btn.textContent = '⊞ Field';
+    btn.title = 'Switch to field mode';
+  }
+}
+
+function applyFieldMode(){
+  // --- Source 1: URL param ---
+  const params = new URLSearchParams(window.location.search);
+  const fieldParam = params.get('field'); // e.g. 'feed'
+
+  // --- Source 2: active user preference (mobile only) ---
+  const user = getActiveUser ? getActiveUser() : null;
+  const userPref = !!(user && user.fieldMode);
+  const isMobile = window.gthyMode !== 'desktop';
+
+  const activate = !!(fieldParam || (userPref && isMobile));
+
+  document.body.classList.toggle('field-mode', activate);
+  window.gthyFieldParam = fieldParam || null;
+  setFieldModeUI(activate);
+
+  // --- Route based on param ---
+  if(fieldParam === 'feed'){
+    nav('feed', document.getElementById('bn-feed'));
+    // Delay slightly so the feed screen renders before the sheet opens
+    setTimeout(()=>{ openQuickFeedSheet(); }, 180);
+  }
+}
+
+function toggleFieldMode(){
+  const isActive = document.body.classList.contains('field-mode');
+  const willBeActive = !isActive;
+
+  // Persist to active user profile
+  const user = getActiveUser ? getActiveUser() : null;
+  if(user){
+    user.fieldMode = willBeActive;
+    save();
+  }
+
+  document.body.classList.toggle('field-mode', willBeActive);
+  setFieldModeUI(willBeActive);
+
+  // If entering field mode, navigate to feed screen (most common task)
+  if(willBeActive){
+    nav('feed', document.getElementById('bn-feed'));
+  } else {
+    // Returning to detail mode — go home
+    nav('home', document.getElementById('bn-home'));
+  }
+
+  // Re-render to pick up any home-screen branching
+  renderCurrentScreen();
+}
+// ─── END FIELD MODE ───────────────────────────────────────────────────────────
+
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // DESKTOP REPORTS ENGINE
@@ -11674,6 +11839,7 @@ if(driveState.connected&&driveState.accessToken&&Date.now()<(driveState.tokenExp
 // Sync whenever the app becomes visible (handles PWA resume + tab switching)
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')onAppResume();});
 detectMode(); // must run last — reads DOM
+applyFieldMode(); // field-mode URL param + user preference — runs after detectMode
 </script>
 
 <!-- SPREAD MANURE SHEET -->
