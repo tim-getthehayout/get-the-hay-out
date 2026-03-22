@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260322.1353" id="app-version-meta"/>
+<meta name="app-version" content="b20260322.1421" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -3979,6 +3979,37 @@ function lastClosedEventForPasture(pastureId, pastureName){
   return evs[0]||null;
 }
 
+// Extends lastClosedEventForPasture to also consider sub-move records.
+// A sub-move that grazed this location acts as a lightweight grazing record —
+// it carries heightOut, feedResidual, recoveryMinDays, recoveryMaxDays, and
+// a date field that serves as the "dateOut" for recovery window calculations.
+// Returns whichever record (closed event OR sub-move) is most recent.
+function lastGrazingRecordForPasture(pastureId, pastureName){
+  const lastEv = lastClosedEventForPasture(pastureId, pastureName);
+  // Build virtual records from sub-moves across all events that visited this location
+  const smRecords = [];
+  S.events.forEach(ev=>{
+    (ev.subMoves||[]).forEach(sm=>{
+      if(sm.locationName !== pastureName) return;
+      if(!sm.recoveryMinDays && !sm.recoveryMaxDays) return; // no recovery data — skip
+      smRecords.push({
+        _isSubMove: true,
+        dateOut: sm.date,
+        recoveryMinDays: sm.recoveryMinDays||null,
+        recoveryMaxDays: sm.recoveryMaxDays||null,
+        heightOut: sm.heightOut||null
+      });
+    });
+  });
+  if(!smRecords.length) return lastEv;
+  // Sort sub-move records descending by date
+  smRecords.sort((a,b)=>b.dateOut.localeCompare(a.dateOut));
+  const latestSm = smRecords[0];
+  if(!lastEv) return latestSm;
+  // Return whichever is more recent
+  return latestSm.dateOut >= lastEv.dateOut ? latestSm : lastEv;
+}
+
 let surveyRatings = {}; // pastureId -> rating (1-10)
 let surveyNotes   = {}; // pastureId -> notes
 let surveyRecovery= {}; // pastureId -> {min, max}
@@ -5610,7 +5641,7 @@ function renderEventsLog(){
 // ── Recovery date helpers ─────────────────────────────────────────────────────
 function getExpectedGrazeDates(pasture){
   // Returns {earliest, latest, lastOut} or null
-  const lastEv = lastClosedEventForPasture(pasture.id, pasture.name);
+  const lastEv = lastGrazingRecordForPasture(pasture.id, pasture.name);
   const baseDate = lastEv?.dateOut || null;
   if(!baseDate) return null;
   const minDays = lastEv.recoveryMinDays || pasture.recoveryMinDays || S.settings.recoveryMinDays || null;
@@ -8596,6 +8627,18 @@ function openSubMoveSheet(eventId){
   document.getElementById('sm-quickadd-wrap').style.display = 'none';
   document.getElementById('sm-loc-capture').value = 'no';
   document.getElementById('sm-loc-capfields').style.display = 'none';
+  // New height / recovery fields
+  document.getElementById('sm-height-in').value = '';
+  document.getElementById('sm-height-out').value = '';
+  const _smfr = document.getElementById('sm-feed-res'); if(_smfr){_smfr.value=0;}
+  const _smrp = document.getElementById('sm-res-pct'); if(_smrp){_smrp.textContent='0%';}
+  document.getElementById('sm-rec-min').value = '';
+  document.getElementById('sm-rec-max').value = '';
+  document.getElementById('sm-rec-min-date').textContent = '';
+  document.getElementById('sm-rec-max-date').textContent = '';
+  document.getElementById('sm-height-section').style.display = 'none';
+  document.getElementById('sm-moveback-section').style.display = 'none';
+  document.getElementById('sm-feed-res-row').style.display = 'none';
 
   // Populate location dropdown: all locations except the current paddock
   const locs = S.pastures.filter(p=>p.name!==ev.pasture);
@@ -8615,12 +8658,67 @@ function closeSubMoveSheet(){document.getElementById('sm-sheet-wrap').classList.
 function onSmLocationChange(){
   const val = document.getElementById('sm-location').value;
   document.getElementById('sm-quickadd-wrap').style.display = val==='__new__'?'block':'none';
+  updateSmHeightRecoveryVisibility();
   calcSubMovePreview();
+}
+
+function updateSmHeightRecoveryVisibility(){
+  const val = document.getElementById('sm-location').value;
+  if(!val || val==='__new__'){
+    document.getElementById('sm-height-section').style.display = 'none';
+    document.getElementById('sm-moveback-section').style.display = 'none';
+    return;
+  }
+  const loc = S.pastures.find(p=>p.name===val);
+  const isCon = loc ? loc.locationType==='confinement' : false;
+  const showGrazing = !isCon;
+  document.getElementById('sm-height-section').style.display = showGrazing ? 'block' : 'none';
+  document.getElementById('sm-moveback-section').style.display = showGrazing ? 'block' : 'none';
+  // Pre-fill recovery defaults from location or global settings
+  if(showGrazing){
+    const recMin = document.getElementById('sm-rec-min');
+    const recMax = document.getElementById('sm-rec-max');
+    if(!recMin.value){
+      const def = loc?.recoveryMinDays || S.settings.recoveryMinDays || 30;
+      recMin.value = def;
+    }
+    if(!recMax.value){
+      const def = loc?.recoveryMaxDays || S.settings.recoveryMaxDays || 60;
+      recMax.value = def;
+    }
+    updateSmRecoveryPreview();
+  }
+}
+
+function updateSmRecoveryPreview(){
+  const dateVal = document.getElementById('sm-date').value;
+  const minVal  = parseInt(document.getElementById('sm-rec-min').value)||null;
+  const maxVal  = parseInt(document.getElementById('sm-rec-max').value)||null;
+  const minEl   = document.getElementById('sm-rec-min-date');
+  const maxEl   = document.getElementById('sm-rec-max-date');
+  if(!dateVal){ minEl.textContent=''; maxEl.textContent=''; return; }
+  const base = new Date(dateVal+'T12:00:00');
+  if(minVal){
+    const d = new Date(base.getTime() + minVal*86400000);
+    minEl.textContent = 'Earliest: ' + d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  } else { minEl.textContent=''; }
+  if(maxVal){
+    const d = new Date(base.getTime() + maxVal*86400000);
+    maxEl.textContent = 'Latest: ' + d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  } else { maxEl.textContent=''; }
 }
 
 function toggleSmFeed(){
   smFeedShown = !smFeedShown;
   document.getElementById('sm-feed-wrap').style.display = smFeedShown?'block':'none';
+  // Show feed residual row (inside moveback section) only when feed is toggled on
+  const feedResRow = document.getElementById('sm-feed-res-row');
+  if(feedResRow) feedResRow.style.display = smFeedShown ? 'block' : 'none';
+  if(!smFeedShown){
+    // Reset residual when feed section hidden
+    const fr = document.getElementById('sm-feed-res'); if(fr) fr.value = 0;
+    const rp = document.getElementById('sm-res-pct'); if(rp) rp.textContent = '0%';
+  }
   if(smFeedShown) renderSmBatches();
 }
 
@@ -8775,7 +8873,7 @@ function saveSmQuickLocation(){
     loc.soil = 'Loam'; loc.species = '';
   }
   S.pastures.push(loc);
-  saveLocal();
+  stampSetup(); save(); // OI-0001: was saveLocal() — must trigger Drive sync
 
   // Re-populate dropdown and select the new location
   const evId = parseInt(document.getElementById('sm-event-id').value);
@@ -8791,6 +8889,7 @@ function saveSmQuickLocation(){
 
   document.getElementById('sm-quickadd-wrap').style.display = 'none';
   document.getElementById('sm-loc-name').value = '';
+  updateSmHeightRecoveryVisibility();
   calcSubMovePreview();
   alert(name + ' added and selected.');
 }
@@ -8804,11 +8903,24 @@ function saveSubMove(){
   const locName = document.getElementById('sm-location').value;
   if(!locName||locName==='__new__'){alert('Select a location');return;}
 
+  // Determine if sub-location is a grazing location (non-confinement)
+  const loc = S.pastures.find(p=>p.name===locName);
+  const isCon = loc ? loc.locationType==='confinement' : false;
+
   // Build feed entries for this sub-move
   const feedEntries = [];
   if(smFeedLines.some(l=>l.qty>0)){
     feedEntries.push({id:Date.now(),date:document.getElementById('sm-date').value,lines:[...smFeedLines]});
   }
+
+  // Read grazing height / recovery fields (pasture locations only)
+  const heightIn  = !isCon ? (parseFloat(document.getElementById('sm-height-in')?.value)||null) : null;
+  const heightOut = !isCon ? (parseFloat(document.getElementById('sm-height-out')?.value)||null) : null;
+  const feedResidual = (!isCon && feedEntries.length)
+    ? (parseInt(document.getElementById('sm-feed-res')?.value)||0)
+    : 0;
+  const recoveryMinDays = !isCon ? (parseInt(document.getElementById('sm-rec-min')?.value)||null) : null;
+  const recoveryMaxDays = !isCon ? (parseInt(document.getElementById('sm-rec-max')?.value)||null) : null;
 
   const sm = {
     id: Date.now()+1,
@@ -8818,8 +8930,20 @@ function saveSubMove(){
     durationHours: hrs,
     locationName: locName,
     feedEntries,
+    feedResidual,
+    heightIn,
+    heightOut,
+    recoveryMinDays,
+    recoveryMaxDays,
     notes: document.getElementById('sm-notes').value.trim()
   };
+
+  // If sub-location is a pasture and recovery was set, stamp those values on the
+  // location record so getExpectedGrazeDates() picks them up via lastGrazingRecordForPasture()
+  if(!isCon && loc && (recoveryMinDays || recoveryMaxDays)){
+    if(recoveryMinDays) loc.recoveryMinDays = recoveryMinDays;
+    if(recoveryMaxDays) loc.recoveryMaxDays = recoveryMaxDays;
+  }
 
   if(!ev.subMoves) ev.subMoves = [];
   ev.subMoves.push(sm);
@@ -8829,7 +8953,8 @@ function saveSubMove(){
   // Show summary
   const pctOnPasture = Math.round(pastureFraction(ev)*100);
   const _hrLabel = hrs>0?`${hrs}h at `:'at ';
-  alert(`Sub-move recorded: ${_hrLabel}${locName}.${hrs>0?'\nPasture time this event: '+pctOnPasture+'% of total hours.':'\nDuration not set — edit to add hours later.'}`)
+  const _recNote = (!isCon && recoveryMinDays) ? `\nRecovery window: ${recoveryMinDays}${recoveryMaxDays?'–'+recoveryMaxDays:''}d` : '';
+  alert(`Sub-move recorded: ${_hrLabel}${locName}.${hrs>0?'\nPasture time this event: '+pctOnPasture+'% of total hours.':'\nDuration not set — edit to add hours later.'}${_recNote}`)
 }
 
 // ── Update wizCloseEvent to use sub-move adjusted NPK ─────────────────────────
@@ -8840,9 +8965,10 @@ function calcEventTotalsWithSubMoves(ae, outDate, feedRes){
   const subHrs = eventSubMoveHours(ae);
   const pFraction = totalHrs > 0 ? Math.max(0,(totalHrs-subHrs)/totalHrs) : 1;
 
-  // DMI: all feed entries (main + sub-moves) count toward stored DMI
-  const allEntries = allFeedEntries(ae);
-  const sdmi = calcConsumedDMI(allEntries, feedRes);
+  // DMI: main event entries use the wizard's feedRes; each sub-move uses its own feedResidual
+  const mainDMI = calcConsumedDMI(ae.feedEntries||[], feedRes);
+  const subDMI  = (ae.subMoves||[]).reduce((s,sm)=>s+calcConsumedDMI(sm.feedEntries||[], sm.feedResidual||0), 0);
+  const sdmi = mainDMI + subDMI;
 
   // Cost: main event cost + sub-move costs
   const mainCost = calcEntryCost(ae.feedEntries||[]);
@@ -12222,6 +12348,13 @@ applyFieldMode(); // field-mode URL param + user preference — runs after detec
         <button class="btn btn-teal btn-xs" onclick="saveSmQuickLocation()">Add &amp; select this location</button>
       </div>
     </div>
+    <!-- Pre-graze height — shown for non-confinement locations only -->
+    <div id="sm-height-section" style="display:none;">
+      <div class="field">
+        <label>Pre-graze height (in) <span style="font-size:10px;color:var(--text2);">at sub-location on arrival</span></label>
+        <input type="number" id="sm-height-in" min="0" step="0.5" placeholder="10"/>
+      </div>
+    </div>
     <!-- NPK preview -->
     <div id="sm-npk-preview" style="display:none;" class="card-inset">
       <div class="sec" style="margin-bottom:6px;">NPK allocation preview</div>
@@ -12238,7 +12371,52 @@ applyFieldMode(); // field-mode URL param + user preference — runs after detec
       <div id="sm-qty-lines"></div>
       <div id="sm-feed-total" style="font-size:12px;color:var(--amber-d);margin-bottom:8px;"></div>
     </div>
-    <div class="field"><label>Notes (optional)</label>
+    <!-- Move-back details — shown for non-confinement locations only -->
+    <div id="sm-moveback-section" style="display:none;">
+      <div class="div"></div>
+      <div class="sec">Move-back details</div>
+      <div class="field">
+        <label>Residual height (in) <span style="font-size:10px;color:var(--text2);">at sub-location on exit</span></label>
+        <input type="number" id="sm-height-out" min="0" step="0.5" placeholder="3"/>
+      </div>
+      <!-- Feed residual — shown when feed was added -->
+      <div id="sm-feed-res-row" style="display:none;">
+        <div class="sec" style="margin-top:10px;margin-bottom:6px;">Feed residual — left uneaten</div>
+        <div class="field">
+          <label>% of last sub-move feeding left behind</label>
+          <div class="slider-row">
+            <input type="range" id="sm-feed-res" min="0" max="100" step="5" value="0"
+              oninput="document.getElementById('sm-res-pct').textContent=this.value+'%';"/>
+            <span class="slider-out" id="sm-res-pct">0%</span>
+          </div>
+          <div style="font-size:11px;color:var(--text2);margin-top:2px;">Reduces DMI of last sub-move feeding — waste / leftover feed remaining</div>
+        </div>
+      </div>
+      <!-- Recovery window for sub-location -->
+      <div class="div" style="margin-top:10px;"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <div class="sec" style="margin:0;">Estimated recovery window</div>
+        <span style="font-size:10px;color:var(--text2);">for this sub-location</span>
+      </div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.5;">
+        How many days before this sub-location is ready to graze again?
+      </div>
+      <div class="two">
+        <div class="field">
+          <label>Min days</label>
+          <input type="number" id="sm-rec-min" min="1" max="365" step="1" placeholder="30"
+            oninput="updateSmRecoveryPreview()"/>
+          <div id="sm-rec-min-date" style="font-size:11px;font-weight:600;color:var(--green-d);margin-top:3px;min-height:14px;"></div>
+        </div>
+        <div class="field">
+          <label>Max days</label>
+          <input type="number" id="sm-rec-max" min="1" max="365" step="1" placeholder="60"
+            oninput="updateSmRecoveryPreview()"/>
+          <div id="sm-rec-max-date" style="font-size:11px;font-weight:600;color:var(--amber-d);margin-top:3px;min-height:14px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="field" style="margin-top:12px;"><label>Notes (optional)</label>
       <input type="text" id="sm-notes" placeholder="Milking, shade, supplemental feed…"/>
     </div>
     <div class="btn-row">
