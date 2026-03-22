@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260322.2136" id="app-version-meta"/>
+<meta name="app-version" content="b20260322.2207" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -1714,6 +1714,7 @@ if(!S.settings.manureVolumeUnit)S.settings.manureVolumeUnit='loads';
 if(!S.settings.homeStats)S.settings.homeStats=['pasture_dmi','feed_cost','pasture_pct','npk_lbs_acre','npk_val_acre'];
 if(!S.version)S.version='v1.2';
 if(!S.settings.homeStatPeriod)S.settings.homeStatPeriod='7d';
+if(S.settings.homeViewMode===undefined)S.settings.homeViewMode='groups';
 if(!S.settings.auWeight)S.settings.auWeight=1000;
 if(!S.settings.recoveryRequired===undefined)S.settings.recoveryRequired=false;
 if(S.settings.recoveryMinDays===undefined)S.settings.recoveryMinDays=30;
@@ -2563,29 +2564,35 @@ function renderHome(){
   // ── Mobile: render dial-in performance strip ──────────────────────────────
   renderMobilePerformanceStrip();
 
+  const mode=S.settings.homeViewMode||'groups';
   const groups=S.animalGroups||[];
   const grpsEl=document.getElementById('home-groups');
   const noneEl=document.getElementById('home-no-groups');
 
-  if(!groups.length){
-    grpsEl.innerHTML='';
-    noneEl.style.display='block';
-  } else {
+  if(mode==='locations'){
     noneEl.style.display='none';
-    // Preserve existing expanded states across re-renders
-    const wasExpanded=new Set();
-    document.querySelectorAll('.grp-card.expanded').forEach(el=>{
-      const gid=el.id.replace('grp-card-','');if(gid)wasExpanded.add(parseInt(gid));
-    });
-    grpsEl.innerHTML=groups.map(g=>renderGroupCard(g)).join('');
-    // Re-apply expanded state: auto-expand cards with active events, restore others
-    groups.forEach(g=>{
-      const hasActive=!!getActiveEventForGroup(g.id);
-      if(hasActive||wasExpanded.has(g.id)){
-        const card=document.getElementById('grp-card-'+g.id);
-        if(card)card.classList.add('expanded');
-      }
-    });
+    renderLocationsView(grpsEl, groups);
+  } else {
+    if(!groups.length){
+      grpsEl.innerHTML='';
+      noneEl.style.display='block';
+    } else {
+      noneEl.style.display='none';
+      // Preserve existing expanded states across re-renders
+      const wasExpanded=new Set();
+      document.querySelectorAll('.grp-card.expanded').forEach(el=>{
+        const gid=el.id.replace('grp-card-','');if(gid)wasExpanded.add(parseInt(gid));
+      });
+      grpsEl.innerHTML=renderHomeViewToggle('groups')+groups.map(g=>renderGroupCard(g)).join('');
+      // Re-apply expanded state: auto-expand cards with active events, restore others
+      groups.forEach(g=>{
+        const hasActive=!!getActiveEventForGroup(g.id);
+        if(hasActive||wasExpanded.has(g.id)){
+          const card=document.getElementById('grp-card-'+g.id);
+          if(card)card.classList.add('expanded');
+        }
+      });
+    }
   }
 
   // My open tasks
@@ -2614,6 +2621,151 @@ function renderHome(){
     }).join('');
   }
   updateTodoBadge();
+}
+
+// ── Home view toggle ─────────────────────────────────────────────────────────
+function renderHomeViewToggle(active){
+  return `<div style="display:flex;gap:4px;padding:0 2px 10px;align-items:center;">
+    <span style="font-size:12px;color:var(--text2);margin-right:4px;font-weight:500;">View:</span>
+    <button onclick="setHomeViewMode('groups')" style="padding:4px 12px;font-size:12px;border-radius:20px;border:0.5px solid ${active==='groups'?'var(--green)':'var(--border2)'};background:${active==='groups'?'var(--green)':'transparent'};color:${active==='groups'?'white':'var(--text2)'};cursor:pointer;font-family:inherit;font-weight:${active==='groups'?'600':'400'};">Groups</button>
+    <button onclick="setHomeViewMode('locations')" style="padding:4px 12px;font-size:12px;border-radius:20px;border:0.5px solid ${active==='locations'?'var(--green)':'var(--border2)'};background:${active==='locations'?'var(--green)':'transparent'};color:${active==='locations'?'white':'var(--text2)'};cursor:pointer;font-family:inherit;font-weight:${active==='locations'?'600':'400'};">Locations</button>
+  </div>`;
+}
+
+function setHomeViewMode(mode){
+  S.settings.homeViewMode=mode;
+  save();
+  renderHome();
+}
+
+// ── Locations view (event-centric home screen) ────────────────────────────────
+function renderLocationsView(grpsEl, groups){
+  const openEvs=S.events.filter(e=>e.status==='open');
+  let html=renderHomeViewToggle('locations');
+
+  if(!openEvs.length && !groups.length){
+    html+='<div class="card" style="text-align:center;padding:20px 16px;font-size:13px;color:var(--text2);">No active events.</div>';
+    grpsEl.innerHTML=html;
+    return;
+  }
+
+  if(openEvs.length){
+    html+=openEvs.map(ev=>renderLocationCard(ev)).join('');
+  } else {
+    html+='<div style="padding:4px 2px 6px;font-size:13px;color:var(--text2);">No active events.</div>';
+  }
+
+  // Unplaced groups
+  const placedGroupIds=new Set();
+  openEvs.forEach(ev=>evGroups(ev).forEach(g=>{if(!g.dateRemoved)placedGroupIds.add(g.groupId);}));
+  const unplaced=(groups||[]).filter(g=>!placedGroupIds.has(g.id));
+  if(unplaced.length) html+=renderUnplacedGroupsSection(unplaced);
+
+  grpsEl.innerHTML=html;
+}
+
+function renderLocationCard(ev){
+  const isCon=ev.locationType==='confinement';
+  const isNoP=ev.noPasture;
+  const locIcon=isCon?'🏚':'🌿';
+  const locBadge=isCon
+    ?'<span class="badge bb" style="font-size:10px;">confinement</span>'
+    :isNoP?'<span class="badge ba" style="font-size:10px;">stored feed</span>'
+    :'<span class="badge bg" style="font-size:10px;">grazing</span>';
+  const locName=evDisplayName(ev);
+  const days=daysBetween(ev.dateIn,todayStr());
+  const allEntries=allFeedEntries(ev);
+  const subMoves=ev.subMoves||[];
+  const costAll=calcEntryCost(ev.feedEntries||[])+subMoves.reduce((s,sm)=>s+calcEntryCost(sm.feedEntries||[]),0);
+  const subHrsTotal=subMoves.reduce((s,sm)=>s+(sm.durationHours||0),0);
+  const totalHrs=eventTotalHours(ev);
+  const pastureHrsPct=totalHrs>0?Math.round(((totalHrs-subHrsTotal)/totalHrs)*100):100;
+
+  // Active groups in this event
+  const activeEvGroups=evGroups(ev).filter(g=>!g.dateRemoved);
+
+  // Aggregate head + weight for NPK
+  let totalBW=0;
+  activeEvGroups.forEach(egi=>{
+    const ae2=getActiveEventForGroup(egi.groupId);
+    if(ae2&&ae2.id===ev.id){totalBW+=(ae2.head||0)*(ae2.wt||0);}
+  });
+
+  // Running NPK
+  const st=S.settings;
+  const pFrac=pastureFraction(ev);
+  const runNPK={
+    n:totalBW/1000*(st.nExc||0.32)*days*pFrac,
+    p:totalBW/1000*(st.pExc||0.09)*days*pFrac,
+    k:totalBW/1000*(st.kExc||0.30)*days*pFrac,
+  };
+  const runNPKVal=runNPK.n*(st.nPrice||0.55)+runNPK.p*(st.pPrice||0.65)+runNPK.k*(st.kPrice||0.42);
+  const npkLine=totalBW>0
+    ?`<div style="font-size:11px;color:var(--purple-d);margin-top:3px;">NPK deposited: N${runNPK.n.toFixed(1)} / P${runNPK.p.toFixed(1)} / K${runNPK.k.toFixed(1)} lbs`
+     +(pFrac<1?` (${Math.round(pFrac*100)}% pasture time)`:'')
+     +` · <strong>$${runNPKVal.toFixed(2)}</strong> fert value</div>`
+    :'';
+
+  // Per-group rows
+  const groupRows=activeEvGroups.map(egi=>{
+    const g=getGroupById(egi.groupId);
+    if(!g) return '';
+    const gt=getGroupTotals(g);
+    const color=g.color||'#639922';
+    const feedBtn=`<button class="btn btn-green btn-sm" onclick="goFeedGroup(${g.id})">Feed</button>`;
+    const moveBtn=`<button class="btn btn-teal btn-sm" onclick="moveGroup(${g.id})">Move</button>`;
+    const wtBtn=`<button class="btn btn-outline btn-sm" onclick="openWtSheet(${g.id})">⚖</button>`;
+    const splitBtn=activeEvGroups.length>1?`<button class="btn btn-outline btn-sm" onclick="openSplitSheet(${g.id})">Split</button>`:'';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-top:0.5px solid var(--border);">
+      <div style="width:6px;height:6px;border-radius:50%;background:${color};flex-shrink:0;"></div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:600;">${escHtml(g.name)}</div>
+        <div style="font-size:11px;color:var(--text2);">${gt.totalHead} head · avg ${gt.avgWeight} lbs</div>
+      </div>
+      <div style="display:flex;gap:4px;flex-shrink:0;">${feedBtn}${moveBtn}${wtBtn}${splitBtn}</div>
+    </div>`;
+  }).join('');
+
+  // Card-level action buttons
+  const subMoveBtn=`<button class="btn btn-outline btn-sm" onclick="openSubMoveSheet(${ev.id})">Sub-move</button>`;
+  const editBtn=`<button class="btn btn-outline btn-sm" onclick="openEventEdit(${ev.id})">Edit event</button>`;
+
+  return `<div class="grp-card expanded" id="loc-card-${ev.id}">
+    <div class="grp-card-hdr" style="cursor:default;">
+      <div class="grp-color-bar" style="background:${isCon?'#888':'var(--green)'};"></div>
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+          <span style="font-size:15px;font-weight:700;">${locIcon} ${escHtml(locName)}</span>
+          ${locBadge}
+        </div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px;">Day ${days} · In ${dLabel(ev.dateIn)} · ${allEntries.length} feeding${allEntries.length!==1?'s':''} · $${costAll.toFixed(2)}${subMoves.length?' · '+subMoves.length+' sub-move'+(subMoves.length!==1?'s':'')+' · '+subHrsTotal.toFixed(1)+'h off-paddock · '+pastureHrsPct+'% on pasture':''}</div>
+      </div>
+    </div>
+    <div class="grp-card-body">
+      ${groupRows||'<div style="font-size:12px;color:var(--text2);padding:6px 0;">No groups currently assigned</div>'}
+      ${npkLine?`<div style="margin-top:6px;">${npkLine}</div>`:''}
+      <div class="grp-actions" style="margin-top:8px;">${subMoveBtn}${editBtn}</div>
+    </div>
+  </div>`;
+}
+
+function renderUnplacedGroupsSection(unplaced){
+  const rows=unplaced.map(g=>{
+    const gt=getGroupTotals(g);
+    const color=g.color||'#639922';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-top:0.5px solid var(--border);">
+      <div style="width:6px;height:6px;border-radius:50%;background:${color};flex-shrink:0;"></div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:600;">${escHtml(g.name)}</div>
+        <div style="font-size:11px;color:var(--text2);">${gt.totalHead} head · avg ${gt.avgWeight} lbs</div>
+      </div>
+      <button class="btn btn-teal btn-sm" onclick="moveGroup(${g.id})">Place</button>
+    </div>`;
+  }).join('');
+  return `<div class="card" style="margin-top:0;">
+    <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:2px;letter-spacing:0.04em;">NOT PLACED</div>
+    ${rows}
+  </div>`;
 }
 
 // ── Render a single group card ────────────────────────────────────────────────
