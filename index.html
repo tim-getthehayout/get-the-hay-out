@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260322.1900" id="app-version-meta"/>
+<meta name="app-version" content="b20260322.1930" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -8489,7 +8489,9 @@ function openSubMoveSheet(eventId){
     (g?g.name:'Herd') + ' on ' + ev.pasture + ' — Day ' + daysBetween(ev.dateIn, todayStr());
   document.getElementById('sm-date').value = todayStr();
   document.getElementById('sm-time').value = '';
+  const _smto=document.getElementById('sm-time-out');if(_smto)_smto.value='';
   document.getElementById('sm-hours').value = '';
+  const _smhint=document.getElementById('sm-duration-hint');if(_smhint)_smhint.textContent='Enter times above for auto-calculation, or type hours directly. Common: milking ~2–2.5h · shade ~4h · overnight ~10h';
   document.getElementById('sm-notes').value = '';
   smFeedLines = [];
   smFeedShown = false;
@@ -8579,6 +8581,28 @@ function calcSmFeedTotal(){
     dmi+=af*(b.dm/100);cost+=l.qty*(b.cpu||0);
   });
   el.textContent=`Sub-move feed: ${Math.round(dmi).toLocaleString()} lbs DMI · $${cost.toFixed(2)} — counts toward paddock event stored DMI`;
+}
+
+// Auto-calculate duration from move-in and move-back times.
+// Falls back gracefully if either time is missing (user enters hours manually).
+function calcSmDuration(){
+  const timeIn  = document.getElementById('sm-time')?.value;
+  const timeOut = document.getElementById('sm-time-out')?.value;
+  const hintEl  = document.getElementById('sm-duration-hint');
+  const stdHint = 'Enter times above for auto-calculation, or type hours directly. Common: milking ~2\u20132.5h \u00b7 shade ~4h \u00b7 overnight ~10h';
+  if(!timeIn || !timeOut){
+    if(hintEl) hintEl.textContent = stdHint;
+    return;
+  }
+  const [inH,inM]   = timeIn.split(':').map(Number);
+  const [outH,outM] = timeOut.split(':').map(Number);
+  let diffMin = (outH*60+outM) - (inH*60+inM);
+  if(diffMin <= 0) diffMin += 24*60; // crossed midnight (e.g. overnight barn)
+  const hrs = Math.round(diffMin/60*4)/4; // round to nearest 0.25h
+  const hrsEl = document.getElementById('sm-hours');
+  if(hrsEl) hrsEl.value = hrs;
+  if(hintEl) hintEl.textContent = '\u2192 ' + timeIn + ' to ' + timeOut + ' = ' + hrs + 'h';
+  calcSubMovePreview();
 }
 
 function calcSubMovePreview(){
@@ -8680,8 +8704,7 @@ function saveSubMove(){
   const evId = parseInt(document.getElementById('sm-event-id').value);
   const ev = S.events.find(e=>e.id===evId);
   if(!ev){alert('Event not found');return;}
-  const hrs = parseFloat(document.getElementById('sm-hours').value);
-  if(!hrs||hrs<=0){alert('Enter duration in hours');return;}
+  const hrs = parseFloat(document.getElementById('sm-hours').value)||0;
   const locName = document.getElementById('sm-location').value;
   if(!locName||locName==='__new__'){alert('Select a location');return;}
 
@@ -8695,6 +8718,7 @@ function saveSubMove(){
     id: Date.now()+1,
     date: document.getElementById('sm-date').value,
     time: document.getElementById('sm-time')?.value||null,
+    timeOut: document.getElementById('sm-time-out')?.value||null,
     durationHours: hrs,
     locationName: locName,
     feedEntries,
@@ -8708,7 +8732,8 @@ function saveSubMove(){
   renderHome();
   // Show summary
   const pctOnPasture = Math.round(pastureFraction(ev)*100);
-  alert(`Sub-move recorded: ${hrs}h at ${locName}.\nPasture time this event: ${pctOnPasture}% of total hours.`);
+  const _hrLabel = hrs>0?`${hrs}h at `:'at ';
+  alert(`Sub-move recorded: ${_hrLabel}${locName}.${hrs>0?'\nPasture time this event: '+pctOnPasture+'% of total hours.':'\nDuration not set — edit to add hours later.'}`)
 }
 
 // ── Update wizCloseEvent to use sub-move adjusted NPK ─────────────────────────
@@ -11982,14 +12007,18 @@ detectMode(); // must run last — reads DOM
     <input type="hidden" id="sm-event-id"/>
     <div class="two">
       <div class="field"><label>Date</label><input type="date" id="sm-date"/></div>
-      <div class="field"><label>Time (optional)</label><input type="time" id="sm-time"/></div>
+      <div class="field"><label>Moved in — time <span style="font-size:10px;color:var(--text2);">optional</span></label>
+        <input type="time" id="sm-time" oninput="calcSmDuration()"/></div>
     </div>
-    <div class="field"><label>Duration (hours)</label>
-      <input type="number" id="sm-hours" min="0.25" max="23" step="0.25" placeholder="2.5"
-             oninput="calcSubMovePreview()"/>
+    <div class="two">
+      <div class="field"><label>Moved back — time <span style="font-size:10px;color:var(--text2);">optional</span></label>
+        <input type="time" id="sm-time-out" oninput="calcSmDuration()"/></div>
+      <div class="field"><label>Duration (hours) <span style="font-size:10px;color:var(--text2);">auto or enter</span></label>
+        <input type="number" id="sm-hours" min="0.25" max="24" step="0.25" placeholder="e.g. 2.5"
+               oninput="calcSubMovePreview()"/></div>
     </div>
-    <div style="font-size:11px;color:var(--text2);margin:-8px 0 10px;">
-      Common: dairy milking ~2–2.5h · afternoon shade ~4h · overnight barn ~10h
+    <div id="sm-duration-hint" style="font-size:11px;color:var(--text2);margin:-8px 0 10px;">
+      Enter times above for auto-calculation, or type hours directly. Common: milking ~2&ndash;2.5h &middot; shade ~4h &middot; overnight ~10h
     </div>
     <!-- Location picker with quick-add -->
     <div class="field">
