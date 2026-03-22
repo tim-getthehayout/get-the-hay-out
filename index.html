@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260322.1211" id="app-version-meta"/>
+<meta name="app-version" content="b20260322.1730" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -1454,7 +1454,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 
 <script>
 // ═══════════════════════════════════════════════════════════════════════════════
-// GET THE HAY OUT — JAVASCRIPT SECTION MAP  build: b20260322.0936
+// GET THE HAY OUT — JAVASCRIPT SECTION MAP  build: b20260322.1211
 // Search for the section header text to jump to that section.
 // Update line numbers at end of each session via SESSION_RULES.md protocol.
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1476,11 +1476,11 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 //           ↳ goFeedGroup            goFeedGroup (bridges home→feed+quick-feed)
 // L3107   MOVE WIZARD              initWiz, renderWizGroupSelector, wizCloseEvent, wizSaveNew
 // L3231   PASTURE RECOVERY         initRecoveryFields, validateRecoveryFields
-// L3534   EVENTS                   renderEventsLog, switchEventsView
-//           ↳ Rotation Calendar      renderRotationCalendar (engine L3534, render L3641)
+// L3549   EVENTS                   switchEventsView (section header L3549; renderEventsLog at L5013 — displaced by Batch Adj insertion)
+//           ↳ Rotation Calendar      engine L3551, renderRotationCalendar MOVED to L10389 (shared with Reports)
 // L3785   PASTURE SURVEY           openSurveySheet, saveSurvey, renderSurveyPaddocks
 // L4342   MULTI-PADDOCK HELPERS    initWizPaddocks, addWizPaddock, applyWizPaddocksToEvent
-// L4466   EVENT EDIT MULTI-PAD     initEePaddocks, applyEePaddocksToEvent
+// L4481   EVENT EDIT MULTI-PAD     initEePaddocks, addEePaddock, removeEePaddock, closePaddock, reopenPaddock, renderEePaddockChips, applyEePaddocksToEvent
 // L4597   TREATMENT TYPES          addTreatmentType, renderTreatmentTypesList
 // L4637   AI BULLS                 addAIBull, renderAIBullsList
 // L4686   MANAGE CLASSES SHEET     openManageClassesSheet, renderMcClassesList
@@ -1506,23 +1506,23 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 // L8687   RESET DATA               openResetSheet
 // L8786   HISTORICAL EVENTS IMPORT importEventsFile (CSV historical)
 // L9022   ERROR LOG                logError, exportErrorLog
-// L9079   EVENT EDIT               openEventEdit, saveEventEdit, deleteEvent
+// L9132   EVENT EDIT               openEventEdit, saveEventEdit, deleteEvent
 // L9418   RECALCULATE TOTALS       recalcEventTotals
 // L9469   NPK RECALCULATION        recalcNpkValues
-// L9569   ANIMALS SCREEN           renderAnimalsScreen ◄ AUTHORITATIVE ANIMALS RENDER
+// L9626   ANIMALS SCREEN           renderAnimalsScreen ◄ AUTHORITATIVE ANIMALS RENDER
 //           ↳ Animal Move Sheet      openAnimalMoveSheet, saveAnimalMove
 // L9887   DMI VARIANCE             calcDmiVariance, renderDmiVariance
 // L9945   MULTI-PADDOCK HELPERS    evPaddocks, evMatchesPasture, evDisplayName
 // L10021  ARCHIVE / ID SYSTEM      tryDeletePasture, tryDeleteFeedType, unarchive
 // L10222  SORT HELPERS             sortedPastures, sortedGroups, sortedAnimals
 // L10229  RESPONSIVE MODE          detectMode, syncSidebarNav, syncSidebarBadges
-// L10294  REPORTS SCREEN           renderReportsScreen, renderRotationCalendar (reports)
+// L10343  REPORTS SCREEN           renderReportsScreen, renderRotationCalendar (shared; also called by Events screen)
 //           ↳ NPK Dashboard          renderNpkDashboard
 //           ↳ Feed Trend Chart       renderFeedTrendChart
 //           ↳ Animal Performance     renderAnimalPerformance
 //           ↳ Survey Report          renderSurveyReport
 //           ↳ Season Summary         renderSeasonSummary, exportSeasonSummaryXLSX
-// L11110  INIT                     DOMContentLoaded bootstrap
+// L11153  INIT                     Top-level bootstrap (not DOMContentLoaded — runs as script executes at body end)
 // L11920  SERVICE WORKER REG       navigator.serviceWorker.register
 //
 // ⚠ DEAD CODE REMOVED (do not re-add):
@@ -2600,9 +2600,9 @@ function toggleGroupCard(gId){
 
 
 function moveGroup(gId){
-  wizGroupId=gId;
+  wizGroupIds=[gId];
   nav('move',document.getElementById('bn-home'));
-  initWizFromGroup();
+  initWizFromGroups();
 }
 
 
@@ -3123,7 +3123,7 @@ function goFeedGroup(gId){
 let wizFeedLines=[];
 // openMoveWizard: see override in animal groups section
 function initWiz(){
-  wizFeedLines=[];wizGroupId=null;
+  wizFeedLines=[];wizGroupIds=[];
   const active=getActiveEvents();
   const groups=S.animalGroups||[];
   if(!groups.length){wizGo(0);
@@ -3136,8 +3136,8 @@ function initWiz(){
     if(S.herd&&S.herd.weight)document.getElementById('w-new-wt').value=S.herd.weight;
     populateNewPastureSelect();renderWizFeedSel();calcClosePreview();initRecoveryFields();return;
   }
-  if(active.length===1){wizGroupId=active[0].groupId;initWizFromGroup();return;}
-  if(active.length===0&&groups.length===1){wizGroupId=groups[0].id;initWizFromGroup();return;}
+  if(active.length===1){wizGroupIds=evGroups(active[0]).filter(g=>!g.dateRemoved).map(g=>g.groupId);initWizFromGroups();return;}
+  if(active.length===0&&groups.length===1){wizGroupIds=[groups[0].id];initWizFromGroups();return;}
   renderWizGroupSelector();
   wizGoStep('g');
 }
@@ -3146,30 +3146,44 @@ function renderWizGroupSelector(){
   const el=document.getElementById('wiz-group-list');if(!el)return;
   const active=getActiveEvents();
   const hasActive=active.length>0;
-  el.innerHTML=`<div style="font-size:13px;color:var(--text2);margin-bottom:10px;">${hasActive?'Which group is moving?':'Which group to open an event for?'}</div>`+
+  el.innerHTML=`<div style="font-size:13px;color:var(--text2);margin-bottom:8px;">${hasActive?'Which group(s) are moving? Tap to select, tap again to deselect.':'Which group(s) to open an event for?'}</div>`+
     S.animalGroups.map(g=>{
       const ae=getActiveEventForGroup(g.id);
       const t=getGroupTotals(g);
-      return `<div style="display:flex;align-items:center;gap:12px;padding:12px;border:0.5px solid var(--border);border-radius:var(--radius-l);margin-bottom:6px;cursor:pointer;" onclick="selectWizGroup(${g.id})">
+      const sel=wizGroupIds.includes(g.id);
+      return `<div style="display:flex;align-items:center;gap:12px;padding:12px;
+          border:1.5px solid ${sel?'var(--green)':'var(--border)'};
+          border-radius:var(--radius-l);margin-bottom:6px;cursor:pointer;
+          background:${sel?'var(--green-l)':'var(--bg)'};"
+          onclick="toggleWizGroup(${g.id})">
         <div style="width:10px;height:36px;border-radius:3px;background:${g.color||'var(--green)'};flex-shrink:0;"></div>
-        <div style="flex:1;"><div style="font-size:14px;font-weight:600;">${g.name}</div><div style="font-size:12px;color:var(--text2);">${t.totalHead} head ${ae?'· at '+ae.pasture:'· not grazing'}</div></div>
-        <div style="font-size:13px;color:var(--teal-d);">${ae?'Move →':'Start →'}</div>
+        <div style="flex:1;">
+          <div style="font-size:14px;font-weight:600;">${g.name}</div>
+          <div style="font-size:12px;color:var(--text2);">${t.totalHead} head ${ae?'\u00b7 at '+ae.pasture:'\u00b7 not grazing'}</div>
+        </div>
+        <div style="font-size:18px;color:${sel?'var(--green-d)':'var(--text2)'};">${sel?'&#10003;':'\u25cb'}</div>
       </div>`;
-    }).join('');
+    }).join('')+
+    (wizGroupIds.length?`<button class="btn btn-sm" style="margin-top:6px;width:100%;"
+        onclick="initWizFromGroups()">Continue with ${wizGroupIds.length} group${wizGroupIds.length!==1?'s':''} \u2192</button>`:'');
 }
 
-function selectWizGroup(gId){
-  wizGroupId=gId;initWizFromGroup();
+function toggleWizGroup(gId){
+  const idx=wizGroupIds.indexOf(gId);
+  if(idx>=0) wizGroupIds.splice(idx,1);
+  else wizGroupIds.push(gId);
+  renderWizGroupSelector();
 }
 
-function initWizFromGroup(){
-  const ae=wizGroupId?getActiveEventForGroup(wizGroupId):null;
+function initWizFromGroups(){
+  // Find the active event for any selected group (use first match for close flow)
+  const ae = wizGroupIds.length ? wizGroupIds.map(gId=>getActiveEventForGroup(gId)).find(Boolean) : null;
   wizGo(0);
   document.getElementById('ws0-has').style.display=ae?'block':'none';
   document.getElementById('ws0-none').style.display=ae?'none':'block';
   if(ae){
-    const g=getGroupById(ae.groupId);
-    document.getElementById('ws0-banner').innerHTML=`<div style="font-size:14px;font-weight:600;color:var(--amber-d);">Closing: ${evDisplayName(ae)}${g?' ('+g.name+')':''}</div><div style="font-size:12px;color:var(--amber-d);opacity:0.85;margin-top:2px;">In ${dLabel(ae.dateIn)} · ${daysBetween(ae.dateIn,todayStr())} days · ${(ae.feedEntries||[]).length} feedings</div>`;
+    const groupLabel=evGroupsDisplay(ae)||wizGroupIds.map(id=>getGroupById(id)?.name||'').filter(Boolean).join(' + ');
+    document.getElementById('ws0-banner').innerHTML=`<div style="font-size:14px;font-weight:600;color:var(--amber-d);">Closing: ${evDisplayName(ae)}${groupLabel?' ('+groupLabel+')':''}</div><div style="font-size:12px;color:var(--amber-d);opacity:0.85;margin-top:2px;">In ${dLabel(ae.dateIn)} \u00b7 ${daysBetween(ae.dateIn,todayStr())} days \u00b7 ${(ae.feedEntries||[]).length} feedings</div>`;
     if(ae.heightIn)document.getElementById('w-pregraze-disp').value=ae.heightIn;
     showPaddockTasksInWiz(evPrimaryPaddock(ae).pastureName,'w-paddock-tasks','w-paddock-tasks-list');
     const paddockNames=(ae.paddocks||[]).map(p=>p.pastureName).filter(Boolean);
@@ -3180,12 +3194,19 @@ function initWizFromGroup(){
   const _wout=document.getElementById('w-out-date');if(_wout)_wout.value=todayStr();
   const _win=document.getElementById('w-in-date');if(_win)_win.value=todayStr();
   const _wnp=document.getElementById('w-no-pasture');if(_wnp)_wnp.checked=false;
-  const g=wizGroupId?getGroupById(wizGroupId):null;
-  const t=g?getGroupTotals(g):null;
-  if(t&&t.totalHead)document.getElementById('w-new-head').value=t.totalHead;
-  if(t&&t.avgWeight)document.getElementById('w-new-wt').value=t.avgWeight;
+  // Aggregate head/wt from all selected groups
+  let totalHead=0,totalLiveWt=0;
+  wizGroupIds.forEach(gId=>{
+    const g=getGroupById(gId);if(!g)return;
+    const t=getGroupTotals(g);
+    totalHead+=t.totalHead||0;totalLiveWt+=(t.totalHead||0)*(t.avgWeight||0);
+  });
+  if(totalHead>0)document.getElementById('w-new-head').value=totalHead;
+  if(totalHead>0&&totalLiveWt>0)document.getElementById('w-new-wt').value=Math.round(totalLiveWt/totalHead);
   populateNewPastureSelect();renderWizFeedSel();calcClosePreview();initRecoveryFields();
 }
+// Keep backward-compat alias
+function initWizFromGroup(){ initWizFromGroups(); }
 
 
 function wizGo(step){
@@ -3200,7 +3221,7 @@ function wizGo(step){
   if(wsg)wsg.classList.remove('on');if(wdg)wdg.classList.remove('on');
 }
 function calcClosePreview(){
-  const ae=wizGroupId?getActiveEventForGroup(wizGroupId):getActive();
+  const ae=(wizGroupIds.length?wizGroupIds.map(id=>getActiveEventForGroup(id)).find(Boolean):null)||getActive();
   const prev=document.getElementById('close-preview');
   if(!ae){prev.style.display='none';return;}
   // For confinement events, show simplified preview
@@ -3259,7 +3280,7 @@ function initRecoveryFields(){
   if(minReq) minReq.style.display = isRequired ? 'inline' : 'none';
   if(maxReq) maxReq.style.display = isRequired ? 'inline' : 'none';
   // Pre-fill: pasture-specific default (from survey) → settings default
-  const ae2 = wizGroupId ? getActiveEventForGroup(wizGroupId) : getActive();
+  const ae2 = (wizGroupIds.length?wizGroupIds.map(id=>getActiveEventForGroup(id)).find(Boolean):null)||getActive();
   const pad2 = ae2 ? (findPastureById(ae2.pastureId)||findPastureByName(ae2.pasture)) : null;
   const minEl = document.getElementById('w-rec-min');
   const maxEl = document.getElementById('w-rec-max');
@@ -3326,7 +3347,7 @@ function validateRecoveryFields(){
 // ─── END PASTURE RECOVERY TRACKING ───────────────────────────────────────────
 
 function wizCloseEvent(){
-  const ae=wizGroupId?getActiveEventForGroup(wizGroupId):getActive();
+  const ae=(wizGroupIds.length?wizGroupIds.map(id=>getActiveEventForGroup(id)).find(Boolean):null)||getActive();
   if(!ae){alert('No active event to close');return;}
   const outDate=document.getElementById('w-out-date').value;if(!outDate){alert('Enter move-out date');return;}
   if(!validateRecoveryFields()) return;
@@ -3515,7 +3536,7 @@ function wizSaveNew(){
   const isCon=loc&&loc.locationType==='confinement';
   const feedEntries=[];
   if(wizFeedLines.some(l=>l.qty>0))feedEntries.push({id:Date.now(),date:inDate,lines:[...wizFeedLines]});
-  const g=wizGroupId?getGroupById(wizGroupId):null;
+  const g=wizGroupIds.length?getGroupById(wizGroupIds[0]):null;
   const t=g?getGroupTotals(g):{totalHead:0,avgWeight:0};
   const noPastureFlag=document.getElementById('w-no-pasture')?.checked||false;
   const _newEvLoc=wizPaddocks.length?paddockRecord(wizPaddocks[0]):S.pastures.find(p=>p.name===locName)||findPastureByName(locName);
@@ -3532,7 +3553,8 @@ function wizSaveNew(){
       dateAdded:   inDate,
       locationType:isCon?'confinement':'pasture',
     }],
-    groupId:wizGroupId||null, groupName:g?g.name:'',
+    groups: wizGroupIds.map((gId,i)=>{ const gr=getGroupById(gId); return {groupId:gId,groupName:gr?gr.name:'',dateAdded:inDate,dateRemoved:null}; }),
+    groupId:wizGroupIds[0]||null, groupName:g?g.name:'',
     dateIn:inDate, noPasture:noPastureFlag,
     head:parseFloat(document.getElementById('w-new-head').value)||t.totalHead||0,
     wt:parseFloat(document.getElementById('w-new-wt').value)||t.avgWeight||0,
@@ -4484,6 +4506,7 @@ let eePaddocks = []; // working copy for event edit sheet
 
 function initEePaddocks(ev){
   if(ev && ev.paddocks && ev.paddocks.length){
+    // Loaded from saved event — no _isNew flag, so × button never appears on these
     eePaddocks = ev.paddocks.map(p=>({...p}));
   } else if(ev){
     const rec = getPastureForEvent(ev);
@@ -4503,23 +4526,43 @@ function addEePaddock(){
   if(eePaddocks.some(p=>p.pastureName===name)){ sel.value=''; return; }
   const rec = S.pastures.find(p=>p.name===name)||findPastureByName(name);
   eePaddocks.push({
-    pastureId:   rec?rec.id:null,
-    pastureName: name,
-    acres:       rec?parseFloat(rec.acres)||null:null,
-    dateAdded:   todayStr(), // added mid-event
-    timeAdded:   '00:00',
+    pastureId:    rec?rec.id:null,
+    pastureName:  name,
+    acres:        rec?parseFloat(rec.acres)||null:null,
+    dateAdded:    todayStr(),
+    timeAdded:    '00:00',
     locationType: rec?rec.locationType||'pasture':'pasture',
+    _isNew:       true,  // session-only flag — stripped before persist; enables × discard
   });
   sel.value='';
   renderEePaddockChips();
   updateEePaddockNote();
 }
 
+// Discard a wrong selection made in this session only (_isNew entries).
+// Saved paddocks use closePaddock() / reopenPaddock() instead.
 function removeEePaddock(name){
-  if(eePaddocks.length<=1){ alert('At least one paddock is required.'); return; }
-  eePaddocks = eePaddocks.filter(p=>p.pastureName!==name);
+  const p = eePaddocks.find(x=>x.pastureName===name);
+  if(!p || !p._isNew){ return; }
+  eePaddocks = eePaddocks.filter(x=>x.pastureName!==name);
   renderEePaddockChips();
   updateEePaddockNote();
+}
+
+// Mark a saved additional paddock as closed (sets dateRemoved to today).
+// NPK window is recalculated on event save.
+function closePaddock(idx){
+  if(idx===0) return; // primary cannot be closed
+  eePaddocks[idx].dateRemoved = todayStr();
+  eePaddocks[idx].timeRemoved = null;
+  renderEePaddockChips();
+}
+
+// Reopen a paddock that was closed — clears dateRemoved so it is active again.
+function reopenPaddock(idx){
+  eePaddocks[idx].dateRemoved = null;
+  eePaddocks[idx].timeRemoved = null;
+  renderEePaddockChips();
 }
 
 function renderEePaddockChips(){
@@ -4527,10 +4570,8 @@ function renderEePaddockChips(){
   if(!el) return;
   const ev = S.events.find(e=>e.id===parseInt(document.getElementById('ee-id')?.value));
   el.innerHTML = eePaddocks.map((p,i)=>{
-    const isPrimary = i===0;
-    const dateVal  = p.dateAdded || (ev?ev.dateIn:todayStr());
-    const timeVal  = p.timeAdded || '00:00';
-    if(isPrimary){
+    // ── Primary paddock — locked, no action buttons ────────────────────────
+    if(i===0){
       return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
         <span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;
           border-radius:20px;background:var(--green-l);color:var(--green-d);
@@ -4540,37 +4581,73 @@ function renderEePaddockChips(){
         </span>
       </div>`;
     }
-    return `<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius);
-        padding:8px 10px;margin-bottom:6px;">
+
+    const isClosed = !!p.dateRemoved;
+    const isNew    = !!p._isNew;
+    const acDays   = (isClosed && p.dateAdded && p.dateRemoved)
+      ? daysBetween(p.dateAdded, p.dateRemoved) : null;
+
+    // Visual state
+    const borderColor = isClosed ? 'var(--red)' : 'var(--green)';
+    const chipBg      = isClosed ? 'var(--red-l)' : isNew ? 'var(--bg2)' : 'var(--green-l)';
+    const nameColor   = isClosed ? 'var(--red-d)'  : 'var(--green-d)';
+    const statusBadge = isClosed
+      ? `<span style="display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--red-d);font-weight:500;"><span style="width:7px;height:7px;border-radius:50%;background:var(--red-d);display:inline-block;"></span>Closed</span>`
+      : isNew
+        ? `<span style="font-size:11px;color:var(--text2);font-weight:400;font-style:italic;">unsaved</span>`
+        : `<span style="display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--green-d);font-weight:500;"><span style="width:7px;height:7px;border-radius:50%;background:var(--green-d);display:inline-block;"></span>Active</span>`;
+
+    // Right-side action button
+    const actionBtn = isNew
+      ? `<button onclick="removeEePaddock('${p.pastureName}')"
+           title="Discard — wrong selection"
+           style="border:none;background:transparent;color:var(--text2);cursor:pointer;
+                  font-size:18px;padding:0 4px;line-height:1;">&times;</button>`
+      : isClosed
+        ? `<button onclick="reopenPaddock(${i})"
+             style="border:0.5px solid var(--border2);background:var(--bg);color:var(--text2);
+                    cursor:pointer;font-size:11px;padding:3px 8px;border-radius:var(--radius);
+                    line-height:1.4;">Reopen</button>`
+        : `<button onclick="closePaddock(${i})"
+             style="border:0.5px solid var(--red);background:transparent;color:var(--red-d);
+                    cursor:pointer;font-size:11px;padding:3px 8px;border-radius:var(--radius);
+                    line-height:1.4;">Close Paddock</button>`;
+
+    const dateAddedVal = p.dateAdded || (ev?ev.dateIn:todayStr());
+    const timeAddedVal = p.timeAdded || '00:00';
+
+    return `<div style="background:${chipBg};border:0.5px solid ${borderColor};
+        border-radius:var(--radius);padding:8px 10px;margin-bottom:6px;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-        <span style="font-size:13px;font-weight:600;color:var(--green-d);">${p.pastureName}</span>
-        <button onclick="removeEePaddock('${p.pastureName}')"
-          style="border:none;background:transparent;color:var(--text2);cursor:pointer;
-                 font-size:16px;padding:0 4px;line-height:1;">×</button>
+        <div style="display:flex;align-items:center;gap:7px;">
+          <span style="font-size:13px;font-weight:600;color:${nameColor};">${p.pastureName}</span>
+          ${statusBadge}
+        </div>
+        ${actionBtn}
       </div>
-      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:8px;">
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:${isClosed?'8px':'4px'};">
         <div>
-          <div style="font-size:10px;color:var(--text2);margin-bottom:2px;">Moved on — date</div>
-          <input type="date" value="${dateVal}"
+          <div style="font-size:10px;color:var(--text2);margin-bottom:2px;">Moved on</div>
+          <input type="date" value="${dateAddedVal}"
             oninput="eePaddocks[${i}].dateAdded=this.value;renderEePaddockChips();"
             style="padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);
                    font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;"/>
         </div>
         <div>
           <div style="font-size:10px;color:var(--text2);margin-bottom:2px;">Time (optional)</div>
-          <input type="time" value="${timeVal}"
+          <input type="time" value="${timeAddedVal}"
             oninput="eePaddocks[${i}].timeAdded=this.value;"
             style="padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);
                    font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;"/>
         </div>
       </div>
-      <div style="font-size:10px;color:var(--text2);margin-bottom:4px;font-weight:600;">Moved off (optional — leave blank if still active)</div>
-      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:6px;${p.dateRemoved?'':'opacity:0.6;'}">
+      ${isClosed ? `
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:6px;">
         <div>
-          <div style="font-size:10px;color:var(--text2);margin-bottom:2px;">Moved off — date</div>
+          <div style="font-size:10px;color:var(--text2);margin-bottom:2px;">Moved off</div>
           <input type="date" value="${p.dateRemoved||''}"
             oninput="eePaddocks[${i}].dateRemoved=this.value||null;renderEePaddockChips();"
-            style="padding:5px 8px;border:0.5px solid ${p.dateRemoved?'var(--amber)':'var(--border2)'};border-radius:var(--radius);
+            style="padding:5px 8px;border:0.5px solid var(--amber);border-radius:var(--radius);
                    font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;"/>
         </div>
         <div>
@@ -4581,9 +4658,10 @@ function renderEePaddockChips(){
                    font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;"/>
         </div>
       </div>
-      ${p.dateRemoved?`<div style="font-size:11px;color:var(--amber-d);padding:4px 8px;background:var(--amber-l);border-radius:var(--radius);">
-        Active ${daysBetween(p.dateAdded||ev?.dateIn||todayStr(), p.dateRemoved)} days · NPK credited for this window only
-      </div>`:'<div style="font-size:11px;color:var(--text2);">NPK splits from moved-on date · active until event close</div>'}
+      <div style="font-size:11px;color:var(--red-d);padding:4px 8px;background:var(--red-l);border-radius:var(--radius);">
+        Active ${acDays!==null?acDays:'?'} days &middot; NPK credited for this window only
+      </div>` : `
+      <div style="font-size:11px;color:var(--text2);">NPK splits from moved-on date &middot; active until event close</div>`}
     </div>`;
   }).join('');
 }
@@ -4591,22 +4669,198 @@ function renderEePaddockChips(){
 function updateEePaddockNote(){
   const el = document.getElementById('ee-paddock-note');
   if(!el) return;
+  const closed = eePaddocks.filter(p=>p.dateRemoved);
   const totalAc = eePaddocks.reduce((s,p)=>s+(p.acres||0),0);
   if(eePaddocks.length>1){
-    el.innerHTML = `<span style="color:var(--text2);">${eePaddocks.length} paddocks · ${totalAc>0?totalAc.toFixed(1)+' ac total':'set acres on Pastures tab'} · NPK splits by acreage</span>`;
+    const parts = [`${eePaddocks.length} paddocks`];
+    if(totalAc>0) parts.push(totalAc.toFixed(1)+' ac total');
+    if(closed.length) parts.push(`${closed.length} closed`);
+    parts.push('NPK splits by acreage');
+    el.innerHTML = `<span style="color:var(--text2);">${parts.join(' \u00b7 ')}</span>`;
   } else {
     el.innerHTML = '';
   }
 }
 
+// Strip the session-only _isNew flag before writing back to the event record.
 function applyEePaddocksToEvent(ev){
-  ev.paddocks = eePaddocks.map(p=>({...p}));
-  ev.pasture   = eePaddocks[0]?.pastureName||ev.pasture||'';
-  ev.pastureId = eePaddocks[0]?.pastureId||ev.pastureId||null;
+  ev.paddocks = eePaddocks.map(({_isNew, ...rest})=>({...rest}));
+  ev.pasture      = eePaddocks[0]?.pastureName||ev.pasture||'';
+  ev.pastureId    = eePaddocks[0]?.pastureId||ev.pastureId||null;
   ev.locationType = eePaddocks[0]?.locationType||ev.locationType||'pasture';
 }
 
-// ─── END MULTI-PADDOCK HELPERS ────────────────────────────────────────────────
+// ─── END MULTI-PADDOCK HELPERS ────────────────────────────────────
+
+
+// ─── EVENT EDIT MULTI-GROUP ─────────────────────────────────────────
+// Parallel architecture to eePaddocks. Chip states: primary (locked),
+// unsaved (_isNew: × to discard), saved-active (Remove Group button),
+// saved-closed (dateRemoved set, Reopen button).
+
+let eeGroups = []; // working copy for event edit sheet
+
+function initEeGroups(ev){
+  // Loaded entries have no _isNew — Remove Group / Reopen apply
+  eeGroups = evGroups(ev).map(g=>({...g}));
+  renderEeGroupChips();
+  syncEeGroupTotals();
+}
+
+function addEeGroup(){
+  const sel = document.getElementById('ee-group-sel');
+  const idStr = sel?.value;
+  if(!idStr) return;
+  const gId = parseInt(idStr);
+  if(eeGroups.some(x=>x.groupId===gId)){ sel.value=''; return; }
+  const g = getGroupById(gId);
+  eeGroups.push({
+    groupId:   gId,
+    groupName: g?g.name:'',
+    dateAdded: todayStr(),
+    dateRemoved: null,
+    _isNew: true,
+  });
+  sel.value='';
+  renderEeGroupChips();
+  syncEeGroupTotals();
+}
+
+// Discard a wrong selection made this session only.
+function removeEeGroup(gId){
+  const g = eeGroups.find(x=>x.groupId===gId);
+  if(!g || !g._isNew) return;
+  eeGroups = eeGroups.filter(x=>x.groupId!==gId);
+  renderEeGroupChips();
+  syncEeGroupTotals();
+}
+
+// Mark a saved additional group as departed (sets dateRemoved to today).
+function closeGroup(idx){
+  if(idx===0) return; // primary cannot be closed via this path
+  eeGroups[idx].dateRemoved = todayStr();
+  renderEeGroupChips();
+  syncEeGroupTotals();
+}
+
+// Reopen a group that was closed — clears dateRemoved.
+function reopenGroup(idx){
+  eeGroups[idx].dateRemoved = null;
+  renderEeGroupChips();
+  syncEeGroupTotals();
+}
+
+// Auto-fill head/wt fields by summing active groups' current stats.
+function syncEeGroupTotals(){
+  const active = eeGroups.filter(g=>!g.dateRemoved);
+  if(!active.length) return;
+  let totalHead=0, totalLiveWt=0;
+  active.forEach(g=>{
+    const grp=getGroupById(g.groupId);
+    if(!grp) return;
+    const t=getGroupTotals(grp);
+    totalHead += t.totalHead||0;
+    totalLiveWt += (t.totalHead||0)*(t.avgWeight||0);
+  });
+  const avgWt = totalHead>0 ? Math.round(totalLiveWt/totalHead) : 0;
+  const headEl=document.getElementById('ee-head');
+  const wtEl=document.getElementById('ee-wt');
+  if(headEl && totalHead>0) headEl.value=totalHead;
+  if(wtEl && avgWt>0) wtEl.value=avgWt;
+}
+
+function renderEeGroupChips(){
+  const el = document.getElementById('ee-group-chips');
+  if(!el) return;
+  if(!eeGroups.length){
+    el.innerHTML='<div style="font-size:12px;color:var(--text2);font-style:italic;">No group assigned</div>';
+    return;
+  }
+  el.innerHTML = eeGroups.map((g,i)=>{
+    const grp = getGroupById(g.groupId);
+    const dot = grp?.color||'var(--green)';
+
+    // ── Primary (index 0) or groups loaded without _isNew flag + not closed ──
+    if(i===0 && !g._isNew){
+      return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+        <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;
+          border-radius:20px;background:var(--green-l);color:var(--green-d);
+          font-size:12px;font-weight:600;">
+          <span style="width:8px;height:8px;border-radius:50%;background:${dot};display:inline-block;flex-shrink:0;"></span>
+          ${g.groupName}
+          <span style="font-size:10px;opacity:0.65;">primary</span>
+        </span>
+      </div>`;
+    }
+
+    const isClosed = !!g.dateRemoved;
+    const isNew    = !!g._isNew;
+
+    const borderColor = isClosed ? 'var(--red)' : isNew ? 'var(--border)' : 'var(--green)';
+    const chipBg      = isClosed ? 'var(--red-l)' : isNew ? 'var(--bg2)' : 'var(--green-l)';
+    const nameColor   = isClosed ? 'var(--red-d)' : 'var(--green-d)';
+
+    const statusBadge = isClosed
+      ? `<span style="display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--red-d);font-weight:500;"><span style="width:7px;height:7px;border-radius:50%;background:var(--red-d);display:inline-block;"></span>Removed</span>`
+      : isNew
+        ? `<span style="font-size:11px;color:var(--text2);font-weight:400;font-style:italic;">unsaved</span>`
+        : `<span style="display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--green-d);font-weight:500;"><span style="width:7px;height:7px;border-radius:50%;background:var(--green-d);display:inline-block;"></span>Active</span>`;
+
+    const actionBtn = isNew
+      ? `<button onclick="removeEeGroup(${g.groupId})" title="Discard selection"
+           style="border:none;background:transparent;color:var(--text2);cursor:pointer;
+                  font-size:18px;padding:0 4px;line-height:1;">&times;</button>`
+      : isClosed
+        ? `<button onclick="reopenGroup(${i})"
+             style="border:0.5px solid var(--border2);background:var(--bg);color:var(--text2);
+                    cursor:pointer;font-size:11px;padding:3px 8px;border-radius:var(--radius);line-height:1.4;">Reopen</button>`
+        : `<button onclick="closeGroup(${i})"
+             style="border:0.5px solid var(--red);background:transparent;color:var(--red-d);
+                    cursor:pointer;font-size:11px;padding:3px 8px;border-radius:var(--radius);line-height:1.4;">Remove Group</button>`;
+
+    const dateAddedVal = g.dateAdded||todayStr();
+
+    return `<div style="background:${chipBg};border:0.5px solid ${borderColor};
+        border-radius:var(--radius);padding:8px 10px;margin-bottom:6px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:${isClosed?'6px':'4px'};">
+        <div style="display:flex;align-items:center;gap:7px;">
+          <span style="width:8px;height:8px;border-radius:50%;background:${dot};display:inline-block;flex-shrink:0;"></span>
+          <span style="font-size:13px;font-weight:600;color:${nameColor};">${g.groupName}</span>
+          ${statusBadge}
+        </div>
+        ${actionBtn}
+      </div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;">
+        <div>
+          <div style="font-size:10px;color:var(--text2);margin-bottom:2px;">Joined event</div>
+          <input type="date" value="${dateAddedVal}"
+            oninput="eeGroups[${i}].dateAdded=this.value;"
+            style="padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);
+                   font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;"/>
+        </div>
+        ${isClosed ? `<div>
+          <div style="font-size:10px;color:var(--text2);margin-bottom:2px;">Left event</div>
+          <input type="date" value="${g.dateRemoved||''}"
+            oninput="eeGroups[${i}].dateRemoved=this.value||null;renderEeGroupChips();"
+            style="padding:5px 8px;border:0.5px solid var(--amber);border-radius:var(--radius);
+                   font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;"/>
+        </div>` : ''}
+      </div>
+      ${isClosed&&g.dateAdded&&g.dateRemoved ? `<div style="font-size:11px;color:var(--red-d);padding:4px 8px;margin-top:6px;background:var(--red-l);border-radius:var(--radius);">
+        In event ${daysBetween(g.dateAdded,g.dateRemoved)} days &middot; NPK attributed for this window
+      </div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// Strip _isNew and write ev.groups[]; keep legacy ev.groupId pointing at first entry.
+function applyEeGroupsToEvent(ev){
+  ev.groups = eeGroups.map(({_isNew,...rest})=>({...rest}));
+  ev.groupId   = eeGroups[0]?.groupId||ev.groupId||null;
+  ev.groupName = eeGroups[0]?.groupName||(getGroupById(eeGroups[0]?.groupId)?.name)||ev.groupName||'';
+}
+
+// ─── END MULTI-GROUP HELPERS ─────────────────────────────────────────────────────────────────
 
 
 // ─── TREATMENT TYPES ──────────────────────────────────────────────────────────
@@ -5058,7 +5312,7 @@ function renderEventsLog(){
     const isMulti=pads.length>1;
     const days=e.dateIn&&e.dateOut?daysBetween(e.dateIn,e.dateOut):
                e.dateIn?daysBetween(e.dateIn,todayStr())+'+ (open)':'?';
-    const g=getGroupById(e.groupId);
+    const gDisp=evGroupsDisplay(e);
 
     // Paddock chips for multi-paddock events
     const padLine=isMulti?`<div style="display:flex;flex-wrap:wrap;gap:3px;margin:3px 0;">
@@ -5105,7 +5359,7 @@ function renderEventsLog(){
           ${isMulti?`<span style="font-size:10px;color:var(--text2);margin-left:5px;">${pads.length} paddocks</span>`:''}
         </div>
         <div style="display:flex;gap:6px;align-items:center;">
-          ${g?`<span style="font-size:11px;color:var(--text2);">${g.name}</span>`:''}
+          ${gDisp?`<span style="font-size:11px;color:var(--text2);">${gDisp}</span>`:''}
           <span class="badge ${isClosed?'bb':'bt'}">${isClosed?'closed':'active'}</span>
           <button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openEventEdit(${e.id})">Edit</button>
         </div>
@@ -5762,7 +6016,7 @@ function getGroupById(id){return S.animalGroups.find(g=>g.id===id)||null;}
 // getGroupTotals: see individual-animal version below
 
 function getActiveEvents(){return S.events.filter(e=>e.status==='open');}
-function getActiveEventForGroup(gId){return S.events.find(e=>e.status==='open'&&e.groupId===gId)||null;}
+function getActiveEventForGroup(gId){return S.events.find(e=>e.status==='open'&&evGroups(e).some(g=>g.groupId===gId&&!g.dateRemoved))||null;}
 function getAnyActiveEvent(){return S.events.find(e=>e.status==='open')||null;}
 
 // Override legacy getActive() to return first open event (for backward compat in calcConsumedDMI etc)
@@ -6439,7 +6693,7 @@ function saveSplit(){
 }
 
 // ── Move wizard with group selection ─────────────────────────────────────────
-let wizGroupId = null;
+let wizGroupIds = []; // replaces single wizGroupId — supports multi-group from wizard
 
 function wizGoStep(step){
   ['g','0','1','2'].forEach(s=>{
@@ -9143,10 +9397,14 @@ function openEventEdit(eventId){
     sortedPastures().map(p=>`<option value="${p.name}">${p.name}</option>`).join('');
   document.getElementById('ee-paddock').onchange=()=>addEePaddock();
   initEePaddocks(ev);
-  // Group selector
-  const grpSel=document.getElementById('ee-group');
-  grpSel.innerHTML='<option value="">— none —</option>'+
-    sortedGroups().map(g=>`<option value="${g.id}"${g.id===ev.groupId?' selected':''}>${g.name}</option>`).join('');
+  // Group chips (multi-group system)
+  const grpAddSel=document.getElementById('ee-group-sel');
+  if(grpAddSel){
+    grpAddSel.innerHTML='<option value="">— add group —</option>'+
+      sortedGroups().map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
+    grpAddSel.onchange=()=>addEeGroup();
+  }
+  initEeGroups(ev);
   // Core fields
   document.getElementById('ee-date-in').value=ev.dateIn||'';
   document.getElementById('ee-date-out').value=ev.dateOut||'';
@@ -9382,10 +9640,14 @@ function updateEventEditPreview(ev){
   const noPasture=document.getElementById('ee-no-pasture')?.checked||false;
   const feedRes=parseInt(document.getElementById('ee-feed-res')?.value)||0;
   const days=Math.max(1,Math.round((new Date(dateOut+'T12:00:00')-new Date(dateIn+'T12:00:00'))/86400000));
-  const grpId=parseInt(document.getElementById('ee-group').value)||null;
-  const g=grpId?getGroupById(grpId):null;
-  const t=g?getGroupTotals(g):null;
-  const dmiPct=t&&t.totalHead>0?(t.dmiTarget/(t.totalLiveWeight||head*wt)):0.025;
+  // Use aggregated DMI% from active groups in eeGroups working copy
+  const _activeEeGs=eeGroups.filter(g=>!g.dateRemoved);
+  let dmiPct=0.025;
+  if(_activeEeGs.length){
+    let _tdmi=0,_twt=0;
+    _activeEeGs.forEach(ge=>{const gr=getGroupById(ge.groupId);if(!gr)return;const t=getGroupTotals(gr);_tdmi+=t.dmiTarget||0;_twt+=(t.totalHead||0)*(t.avgWeight||0);});
+    if(_twt>0) dmiPct=_tdmi/(_twt)||0.025;
+  }
   const dmiTarget=head*wt*dmiPct;
   const allEntries=allFeedEntries(ev);
   const storedDMI=calcConsumedDMI(allEntries,feedRes);
@@ -9417,8 +9679,16 @@ function saveEventEdit(){
   if(ev.status==='closed'&&!dateOut){alert('Date out is required for closed events');return;}
   if(ev.status==='closed'&&dateIn>=dateOut){alert('Date out must be after date in');return;}
   // Update core fields
-  const grpId=parseInt(document.getElementById('ee-group').value)||null;
   const oldGrpId=ev.groupId;
+  // Apply multi-group array (strips _isNew, writes ev.groups, updates legacy ev.groupId)
+  if(eeGroups.length) applyEeGroupsToEvent(ev);
+  // Path B: re-sync head/wt from active groups
+  const _activeGs=eeGroups.filter(g=>!g.dateRemoved);
+  if(_activeGs.length){
+    let _th=0,_tw=0;
+    _activeGs.forEach(g=>{const gr=getGroupById(g.groupId);if(!gr)return;const t=getGroupTotals(gr);_th+=t.totalHead||0;_tw+=(t.totalHead||0)*(t.avgWeight||0);});
+    if(_th>0){ev.head=_th;ev.wt=_tw>0?Math.round(_tw/_th):ev.wt;}
+  }
   const _eePadSel=document.getElementById('ee-paddock').value||evPrimaryPaddock(ev).pastureName;
   // Apply multi-paddock array from eePaddocks
   if(eePaddocks.length) applyEePaddocksToEvent(ev);
@@ -10065,6 +10335,51 @@ function migrateToPaddocksField(){
   S._paddocksMigrated=true;
   if(changed) saveLocal(); // no stampSetup — doesn't affect setup arrays
 }
+// ─── GROUP EVENT HELPERS ──────────────────────────────────────────────────────
+// Parallel to evPaddocks — abstracts ev.groups[] vs legacy ev.groupId.
+// Every group lookup should go through evGroups(), never read ev.groupId directly.
+
+function evGroups(ev){
+  if(ev.groups && ev.groups.length) return ev.groups;
+  // Legacy fallback — synthesise single-entry from old groupId field
+  if(ev.groupId){
+    const g=getGroupById(ev.groupId);
+    return [{groupId:ev.groupId, groupName:g?g.name:ev.groupName||'',
+             dateAdded:ev.dateIn||null, dateRemoved:null}];
+  }
+  return [];
+}
+
+// Display string: "Cow herd" | "Cow herd + Yearlings" | "Multiple"
+// maxChars controls the truncation threshold (default 32)
+function evGroupsDisplay(ev, maxChars){
+  const limit = maxChars||32;
+  const gs = evGroups(ev);
+  if(!gs.length) return '';
+  const names = gs.map(g=>g.groupName||getGroupById(g.groupId)?.name||'').filter(Boolean);
+  if(!names.length) return '';
+  const full = names.join(' + ');
+  return full.length <= limit ? full : 'Multiple';
+}
+
+// Migration: backfill ev.groups[] for events that only have ev.groupId
+function migrateToGroupsField(){
+  if(S._groupsMigrated) return;
+  let changed=false;
+  S.events.forEach(ev=>{
+    if(ev.type==='amend') return;
+    if(ev.groups && ev.groups.length) return; // already migrated
+    if(!ev.groupId) return; // no group at all — leave as-is
+    const g=getGroupById(ev.groupId);
+    ev.groups=[{groupId:ev.groupId, groupName:g?g.name:ev.groupName||'',
+                dateAdded:ev.dateIn||null, dateRemoved:null}];
+    changed=true;
+  });
+  S._groupsMigrated=true;
+  if(changed) saveLocal();
+}
+// ─── END GROUP EVENT HELPERS ───────────────────────────────────────────────────
+
 // ─── END MULTI-PADDOCK HELPERS ────────────────────────────────────────────────
 
 // ─── ARCHIVE / ID SYSTEM ─────────────────────────────────────────────────────
@@ -10150,8 +10465,8 @@ function getAnimalClassRefs(classId){
   return S.animals.filter(a=>a.classId===classId&&a.active!==false);
 }
 function getAnimalGroupRefs(groupId){
-  const open=S.events.filter(e=>e.status==='open'&&e.groupId===groupId);
-  const closed=S.events.filter(e=>e.status==='closed'&&e.groupId===groupId);
+  const open=S.events.filter(e=>e.status==='open'&&evGroups(e).some(g=>g.groupId===groupId&&!g.dateRemoved));
+  const closed=S.events.filter(e=>e.status==='closed'&&evGroups(e).some(g=>g.groupId===groupId));
   return {open,closed};
 }
 function getInputProductRefs(productId){
@@ -11181,6 +11496,7 @@ migrateGroupsToAnimals();
 migrateAnimalSystemIds();
 migrateSystemIds();
 migrateToPaddocksField();
+migrateToGroupsField();
 updateHeader();
 updateDriveUI();
 updateHeaderAvatar();
@@ -11797,9 +12113,10 @@ detectMode(); // must run last — reads DOM
         </select>
         <div style="font-size:11px;color:var(--text2);margin-top:2px;" id="ee-paddock-note"></div>
       </div>
-      <div class="field"><label>Group</label>
-        <select id="ee-group">
-          <option value="">— none —</option>
+      <div class="field"><label>Group(s)</label>
+        <div id="ee-group-chips" style="margin-bottom:6px;"></div>
+        <select id="ee-group-sel" style="max-width:100%;">
+          <option value="">— add group —</option>
         </select>
       </div>
     </div>
