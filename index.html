@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260322.1800" id="app-version-meta"/>
+<meta name="app-version" content="b20260322.1830" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -688,6 +688,13 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 
     <!-- MOVE WIZARD -->
     <div id="s-move" class="scr">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0 8px;">
+        <div style="font-size:15px;font-weight:600;color:var(--text2);">Move wizard</div>
+        <button onclick="nav('home',document.getElementById('bn-home'))"
+          style="border:none;background:transparent;color:var(--text2);cursor:pointer;
+                 font-size:22px;line-height:1;padding:4px 8px;"
+          title="Close wizard">&times;</button>
+      </div>
       <div class="wiz-dots"><div class="wiz-dot on" id="wd-g"></div><div class="wiz-dot" id="wd0"></div><div class="wiz-dot" id="wd1"></div><div class="wiz-dot" id="wd2"></div></div>
 
       <!-- Step G: Select group (auto-skip if only one) -->
@@ -695,6 +702,8 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
         <div class="card">
           <div class="sec">Which group is moving?</div>
           <div id="wiz-group-list"></div>
+          <button class="btn btn-outline btn-sm" style="margin-top:10px;width:100%;"
+            onclick="nav('home',document.getElementById('bn-home'))">Cancel</button>
         </div>
       </div>
       <!-- Step 0 -->
@@ -772,7 +781,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
       <!-- Step 1 -->
       <div class="wiz-step" id="ws1">
         <div class="card" style="border-left:3px solid var(--green);" id="ws1-summary"></div>
-        <div class="card"><div style="font-size:14px;color:var(--text2);margin-bottom:14px;">Ready to move to the next paddock.</div><div class="btn-row"><button class="btn btn-teal" onclick="wizGo(2)">Open new grazing event</button><button class="btn btn-outline" onclick="nav('home',document.getElementById('bn-home'))">Done — back to home</button></div></div>
+        <div class="card"><div style="font-size:14px;color:var(--text2);margin-bottom:14px;">Ready to move to the next paddock.</div><div class="btn-row"><button class="btn btn-teal" onclick="nav('home',document.getElementById('bn-home'))">Done — back to home</button><button class="btn btn-outline" onclick="wizGo(2)">Open new grazing event</button></div></div>
       </div>
       <!-- Step 2 -->
       <div class="wiz-step" id="ws2">
@@ -3468,6 +3477,7 @@ function wizCloseEvent(){
   }
   save();
   let summaryExtra='';
+  try{
   if(isCon&&ae.totals.capturedNPK){
     const cn=ae.totals.capturedNPK;const st=S.settings;
     const capFertVal=(cn.n*st.nPrice+cn.p*st.pPrice+cn.k*st.kPrice).toFixed(2);
@@ -3476,6 +3486,7 @@ function wizCloseEvent(){
   }
   document.getElementById('ws1-summary').innerHTML=`<div style="font-size:15px;font-weight:600;margin-bottom:10px;">Closed: ${evDisplayName(ae)} ${isCon?'<span class="badge bb">confinement</span>':''}</div><div class="m-grid"><div class="m-cell"><div class="ml">Days</div><div class="mv">${days}</div></div><div class="m-cell"><div class="ml">Feed cost</div><div class="mv" style="color:var(--amber);">$${cost.toFixed(2)}</div></div><div class="m-cell"><div class="ml">Stored DMI</div><div class="mv">${Math.round(sdmi).toLocaleString()} lbs</div></div><div class="m-cell"><div class="ml">${isCon?'Manure NPK':'Pasture DMI'}</div><div class="mv" style="color:${isCon?'var(--purple-d)':'var(--green)'};">${isCon?(ae.totals.capturedNPK?'N'+ae.totals.capturedNPK.n.toFixed(1):'not captured'):(pdmi!==null?Math.round(pdmi).toLocaleString()+' lbs':'--')}</div></div><div class="m-cell"><div class="ml">${isCon?'Capture %':'Pasture %'}</div><div class="mv" style="color:var(--teal);">${isCon?(ae.totals.capturePercent||0)+'%':(pct!==null?pct+'%':'--')}</div></div><div class="m-cell"><div class="ml">NPK fert value</div><div class="mv" style="color:var(--purple-d);">$${npkVal.toFixed(2)}</div></div></div>${summaryExtra}`;
   wizGo(1);
+  }catch(e){logError('wizCloseEvent summary','Failed to build summary: '+e.message,e.stack);wizGo(1);}
 }
 function populateNewPastureSelect(ev){
   if(!ev&&wizPaddocks.length===0) initWizPaddocks(null); // fresh start
