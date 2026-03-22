@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260322.1135" id="app-version-meta"/>
+<meta name="app-version" content="b20260322.1211" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -1316,6 +1316,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
       <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
         <button class="btn btn-outline btn-sm" onclick="exportCSV()">Export events CSV</button>
         <button class="btn btn-outline btn-sm" onclick="exportFeedbackCSV()">Export feedback CSV</button>
+        <button class="btn btn-outline btn-sm" onclick="exportFeedbackJSON()">Export feedback JSON</button>
       </div>
     </div>
 
@@ -1763,6 +1764,19 @@ function maybeResumeTokenRefresh(){
     // Still valid — schedule refresh for 5 min before expiry
     const expiresIn=Math.round(remaining/1000)+60; // convert back to seconds
     scheduleTokenRefresh(expiresIn);
+  }
+}
+
+// Called whenever the app becomes visible (tab switch, PWA resume, phone unlock).
+// Ensures mobile stays in sync even after the OAuth token expires in the background.
+function onAppResume(){
+  if(!driveState.connected)return;
+  if(Date.now()<(driveState.tokenExpiry||0)){
+    // Token still valid — sync now to pull any changes made on other devices
+    driveSync();
+  } else {
+    // Token expired — silent refresh first; callback will call driveSync()
+    loadGISAndConnect(true);
   }
 }
 
@@ -5500,6 +5514,40 @@ function exportFeedbackCSV(){
 function dlCSV(rows,fname){
   const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=fname;a.click();
+}
+
+// exportFeedbackJSON — structured export for Claude session import into OPEN_ITEMS.md
+// Produces gthy-feedback-YYYY-MM-DD-HHMM.json — distinct from the full backup.
+// Only includes fields Claude needs: id, cat, status, note, version, ts, ctx, tester,
+// resolvedInVersion, resolutionNote. Does NOT include confirmedBy/At (not needed by Claude).
+function exportFeedbackJSON(){
+  if(!S.feedback.length){alert('No feedback to export');return;}
+  const now=new Date();
+  const ts=now.toISOString().slice(0,10);
+  const hhmm=now.toTimeString().slice(0,5).replace(':','');
+  const payload={
+    exportedAt: now.toISOString(),
+    appVersion: document.getElementById('app-version-meta')?.getAttribute('content')||'?',
+    totalItems: S.feedback.length,
+    feedback: S.feedback.map(f=>({
+      id: f.id,
+      cat: f.cat,
+      status: f.status,
+      note: f.note,
+      tester: f.tester||'anonymous',
+      version: f.version||'?',
+      ts: f.ts,
+      screen: f.ctx?.screen||'?',
+      activeEvent: f.ctx?.activeEvent||null,
+      resolvedInVersion: f.resolvedInVersion||null,
+      resolutionNote: f.resolutionNote||null,
+      linkedTo: f.linkedTo||null,
+    }))
+  };
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}));
+  a.download=`gthy-feedback-${ts}-${hhmm}.json`;
+  a.click();
 }
 
 
@@ -11144,6 +11192,8 @@ maybePromptUserSelect();
 maybeResumeTokenRefresh();
 // Sync if token is still valid
 if(driveState.connected&&driveState.accessToken&&Date.now()<(driveState.tokenExpiry||0)){driveSync();}
+// Sync whenever the app becomes visible (handles PWA resume + tab switching)
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')onAppResume();});
 detectMode(); // must run last — reads DOM
 </script>
 
