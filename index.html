@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260322.1452" id="app-version-meta"/>
+<meta name="app-version" content="b20260322.2021" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -104,6 +104,9 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 .slider-out{min-width:40px;font-size:15px;font-weight:600;text-align:right;}
 .batch-sel{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;background:var(--bg2);border-radius:var(--radius);margin-bottom:5px;cursor:pointer;border:0.5px solid var(--border);}
 .batch-sel.on{border-color:var(--green);background:var(--green-l);}
+.bcs-chip{min-width:40px;padding:8px 4px;text-align:center;border:1.5px solid var(--border2);background:var(--bg2);border-radius:var(--radius);font-size:15px;font-weight:600;color:var(--text2);cursor:pointer;}
+.bcs-chip.on{border-color:var(--teal);background:var(--teal-l,#e0f5f2);color:var(--teal);}
+
 .chk{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--border2);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
 .batch-sel.on .chk{background:var(--green);border-color:var(--green);}
 .wiz-dots{display:flex;gap:6px;justify-content:center;margin-bottom:16px;}
@@ -638,6 +641,9 @@ body:not(.field-mode) #field-mode-toggle{
         <div id="home-stats-grid" class="m-grid"></div>
         <div id="home-stats-empty" style="display:none;font-size:13px;color:var(--text2);text-align:center;padding:8px 0;">No events in this period</div>
       </div>
+      <div class="card" id="home-weaning-card" style="display:none;">
+        <div id="home-weaning-nudge"></div>
+      </div>
       <div class="card">
         <div class="sec">Recent events</div>
         <div id="h-event-list"><div class="empty">No closed events yet</div></div>
@@ -1011,6 +1017,7 @@ body:not(.field-mode) #field-mode-toggle{
       <div id="rpt-animals"    class="rpt-panel"></div>
       <div id="rpt-summary"    class="rpt-panel"></div>
       <div id="rpt-survey"     class="rpt-panel"></div>
+      <div id="rpt-weaning"    class="rpt-panel"></div>
     </div>
 
     <!-- FEEDBACK -->
@@ -1174,6 +1181,17 @@ body:not(.field-mode) #field-mode-toggle{
         <div class="field"><label>Operation name</label><input type="text" id="s-name" placeholder="e.g. Smith Angus Farm"/></div>
       </div>
 
+
+      <!-- Wean targets -->
+      <div class="card">
+        <div class="sec">Weaning targets</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.6;">Days from birth to target wean date, by species. Used to compute wean dates and flag overdue animals in the Weaning report.</div>
+        <div class="three">
+          <div class="field"><label>Cattle (days)</label><input type="number" id="s-wean-cattle" step="1" min="1" placeholder="205"/></div>
+          <div class="field"><label>Sheep (days)</label><input type="number" id="s-wean-sheep" step="1" min="1" placeholder="60"/></div>
+          <div class="field"><label>Goats (days)</label><input type="number" id="s-wean-goat" step="1" min="1" placeholder="60"/></div>
+        </div>
+      </div>
 
       <div class="card">
         <div class="sec">Home screen stats</div>
@@ -2582,6 +2600,7 @@ function renderHome(){
   // Season stats rendered via metric registry
   renderStats();
   renderHomeSurveyCard();
+  renderWeaningNudge();
 
   const allClosed=S.events.filter(e=>e.status==='closed');
   const el=document.getElementById('h-event-list');
@@ -3315,6 +3334,9 @@ function initWizFromGroups(){
   const _wout=document.getElementById('w-out-date');if(_wout)_wout.value=todayStr();const _woutT=document.getElementById('w-out-time');if(_woutT)_woutT.value='';
   const _win=document.getElementById('w-in-date');if(_win)_win.value=todayStr();const _winT=document.getElementById('w-in-time');if(_winT)_winT.value='';
   const _wnp=document.getElementById('w-no-pasture');if(_wnp)_wnp.checked=false;
+  // OI-0008: hide recovery section when current (outgoing) event is at a confinement location
+  const _recSec=document.getElementById('w-recovery-section');
+  if(_recSec) _recSec.style.display=(ae&&ae.locationType==='confinement')?'none':'';
   // Aggregate head/wt from all selected groups
   let totalHead=0,totalLiveWt=0;
   wizGroupIds.forEach(gId=>{
@@ -3452,6 +3474,9 @@ function updateRecoveryPreview(){
 function validateRecoveryFields(){
   const st = S.settings;
   if(!st.recoveryRequired) return true; // optional — always valid
+  // OI-0008: confinement locations have no recovery period — skip validation
+  const _aeV=(wizGroupIds.length?wizGroupIds.map(id=>getActiveEventForGroup(id)).find(Boolean):null)||getActive();
+  if(_aeV&&_aeV.locationType==='confinement') return true;
   const minVal = parseInt(document.getElementById('w-rec-min')?.value)||0;
   const maxVal = parseInt(document.getElementById('w-rec-max')?.value)||0;
   if(!minVal || !maxVal){
@@ -3626,6 +3651,10 @@ function onWizPaddockChange(){
     const destCard=document.getElementById('w-new-pasture').closest('.card');
     destCard.insertBefore(notice,destCard.querySelector('.div'));
   }
+  // OI-0007: auto-set 100% stored feed flag when destination is confinement
+  const noPastureChk = document.getElementById('w-no-pasture');
+  if(noPastureChk && isCon) noPastureChk.checked = true;
+
   if(isCon){
     const loc2=S.pastures.find(p=>p.name===locName);
     const capNote=loc2&&loc2.captureManure?`Manure capture: ${loc2.capturePercent||80}% · ${loc2.batchMode==='accumulate'?'accumulates into running batch':'new batch per event'}`:'Manure not captured for this location';
@@ -4206,6 +4235,26 @@ function renderSurveyPaddocks(){
       ? `<span style="font-size:11px;color:${surveyRatingColor(latest.rating)};">Last rated: ${latest.rating}/10 on ${dLabel(latest.date)}</span>`
       : '';
 
+    // Expected graze window — shown inline in each rating card (only when not currently active)
+    let gdHtml = '';
+    if(!activeEv){
+      const gd = getExpectedGrazeDates(p);
+      if(gd){
+        const fmt = d => d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+        const today = new Date(todayStr()+'T12:00:00');
+        let statusColor = 'var(--text2)', statusTxt = '';
+        if(gd.latest && today > gd.latest){
+          statusColor = 'var(--amber-d)'; statusTxt = '⚠ window closing';
+        } else if(gd.earliest && today >= gd.earliest){
+          statusColor = 'var(--green-d)'; statusTxt = '✓ ready';
+        } else if(gd.earliest){
+          statusTxt = Math.round((gd.earliest - today)/86400000) + 'd until ready';
+        }
+        const windowStr = [gd.earliest ? fmt(gd.earliest) : '', gd.latest ? fmt(gd.latest) : ''].filter(Boolean).join(' – ');
+        gdHtml = `<div style="font-size:11px;color:var(--text2);margin-top:4px;">↻ Ready: ${windowStr}&nbsp;&nbsp;<span style="color:${statusColor};font-weight:600;">${statusTxt}</span></div>`;
+      }
+    }
+
     return `<div style="padding:10px 0;border-bottom:0.5px solid var(--border);" id="survey-row-${p.id}">
       <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px;">
         <div>
@@ -4220,6 +4269,7 @@ function renderSurveyPaddocks(){
         ${ratingBtns}
       </div>
       <div id="survey-selected-${p.id}" style="font-size:11px;margin-top:4px;min-height:16px;"></div>
+      ${gdHtml}
     </div>`;
   }).join('');
 
@@ -5812,6 +5862,11 @@ function saveSettings(){
     };
   });
   S.settings.updatedAt=new Date().toISOString();
+  // Wean targets — read per-species inputs (guard: fields may not be rendered yet)
+  if(!S.settings.weanTargets)S.settings.weanTargets={};
+  const wcEl=document.getElementById('s-wean-cattle');if(wcEl)S.settings.weanTargets.cattle=parseInt(wcEl.value)||205;
+  const wsEl=document.getElementById('s-wean-sheep');if(wsEl)S.settings.weanTargets.sheep=parseInt(wsEl.value)||60;
+  const wgEl=document.getElementById('s-wean-goat');if(wgEl)S.settings.weanTargets.goat=parseInt(wgEl.value)||60;
   save();updateHeader();
 }
 function loadSettings(){
@@ -5864,6 +5919,11 @@ function loadSettings(){
   }
   const elCount=document.getElementById('error-log-count');
   if(elCount)elCount.textContent=(S.errorLog||[]).length+' error'+((S.errorLog||[]).length!==1?'s':'')+' recorded';
+  // Wean targets
+  const wt=S.settings.weanTargets||{};
+  const wcLoad=document.getElementById('s-wean-cattle');if(wcLoad)wcLoad.value=wt.cattle||205;
+  const wsLoad=document.getElementById('s-wean-sheep');if(wsLoad)wsLoad.value=wt.sheep||60;
+  const wgLoad=document.getElementById('s-wean-goat');if(wgLoad)wgLoad.value=wt.goat||60;
   // Client ID is hardcoded — no input field to populate
 }
 function addFeedType(){
@@ -6320,7 +6380,8 @@ function openAnimalEventSheet(animalId, type, editEventId){
   document.getElementById('ae-evt-note-section').style.display      = type==='note'      ?'block':'none';
   document.getElementById('ae-evt-treatment-section').style.display = type==='treatment' ?'block':'none';
   document.getElementById('ae-evt-breeding-section').style.display  = (type==='breeding'||type==='heat')?'block':'none';
-  const titles = {note:'Add note',treatment:'Log treatment',breeding:'Log breeding event',heat:'Log heat'};
+  document.getElementById('ae-evt-bcs-section').style.display       = type==='bcs'       ?'block':'none';
+  const titles = {note:'Add note',treatment:'Log treatment',breeding:'Log breeding event',heat:'Log heat',bcs:'Body condition score'};
   document.getElementById('ae-evt-title').textContent = editEventId?'Edit event':(titles[type]||'Add event');
   document.getElementById('ae-evt-delete-wrap').style.display = editEventId?'block':'none';
   const existing = editEventId?(ensureAnimalHealthEvents(a).find(e=>e.id===editEventId)||null):null;
@@ -6370,6 +6431,16 @@ function openAnimalEventSheet(animalId, type, editEventId){
         .forEach(id=>{ const el=document.getElementById(id); if(el)el.value=''; });
       document.getElementById('ae-evt-calving-hint').textContent='';
     }
+  }
+  if(type==='bcs'){
+    // Reset all score chips then activate the existing one if editing
+    document.querySelectorAll('.bcs-chip').forEach(c=>c.classList.remove('on'));
+    document.getElementById('ae-evt-bcs-notes').value='';
+    if(existing&&existing.score){
+      const chip=document.querySelector(`.bcs-chip[data-score="${existing.score}"]`);
+      if(chip) chip.classList.add('on');
+    }
+    if(existing) document.getElementById('ae-evt-bcs-notes').value=existing.notes||'';
   }
   document.getElementById('animal-event-wrap').classList.add('open');
 }
@@ -6434,6 +6505,11 @@ function onBreedingSubtypeChange(){
   }
 }
 
+function bcsChipToggle(el){
+  document.querySelectorAll('.bcs-chip').forEach(c=>c.classList.remove('on'));
+  el.classList.add('on');
+}
+
 function saveAnimalEvent(){
   const animalId = parseInt(document.getElementById('ae-evt-animal-id').value);
   const type     = document.getElementById('ae-evt-type').value;
@@ -6493,6 +6569,13 @@ function saveAnimalEvent(){
     evt.expectedCalving = document.getElementById('ae-evt-expected-calving').value||null;
   }
 
+  if(type==='bcs'){
+    const activeChip=document.querySelector('.bcs-chip.on');
+    if(!activeChip){ alert('Select a body condition score'); return; }
+    evt.score=parseInt(activeChip.dataset.score);
+    evt.notes=document.getElementById('ae-evt-bcs-notes').value.trim()||null;
+  }
+
   if(editId){
     const idx = a.healthEvents.findIndex(e=>e.id===editId);
     if(idx>=0) a.healthEvents[idx]=evt; else a.healthEvents.push(evt);
@@ -6518,7 +6601,7 @@ function deleteAnimalEvent(){
 
 function showAnimalEventToast(evt){
   const msgs = {note:'Note saved',treatment:'Treatment logged: '+(evt.treatmentName||''),
-    breeding:'Breeding recorded',heat:'Heat recorded'};
+    breeding:'Breeding recorded',heat:'Heat recorded',bcs:'Body condition saved: '+evt.score+'/10'};
   const el = document.getElementById('survey-toast');
   if(!el) return;
   el.textContent = msgs[evt.type]||'Event saved';
@@ -7283,6 +7366,7 @@ function openNewAnimalSheet(){
   document.getElementById('ae-wt').value='';
   document.getElementById('ae-notes').value='';
   document.getElementById('ae-sire').value='';
+  const bdEl=document.getElementById('ae-birthdate');if(bdEl)bdEl.value='';
   populateAnimalClassSelect('ae-class',null);
   // Pre-select current group filter if one is active
   const gf=document.getElementById('animals-group-filter');
@@ -7294,7 +7378,22 @@ function openNewAnimalSheet(){
       .map(x=>`<option value="${x.id}">${x.systemId||x.tagNum||'Animal'} ${x.tagNum?'('+x.tagNum+')':''}</option>`)
       .join('');
   document.getElementById('ae-calving-section').style.display='block';
+  // New animals default to female — show confirmed bred section, unchecked
+  const cbSection=document.getElementById('ae-confirmed-bred-section');
+  if(cbSection) cbSection.style.display='block';
+  const cbChk=document.getElementById('ae-confirmed-bred');
+  if(cbChk) cbChk.checked=false;
+  const cbDateWrap=document.getElementById('ae-confirmed-bred-date-wrap');
+  if(cbDateWrap) cbDateWrap.style.display='none';
   document.getElementById('ae-sheet-wrap').classList.add('open');
+}
+
+function onConfirmedBredChange(){
+  const checked = document.getElementById('ae-confirmed-bred').checked;
+  document.getElementById('ae-confirmed-bred-date-wrap').style.display = checked ? 'block' : 'none';
+  if(checked && !document.getElementById('ae-confirmed-bred-date').value){
+    document.getElementById('ae-confirmed-bred-date').value = todayStr();
+  }
 }
 
 function openAnimalEdit(animalId){
@@ -7312,6 +7411,7 @@ function openAnimalEdit(animalId){
   document.getElementById('ae-wt').value=a.weightLbs||'';
   document.getElementById('ae-notes').value=a.notes||'';
   document.getElementById('ae-sire').value=a.sireTag||'';
+  const bdEditEl=document.getElementById('ae-birthdate');if(bdEditEl)bdEditEl.value=a.birthDate||'';
   populateAnimalClassSelect('ae-class',a.classId);
   const grp=getAnimalGroup(animalId);
   populateAnimalGroupSelect('ae-group',grp?grp.id:null);
@@ -7325,6 +7425,17 @@ function openAnimalEdit(animalId){
   const isFemale=normSex==='female';
   const calvSection=document.getElementById('ae-calving-section');
   calvSection.style.display=isFemale?'block':'none';
+  // Confirmed bred (females only)
+  const confirmedBredSection=document.getElementById('ae-confirmed-bred-section');
+  if(confirmedBredSection) confirmedBredSection.style.display=isFemale?'block':'none';
+  if(isFemale){
+    const cbChk=document.getElementById('ae-confirmed-bred');
+    const cbDateWrap=document.getElementById('ae-confirmed-bred-date-wrap');
+    const cbDate=document.getElementById('ae-confirmed-bred-date');
+    if(cbChk){ cbChk.checked=!!a.confirmedBred; }
+    if(cbDateWrap){ cbDateWrap.style.display=a.confirmedBred?'block':'none'; }
+    if(cbDate){ cbDate.value=a.confirmedBredDate||''; }
+  }
   if(isFemale){
     const calves=(a.calvingRecords||[]);
     document.getElementById('ae-calving-list').innerHTML=calves.length
@@ -7348,7 +7459,8 @@ function openAnimalEdit(animalId){
       hist.slice().reverse().map(e=>`<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:0.5px solid var(--border);"><span style="color:var(--text2);">${e.date}</span><span style="font-weight:500;">${e.weightLbs} lbs${e.note?' <span style="font-size:10px;color:var(--text3);">'+e.note+'</span>':''}</span></div>`).join('');
   } else {histEl.style.display='none';}
   const displayName=a.tagNum||(a.systemId||'Animal');
-  document.getElementById('ae-title').textContent=displayName;
+  document.getElementById('ae-title').innerHTML=displayName+
+    (a.confirmedBred?` <span style="font-size:11px;font-weight:400;background:var(--teal-l,#e0f5f2);color:var(--teal);border-radius:4px;padding:1px 6px;vertical-align:middle;">✓ bred</span>`:'');
   // Health event history
   const healthEl = document.getElementById('ae-health-events');
   if(healthEl){
@@ -7357,8 +7469,9 @@ function openAnimalEdit(animalId){
       healthEl.innerHTML='<div style="font-size:13px;color:var(--text2);">No events logged yet</div>';
     } else {
       healthEl.innerHTML = evts.map(e=>{
-        const icon = e.type==='treatment'?'💉':e.type==='breeding'?'♀':e.type==='heat'?'🌡':'📝';
+        const icon = e.type==='treatment'?'💉':e.type==='breeding'?'♀':e.type==='heat'?'🌡':e.type==='bcs'?'📊':'📝';
         const title = e.type==='treatment'?(e.treatmentName||'Treatment'):
+                      e.type==='bcs'?('BCS: '+e.score+'/10'):
                       e.type==='breeding'?('Bred — '+(e.subtype==='ai'?'AI '+(e.sireName||''):'Bull '+(e.sireName||''))):
                       e.type==='heat'?'Observed heat':
                       (e.text?.slice(0,60)||'Note');
@@ -7419,6 +7532,22 @@ function saveAnimalEdit(){
       damId:parseInt(document.getElementById('ae-dam').value)||null,
       active:true,cullRecord:null,calvingRecords:[],createdAt:new Date().toISOString()
     };
+    // Confirmed bred — only meaningful for females
+    const newSex=document.getElementById('ae-sex').value;
+    const newIsFem=!(['male','bull','steer','ram','buck','calf-m'].includes(newSex));
+    if(newIsFem){
+      const cbEl=document.getElementById('ae-confirmed-bred');
+      newA.confirmedBred=cbEl?cbEl.checked:false;
+      newA.confirmedBredDate=newA.confirmedBred?(document.getElementById('ae-confirmed-bred-date').value||null):null;
+    }
+    // Birth date + weaning fields
+    const newBdEl=document.getElementById('ae-birthdate');
+    const newBd=newBdEl?newBdEl.value.trim()||null:null;
+    newA.birthDate=newBd;
+    newA.weaned=null;
+    newA.weanedDate=null;
+    if(newBd){const newSp=normalizeSpecies((S.animalClasses.find(c=>c.id===newA.classId)||{}).species);newA.weanTargetDate=computeWeanTargetDate(newBd,newSp);}
+    else{newA.weanTargetDate=null;}
     S.animals.push(newA);
     const newGrpId=parseInt(document.getElementById('ae-group').value)||null;
     if(newGrpId){const g=S.animalGroups.find(x=>x.id===newGrpId);if(g){if(!g.animalIds)g.animalIds=[];g.animalIds.push(newId);}}
@@ -7440,11 +7569,32 @@ function saveAnimalEdit(){
   a.sireTag=document.getElementById('ae-sire').value.trim()||null;
   a.damId=parseInt(document.getElementById('ae-dam').value)||null;
   if(!a.calvingRecords)a.calvingRecords=[];
+  // Confirmed bred (females only)
+  const isFemSave=(['male','bull','steer','ram','buck','calf-m'].includes(a.sex)===false);
+  if(isFemSave){
+    const cbEl=document.getElementById('ae-confirmed-bred');
+    if(cbEl){
+      a.confirmedBred=cbEl.checked;
+      a.confirmedBredDate=cbEl.checked?(document.getElementById('ae-confirmed-bred-date').value||null):null;
+    }
+  }
   // Update weight if changed
   if(newWt&&newWt!==a.weightLbs){
     a.weightLbs=newWt;
     if(!a.weightHistory)a.weightHistory=[];
     a.weightHistory.push({date:new Date().toISOString().slice(0,10),weightLbs:newWt,note:'Manual edit'});
+  }
+  // Birth date — if changed, recompute wean target date
+  const bdSaveEl=document.getElementById('ae-birthdate');
+  const newBdVal=bdSaveEl?bdSaveEl.value.trim()||null:null;
+  if(newBdVal!==a.birthDate){
+    a.birthDate=newBdVal;
+    if(newBdVal&&a.weaned!==true){
+      const spSave=normalizeSpecies((S.animalClasses.find(c=>c.id===a.classId)||{}).species);
+      a.weanTargetDate=computeWeanTargetDate(newBdVal,spSave);
+    } else if(!newBdVal){
+      a.weanTargetDate=null;
+    }
   }
   // Handle group assignment change
   const newGrpId=parseInt(document.getElementById('ae-group').value)||null;
@@ -8560,9 +8710,17 @@ function saveCalving(){
     notes:notes,
     damId:damId,
     sireTag:sireTag,
+    birthDate:calvDate,
+    weaned:false,
+    weanTargetDate:null, // computed below after push, once classId is settable
+    weanedDate:null,
     calvingRecords:[],
     createdAt:new Date().toISOString()
   };
+  // Compute wean target based on dam's species (calf has no class yet, inherit from dam)
+  const damCls=S.animalClasses.find(c=>c.id===dam.classId);
+  const damSp=normalizeSpecies(damCls?damCls.species:'');
+  calf.weanTargetDate=computeWeanTargetDate(calvDate,damSp);
   const isStillbirth=document.getElementById('calving-stillbirth').checked;
   if(isStillbirth){
     calf.active=false;
@@ -10397,6 +10555,7 @@ function renderAnimalsScreen(){
             <span style="font-size:11px;color:var(--text2);font-weight:400;">${sexIcon}</span>
             ${isCulled?`<span class="badge br" style="font-size:10px;">${a.cullRecord?a.cullRecord.reason:'culled'}</span>`:''}
             ${ae?`<span class="badge bt" style="font-size:10px;">${ae.pasture}</span>`:''}
+            ${a.confirmedBred?`<span class="badge" style="font-size:10px;background:var(--teal-l,#e0f5f2);color:var(--teal);border-radius:4px;padding:1px 5px;">✓ bred</span>`:''}
           </div>
           <div style="font-size:11px;color:var(--text2);">${cls?cls.name:'No class'} · ${grp?grp.name:'unassigned'}</div>
         </div>
@@ -10415,6 +10574,7 @@ function renderAnimalsScreen(){
         <button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openAnimalEventSheet(${a.id},'note')">📝 Note</button>
         <button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openAnimalEventSheet(${a.id},'treatment')">💉 Treatment</button>
         ${a.sex==='female'?`<button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openAnimalEventSheet(${a.id},'breeding')">♀ Breeding</button>`:''}
+        <button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openAnimalEventSheet(${a.id},'bcs')">📊 BCS</button>
       </div>
     </div>`;
   }).join('');
@@ -11109,6 +11269,239 @@ function toggleFieldMode(){
 // DESKTOP REPORTS ENGINE
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// ─── WEANING SYSTEM ──────────────────────────────────────────────────────────
+
+// ── Species helpers ──────────────────────────────────────────────────────────
+function normalizeSpecies(sp){
+  if(!sp)return 'other';
+  const s=(sp||'').toLowerCase();
+  if(s.includes('cattle')||s.includes('cow')||s.includes('beef')||s.includes('dairy'))return 'cattle';
+  if(s.includes('sheep')||s.includes('ewe')||s.includes('lamb'))return 'sheep';
+  if(s.includes('goat')||s.includes('doe')||s.includes('buck'))return 'goat';
+  if(s.includes('pig')||s.includes('swine')||s.includes('hog')||s.includes('sow'))return 'pig';
+  return 'other';
+}
+function birthTermForSpecies(sp){
+  const n=normalizeSpecies(sp);
+  return {cattle:'Calving',sheep:'Lambing',goat:'Kidding',pig:'Farrowing',other:'Birth'}[n]||'Birth';
+}
+function youngTermForSpecies(sp){
+  const n=normalizeSpecies(sp);
+  return {cattle:'Calf',sheep:'Lamb',goat:'Kid',pig:'Piglet',other:'Young'}[n]||'Young';
+}
+function getWeanTargetDays(normalizedSpecies){
+  const defaults={cattle:205,sheep:60,goat:60,pig:21,other:90};
+  const stored=(S.settings.weanTargets||{})[normalizedSpecies];
+  return stored??defaults[normalizedSpecies]??90;
+}
+function computeWeanTargetDate(birthDate,normalizedSpecies){
+  if(!birthDate)return null;
+  const d=new Date(birthDate+'T12:00:00');
+  d.setDate(d.getDate()+getWeanTargetDays(normalizedSpecies));
+  return d.toISOString().slice(0,10);
+}
+function daysUntilDate(dateStr){
+  const today=new Date(); today.setHours(12,0,0,0);
+  const target=new Date(dateStr+'T12:00:00');
+  return Math.round((target-today)/86400000);
+}
+
+// ── Migration ─────────────────────────────────────────────────────────────────
+function migrateWeaningFields(){
+  (S.animals||[]).forEach(a=>{
+    if(a.weaned===undefined) a.weaned=null;
+    if(a.weanTargetDate===undefined) a.weanTargetDate=null;
+    if(a.weanedDate===undefined) a.weanedDate=null;
+    // Derive birth date from dam's calvingRecords if not already set
+    if(!a.birthDate){
+      for(const d of (S.animals||[])){
+        const cr=(d.calvingRecords||[]).find(r=>r.calfId===a.id);
+        if(cr){a.birthDate=cr.date;break;}
+      }
+    }
+    // Compute wean target if birth date now known and animal not already weaned
+    if(a.birthDate&&a.weaned!==true&&!a.weanTargetDate){
+      const cls=S.animalClasses.find(c=>c.id===a.classId);
+      const sp=normalizeSpecies(cls?cls.species:'');
+      a.weanTargetDate=computeWeanTargetDate(a.birthDate,sp);
+    }
+  });
+}
+
+// ── Weaning dashboard state ───────────────────────────────────────────────────
+let weanFilters=new Set(['overdue','due14','due30','pending','unknown']);
+let weanChecked=new Set();
+
+function renderWeaningDashboard(){
+  const el=document.getElementById('rpt-weaning');
+  if(!el)return;
+  const today=todayStr();
+  const animals=(S.animals||[]).filter(a=>a.active!==false);
+
+  // Build items for unweaned / unknown animals
+  const items=[];
+  animals.forEach(a=>{
+    if(a.weaned===true) return; // weaned — handled in separate pass below
+    let status, daysVal=null;
+    if(!a.birthDate||!a.weanTargetDate){
+      status='unknown';
+    } else {
+      daysVal=daysUntilDate(a.weanTargetDate);
+      if(daysVal<0)       status='overdue';
+      else if(daysVal<=14) status='due14';
+      else if(daysVal<=30) status='due30';
+      else                 status='pending';
+    }
+    items.push({a,status,daysVal});
+  });
+
+  // Recently weaned animals (for optional view)
+  const weanedItems=[];
+  if(weanFilters.has('weaned14')||weanFilters.has('weaned30')||weanFilters.has('weaned60')){
+    animals.forEach(a=>{
+      if(a.weaned!==true||!a.weanedDate) return;
+      const d=daysUntilDate(a.weanedDate); // negative = weaned N days ago
+      if(weanFilters.has('weaned14')&&d>=-14) weanedItems.push({a,status:'weaned',daysVal:d});
+      else if(weanFilters.has('weaned30')&&d>=-30) weanedItems.push({a,status:'weaned',daysVal:d});
+      else if(weanFilters.has('weaned60')&&d>=-60) weanedItems.push({a,status:'weaned',daysVal:d});
+    });
+  }
+
+  // Apply active filters to main list
+  const filtered=items.filter(x=>weanFilters.has(x.status));
+  const shown=[...filtered,...weanedItems];
+
+  // Sort: overdue first, then by days ascending
+  const order={overdue:0,due14:1,due30:2,pending:3,unknown:4,weaned:5};
+  shown.sort((a,b)=>(order[a.status]??9)-(order[b.status]??9)||(a.daysVal??9999)-(b.daysVal??9999));
+
+  // Counts for summary line
+  const nOverdue=items.filter(x=>x.status==='overdue').length;
+  const nDue14=items.filter(x=>x.status==='due14').length;
+  const nDue30=items.filter(x=>x.status==='due30').length;
+  const nUnknown=items.filter(x=>x.status==='unknown').length;
+  const nTotal=items.length;
+  const nWeaned=(S.animals||[]).filter(a=>a.weaned===true).length;
+
+  function chipBtn(key,label,active){
+    const c=active?'var(--green)':'transparent';
+    const tc=active?'white':'var(--text2)';
+    const bc=active?'var(--green)':'var(--border2)';
+    return `<button onclick="weanToggleFilter('${key}')" style="padding:5px 12px;font-size:12px;border-radius:20px;border:0.5px solid ${bc};background:${c};color:${tc};cursor:pointer;font-family:inherit;font-weight:${active?'600':'400'};">${label}</button>`;
+  }
+
+  const chips=[
+    chipBtn('overdue',`🔴 Overdue (${items.filter(x=>x.status==='overdue').length})`,weanFilters.has('overdue')),
+    chipBtn('due14',`🟡 Due ≤14d (${nDue14})`,weanFilters.has('due14')),
+    chipBtn('due30',`Due ≤30d (${nDue30})`,weanFilters.has('due30')),
+    chipBtn('pending','Pending',weanFilters.has('pending')),
+    chipBtn('unknown',`⚪ Unknown (${nUnknown})`,weanFilters.has('unknown')),
+    chipBtn('weaned14','Weaned ≤14d',weanFilters.has('weaned14')),
+    chipBtn('weaned30','Weaned ≤30d',weanFilters.has('weaned30')),
+    chipBtn('weaned60','Weaned ≤60d',weanFilters.has('weaned60')),
+  ].join('');
+
+  // Bulk action bar (shown when items are checked)
+  const checkedValid=shown.filter(x=>weanChecked.has(x.a.id)&&x.status!=='weaned');
+  const bulkBar=checkedValid.length>0
+    ? `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--teal-l);border-radius:var(--radius);margin-bottom:10px;flex-wrap:wrap;">
+        <span style="font-size:13px;font-weight:600;color:var(--teal-d);">${checkedValid.length} animal${checkedValid.length!==1?'s':''} selected</span>
+        <div style="display:flex;align-items:center;gap:8px;flex:1;flex-wrap:wrap;">
+          <label style="font-size:13px;color:var(--teal-d);">Wean date</label>
+          <input type="date" id="wean-bulk-date" value="${today}" style="padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;"/>
+          <button class="btn btn-teal btn-sm" onclick="markAnimalsWeanedFromDashboard()">✓ Mark weaned</button>
+        </div>
+        <button onclick="weanChecked.clear();renderWeaningDashboard();" style="border:none;background:transparent;font-size:18px;cursor:pointer;color:var(--text2);">×</button>
+      </div>`
+    : '';
+
+  // Summary line
+  const summaryLine=`<div style="font-size:13px;color:var(--text2);margin-bottom:12px;">${nTotal} unweaned · ${nOverdue} overdue · ${nDue14} due in ≤14d · ${nUnknown} unknown · ${nWeaned} weaned total</div>`;
+
+  // Rows
+  function weanRow(item){
+    const {a,status,daysVal}=item;
+    const checked=weanChecked.has(a.id);
+    const grp=getAnimalGroup(a.id);
+    const cls=S.animalClasses.find(c=>c.id===a.classId);
+    let badge='',daysText='';
+    if(status==='overdue'){badge='<span class="badge br">Overdue '+Math.abs(daysVal)+'d</span>';daysText='Overdue by '+Math.abs(daysVal)+' days';}
+    else if(status==='due14'){badge='<span class="badge ba">Due in '+daysVal+'d</span>';daysText='Due in '+daysVal+' days';}
+    else if(status==='due30'){badge='<span class="badge bb">Due in '+daysVal+'d</span>';daysText='Due in '+daysVal+' days';}
+    else if(status==='pending'){badge='<span class="badge bg">'+daysVal+'d away</span>';}
+    else if(status==='unknown'){badge='<span class="badge" style="background:var(--bg2);color:var(--text2);">No birth date</span>';}
+    else if(status==='weaned'){badge='<span class="badge bg">Weaned '+dLabel(a.weanedDate)+'</span>';}
+    const disableCheck=status==='weaned'||status==='unknown';
+    return `<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:0.5px solid var(--border);">
+      <input type="checkbox" ${checked?'checked':''} ${disableCheck?'disabled':''} onchange="weanToggleCheck(${a.id},this.checked)" style="margin-top:3px;width:16px;height:16px;accent-color:var(--teal);flex-shrink:0;${disableCheck?'opacity:0.3;':''}"/>
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+          <span style="font-size:14px;font-weight:600;">${escHtml(a.tagNum||a.systemId||'—')}</span>
+          ${badge}
+        </div>
+        <div style="font-size:12px;color:var(--text2);margin-top:2px;">
+          ${cls?escHtml(cls.name)+' · ':''}${grp?escHtml(grp.name)+' · ':''}${a.birthDate?'Born '+dLabel(a.birthDate):'No birth date'}${a.weanTargetDate&&status!=='weaned'?' · Target '+dLabel(a.weanTargetDate):''}
+        </div>
+        ${status==='unknown'?`<button class="btn btn-outline btn-xs" style="margin-top:4px;" onclick="openAnimalEdit(${a.id})">Set birth date</button>`:''}
+      </div>
+    </div>`;
+  }
+
+  const listHtml=shown.length
+    ? shown.map(weanRow).join('')
+    : `<div class="empty" style="padding:24px 0;">No animals match the selected filters.</div>`;
+
+  el.innerHTML=`
+    <div style="margin-bottom:10px;">${rptSectionHead('🍼 Weaning','Track unweaned animals and bulk-mark when weaned.')}</div>
+    ${summaryLine}
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;">${chips}</div>
+    ${bulkBar}
+    <div id="wean-list">${listHtml}</div>`;
+}
+
+function weanToggleFilter(key){
+  if(weanFilters.has(key))weanFilters.delete(key);
+  else weanFilters.add(key);
+  weanChecked.clear();
+  renderWeaningDashboard();
+}
+function weanToggleCheck(id,checked){
+  if(checked)weanChecked.add(id);
+  else weanChecked.delete(id);
+  renderWeaningDashboard();
+}
+function markAnimalsWeanedFromDashboard(){
+  const dateEl=document.getElementById('wean-bulk-date');
+  const wDate=dateEl?dateEl.value:todayStr();
+  const animals=(S.animals||[]).filter(a=>weanChecked.has(a.id)&&a.weaned!==true);
+  if(!animals.length)return;
+  animals.forEach(a=>{a.weaned=true;a.weanedDate=wDate;});
+  weanChecked.clear();
+  save();
+  renderWeaningDashboard();
+  renderHome();
+}
+
+function renderWeaningNudge(){
+  const card=document.getElementById('home-weaning-card');
+  const el=document.getElementById('home-weaning-nudge');
+  if(!card||!el)return;
+  const active=(S.animals||[]).filter(a=>a.active!==false&&a.weaned!==true);
+  const nOverdue=active.filter(a=>a.weanTargetDate&&daysUntilDate(a.weanTargetDate)<0).length;
+  const nDue14=active.filter(a=>a.weanTargetDate&&daysUntilDate(a.weanTargetDate)>=0&&daysUntilDate(a.weanTargetDate)<=14).length;
+  if(!nOverdue&&!nDue14){card.style.display='none';return;}
+  card.style.display='block';
+  const parts=[];
+  if(nOverdue)parts.push(`<span style="color:var(--red-d);font-weight:600;">${nOverdue} overdue</span>`);
+  if(nDue14)parts.push(`<span style="color:var(--amber-d);font-weight:600;">${nDue14} due in ≤14 days</span>`);
+  el.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+    <div style="font-size:13px;">🍼 Weaning: ${parts.join(', ')}</div>
+    <button class="btn btn-outline btn-xs" onclick="rptTab='weaning';nav('reports',document.getElementById('dbn-reports'))">View dashboard</button>
+  </div>`;
+}
+
+// ─── END WEANING SYSTEM ───────────────────────────────────────────────────────
+
 let rptTab = 'rotation';
 let _chartInstances = {};
 
@@ -11119,6 +11512,7 @@ const RPT_TABS = [
   {key:'animals',  label:'Animal performance'},
   {key:'summary',  label:'Season summary'},
   {key:'survey',   label:'Pasture surveys'},
+  {key:'weaning',  label:'🍼 Weaning'},
 ];
 
 function renderReportsScreen(){
@@ -11141,6 +11535,7 @@ function renderReportsScreen(){
   if(rptTab==='animals')  renderAnimalPerformance();
   if(rptTab==='summary')  renderSeasonSummary();
   if(rptTab==='survey')   renderSurveyReport();
+  if(rptTab==='weaning')  renderWeaningDashboard();
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────────
@@ -11963,6 +12358,7 @@ migrateAnimalSystemIds();
 migrateSystemIds();
 migrateToPaddocksField();
 migrateToGroupsField();
+migrateWeaningFields();
 updateHeader();
 updateDriveUI();
 updateHeaderAvatar();
@@ -12232,6 +12628,7 @@ applyFieldMode(); // field-mode URL param + user preference — runs after detec
       </div>
     </div>
     <div class="field"><label>Notes</label><input type="text" id="ae-notes"/></div>
+    <div class="field"><label>Birth date <span style="font-size:10px;color:var(--text2);">optional</span></label><input type="date" id="ae-birthdate"/></div>
     <!-- Calving history (females only) -->
     <div id="ae-calving-section" style="display:none;">
       <div class="div"></div>
@@ -12241,12 +12638,30 @@ applyFieldMode(); // field-mode URL param + user preference — runs after detec
       </div>
       <div id="ae-calving-list" style="font-size:12px;color:var(--text2);"></div>
     </div>
+    <!-- Confirmed bred (females only) -->
+    <div id="ae-confirmed-bred-section" style="display:none;">
+      <div class="div"></div>
+      <label style="display:flex;align-items:center;gap:10px;padding:8px 0;cursor:pointer;">
+        <input type="checkbox" id="ae-confirmed-bred" onchange="onConfirmedBredChange()" style="width:18px;height:18px;accent-color:var(--teal);flex-shrink:0;">
+        <div>
+          <div style="font-size:14px;font-weight:500;">Confirmed bred</div>
+          <div style="font-size:11px;color:var(--text2);">Pregnancy check / palpation confirmed</div>
+        </div>
+      </label>
+      <div id="ae-confirmed-bred-date-wrap" style="display:none;" class="field">
+        <label>Date confirmed</label>
+        <input type="date" id="ae-confirmed-bred-date"/>
+      </div>
+    </div>
     <!-- Weight history -->
     <div id="ae-wt-history" style="display:none;">
       <div class="div"></div>
       <div class="sec" style="margin-bottom:6px;">Weight history</div>
       <div id="ae-wt-history-list" style="font-size:12px;color:var(--text2);max-height:120px;overflow-y:auto;"></div>
     </div>
+    <!-- Health events history -->
+    <div class="div"></div>
+    <div id="ae-health-events" style="font-size:13px;color:var(--text2);margin-bottom:4px;"></div>
     <!-- Cull/reactivate section -->
     <div id="ae-cull-section" style="margin-top:10px;"></div>
     <div class="btn-row" style="margin-top:10px;">
@@ -13012,6 +13427,29 @@ if ('serviceWorker' in navigator) {
         <label>Expected calving date <span style="font-size:10px;color:var(--text2);">optional — auto-calc +283d</span></label>
         <input type="date" id="ae-evt-expected-calving"/>
         <div style="font-size:11px;color:var(--text2);margin-top:3px;" id="ae-evt-calving-hint"></div>
+      </div>
+    </div>
+
+    <!-- BCS section -->
+    <div id="ae-evt-bcs-section" style="display:none;">
+      <div style="font-size:13px;font-weight:500;margin-bottom:6px;">Body condition score <span style="font-size:11px;color:var(--text2);">1 = emaciated · 5 = ideal · 10 = obese</span></div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">
+        <button class="btn bcs-chip" data-score="1" onclick="bcsChipToggle(this)" type="button">1</button>
+        <button class="btn bcs-chip" data-score="2" onclick="bcsChipToggle(this)" type="button">2</button>
+        <button class="btn bcs-chip" data-score="3" onclick="bcsChipToggle(this)" type="button">3</button>
+        <button class="btn bcs-chip" data-score="4" onclick="bcsChipToggle(this)" type="button">4</button>
+        <button class="btn bcs-chip" data-score="5" onclick="bcsChipToggle(this)" type="button">5</button>
+        <button class="btn bcs-chip" data-score="6" onclick="bcsChipToggle(this)" type="button">6</button>
+        <button class="btn bcs-chip" data-score="7" onclick="bcsChipToggle(this)" type="button">7</button>
+        <button class="btn bcs-chip" data-score="8" onclick="bcsChipToggle(this)" type="button">8</button>
+        <button class="btn bcs-chip" data-score="9" onclick="bcsChipToggle(this)" type="button">9</button>
+        <button class="btn bcs-chip" data-score="10" onclick="bcsChipToggle(this)" type="button">10</button>
+      </div>
+      <div class="field">
+        <label>Notes <span style="font-size:10px;color:var(--text2);">optional</span></label>
+        <textarea id="ae-evt-bcs-notes" rows="2"
+          style="width:100%;padding:8px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:14px;background:var(--bg);color:var(--text);font-family:inherit;resize:vertical;"
+          placeholder="e.g. Thin over ribs, gaining condition"></textarea>
       </div>
     </div>
 
