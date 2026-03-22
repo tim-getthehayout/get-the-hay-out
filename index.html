@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260322.1730" id="app-version-meta"/>
+<meta name="app-version" content="b20260322.1800" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -703,7 +703,10 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
           <div class="banner ban-amber" id="ws0-banner"></div>
           <div class="card">
             <div class="sec">Move-out details</div>
-            <div class="field"><label>Move-out date</label><input type="date" id="w-out-date"/></div>
+            <div class="two">
+              <div class="field"><label>Move-out date</label><input type="date" id="w-out-date"/></div>
+              <div class="field"><label>Time (optional)</label><input type="time" id="w-out-time"/></div>
+            </div>
             <div class="two">
               <div class="field"><label>Residual height (in)</label><input type="number" id="w-res-h" min="0" step="0.5" placeholder="3" oninput="calcClosePreview()"/></div>
               <div class="field"><label>Pre-graze height was</label><input type="number" id="w-pregraze-disp" disabled style="opacity:0.55;"/></div>
@@ -785,8 +788,9 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
               </div>
           <div class="two">
             <div class="field"><label>Move-in date</label><input type="date" id="w-in-date"/></div>
-            <div class="field"><label>Pre-graze height (in)</label><input type="number" id="w-new-h" min="0" step="0.5" placeholder="10"/></div>
+            <div class="field"><label>Time (optional)</label><input type="time" id="w-in-time"/></div>
           </div>
+          <div class="field"><label>Pre-graze height (in)</label><input type="number" id="w-new-h" min="0" step="0.5" placeholder="10"/></div>
           <div class="two">
             <div class="field"><label>Head count</label><input type="number" id="w-new-head" placeholder="50"/></div>
             <div class="field"><label>Avg body wt (lbs)</label><input type="number" id="w-new-wt" placeholder="1200"/></div>
@@ -3131,7 +3135,7 @@ function initWiz(){
     document.getElementById('ws0-has').style.display=ae?'block':'none';
     document.getElementById('ws0-none').style.display=ae?'none':'block';
     if(ae){document.getElementById('ws0-banner').innerHTML=`<div style="font-size:14px;font-weight:600;color:var(--amber-d);">Closing: ${evDisplayName(ae)}</div><div style="font-size:12px;color:var(--amber-d);opacity:0.85;margin-top:2px;">In ${dLabel(ae.dateIn)} · ${daysBetween(ae.dateIn,todayStr())} days · ${(ae.feedEntries||[]).length} feedings</div>`;if(ae.heightIn)document.getElementById('w-pregraze-disp').value=ae.heightIn;showPaddockTasksInWiz(evPrimaryPaddock(ae).pastureName,'w-paddock-tasks','w-paddock-tasks-list');}
-    const _wout=document.getElementById('w-out-date');if(_wout)_wout.value=todayStr();const _win=document.getElementById('w-in-date');if(_win)_win.value=todayStr();
+    const _wout=document.getElementById('w-out-date');if(_wout)_wout.value=todayStr();const _woutT=document.getElementById('w-out-time');if(_woutT)_woutT.value='';const _win=document.getElementById('w-in-date');if(_win)_win.value=todayStr();const _winT=document.getElementById('w-in-time');if(_winT)_winT.value='';
     if(S.herd&&S.herd.count)document.getElementById('w-new-head').value=S.herd.count;
     if(S.herd&&S.herd.weight)document.getElementById('w-new-wt').value=S.herd.weight;
     populateNewPastureSelect();renderWizFeedSel();calcClosePreview();initRecoveryFields();return;
@@ -3191,8 +3195,8 @@ function initWizFromGroups(){
     const recLabel=document.getElementById('w-recovery-label');
     if(recLabel)recLabel.textContent=`How many days before ${paddockLabel} will be ready to graze again?`;
   }
-  const _wout=document.getElementById('w-out-date');if(_wout)_wout.value=todayStr();
-  const _win=document.getElementById('w-in-date');if(_win)_win.value=todayStr();
+  const _wout=document.getElementById('w-out-date');if(_wout)_wout.value=todayStr();const _woutT=document.getElementById('w-out-time');if(_woutT)_woutT.value='';
+  const _win=document.getElementById('w-in-date');if(_win)_win.value=todayStr();const _winT=document.getElementById('w-in-time');if(_winT)_winT.value='';
   const _wnp=document.getElementById('w-no-pasture');if(_wnp)_wnp.checked=false;
   // Aggregate head/wt from all selected groups
   let totalHead=0,totalLiveWt=0;
@@ -3354,7 +3358,7 @@ function wizCloseEvent(){
   const feedRes=parseInt(document.getElementById('w-feed-res').value)||0;
   const totals = calcEventTotalsWithSubMoves(ae, outDate, feedRes);
   const {days,sdmi,cost,npk,npkVal,pdmi,pct,pFraction,subHrs,totalHrs,subMoveNPK} = totals;
-  ae.dateOut=outDate;ae.heightOut=parseFloat(document.getElementById('w-res-h').value)||null;
+  ae.dateOut=outDate;ae.timeOut=document.getElementById('w-out-time')?.value||null;ae.heightOut=parseFloat(document.getElementById('w-res-h').value)||null;
   ae.feedResidual=feedRes;
   ae.recoveryMinDays=parseInt(document.getElementById('w-rec-min')?.value)||null;
   ae.recoveryMaxDays=parseInt(document.getElementById('w-rec-max')?.value)||null;
@@ -3555,7 +3559,7 @@ function wizSaveNew(){
     }],
     groups: wizGroupIds.map((gId,i)=>{ const gr=getGroupById(gId); return {groupId:gId,groupName:gr?gr.name:'',dateAdded:inDate,dateRemoved:null}; }),
     groupId:wizGroupIds[0]||null, groupName:g?g.name:'',
-    dateIn:inDate, noPasture:noPastureFlag,
+    dateIn:inDate, timeIn:document.getElementById('w-in-time')?.value||null, noPasture:noPastureFlag,
     head:parseFloat(document.getElementById('w-new-head').value)||t.totalHead||0,
     wt:parseFloat(document.getElementById('w-new-wt').value)||t.avgWeight||0,
     heightIn:(!isCon&&parseFloat(document.getElementById('w-new-h').value))||null,
@@ -8352,6 +8356,7 @@ function openSubMoveSheet(eventId){
   document.getElementById('sm-event-label').textContent =
     (g?g.name:'Herd') + ' on ' + ev.pasture + ' — Day ' + daysBetween(ev.dateIn, todayStr());
   document.getElementById('sm-date').value = todayStr();
+  document.getElementById('sm-time').value = '';
   document.getElementById('sm-hours').value = '';
   document.getElementById('sm-notes').value = '';
   smFeedLines = [];
@@ -8557,6 +8562,7 @@ function saveSubMove(){
   const sm = {
     id: Date.now()+1,
     date: document.getElementById('sm-date').value,
+    time: document.getElementById('sm-time')?.value||null,
     durationHours: hrs,
     locationName: locName,
     feedEntries,
@@ -11844,10 +11850,11 @@ detectMode(); // must run last — reads DOM
     <input type="hidden" id="sm-event-id"/>
     <div class="two">
       <div class="field"><label>Date</label><input type="date" id="sm-date"/></div>
-      <div class="field"><label>Duration (hours)</label>
-        <input type="number" id="sm-hours" min="0.25" max="23" step="0.25" placeholder="2.5"
-               oninput="calcSubMovePreview()"/>
-      </div>
+      <div class="field"><label>Time (optional)</label><input type="time" id="sm-time"/></div>
+    </div>
+    <div class="field"><label>Duration (hours)</label>
+      <input type="number" id="sm-hours" min="0.25" max="23" step="0.25" placeholder="2.5"
+             oninput="calcSubMovePreview()"/>
     </div>
     <div style="font-size:11px;color:var(--text2);margin:-8px 0 10px;">
       Common: dairy milking ~2–2.5h · afternoon shade ~4h · overnight barn ~10h
