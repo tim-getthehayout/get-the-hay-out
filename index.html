@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260322.2129" id="app-version-meta"/>
+<meta name="app-version" content="b20260322.2136" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -7373,6 +7373,9 @@ function openNewAnimalSheet(){
   document.getElementById('ae-notes').value='';
   document.getElementById('ae-sire').value='';
   const bdEl=document.getElementById('ae-birthdate');if(bdEl)bdEl.value='';
+  const wndEl=document.getElementById('ae-weaned');if(wndEl)wndEl.checked=false;
+  const wndDate=document.getElementById('ae-weaned-date');if(wndDate)wndDate.value='';
+  const wndWrap=document.getElementById('ae-weaned-date-wrap');if(wndWrap)wndWrap.style.display='none';
   populateAnimalClassSelect('ae-class',null);
   // Pre-select current group filter if one is active
   const gf=document.getElementById('animals-group-filter');
@@ -7401,6 +7404,13 @@ function onConfirmedBredChange(){
     document.getElementById('ae-confirmed-bred-date').value = todayStr();
   }
 }
+function onWeanedChange(){
+  const checked=document.getElementById('ae-weaned').checked;
+  document.getElementById('ae-weaned-date-wrap').style.display=checked?'block':'none';
+  if(checked&&!document.getElementById('ae-weaned-date').value){
+    document.getElementById('ae-weaned-date').value=todayStr();
+  }
+}
 
 function openAnimalEdit(animalId){
   const a=getAnimalById(animalId);if(!a)return;
@@ -7418,6 +7428,14 @@ function openAnimalEdit(animalId){
   document.getElementById('ae-notes').value=a.notes||'';
   document.getElementById('ae-sire').value=a.sireTag||'';
   const bdEditEl=document.getElementById('ae-birthdate');if(bdEditEl)bdEditEl.value=a.birthDate||'';
+  const wndEditEl=document.getElementById('ae-weaned');
+  if(wndEditEl){
+    wndEditEl.checked=a.weaned===true;
+    const wndEditDate=document.getElementById('ae-weaned-date');
+    if(wndEditDate)wndEditDate.value=a.weanedDate||'';
+    const wndEditWrap=document.getElementById('ae-weaned-date-wrap');
+    if(wndEditWrap)wndEditWrap.style.display=a.weaned===true?'block':'none';
+  }
   populateAnimalClassSelect('ae-class',a.classId);
   const grp=getAnimalGroup(animalId);
   populateAnimalGroupSelect('ae-group',grp?grp.id:null);
@@ -7550,9 +7568,10 @@ function saveAnimalEdit(){
     const newBdEl=document.getElementById('ae-birthdate');
     const newBd=newBdEl?newBdEl.value.trim()||null:null;
     newA.birthDate=newBd;
-    newA.weaned=null;
-    newA.weanedDate=null;
-    if(newBd){const newSp=normalizeSpecies((S.animalClasses.find(c=>c.id===newA.classId)||{}).species);newA.weanTargetDate=computeWeanTargetDate(newBd,newSp);}
+    const newWndEl=document.getElementById('ae-weaned');
+    newA.weaned=newWndEl?newWndEl.checked:null;
+    newA.weanedDate=newA.weaned===true?(document.getElementById('ae-weaned-date').value||null):null;
+    if(newBd&&newA.weaned!==true){const newSp=normalizeSpecies((S.animalClasses.find(c=>c.id===newA.classId)||{}).species);newA.weanTargetDate=computeWeanTargetDate(newBd,newSp);}
     else{newA.weanTargetDate=null;}
     S.animals.push(newA);
     const newGrpId=parseInt(document.getElementById('ae-group').value)||null;
@@ -7600,6 +7619,18 @@ function saveAnimalEdit(){
       a.weanTargetDate=computeWeanTargetDate(newBdVal,spSave);
     } else if(!newBdVal){
       a.weanTargetDate=null;
+    }
+  }
+  // Weaning status
+  const wndSaveEl=document.getElementById('ae-weaned');
+  if(wndSaveEl){
+    const nowWeaned=wndSaveEl.checked;
+    a.weaned=nowWeaned;
+    a.weanedDate=nowWeaned?(document.getElementById('ae-weaned-date').value||null):null;
+    // If just un-weaned and has a birth date, restore wean target date
+    if(!nowWeaned&&a.birthDate){
+      const spUnwean=normalizeSpecies((S.animalClasses.find(c=>c.id===a.classId)||{}).species);
+      a.weanTargetDate=computeWeanTargetDate(a.birthDate,spUnwean);
     }
   }
   // Handle group assignment change
@@ -12663,6 +12694,21 @@ applyFieldMode(); // field-mode URL param + user preference — runs after detec
     </div>
     <div class="field"><label>Notes</label><input type="text" id="ae-notes"/></div>
     <div class="field"><label>Birth date <span style="font-size:10px;color:var(--text2);">optional</span></label><input type="date" id="ae-birthdate"/></div>
+    <!-- Weaning status -->
+    <div id="ae-weaning-section">
+      <div class="div"></div>
+      <label style="display:flex;align-items:center;gap:10px;padding:8px 0;cursor:pointer;">
+        <input type="checkbox" id="ae-weaned" onchange="onWeanedChange()" style="width:18px;height:18px;accent-color:var(--teal);flex-shrink:0;">
+        <div>
+          <div style="font-size:14px;font-weight:500;">Weaned</div>
+          <div style="font-size:11px;color:var(--text2);">Uncheck to mark as unweaned and track in the Weaning report</div>
+        </div>
+      </label>
+      <div id="ae-weaned-date-wrap" style="display:none;" class="field">
+        <label>Wean date</label>
+        <input type="date" id="ae-weaned-date"/>
+      </div>
+    </div>
     <!-- Calving history (females only) -->
     <div id="ae-calving-section" style="display:none;">
       <div class="div"></div>
