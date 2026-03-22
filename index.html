@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260322.2100" id="app-version-meta"/>
+<meta name="app-version" content="b20260322.2129" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -5867,6 +5867,12 @@ function saveSettings(){
   const wcEl=document.getElementById('s-wean-cattle');if(wcEl)S.settings.weanTargets.cattle=parseInt(wcEl.value)||205;
   const wsEl=document.getElementById('s-wean-sheep');if(wsEl)S.settings.weanTargets.sheep=parseInt(wsEl.value)||60;
   const wgEl=document.getElementById('s-wean-goat');if(wgEl)S.settings.weanTargets.goat=parseInt(wgEl.value)||60;
+  // Recompute weanTargetDate for all unweaned animals with a known birth date
+  (S.animals||[]).forEach(a=>{
+    if(a.weaned===true||!a.birthDate)return;
+    const sp=normalizeSpecies((S.animalClasses.find(c=>c.id===a.classId)||{}).species);
+    a.weanTargetDate=computeWeanTargetDate(a.birthDate,sp);
+  });
   save();updateHeader();
 }
 function loadSettings(){
@@ -11383,14 +11389,24 @@ function renderWeaningDashboard(){
   const nTotal=items.length;
   const nWeaned=(S.animals||[]).filter(a=>a.weaned===true).length;
 
+  const allUnweanedKeys=['overdue','due14','due30','pending','unknown'];
+  const allUnweanedActive=allUnweanedKeys.every(k=>weanFilters.has(k));
+
   function chipBtn(key,label,active){
     const c=active?'var(--green)':'transparent';
     const tc=active?'white':'var(--text2)';
     const bc=active?'var(--green)':'var(--border2)';
     return `<button onclick="weanToggleFilter('${key}')" style="padding:5px 12px;font-size:12px;border-radius:20px;border:0.5px solid ${bc};background:${c};color:${tc};cursor:pointer;font-family:inherit;font-weight:${active?'600':'400'};">${label}</button>`;
   }
+  function presetBtn(label,active,fn){
+    const c=active?'var(--teal)':'transparent';
+    const tc=active?'white':'var(--text2)';
+    const bc=active?'var(--teal)':'var(--border2)';
+    return `<button onclick="${fn}" style="padding:5px 12px;font-size:12px;border-radius:20px;border:0.5px solid ${bc};background:${c};color:${tc};cursor:pointer;font-family:inherit;font-weight:${active?'600':'400'};">${label}</button>`;
+  }
 
   const chips=[
+    presetBtn(`All unweaned (${nTotal})`,allUnweanedActive,'weanShowAllUnweaned()'),
     chipBtn('overdue',`🔴 Overdue (${items.filter(x=>x.status==='overdue').length})`,weanFilters.has('overdue')),
     chipBtn('due14',`🟡 Due ≤14d (${nDue14})`,weanFilters.has('due14')),
     chipBtn('due30',`Due ≤30d (${nDue30})`,weanFilters.has('due30')),
@@ -11444,8 +11460,8 @@ function renderWeaningDashboard(){
         <div style="font-size:12px;color:var(--text2);margin-top:2px;">
           ${cls?escHtml(cls.name)+' · ':''}${grp?escHtml(grp.name)+' · ':''}${a.birthDate?'Born '+dLabel(a.birthDate):'No birth date'}${a.weanTargetDate&&status!=='weaned'?' · Target '+dLabel(a.weanTargetDate):''}
         </div>
-        ${status==='unknown'?`<button class="btn btn-outline btn-xs" style="margin-top:4px;" onclick="openAnimalEdit(${a.id})">Set birth date</button>`:''}
       </div>
+      <button class="btn btn-outline btn-xs" style="flex-shrink:0;margin-top:2px;" onclick="openAnimalEdit(${a.id})">Edit</button>
     </div>`;
   }
 
@@ -11471,6 +11487,11 @@ function renderWeaningDashboard(){
 function weanToggleFilter(key){
   if(weanFilters.has(key))weanFilters.delete(key);
   else weanFilters.add(key);
+  weanChecked.clear();
+  renderWeaningDashboard();
+}
+function weanShowAllUnweaned(){
+  ['overdue','due14','due30','pending','unknown'].forEach(k=>weanFilters.add(k));
   weanChecked.clear();
   renderWeaningDashboard();
 }
