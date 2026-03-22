@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260322.1830" id="app-version-meta"/>
+<meta name="app-version" content="b20260322.1900" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -4751,16 +4751,43 @@ function removeEeGroup(gId){
 }
 
 // Mark a saved additional group as departed (sets dateRemoved to today).
-function closeGroup(idx){
-  if(idx===0) return; // primary cannot be closed via this path
-  eeGroups[idx].dateRemoved = todayStr();
+// Begin move flow for a saved-active group: set departure date + show destination picker.
+function startMoveGroup(idx){
+  if(idx===0) return;
+  eeGroups[idx].dateRemoved = eeGroups[idx].dateRemoved || todayStr();
+  eeGroups[idx]._moveAction = 'picking'; // shows the destination picker
   renderEeGroupChips();
   syncEeGroupTotals();
 }
 
-// Reopen a group that was closed — clears dateRemoved.
+// User chose to attach this group to an existing open event.
+function setMoveGroupExisting(idx, targetEvId){
+  eeGroups[idx]._moveAction = 'existing';
+  eeGroups[idx]._moveTargetEventId = targetEvId ? parseInt(targetEvId) : null;
+  renderEeGroupChips();
+}
+
+// User chose to open the wizard for this group after saving.
+function setMoveGroupWizard(idx){
+  eeGroups[idx]._moveAction = 'wizard';
+  eeGroups[idx]._moveTargetEventId = null;
+  renderEeGroupChips();
+}
+
+// Cancel the move — clear departure date and move state.
+function cancelGroupMove(idx){
+  eeGroups[idx].dateRemoved = null;
+  eeGroups[idx]._moveAction = null;
+  eeGroups[idx]._moveTargetEventId = null;
+  renderEeGroupChips();
+  syncEeGroupTotals();
+}
+
+// Reopen a group that was previously moved/closed — clears all move state.
 function reopenGroup(idx){
   eeGroups[idx].dateRemoved = null;
+  eeGroups[idx]._moveAction = null;
+  eeGroups[idx]._moveTargetEventId = null;
   renderEeGroupChips();
   syncEeGroupTotals();
 }
@@ -4791,11 +4818,15 @@ function renderEeGroupChips(){
     el.innerHTML='<div style="font-size:12px;color:var(--text2);font-style:italic;">No group assigned</div>';
     return;
   }
+  // Build list of open events for the "attach to existing" picker (excludes this event)
+  const currentEvId = parseInt(document.getElementById('ee-id')?.value)||0;
+  const openEvs = S.events.filter(e=>e.status==='open' && e.id!==currentEvId);
+
   el.innerHTML = eeGroups.map((g,i)=>{
     const grp = getGroupById(g.groupId);
     const dot = grp?.color||'var(--green)';
 
-    // ── Primary (index 0) or groups loaded without _isNew flag + not closed ──
+    // ── Primary (index 0, committed) — locked green pill ──────────────────
     if(i===0 && !g._isNew){
       return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
         <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;
@@ -4808,15 +4839,21 @@ function renderEeGroupChips(){
       </div>`;
     }
 
-    const isClosed = !!g.dateRemoved;
-    const isNew    = !!g._isNew;
+    const isMoved   = !!g.dateRemoved;
+    const isPicking = g._moveAction === 'picking';
+    const isExisting= g._moveAction === 'existing';
+    const isWizard  = g._moveAction === 'wizard';
+    const isNew     = !!g._isNew;
+    const hasDestination = isExisting || isWizard;
 
-    const borderColor = isClosed ? 'var(--red)' : isNew ? 'var(--border)' : 'var(--green)';
-    const chipBg      = isClosed ? 'var(--red-l)' : isNew ? 'var(--bg2)' : 'var(--green-l)';
-    const nameColor   = isClosed ? 'var(--red-d)' : 'var(--green-d)';
+    const borderColor = isMoved ? (hasDestination?'var(--teal)':'var(--amber)') : isNew ? 'var(--border)' : 'var(--green)';
+    const chipBg      = isMoved ? (hasDestination?'var(--teal-l,#e8f8f5)':'var(--amber-l)') : isNew ? 'var(--bg2)' : 'var(--green-l)';
+    const nameColor   = isMoved ? (hasDestination?'var(--teal-d)':'var(--amber-d)') : 'var(--green-d)';
 
-    const statusBadge = isClosed
-      ? `<span style="display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--red-d);font-weight:500;"><span style="width:7px;height:7px;border-radius:50%;background:var(--red-d);display:inline-block;"></span>Removed</span>`
+    const statusBadge = isMoved
+      ? (hasDestination
+          ? `<span style="display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--teal-d);font-weight:500;"><span style="width:7px;height:7px;border-radius:50%;background:var(--teal-d);display:inline-block;"></span>Moved</span>`
+          : `<span style="display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--amber-d);font-weight:500;"><span style="width:7px;height:7px;border-radius:50%;background:var(--amber);display:inline-block;"></span>Moved — no destination</span>`)
       : isNew
         ? `<span style="font-size:11px;color:var(--text2);font-weight:400;font-style:italic;">unsaved</span>`
         : `<span style="display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--green-d);font-weight:500;"><span style="width:7px;height:7px;border-radius:50%;background:var(--green-d);display:inline-block;"></span>Active</span>`;
@@ -4825,19 +4862,67 @@ function renderEeGroupChips(){
       ? `<button onclick="removeEeGroup(${g.groupId})" title="Discard selection"
            style="border:none;background:transparent;color:var(--text2);cursor:pointer;
                   font-size:18px;padding:0 4px;line-height:1;">&times;</button>`
-      : isClosed
+      : isMoved
         ? `<button onclick="reopenGroup(${i})"
              style="border:0.5px solid var(--border2);background:var(--bg);color:var(--text2);
-                    cursor:pointer;font-size:11px;padding:3px 8px;border-radius:var(--radius);line-height:1.4;">Reopen</button>`
-        : `<button onclick="closeGroup(${i})"
-             style="border:0.5px solid var(--red);background:transparent;color:var(--red-d);
-                    cursor:pointer;font-size:11px;padding:3px 8px;border-radius:var(--radius);line-height:1.4;">Remove Group</button>`;
+                    cursor:pointer;font-size:11px;padding:3px 8px;border-radius:var(--radius);line-height:1.4;">Undo</button>`
+        : `<button onclick="startMoveGroup(${i})"
+             style="border:0.5px solid var(--teal-d);background:transparent;color:var(--teal-d);
+                    cursor:pointer;font-size:11px;padding:3px 8px;border-radius:var(--radius);line-height:1.4;">Move Group</button>`;
 
     const dateAddedVal = g.dateAdded||todayStr();
 
+    // Destination picker — shown when picking, existing, or wizard
+    let destinationPanel = '';
+    if(isMoved && (isPicking || isExisting || isWizard)){
+      const evOptions = openEvs.map(e=>{
+        const evGrpDisp = evGroupsDisplay(e)||'no group';
+        const evLoc = evDisplayName(e);
+        const selAttr = (isExisting && g._moveTargetEventId===e.id) ? ' selected' : '';
+        return `<option value="${e.id}"${selAttr}>${evLoc} \u00b7 ${evGrpDisp}</option>`;
+      }).join('');
+
+      if(isWizard){
+        destinationPanel = `<div style="margin-top:8px;padding:8px;background:var(--teal-l,#e8f8f5);
+            border-radius:var(--radius);border:0.5px solid var(--teal);">
+          <div style="font-size:11px;color:var(--teal-d);font-weight:600;margin-bottom:4px;">
+            \u2192 Will open wizard for ${g.groupName} after save
+          </div>
+          <button onclick="cancelGroupMove(${i})"
+            style="font-size:11px;color:var(--text2);background:none;border:none;cursor:pointer;padding:0;">
+            Change destination
+          </button>
+        </div>`;
+      } else {
+        destinationPanel = `<div style="margin-top:8px;">
+          <div style="font-size:10px;color:var(--text2);margin-bottom:4px;font-weight:600;">Where is this group going?</div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            ${openEvs.length ? `<div>
+              <div style="font-size:10px;color:var(--text2);margin-bottom:3px;">Attach to an existing open event:</div>
+              <select onchange="setMoveGroupExisting(${i},this.value)"
+                style="width:100%;padding:6px 8px;border:0.5px solid ${isExisting?'var(--teal)':'var(--border2)'};
+                       border-radius:var(--radius);font-size:12px;background:var(--bg);color:var(--text);font-family:inherit;">
+                <option value="">— pick an event —</option>
+                ${evOptions}
+              </select>
+            </div>` : `<div style="font-size:11px;color:var(--text2);font-style:italic;">No other open events</div>`}
+            <button onclick="setMoveGroupWizard(${i})"
+              style="border:0.5px solid var(--teal-d);background:transparent;color:var(--teal-d);
+                     cursor:pointer;font-size:11px;padding:5px 10px;border-radius:var(--radius);text-align:left;">
+              Open new event via wizard \u2192
+            </button>
+            <button onclick="cancelGroupMove(${i})"
+              style="font-size:11px;color:var(--text2);background:none;border:none;cursor:pointer;padding:2px 0;text-align:left;">
+              Cancel move
+            </button>
+          </div>
+        </div>`;
+      }
+    }
+
     return `<div style="background:${chipBg};border:0.5px solid ${borderColor};
         border-radius:var(--radius);padding:8px 10px;margin-bottom:6px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:${isClosed?'6px':'4px'};">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
         <div style="display:flex;align-items:center;gap:7px;">
           <span style="width:8px;height:8px;border-radius:50%;background:${dot};display:inline-block;flex-shrink:0;"></span>
           <span style="font-size:13px;font-weight:600;color:${nameColor};">${g.groupName}</span>
@@ -4853,7 +4938,7 @@ function renderEeGroupChips(){
             style="padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);
                    font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;"/>
         </div>
-        ${isClosed ? `<div>
+        ${isMoved ? `<div>
           <div style="font-size:10px;color:var(--text2);margin-bottom:2px;">Left event</div>
           <input type="date" value="${g.dateRemoved||''}"
             oninput="eeGroups[${i}].dateRemoved=this.value||null;renderEeGroupChips();"
@@ -4861,18 +4946,54 @@ function renderEeGroupChips(){
                    font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;"/>
         </div>` : ''}
       </div>
-      ${isClosed&&g.dateAdded&&g.dateRemoved ? `<div style="font-size:11px;color:var(--red-d);padding:4px 8px;margin-top:6px;background:var(--red-l);border-radius:var(--radius);">
-        In event ${daysBetween(g.dateAdded,g.dateRemoved)} days &middot; NPK attributed for this window
+      ${isMoved&&g.dateAdded&&g.dateRemoved&&!destinationPanel ? `<div style="font-size:11px;color:var(--amber-d);padding:4px 8px;margin-top:6px;background:var(--amber-l);border-radius:var(--radius);">
+        In event ${daysBetween(g.dateAdded,g.dateRemoved)} days &middot; tap Move Group to set destination
       </div>` : ''}
+      ${destinationPanel}
     </div>`;
   }).join('');
 }
 
-// Strip _isNew and write ev.groups[]; keep legacy ev.groupId pointing at first entry.
+// Strip session-only flags and write ev.groups[]; keep legacy ev.groupId.
 function applyEeGroupsToEvent(ev){
-  ev.groups = eeGroups.map(({_isNew,...rest})=>({...rest}));
+  ev.groups = eeGroups.map(({_isNew, _moveAction, _moveTargetEventId, ...rest})=>({...rest}));
   ev.groupId   = eeGroups[0]?.groupId||ev.groupId||null;
   ev.groupName = eeGroups[0]?.groupName||(getGroupById(eeGroups[0]?.groupId)?.name)||ev.groupName||'';
+}
+
+// Apply pending move actions after the main event save.
+// Called at the end of saveEventEdit() after save() fires.
+function applyEeGroupMoveActions(){
+  let needsSave = false;
+  let wizardGroupId = null;
+  eeGroups.forEach(g=>{
+    if(!g._moveAction) return;
+    if(g._moveAction==='existing' && g._moveTargetEventId){
+      const targetEv = S.events.find(e=>e.id===g._moveTargetEventId);
+      if(targetEv){
+        if(!targetEv.groups) targetEv.groups=evGroups(targetEv).map(x=>({...x}));
+        if(!targetEv.groups.some(x=>x.groupId===g.groupId)){
+          targetEv.groups.push({
+            groupId:   g.groupId,
+            groupName: g.groupName||(getGroupById(g.groupId)?.name)||'',
+            dateAdded: g.dateRemoved||todayStr(),
+            dateRemoved: null,
+          });
+          // Keep legacy groupId pointing at first entry
+          targetEv.groupId = targetEv.groups[0].groupId;
+          needsSave = true;
+        }
+      }
+    } else if(g._moveAction==='wizard'){
+      wizardGroupId = g.groupId;
+    }
+  });
+  if(needsSave) save();
+  if(wizardGroupId){
+    wizGroupIds = [wizardGroupId];
+    nav('move', document.getElementById('bn-home'));
+    initWizFromGroups();
+  }
 }
 
 // ─── END MULTI-GROUP HELPERS ─────────────────────────────────────────────────────────────────
@@ -9720,8 +9841,7 @@ function saveEventEdit(){
     ev.paddocks[0].pastureId=_eePadRec?_eePadRec.id:ev.paddocks[0].pastureId;
     if(_eePadRec)ev.paddocks[0].acres=parseFloat(_eePadRec.acres)||null;
   }
-  ev.groupId=grpId;
-  ev.groupName=grpId?(getGroupById(grpId)||{}).name||ev.groupName:ev.groupName;
+  // ev.groupId / ev.groupName already set by applyEeGroupsToEvent() above
   ev.dateIn=dateIn;
   if(ev.status==='closed')ev.dateOut=dateOut;
   ev.head=head;ev.wt=wt;
@@ -9735,6 +9855,7 @@ function saveEventEdit(){
     ev.feedResidual=parseInt(document.getElementById('ee-feed-res')?.value)||0;
     recalcEventTotals(ev);
   }
+  applyEeGroupMoveActions(); // attach moved groups to destinations / launch wizard
   save();closeEventEdit();
   renderEventsLog();renderHome();
 }
