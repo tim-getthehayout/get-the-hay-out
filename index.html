@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260322.2207" id="app-version-meta"/>
+<meta name="app-version" content="b20260323.2336" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -6881,10 +6881,10 @@ function renderGroupsList(){
       breakdown=g.classes.map(c=>{const cls=S.animalClasses.find(x=>x.id===c.classId);return`${c.count} ${cls?cls.name:'?'}`;}).join(', ');
     }
     const isActive=String(g.id)===String(activeFilter);
-    return `<div class="chip" style="border-left:3px solid ${g.color||'var(--green)'};margin-bottom:6px;${g.archived?'opacity:0.5;':''}cursor:pointer;${isActive?'background:var(--green-l,#f0f9ec);':''}" onclick="filterAnimalsByGroup(${g.id})">
+    return `<div class="chip" style="border-left:3px solid ${g.color||'var(--green)'};margin-bottom:6px;${g.archived?'opacity:0.5;':''}cursor:pointer;${isActive?'background:var(--green-l,#f0f9ec);border-color:var(--green);':''}" onclick="filterAnimalsByGroup(${g.id})">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;">
         <div>
-          <div style="font-size:14px;font-weight:600;">${g.name} ${ae?`<span class="badge bt">active · ${loc}</span>`:'<span class="badge bb">unplaced</span>'}${isActive?' <span class="badge bg">filtered</span>':''}</div>
+          <div style="font-size:14px;font-weight:600;">${g.name} ${ae?`<span class="badge bt">active · ${loc}</span>`:'<span class="badge bb">unplaced</span>'}${isActive?` <span class="badge bg" style="cursor:pointer;">✕ clear filter</span>`:''}</div>
           <div style="font-size:12px;color:var(--text2);margin-top:2px;">${breakdown}</div>
           <div style="font-size:12px;color:var(--text2);">${t.totalHead} head · avg ${t.avgWeight} lbs · DMI target ${Math.round(t.dmiTarget).toLocaleString()} lbs/day</div>
         </div>
@@ -7685,7 +7685,7 @@ function openAnimalEdit(animalId){
   }
   document.getElementById('ae-sheet-wrap').classList.add('open');
 }
-function closeAnimalEdit(){document.getElementById('ae-sheet-wrap').classList.remove('open');}
+function closeAnimalEdit(){document.getElementById('ae-sheet-wrap').classList.remove('open');if(curScreen==='animals')renderAnimalsScreen();}
 
 function saveAnimalEdit(){
   const rawId=document.getElementById('ae-id').value;
@@ -9313,7 +9313,8 @@ function saveSubMove(){
   const pctOnPasture = Math.round(pastureFraction(ev)*100);
   const _hrLabel = hrs>0?`${hrs}h at `:'at ';
   const _recNote = (!isCon && recoveryMinDays) ? `\nRecovery window: ${recoveryMinDays}${recoveryMaxDays?'–'+recoveryMaxDays:''}d` : '';
-  alert(`Sub-move recorded: ${_hrLabel}${locName}.${hrs>0?'\nPasture time this event: '+pctOnPasture+'% of total hours.':'\nDuration not set — edit to add hours later.'}${_recNote}`)
+  const _pctNote = hrs>0 ? '\nPasture time this event: '+pctOnPasture+'% of total hours.' : '';
+  alert(`Sub-move recorded: ${_hrLabel}${locName}.${_pctNote}${_recNote}`)
 }
 
 // ── Update wizCloseEvent to use sub-move adjusted NPK ─────────────────────────
@@ -10752,8 +10753,7 @@ function renderAnimalsScreen(){
           <div style="cursor:pointer;" onclick="openAnimalEdit(${a.id})">
             <div style="font-size:13px;font-weight:600;">${displayWt?displayWt+' lbs':'no wt'}</div>
           </div>
-          <button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:18px;padding:2px 6px;flex-shrink:0;"
-            onclick="deleteAnimalFromScreen(${a.id})">×</button>
+
         </div>
       </div>
       <!-- Action buttons -->
@@ -11811,27 +11811,47 @@ function renderRotationCalendar(containerId){
     d.setDate(d.getDate()+7);
   }
 
-  // ── Paddocks (only those with events in range) ────────────────────────────
-  const paddockNames = [...new Set(allEvs.flatMap(e=>evPaddocks(e).map(p=>p.pastureName)))].filter(Boolean).sort((a,b)=>a.localeCompare(b,'en',{numeric:true}));
+  // ── Paddocks: include main event paddocks AND sub-move locations ─────────────
+  // OI-0026: sub-move locations previously excluded — now included so active events
+  // with sub-moves show the current paddock as occupied.
+  const subMovePaddockNames = allEvs.flatMap(e=>(e.subMoves||[]).map(sm=>sm.locationName)).filter(Boolean);
+  const paddockNames = [...new Set([
+    ...allEvs.flatMap(e=>evPaddocks(e).map(p=>p.pastureName)),
+    ...subMovePaddockNames
+  ])].filter(Boolean).sort((a,b)=>a.localeCompare(b,'en',{numeric:true}));
 
-  function grpColor(gId){ const g=getGroupById(gId); return g?g.color||'#639922':'#888'; }
   function grpName(gId){  const g=getGroupById(gId); return g?g.name:'?'; }
   function weekEnd(ws){ const d2=new Date(ws+'T12:00:00'); d2.setDate(d2.getDate()+6); return d2.toISOString().slice(0,10); }
 
+  // OI-0025: Semantic color — green for pasture grazing, tan for 100% stored-feed / confinement.
+  // Group colors removed from calendar; they're not meaningful at a glance here.
+  function evCalColor(ev){ return (ev.noPasture || ev.locationType==='confinement') ? '#C4A882' : '#639922'; }
+
   // AUDs supported BY THE PASTURE — pro-rated by pasture DMI fraction.
   // noPasture = 0. Closed events use ev.totals.pct. Open events: live DMI estimate.
+  // OI-0024: fall back to group totals when ev.head/ev.wt not stamped on event.
   function eventAUDs(ev){
     if(ev.noPasture) return 0;
     const days = daysBetween(ev.dateIn, ev.dateOut||todayStr());
-    const totalAUs = ((ev.head||0) * (ev.wt||0) / auWt);
+    // Prefer stamped head/wt; fall back to live group totals for open events
+    let head = ev.head||0, wt = ev.wt||0;
+    if((!head || !wt) && ev.status==='open'){
+      const grpIds = evGroups(ev).map(g=>g.groupId).filter(Boolean);
+      grpIds.forEach(gId=>{
+        const g = getGroupById(gId);
+        if(g){ const t=getGroupTotals(g); head+=(t.totalHead||0); wt=wt||t.avgWeight||0; }
+      });
+    }
+    const totalAUs = (head * wt / auWt);
     if(!totalAUs) return 0;
     let pastureFrac = 1;
     if(ev.status==='closed' && ev.totals){
       if(ev.totals.pct!=null) pastureFrac = Math.max(0, ev.totals.pct) / 100;
     } else {
-      const g = getGroupById(ev.groupId);
-      const t = g ? getGroupTotals(g) : null;
-      const dmiTarget = t ? t.dmiTarget : ((ev.head||0)*(ev.wt||0)*0.025);
+      const grpIds = evGroups(ev).map(g=>g.groupId).filter(Boolean);
+      let dmiTarget = 0;
+      grpIds.forEach(gId=>{ const g=getGroupById(gId); if(g){ const t=getGroupTotals(g); dmiTarget+=t.dmiTarget||0; } });
+      if(!dmiTarget) dmiTarget = head * wt * 0.025;
       if(dmiTarget > 0){
         const storedDMI = calcConsumedDMI(allFeedEntries(ev), ev.feedResidual||0);
         pastureFrac = Math.max(0, (dmiTarget*days - storedDMI)) / (dmiTarget*days);
@@ -11855,34 +11875,64 @@ function renderRotationCalendar(containerId){
   const rows = paddockNames.map(pasture=>{
     const pad    = findPastureByName(pasture);
     const acres  = pad && pad.acres ? pad.acres+' ac' : '';
+    // padEvs: events where this paddock is a main event paddock
     const padEvs = allEvs.filter(e=>evMatchesPasture(e,pasture,null)).sort((a,b)=>a.dateIn.localeCompare(b.dateIn));
 
-    // Build a map: weekStart → event (or null)
-    const weekMap = {};
-    weeks.forEach(w=>{ weekMap[w]=null; });
+    // OI-0026: also collect events that visited this paddock via a sub-move.
+    // Build a unified list of {ev, start, end} windows for this paddock row.
+    const windows = [];
+
     padEvs.forEach(ev=>{
-      // Only show event on this paddock row if this paddock is in the event
       const padEntry=evPaddocks(ev).find(p=>p.pastureName===pasture);
       if(!padEntry) return;
-      const effectiveStart=padEntry.dateAdded||ev.dateIn;
-      const effectiveEnd=padEntry.dateRemoved||(ev.dateOut||todayStr());
-      weeks.forEach(w=>{
-        const we = weekEnd(w);
-        if(effectiveStart <= we && effectiveEnd >= w) weekMap[w]=ev;
+      let effectiveStart=padEntry.dateAdded||ev.dateIn;
+      let effectiveEnd  =padEntry.dateRemoved||(ev.dateOut||todayStr());
+
+      // If this is an open event and it has sub-moves, clip the main paddock window
+      // to end when the first sub-move departs (animals are no longer on this paddock).
+      if(ev.status==='open' && !padEntry.dateRemoved && (ev.subMoves||[]).length){
+        const firstSm = (ev.subMoves||[]).slice().sort((a,b)=>a.date.localeCompare(b.date))[0];
+        if(firstSm && firstSm.date > effectiveStart){
+          effectiveEnd = firstSm.date;
+        }
+      }
+      windows.push({ev, start:effectiveStart, end:effectiveEnd, isSubMove:false});
+    });
+
+    // Add sub-move windows: events where a sub-move visited this paddock.
+    allEvs.forEach(ev=>{
+      (ev.subMoves||[]).forEach((sm, smIdx)=>{
+        if(sm.locationName !== pasture) return;
+        const smStart = sm.date;
+        // End = next sub-move's date, or ev.dateOut, or today
+        const sortedSms = (ev.subMoves||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));
+        const myIdx = sortedSms.findIndex(x=>x===sm);
+        const nextSm = sortedSms[myIdx+1];
+        const smEnd  = nextSm ? nextSm.date : (ev.dateOut||todayStr());
+        windows.push({ev, start:smStart, end:smEnd, isSubMove:true});
       });
     });
 
-    // Build cells, merging consecutive same-event weeks into one td with colspan
+    // Build a map: weekStart → window object (or null)
+    const weekMap = {};
+    weeks.forEach(w=>{ weekMap[w]=null; });
+    windows.forEach(win=>{
+      weeks.forEach(w=>{
+        const we = weekEnd(w);
+        if(win.start <= we && win.end >= w) weekMap[w]=win;
+      });
+    });
+
+    // Build cells, merging consecutive same-window weeks into one td with colspan
     const cells = [];
     let i=0;
     while(i < weeks.length){
-      const w  = weeks[i];
-      const ev = weekMap[w];
-      if(!ev){ cells.push({ev:null,span:1,w}); i++; continue; }
-      // Count how many consecutive weeks share this exact event
+      const w   = weeks[i];
+      const win = weekMap[w];
+      if(!win){ cells.push({win:null,span:1,w}); i++; continue; }
       let span=1;
-      while(i+span < weeks.length && weekMap[weeks[i+span]]===ev) span++;
-      cells.push({ev,span,w});
+      while(i+span < weeks.length && weekMap[weeks[i+span]]===win) span++;
+      cells.push({win,span,w});
       i+=span;
     }
 
@@ -11891,25 +11941,23 @@ function renderRotationCalendar(containerId){
     let ci2=0;
     while(ci2 < cells.length){
       const c = cells[ci2];
-      if(c.ev){ mergedCells.push(c); ci2++; continue; }
-      // Accumulate the full gap span
+      if(c.win){ mergedCells.push(c); ci2++; continue; }
       let gapSpan = c.span;
-      while(ci2+1 < cells.length && !cells[ci2+1].ev){ ci2++; gapSpan += cells[ci2].span; }
-      // Find the prev and next events for this gap
-      const prevEvCell = mergedCells.length ? mergedCells[mergedCells.length-1] : null;
-      const nextEvCell = (()=>{ for(let k=ci2+1;k<cells.length;k++) if(cells[k].ev) return cells[k]; return null; })();
+      while(ci2+1 < cells.length && !cells[ci2+1].win){ ci2++; gapSpan += cells[ci2].span; }
+      const prevWinCell = mergedCells.length ? mergedCells[mergedCells.length-1] : null;
+      const nextWinCell = (()=>{ for(let k=ci2+1;k<cells.length;k++) if(cells[k].win) return cells[k]; return null; })();
       let restDays = null;
-      if(prevEvCell && nextEvCell){
-        const prevEnd  = prevEvCell.ev.dateOut || todayStr();
-        const nextStart= nextEvCell.ev.dateIn;
+      if(prevWinCell && nextWinCell){
+        const prevEnd  = prevWinCell.win.end;
+        const nextStart= nextWinCell.win.start;
         restDays = Math.max(0, Math.round((new Date(nextStart+'T12:00:00')-new Date(prevEnd+'T12:00:00'))/86400000));
       }
-      mergedCells.push({ev:null, span:gapSpan, w:c.w, restDays});
+      mergedCells.push({win:null, span:gapSpan, w:c.w, restDays});
       ci2++;
     }
 
     const tds = mergedCells.map(c=>{
-      if(!c.ev){
+      if(!c.win){
         const showRest = c.restDays!=null && c.span >= 2;
         const restLabel = c.restDays!=null ? c.restDays+'d rest' : '';
         return `<td colspan="${c.span}" style="min-width:${28*c.span}px;height:30px;padding:0;vertical-align:middle;text-align:center;"
@@ -11919,31 +11967,34 @@ function renderRotationCalendar(containerId){
             white-space:nowrap;">${restLabel}</span>` : ''}
         </td>`;
       }
-      const ev       = c.ev;
+      const ev       = c.win.ev;
+      const isSubMove= c.win.isSubMove;
       const isHayFeed= !!ev.noPasture;
-      const color    = isHayFeed ? '#C4A882' : grpColor(ev.groupId);
+      const color    = evCalColor(ev);
       const name     = grpName(ev.groupId);
       const auds     = eventAUDs(ev);
       const isOpen   = ev.status==='open';
-      const days     = daysBetween(ev.dateIn, ev.dateOut||todayStr());
+      const days     = daysBetween(c.win.start, c.win.end);
 
       // Only show text if enough space (≥2 weeks wide)
       const showText = c.span >= 2;
       const audsStr  = auds>=0.1 ? (auds>=100?Math.round(auds)+'AU':auds.toFixed(0)+'AU') : '';
       const daysStr  = days+'d';
+      const subMoveLbl = isSubMove ? '⇢ ' : '';
 
       return `<td colspan="${c.span}" style="min-width:${28*c.span}px;height:30px;padding:0;
           position:relative;vertical-align:top;"
-          title="${name} on ${pasture} · ${days} days · ${isHayFeed?'100% stored feed — 0 pasture AUDs':(auds>=0.1?auds.toFixed(1)+' pasture AUDs ('+Math.round(auds/days*100/(((ev.head||0)*(ev.wt||0)/auWt)||1))+'% pasture-supported)':'no AUD data — set head+weight on event')}${ev.recoveryMinDays||ev.recoveryMaxDays?' · Recovery: '+(ev.recoveryMinDays||'?')+'–'+(ev.recoveryMaxDays||'?')+'d':''}">
+          title="${subMoveLbl}${name} on ${pasture} · ${days} days${isSubMove?' (sub-move)':''}${isHayFeed?' · 100% stored feed — 0 pasture AUDs':(auds>=0.1?' · '+auds.toFixed(1)+' pasture AUDs':' · no AUD data — set head+weight on event')}${ev.recoveryMinDays||ev.recoveryMaxDays?' · Recovery: '+(ev.recoveryMinDays||'?')+'–'+(ev.recoveryMaxDays||'?')+'d':''}">
         <div style="height:28px;margin:1px 1px 0;border-radius:3px;
-          background:${color};opacity:${isOpen?1:0.8};
+          background:${color};opacity:${isOpen?1:0.75};
           display:flex;align-items:center;justify-content:center;gap:3px;
           overflow:hidden;
-          outline:${isOpen?'2px solid '+color:'none'};outline-offset:1px;">
+          outline:${isOpen?'2px solid '+color:'none'};outline-offset:1px;
+          ${isSubMove?'border-top:2px dashed rgba(255,255,255,0.5);':''}">
           ${showText ? `
             <span style="font-size:9px;font-weight:700;color:white;white-space:nowrap;
               text-shadow:0 1px 2px rgba(0,0,0,0.4);overflow:hidden;text-overflow:ellipsis;padding:0 2px;">
-              ${isHayFeed ? 'HAY' : (audsStr ? audsStr+' · ' : '')}${isHayFeed ? ' · '+daysStr : daysStr}
+              ${isHayFeed ? 'HAY · '+daysStr : (audsStr ? audsStr+' · ' : '')+daysStr}
             </span>` : ''}
         </div>
       </td>`;
@@ -12004,17 +12055,21 @@ function renderRotationCalendar(containerId){
     </tr>`;
   }).join('');
 
-  // ── Group legend ──────────────────────────────────────────────────────────
-  const groupIds = [...new Set(allEvs.map(e=>e.groupId).filter(Boolean))];
-  const legend = groupIds.map(gId=>`
-    <span style="display:inline-flex;align-items:center;gap:5px;margin-right:12px;font-size:12px;">
-      <span style="width:12px;height:12px;border-radius:3px;background:${grpColor(gId)};display:inline-block;"></span>
-      ${grpName(gId)}
-    </span>`).join('') +
-    (allEvs.some(e=>e.noPasture) ? `<span style="display:inline-flex;align-items:center;gap:5px;margin-right:12px;font-size:12px;">
+  // ── Legend (semantic: green = pasture, tan = stored feed) ────────────────
+  const legend =
+    `<span style="display:inline-flex;align-items:center;gap:5px;margin-right:12px;font-size:12px;">
+      <span style="width:12px;height:12px;border-radius:3px;background:#639922;display:inline-block;"></span>
+      Pasture grazing
+    </span>` +
+    (allEvs.some(e=>e.noPasture||e.locationType==='confinement') ?
+    `<span style="display:inline-flex;align-items:center;gap:5px;margin-right:12px;font-size:12px;">
       <span style="width:12px;height:12px;border-radius:3px;background:#C4A882;display:inline-block;"></span>
       Hay / stored feed
-    </span>` : '');
+    </span>` : '') +
+    `<span style="display:inline-flex;align-items:center;gap:5px;margin-right:12px;font-size:12px;">
+      <span style="width:12px;height:12px;border-radius:3px;background:#639922;border-top:2px dashed rgba(255,255,255,0.5);display:inline-block;"></span>
+      Sub-move
+    </span>`;
 
   el.innerHTML = `
     <div style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
