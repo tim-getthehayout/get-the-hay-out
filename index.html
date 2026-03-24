@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260323.2336" id="app-version-meta"/>
+<meta name="app-version" content="b20260324.0054" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -5373,11 +5373,11 @@ function renderTreatmentTypesList(){
 
 function archiveTreatmentType(id){
   const t = (S.treatmentTypes||[]).find(x=>x.id===id);
-  if(t){ t.archived=true; save(); renderTreatmentTypesList(); }
+  if(t){ t.archived=true; save(); renderTreatmentTypesList(); renderMtTypesList(); }
 }
 function unarchiveTreatmentType(id){
   const t = (S.treatmentTypes||[]).find(x=>x.id===id);
-  if(t){ t.archived=false; save(); renderTreatmentTypesList(); }
+  if(t){ t.archived=false; save(); renderTreatmentTypesList(); renderMtTypesList(); }
 }
 
 // ─── AI BULLS ─────────────────────────────────────────────────────────────────
@@ -5464,30 +5464,91 @@ function addClassFromSheet(){
 }
 
 // ─── MANAGE TREATMENT TYPES SHEET ────────────────────────────────────────────
+const TREATMENT_CATEGORIES = ['Vaccine','Parasite Control','Antibiotic','Wound/Surgery','Nutritional','Other'];
+let _editingTreatmentId = null;
+
 function openManageTreatmentTypesSheet(){
+  _editingTreatmentId = null;
   renderMtTypesList();
+  _mtResetForm();
   document.getElementById('manage-treatments-wrap').classList.add('open');
 }
 function closeManageTreatmentTypesSheet(){
+  _editingTreatmentId = null;
   document.getElementById('manage-treatments-wrap').classList.remove('open');
 }
 function renderMtTypesList(){
   const el=document.getElementById('mt-types-list');if(!el)return;
   const types=S.treatmentTypes||[];
-  if(!types.length){el.innerHTML='<div style="font-size:13px;color:var(--text2);margin-bottom:8px;">No treatment types yet — add below</div>';return;}
-  el.innerHTML=types.map(t=>t.archived
-    ?`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);opacity:0.45;"><span style="font-size:13px;">${escHtml(t.name)} <span class="badge bb">archived</span></span><button class="btn btn-outline btn-xs" onclick="unarchiveTreatmentType('${t.id}');renderMtTypesList();">Unarchive</button></div>`
-    :`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);"><span style="font-size:13px;font-weight:500;">💉 ${escHtml(t.name)}</span><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;" onclick="archiveTreatmentType('${t.id}');renderMtTypesList();">×</button></div>`
-  ).join('');
+  if(!types.length){el.innerHTML='<div style="font-size:13px;color:var(--text2);margin-bottom:8px;">No treatment types yet — add one below</div>';return;}
+  el.innerHTML=types.map(t=>{
+    const catBadge = t.category ? `<span class="badge bb" style="font-size:10px;">${escHtml(t.category)}</span>` : '';
+    if(t.archived) return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);opacity:0.45;">
+      <span style="font-size:13px;">${escHtml(t.name)} ${catBadge} <span class="badge bb">archived</span></span>
+      <button class="btn btn-outline btn-xs" onclick="unarchiveTreatmentType('${t.id}');renderMtTypesList();">Unarchive</button></div>`;
+    const isEditing = _editingTreatmentId === t.id;
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);${isEditing?'background:var(--green-l,#f0f9ec);margin:0 -4px;padding:7px 4px;border-radius:4px;':''}">
+      <div><span style="font-size:13px;font-weight:500;">💉 ${escHtml(t.name)}</span> ${catBadge}</div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <button class="btn btn-outline btn-xs" onclick="event.stopPropagation();editTreatmentType('${t.id}')">Edit</button>
+        <button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;padding:0 2px;" onclick="archiveTreatmentType('${t.id}');renderMtTypesList();">×</button>
+      </div></div>`;
+  }).join('');
+}
+function editTreatmentType(id){
+  const t=(S.treatmentTypes||[]).find(x=>x.id===id);
+  if(!t)return;
+  _editingTreatmentId=id;
+  document.getElementById('mt-name').value=t.name;
+  const catSel=document.getElementById('mt-category');
+  if(catSel) catSel.value=t.category||'';
+  const addBtn=document.getElementById('mt-add-btn');
+  const cancelBtn=document.getElementById('mt-cancel-btn');
+  const formHdr=document.getElementById('mt-form-hdr');
+  if(addBtn) addBtn.textContent='Save changes';
+  if(cancelBtn) cancelBtn.style.display='inline-block';
+  if(formHdr) formHdr.textContent='Edit treatment type';
+  document.getElementById('mt-name').focus();
+  renderMtTypesList();
+}
+function cancelEditTreatment(){
+  _editingTreatmentId=null;
+  _mtResetForm();
+  renderMtTypesList();
+}
+function _mtResetForm(){
+  const nameEl=document.getElementById('mt-name');
+  const catSel=document.getElementById('mt-category');
+  const addBtn=document.getElementById('mt-add-btn');
+  const cancelBtn=document.getElementById('mt-cancel-btn');
+  const formHdr=document.getElementById('mt-form-hdr');
+  if(nameEl) nameEl.value='';
+  if(catSel) catSel.value='';
+  if(addBtn) addBtn.textContent='Add';
+  if(cancelBtn) cancelBtn.style.display='none';
+  if(formHdr) formHdr.textContent='Add treatment type';
 }
 function addTreatmentTypeFromSheet(){
   const name=document.getElementById('mt-name').value.trim();
   if(!name){alert('Enter a treatment name');return;}
+  const category=(document.getElementById('mt-category')?.value||'').trim();
   if(!S.treatmentTypes)S.treatmentTypes=[];
-  if(S.treatmentTypes.find(t=>t.name.toLowerCase()===name.toLowerCase())){alert('Treatment type already exists');return;}
-  S.treatmentTypes.push({id:'TT-'+Date.now(),name,archived:false});
+  if(_editingTreatmentId){
+    // Edit mode — update existing
+    const t=S.treatmentTypes.find(x=>x.id===_editingTreatmentId);
+    if(!t){alert('Treatment not found');return;}
+    const dupe=S.treatmentTypes.find(x=>x.id!==_editingTreatmentId&&x.name.toLowerCase()===name.toLowerCase());
+    if(dupe){alert('Another treatment type already has that name');return;}
+    t.name=name;
+    t.category=category||null;
+    _editingTreatmentId=null;
+  } else {
+    // Add mode — new entry
+    if(S.treatmentTypes.find(t=>t.name.toLowerCase()===name.toLowerCase())){alert('Treatment type already exists');return;}
+    S.treatmentTypes.push({id:'TT-'+Date.now(),name,category:category||null,archived:false});
+  }
   save();renderMtTypesList();renderTreatmentTypesList();
-  document.getElementById('mt-name').value='';
+  _mtResetForm();
 }
 
 // ─── MANAGE AI SIRES SHEET ────────────────────────────────────────────────────
@@ -9010,6 +9071,9 @@ function openSubMoveSheet(eventId){
     '<option value="__new__">+ Add new location…</option>';
 
   renderSmBatches();
+  // Show existing sub-moves at top; reset close form
+  renderSmExistingList(ev);
+  cancelSmClose();
   document.getElementById('sm-sheet-wrap').classList.add('open');
 }
 function closeSubMoveSheet(){document.getElementById('sm-sheet-wrap').classList.remove('open');}
@@ -9205,6 +9269,131 @@ document.addEventListener('DOMContentLoaded',()=>{
   const sc = document.getElementById('sm-loc-capture');
   if(sc)sc.addEventListener('change', onSmLocCaptureChange);
 });
+
+// ── Sub-move existing list + close flow ───────────────────────────────────────
+// OI-0030: active sub-moves (durationHours===0) can now be closed from the sheet.
+// Anchor paddock (ev.paddocks[]) is unaffected — sub-moves are supplemental visits.
+
+function renderSmExistingList(ev){
+  const el   = document.getElementById('sm-existing-list');
+  const wrap = document.getElementById('sm-existing-wrap');
+  if(!el||!wrap) return;
+  const sms = ev.subMoves||[];
+  if(!sms.length){ wrap.style.display='none'; return; }
+  wrap.style.display = 'block';
+  el.innerHTML = sms.map(sm=>{
+    const isActive = !sm.durationHours;
+    const statusBadge = isActive
+      ? `<span class="badge bt" style="font-size:10px;">active</span>`
+      : `<span class="badge bb" style="font-size:10px;">returned · ${sm.durationHours}h</span>`;
+    const timeDetail = [
+      sm.date ? dLabel(sm.date) : '',
+      sm.time  ? 'in '+sm.time  : '',
+      (!isActive&&sm.timeOut) ? 'out '+sm.timeOut : '',
+      sm.notes ? escHtml(sm.notes) : ''
+    ].filter(Boolean).join(' · ');
+    const closeBtn = isActive
+      ? `<button class="btn btn-teal btn-xs" onclick="event.stopPropagation();openSmCloseForm('${sm.id}')">Record return</button>`
+      : '';
+    const delBtn = `<button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;padding:0 2px;" onclick="event.stopPropagation();deleteSubMove(${ev.id},'${sm.id}')" title="Remove sub-move">×</button>`;
+    return `<div style="padding:6px 0;border-bottom:0.5px solid var(--border);">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <span style="font-size:13px;font-weight:600;">⇢ ${escHtml(sm.locationName)}</span> ${statusBadge}
+          <div style="font-size:11px;color:var(--text2);margin-top:2px;">${timeDetail}</div>
+        </div>
+        <div style="display:flex;gap:4px;align-items:center;flex-shrink:0;">${closeBtn}${delBtn}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openSmCloseForm(smId){
+  const evId = parseInt(document.getElementById('sm-event-id').value);
+  const ev   = S.events.find(e=>e.id===evId);
+  if(!ev) return;
+  const sm   = (ev.subMoves||[]).find(s=>String(s.id)===String(smId));
+  if(!sm) return;
+  document.getElementById('sm-close-sm-id').value   = smId;
+  document.getElementById('sm-close-loc-label').textContent = sm.locationName;
+  document.getElementById('sm-close-date').value     = todayStr();
+  document.getElementById('sm-close-time-out').value = sm.timeOut||'';
+  document.getElementById('sm-close-hours').value    = '';
+  document.getElementById('sm-close-height-out').value = sm.heightOut||'';
+  const loc = S.pastures.find(p=>p.name===sm.locationName);
+  const isCon = loc ? loc.locationType==='confinement' : false;
+  document.getElementById('sm-close-grazing-fields').style.display = isCon?'none':'block';
+  document.getElementById('sm-close-rec-min').value  = sm.recoveryMinDays||S.settings.recoveryMinDays||'';
+  document.getElementById('sm-close-rec-max').value  = sm.recoveryMaxDays||S.settings.recoveryMaxDays||'';
+  document.getElementById('sm-close-wrap').style.display = 'block';
+  document.getElementById('sm-close-wrap').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function cancelSmClose(){
+  document.getElementById('sm-close-wrap').style.display = 'none';
+  document.getElementById('sm-close-sm-id').value = '';
+}
+
+function calcSmCloseDuration(){
+  const evId = parseInt(document.getElementById('sm-event-id').value);
+  const ev   = S.events.find(e=>e.id===evId);
+  if(!ev) return;
+  const smId = document.getElementById('sm-close-sm-id').value;
+  const sm   = (ev.subMoves||[]).find(s=>String(s.id)===String(smId));
+  if(!sm||!sm.time) return;
+  const timeOut = document.getElementById('sm-close-time-out').value;
+  if(!timeOut) return;
+  const [inH,inM]   = sm.time.split(':').map(Number);
+  const [outH,outM] = timeOut.split(':').map(Number);
+  let diffMin = (outH*60+outM)-(inH*60+inM);
+  if(diffMin<=0) diffMin+=24*60; // overnight
+  const hrs = Math.round(diffMin/60*4)/4;
+  document.getElementById('sm-close-hours').value = hrs;
+}
+
+function saveSmClose(){
+  const evId = parseInt(document.getElementById('sm-event-id').value);
+  const ev   = S.events.find(e=>e.id===evId);
+  if(!ev) return;
+  const smId = document.getElementById('sm-close-sm-id').value;
+  const sm   = (ev.subMoves||[]).find(s=>String(s.id)===String(smId));
+  if(!sm){alert('Sub-move not found');return;}
+  const hrs = parseFloat(document.getElementById('sm-close-hours').value);
+  if(!hrs||hrs<=0){alert('Enter hours or return time to calculate duration');return;}
+  const dateOut   = document.getElementById('sm-close-date').value;
+  const timeOut   = document.getElementById('sm-close-time-out').value||null;
+  const heightOut = parseFloat(document.getElementById('sm-close-height-out').value)||null;
+  const recMin    = parseInt(document.getElementById('sm-close-rec-min').value)||null;
+  const recMax    = parseInt(document.getElementById('sm-close-rec-max').value)||null;
+  // Write close data onto the sub-move record
+  sm.durationHours = hrs;
+  sm.dateOut   = dateOut;
+  if(timeOut)   sm.timeOut   = timeOut;
+  if(heightOut!==null) sm.heightOut = heightOut;
+  if(recMin)    sm.recoveryMinDays = recMin;
+  if(recMax)    sm.recoveryMaxDays = recMax;
+  // Stamp recovery on the location record for getExpectedGrazeDates()
+  const loc = S.pastures.find(p=>p.name===sm.locationName);
+  if(loc&&loc.locationType!=='confinement'){
+    if(recMin) loc.recoveryMinDays = recMin;
+    if(recMax) loc.recoveryMaxDays = recMax;
+  }
+  save();
+  cancelSmClose();
+  renderSmExistingList(ev);
+  renderHome();
+  alert(`Return from ${sm.locationName} recorded: ${hrs}h.`);
+}
+
+function deleteSubMove(evId, smId){
+  const ev = S.events.find(e=>e.id===evId);
+  if(!ev) return;
+  if(!confirm('Remove this sub-move record?')) return;
+  ev.subMoves = (ev.subMoves||[]).filter(s=>String(s.id)!==String(smId));
+  save();
+  renderSmExistingList(ev);
+  renderHome();
+}
 
 function saveSmQuickLocation(){
   const name = document.getElementById('sm-loc-name').value.trim();
@@ -13008,9 +13197,52 @@ applyFieldMode(); // field-mode URL param + user preference — runs after detec
   <div class="sheet-backdrop" onclick="closeSubMoveSheet()"></div>
   <div class="sheet">
     <div class="sheet-handle"></div>
-    <div style="font-size:16px;font-weight:600;margin-bottom:4px;">Record sub-move</div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:4px;">Sub-moves</div>
     <div style="font-size:13px;color:var(--text2);margin-bottom:14px;" id="sm-event-label"></div>
     <input type="hidden" id="sm-event-id"/>
+
+    <!-- Existing sub-moves — shown when event already has sub-moves -->
+    <div id="sm-existing-wrap" style="display:none;margin-bottom:4px;">
+      <div style="font-size:13px;font-weight:600;margin-bottom:6px;">Recorded sub-moves</div>
+      <div id="sm-existing-list"></div>
+
+      <!-- Close form — revealed when "Record return" is tapped -->
+      <div id="sm-close-wrap" style="display:none;" class="card-inset" style="margin-top:8px;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:10px;">
+          Record return — <span id="sm-close-loc-label" style="color:var(--teal-d);"></span>
+        </div>
+        <input type="hidden" id="sm-close-sm-id"/>
+        <div class="two">
+          <div class="field"><label>Date returned</label>
+            <input type="date" id="sm-close-date"/></div>
+          <div class="field"><label>Time returned <span style="font-size:10px;color:var(--text2);">optional</span></label>
+            <input type="time" id="sm-close-time-out" oninput="calcSmCloseDuration()"/></div>
+        </div>
+        <div class="field">
+          <label>Duration (hours) <span style="font-size:10px;color:var(--text2);">auto-calc or enter</span></label>
+          <input type="number" id="sm-close-hours" min="0.25" max="240" step="0.25" placeholder="e.g. 4"/>
+        </div>
+        <div id="sm-close-grazing-fields">
+          <div class="field">
+            <label>Residual height at sub-location (in) <span style="font-size:10px;color:var(--text2);">optional</span></label>
+            <input type="number" id="sm-close-height-out" min="0" step="0.5" placeholder="3"/>
+          </div>
+          <div class="two">
+            <div class="field"><label>Recovery min days</label>
+              <input type="number" id="sm-close-rec-min" min="1" max="365" step="1" placeholder="30"/></div>
+            <div class="field"><label>Recovery max days</label>
+              <input type="number" id="sm-close-rec-max" min="1" max="365" step="1" placeholder="60"/></div>
+          </div>
+        </div>
+        <div class="btn-row" style="margin-top:10px;">
+          <button class="btn btn-teal btn-sm" onclick="saveSmClose()">Record return</button>
+          <button class="btn btn-outline btn-sm" onclick="cancelSmClose()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="div" style="margin-bottom:14px;" id="sm-add-divider"></div>
+    <div style="font-size:13px;font-weight:600;margin-bottom:10px;">Add sub-move</div>
     <div class="two">
       <div class="field"><label>Date</label><input type="date" id="sm-date"/></div>
       <div class="field"><label>Moved in — time <span style="font-size:10px;color:var(--text2);">optional</span></label>
@@ -13872,16 +14104,30 @@ if ('serviceWorker' in navigator) {
       <button class="btn btn-outline btn-xs" onclick="closeManageTreatmentTypesSheet()">Done</button>
     </div>
     <div style="font-size:13px;color:var(--text2);margin-bottom:12px;">
-      Define treatment categories used when logging health events — e.g. Vaccinate, Deworm, Castrate.
+      Define treatment types used when logging health events. Add a category to group related treatments.
     </div>
     <div id="mt-types-list" style="margin-bottom:12px;"></div>
     <div class="div"></div>
-    <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Add treatment type</div>
-    <div style="display:flex;gap:8px;align-items:flex-end;">
-      <div class="field" style="flex:1;margin:0;">
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px;" id="mt-form-hdr">Add treatment type</div>
+    <div style="display:flex;gap:8px;margin-bottom:8px;">
+      <div class="field" style="flex:2;margin:0;">
         <input type="text" id="mt-name" placeholder="e.g. Vaccinate — BVD"/>
       </div>
-      <button class="btn btn-green btn-sm" style="width:auto;padding:10px 16px;" onclick="addTreatmentTypeFromSheet()">Add</button>
+      <div class="field" style="flex:1;margin:0;">
+        <select id="mt-category" style="height:100%;padding:9px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;width:100%;">
+          <option value="">No category</option>
+          <option>Vaccine</option>
+          <option>Parasite Control</option>
+          <option>Antibiotic</option>
+          <option>Wound/Surgery</option>
+          <option>Nutritional</option>
+          <option>Other</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-green btn-sm" style="padding:10px 16px;" id="mt-add-btn" onclick="addTreatmentTypeFromSheet()">Add</button>
+      <button class="btn btn-outline btn-sm" style="padding:10px 16px;display:none;" id="mt-cancel-btn" onclick="cancelEditTreatment()">Cancel</button>
     </div>
   </div>
 </div>
