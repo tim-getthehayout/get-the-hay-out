@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260324.1030" id="app-version-meta"/>
+<meta name="app-version" content="b20260324.1100" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -6222,7 +6222,7 @@ function renderFeedTypes(){
   const el=document.getElementById('ft-list');
   if(!S.feedTypes.length){el.innerHTML='<div style="font-size:13px;color:var(--text2);margin-bottom:8px;">None yet</div>';populateBatchTypeSelect();return;}
   el.innerHTML=S.feedTypes.map((ft,i)=>ft.archived
-    ?`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);opacity:0.45;"><span style="font-size:13px;">${ft.name} <span class="badge bb">archived</span></span><button class="btn btn-outline btn-xs" onclick="unarchive('feedType',${ft.id})">Unarchive</button></div>`
+    ?`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);opacity:0.45;"><span style="font-size:13px;">${ft.name} <span class="badge bb">archived</span></span><button class="btn btn-outline btn-xs" onclick="unarchive('feedType','${ft.id}')">Unarchive</button></div>`
     :`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);font-size:13px;"><span>${ft.name} <span class="badge bb">${ft.unit}</span> <span class="badge bg">${ft.dm}% DM</span></span><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;" onclick="tryDeleteFeedType(${i})">×</button></div>`
   ).join('');
   populateBatchTypeSelect();
@@ -6231,7 +6231,7 @@ function populateBatchTypeSelect(){document.getElementById('b-type').innerHTML='
 function calcBatch(){const q=parseFloat(document.getElementById('b-qty').value),c=parseFloat(document.getElementById('b-cpu').value);if(q&&c)document.getElementById('b-tcost').value=(q*c).toFixed(2);}
 function calcBatchFromTotal(){const q=parseFloat(document.getElementById('b-qty').value),t=parseFloat(document.getElementById('b-tcost').value);if(q&&t)document.getElementById('b-cpu').value=(t/q).toFixed(3);}
 function addBatch(){
-  const typeId=parseInt(document.getElementById('b-type').value);const ft=S.feedTypes.find(f=>f.id===typeId);
+  const typeId=document.getElementById('b-type').value;const ft=S.feedTypes.find(f=>f.id===typeId);
   if(!ft){alert('Select a feed type');return;}
   const qty=parseFloat(document.getElementById('b-qty').value);if(!qty){alert('Enter quantity');return;}
   const label=document.getElementById('b-label').value.trim()||(ft.name+' '+new Date().toLocaleDateString('en-US',{month:'short',year:'numeric'}));
