@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260324.1900" id="app-version-meta"/>
+<meta name="app-version" content="b20260324.1945" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -116,9 +116,9 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 .fab{position:fixed;bottom:calc(72px + var(--safe-bottom) + 12px);right:16px;width:48px;height:48px;border-radius:50%;background:var(--green);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:90;box-shadow:0 2px 10px rgba(0,0,0,0.2);}
 .fab:active{background:var(--green-d);}
 .sheet-wrap{display:none;position:fixed;inset:0;z-index:200;}
-.sheet-wrap.open{display:block;}
+.sheet-wrap.open{display:flex;align-items:center;justify-content:center;}
 .sheet-backdrop{position:absolute;inset:0;background:rgba(0,0,0,0.4);}
-.sheet{position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:min(85vw,680px);background:var(--bg);border-radius:var(--radius-xl) var(--radius-xl) 0 0;padding:16px 16px calc(24px + var(--safe-bottom));max-height:92vh;overflow-y:auto;}
+.sheet{position:relative;width:min(92vw,680px);background:var(--bg);border-radius:var(--radius-xl);padding:16px 16px 24px;max-height:90vh;overflow-y:auto;z-index:1;}
 .sheet-handle{width:36px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 16px;}
 .cat-pills{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;}
 .cat-pill{padding:6px 14px;border-radius:20px;font-size:13px;font-weight:500;cursor:pointer;border:0.5px solid var(--border2);background:transparent;color:var(--text2);font-family:inherit;}
@@ -354,15 +354,13 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
   .fab{
     left: calc(220px + ((100vw - 220px) / 2));
     transform: translateX(-50%);
-    bottom: 24px;
   }
-  .sheet-wrap{
-    /* Keep full-screen for backdrop; sheet itself re-centers in content area */
+  .sheet-wrap.open{
+    /* Shift flex center into the content area right of the 220px sidebar */
+    padding-left: 220px;
   }
   .sheet{
-    /* Center sheet in content area right of 220px sidebar */
-    left: calc(220px + ((100vw - 220px) / 2));
-    transform: translateX(-50%);
+    /* No position override needed — inherits relative from base rule */
   }
   /* User picker modal also needs recentering */
   .user-picker-wrap{
@@ -9136,6 +9134,7 @@ function pastureFraction(ev){
 let smFeedLines = [];
 let smFeedShown = false;
 let smEditingId = null; // null = add mode; string = editing existing sub-move by id
+let smFromEventEdit = false; // true when sheet was opened via openSubMoveSheetFromEdit
 
 function openSubMoveSheet(eventId){
   const ev = S.events.find(e=>e.id===eventId);
@@ -9155,6 +9154,7 @@ function openSubMoveSheet(eventId){
   smFeedLines = [];
   smFeedShown = false;
   smEditingId = null;
+  smFromEventEdit = false; // reset — normal open from home screen
   document.getElementById('sm-feed-wrap').style.display = 'none';
   document.getElementById('sm-npk-preview').style.display = 'none';
   document.getElementById('sm-quickadd-wrap').style.display = 'none';
@@ -9195,7 +9195,14 @@ function openSubMoveSheet(eventId){
   cancelSmClose();
   document.getElementById('sm-sheet-wrap').classList.add('open');
 }
-function closeSubMoveSheet(){document.getElementById('sm-sheet-wrap').classList.remove('open');}
+function closeSubMoveSheet(){
+  document.getElementById('sm-sheet-wrap').classList.remove('open');
+  if(smFromEventEdit){
+    smFromEventEdit = false;
+    const evId = parseInt(document.getElementById('sm-event-id').value);
+    if(evId) setTimeout(()=>openEventEdit(evId), 30);
+  }
+}
 
 function onSmLocationChange(){
   const val = document.getElementById('sm-location').value;
@@ -9762,7 +9769,7 @@ function saveSubMove(){
     resetSmForm();
     renderSmExistingList(ev);
     renderHome();
-    alert(`Sub-move updated: ${locName}.`);
+    closeSubMoveSheet(); // handles smFromEventEdit → re-opens Event Edit if needed
     return;
   }
 
@@ -11088,6 +11095,7 @@ function openSubMoveSheetFromEdit(smId){
   if(!evId) return;
   closeEventEdit();
   openSubMoveSheet(evId);
+  smFromEventEdit = true; // set AFTER openSubMoveSheet (which resets it to false)
   // If a specific sub-move was requested, open its edit form after the sheet renders
   if(smId){
     setTimeout(()=>{ openSmEditForm(smId); }, 80);
@@ -11171,51 +11179,90 @@ function deleteEvent(){
 
 // ─── RECALCULATE EVENT TOTALS ─────────────────────────────────────────────────
 function recalcEventTotals(ev){
-  if(ev.status!=='closed')return;
-  const days=Math.max(1,Math.round((new Date(ev.dateOut+'T12:00:00')-new Date(ev.dateIn+'T12:00:00'))/86400000));
-  const allEntries=allFeedEntries(ev);
-  const storedDMI=calcConsumedDMI(allEntries,ev.feedResidual||0);
-  const feedCost=calcEntryCost(allEntries);
-  const head=ev.head||0,wt=ev.wt||0;
-  const g=getGroupById(ev.groupId);
-  const t=g?getGroupTotals(g):null;
-  const dmiPct=t&&t.totalHead>0?(t.dmiTarget/(t.totalLiveWeight||head*wt)):0.025;
-  const dmiTarget=head*wt*dmiPct;
-  let pastureDMI,pct;
-  if(ev.noPasture){
-    // 100% stored feed — no pasture estimation
-    pastureDMI=0;pct=0;
+  if(ev.status!=='closed') return;
+  const days = Math.max(1, Math.round(
+    (new Date(ev.dateOut+'T12:00:00') - new Date(ev.dateIn+'T12:00:00')) / 86400000));
+
+  // DMI: main event uses ev.feedResidual; each sub-move uses its own feedResidual
+  // (matches calcEventTotalsWithSubMoves — do NOT pool all entries with one residual)
+  const mainDMI = calcConsumedDMI(ev.feedEntries||[], ev.feedResidual||0);
+  const subDMI  = (ev.subMoves||[]).reduce((s,sm)=>
+    s + calcConsumedDMI(sm.feedEntries||[], sm.feedResidual||0), 0);
+  const storedDMI = mainDMI + subDMI;
+  const feedCost  = calcEntryCost(ev.feedEntries||[]) +
+    (ev.subMoves||[]).reduce((s,sm)=>s + calcEntryCost(sm.feedEntries||[]), 0);
+
+  const head = ev.head||0, wt = ev.wt||0;
+  const g = getGroupById(ev.groupId);
+  const t = g ? getGroupTotals(g) : null;
+  const dmiPct = t&&t.totalHead>0 ? (t.dmiTarget/(t.totalLiveWeight||head*wt)) : 0.025;
+  const dmiTarget = head*wt*dmiPct;
+
+  // effectivelyNoPasture: bale-graze parent unlocked when at least one sub-move is grazing
+  const hasGrazingSubMoves = (ev.subMoves||[]).some(sm=>!sm.noPasture);
+  const effectivelyNoPasture = ev.noPasture && !hasGrazingSubMoves;
+
+  let pastureDMI, pct;
+  if(effectivelyNoPasture){
+    pastureDMI = 0; pct = 0;
   } else {
-    pastureDMI=dmiTarget?Math.max(0,dmiTarget*days-storedDMI):null;
-    pct=dmiTarget&&dmiTarget*days>0?Math.round((pastureDMI/(dmiTarget*days))*100):null;
+    pastureDMI = dmiTarget ? Math.max(0, dmiTarget*days - storedDMI) : null;
+    pct = dmiTarget&&dmiTarget*days>0 ? Math.round((pastureDMI/(dmiTarget*days))*100) : null;
   }
-  const st=S.settings;const bw=head*wt;
-  const pFraction=(ev.totals&&ev.totals.pFraction!=null)?ev.totals.pFraction:100;
-  const pFrac01=pFraction/100;
-  const npkFull={n:bw/1000*(st.nExc||0.32)*days,p:bw/1000*(st.pExc||0.09)*days,k:bw/1000*(st.kExc||0.30)*days};
-  const npk={n:npkFull.n*pFrac01,p:npkFull.p*pFrac01,k:npkFull.k*pFrac01};
-  const npkVal=npk.n*(st.nPrice||0.55)+npk.p*(st.pPrice||0.65)+npk.k*(st.kPrice||0.42);
-  // Compute and store DMI variance for noPasture events
-  let dmiVariance=null;
-  if(ev.noPasture&&dmiTarget>0){
-    const varLbs=storedDMI-dmiTarget*days;
-    dmiVariance={expectedDMI:dmiTarget*days,actualDMI:storedDMI,
-                 varianceLbs:varLbs,variancePct:Math.round((varLbs/(dmiTarget*days))*100)};
+
+  // Recompute pFraction from actual sub-move hours (do not carry forward stale value)
+  const totalHrs = days*24;
+  const subHrs   = (ev.subMoves||[]).reduce((s,sm)=>s+(sm.durationHours||0), 0);
+  const pFraction = totalHrs>0 ? Math.max(0,(totalHrs-subHrs)/totalHrs) : 1;
+
+  const st = S.settings, bw = head*wt;
+  const totalNPK = {
+    n: bw/1000*(st.nExc||0.32)*days,
+    p: bw/1000*(st.pExc||0.09)*days,
+    k: bw/1000*(st.kExc||0.30)*days
+  };
+  const npk    = {n:totalNPK.n*pFraction, p:totalNPK.p*pFraction, k:totalNPK.k*pFraction};
+  const npkVal = npk.n*(st.nPrice||0.55)+npk.p*(st.pPrice||0.65)+npk.k*(st.kPrice||0.42);
+
+  // DMI variance only for effectively-noPasture events
+  let dmiVariance = null;
+  if(effectivelyNoPasture && dmiTarget>0){
+    const varLbs = storedDMI - dmiTarget*days;
+    dmiVariance = {expectedDMI:dmiTarget*days, actualDMI:storedDMI,
+                   varianceLbs:varLbs, variancePct:Math.round((varLbs/(dmiTarget*days))*100)};
   }
-  const _omRecalc=ev.locationType!=='confinement'?calcResidualOM(ev.feedEntries||[],ev.feedResidual||0):0;
-  const _recalcPads=evPaddocks(ev);
-  const _recalcAc=_recalcPads.reduce((s,p)=>s+(p.acres||parseFloat(paddockRecord(p)?.acres)||0),0);
-  const _paddockNPKRecalc=_recalcPads.length>1?_recalcPads.map(pad=>{
-    const frac=_recalcAc>0?(pad.acres||0)/_recalcAc:1/_recalcPads.length;
-    const st2=S.settings;
-    return {pastureId:pad.pastureId,pastureName:pad.pastureName,
-      n:npk.n*frac,p:npk.p*frac,k:npk.k*frac,
-      npkVal:(npk.n*frac*(st2.nPrice||0.55)+npk.p*frac*(st2.pPrice||0.65)+npk.k*frac*(st2.kPrice||0.42)),
-      acres:pad.acres||null,fraction:frac};
-  }):[{pastureId:_recalcPads[0]?.pastureId,pastureName:_recalcPads[0]?.pastureName,
-    n:npk.n,p:npk.p,k:npk.k,npkVal,acres:_recalcAc||null,fraction:1}];
-  ev.totals={...ev.totals,days,storedDMI,pastureDMI,cost:feedCost,pct,npk,npkVal,
-    dmiVariance,organicMatterLbs:_omRecalc,paddockNPK:_paddockNPKRecalc};
+
+  const _omRecalc = ev.locationType!=='confinement'
+    ? calcResidualOM(ev.feedEntries||[], ev.feedResidual||0) : 0;
+
+  // Paddock NPK — split by acreage
+  const _recalcPads = evPaddocks(ev);
+  const _recalcAc   = _recalcPads.reduce((s,p)=>s+(p.acres||parseFloat(paddockRecord(p)?.acres)||0),0);
+  const _paddockNPKRecalc = _recalcPads.length>1
+    ? _recalcPads.map(pad=>{
+        const frac = _recalcAc>0?(pad.acres||0)/_recalcAc:1/_recalcPads.length;
+        return {pastureId:pad.pastureId, pastureName:pad.pastureName,
+          n:npk.n*frac, p:npk.p*frac, k:npk.k*frac,
+          npkVal:(npk.n*frac*(st.nPrice||0.55)+npk.p*frac*(st.pPrice||0.65)+npk.k*frac*(st.kPrice||0.42)),
+          acres:pad.acres||null, fraction:frac};
+      })
+    : [{pastureId:_recalcPads[0]?.pastureId, pastureName:_recalcPads[0]?.pastureName,
+        n:npk.n, p:npk.p, k:npk.k, npkVal, acres:_recalcAc||null, fraction:1}];
+
+  // Sub-move NPK — acres-weighted attribution
+  const subMoveNPK = calcSubMoveNPKByAcres(ev, ev.dateOut);
+
+  // Grass DMI by paddock — checkpoint-driven if checkpoints were recorded
+  const grassDMIByPaddock = calcGrassDMIByWindow(ev, ev.dateOut, ev.feedResidual||0);
+
+  ev.totals = {
+    ...ev.totals,
+    days, storedDMI, pastureDMI, cost:feedCost, pct, npk, npkVal,
+    pFraction: Math.round(pFraction*100), subMoveHours:subHrs, totalHours:totalHrs,
+    dmiVariance, organicMatterLbs:_omRecalc, paddockNPK:_paddockNPKRecalc,
+    ...(subMoveNPK.length       ? {subMoveNPK}        : {}),
+    ...(grassDMIByPaddock.length ? {grassDMIByPaddock} : {})
+  };
 }
 // ─── END RECALCULATE ──────────────────────────────────────────────────────────
 
