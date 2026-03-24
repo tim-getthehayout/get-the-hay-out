@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260324.0910" id="app-version-meta"/>
+<meta name="app-version" content="b20260324.1030" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -39,11 +39,11 @@
 }
 html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);font-size:16px;}
 .app{display:flex;flex-direction:column;height:100%;max-width:480px;margin:0 auto;position:relative;}
-.hdr{padding:10px 16px 8px;padding-top:calc(10px + var(--safe-top));background:var(--bg);border-bottom:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:8px;}
-.hdr-left{min-width:0;flex:1;}
-.hdr-title{font-size:17px;font-weight:600;letter-spacing:-0.3px;}
-.hdr-sub{font-size:11px;color:var(--text2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.hdr-right{display:flex;align-items:center;gap:6px;flex-shrink:0;}
+.hdr{padding:10px 16px 6px;padding-top:calc(10px + var(--safe-top));background:var(--bg);border-bottom:0.5px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;gap:3px;}
+.hdr-left{min-width:0;width:100%;}
+.hdr-title{font-size:18px;font-weight:700;letter-spacing:-0.3px;}
+.hdr-sub{font-size:12px;color:var(--text2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.hdr-right{display:flex;align-items:center;gap:6px;width:100%;}
 .content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 12px calc(80px + var(--safe-bottom));}
 .bnav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:var(--bg);border-top:0.5px solid var(--border);display:flex;padding-bottom:var(--safe-bottom);z-index:100;}
 .bnav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 2px;border:none;background:transparent;cursor:pointer;font-family:inherit;color:var(--text2);font-size:10px;gap:3px;position:relative;}
@@ -133,6 +133,11 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 .prog{height:5px;background:var(--bg3);border-radius:3px;overflow:hidden;margin-top:4px;}
 .prog-fill{height:100%;border-radius:3px;}
 .ver-tag{display:inline-block;padding:2px 8px;background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius);font-size:11px;color:var(--text2);}
+.agc-wrap{position:sticky;top:0;z-index:20;background:var(--bg);padding-bottom:8px;margin-bottom:4px;}
+.agc-chips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:7px;}
+.agc-chip{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:500;cursor:pointer;border:1px solid var(--border2);background:var(--bg2);color:var(--text2);white-space:nowrap;transition:background 0.15s;}
+.agc-chip.active{background:var(--green);border-color:var(--green);color:white;}
+.agc-chip .agc-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
 .feed-row{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--bg2);border-radius:var(--radius);margin-bottom:5px;}
 .sync-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px;}
 .sync-ok{background:var(--green);} .sync-pending{background:var(--amber);} .sync-off{background:var(--text3);} .sync-err{background:var(--red);}
@@ -212,7 +217,12 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
     grid-area:header;
     border-left:0.5px solid var(--border);
     max-width:100%;
+    flex-direction:row;
+    align-items:center;
+    justify-content:space-between;
   }
+  body.desktop .hdr-left{flex:1;width:auto;}
+  body.desktop .hdr-right{width:auto;}
 
   /* Sidebar */
   body.desktop .dsk-sidebar{
@@ -703,27 +713,31 @@ body:not(.field-mode) #field-mode-toggle{
 
     <!-- ANIMALS SCREEN -->
     <div id="s-animals" class="scr">
-      <!-- Animal search + group filter -->
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
-        <div style="flex:1;position:relative;">
+      <!-- Sticky filter header: group chips + search -->
+      <div class="agc-wrap">
+        <!-- Group filter chips — populated by renderAnimalsScreen() -->
+        <div class="agc-chips" id="animals-group-chips"></div>
+        <!-- Search bar -->
+        <div style="position:relative;">
           <input type="search" id="animals-search" placeholder="Search by tag, EID, class…"
             oninput="renderAnimalsScreen()"
             style="width:100%;padding:9px 32px 9px 12px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:14px;background:var(--bg);color:var(--text);font-family:inherit;box-sizing:border-box;"/>
           <span id="animals-search-clear" onclick="clearAnimalSearch()"
             style="display:none;position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:16px;color:var(--text2);line-height:1;">×</span>
         </div>
+        <!-- Secondary controls row -->
+        <div style="display:flex;gap:8px;align-items:center;margin-top:7px;">
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);cursor:pointer;white-space:nowrap;">
+            <input type="checkbox" id="animals-show-culled" onchange="renderAnimalsScreen()" style="accent-color:var(--amber);">
+            Show culled
+          </label>
+          <button class="btn btn-green btn-xs" style="white-space:nowrap;margin-left:auto;" onclick="openNewAnimalSheet()">+ Add animal</button>
+        </div>
       </div>
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
-        <select id="animals-group-filter" onchange="renderAnimalsScreen()"
-          style="flex:1;padding:9px 12px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:14px;background:var(--bg);color:var(--text);font-family:inherit;">
-          <option value="">All groups</option>
-        </select>
-        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);cursor:pointer;white-space:nowrap;">
-          <input type="checkbox" id="animals-show-culled" onchange="renderAnimalsScreen()" style="accent-color:var(--amber);">
-          Show culled
-        </label>
-        <button class="btn btn-green btn-xs" style="white-space:nowrap;" onclick="openNewAnimalSheet()">+ Add animal</button>
-      </div>
+      <!-- Hidden select kept for filter state compatibility -->
+      <select id="animals-group-filter" onchange="renderAnimalsScreen()" style="display:none;">
+        <option value="">All groups</option>
+      </select>
       <!-- Selection action bar (hidden until animals selected) -->
       <div id="animals-action-bar" style="display:none;position:sticky;top:0;z-index:30;background:var(--green);color:white;padding:10px 14px;border-radius:var(--radius);margin-bottom:10px;display:none;">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
@@ -2735,27 +2749,27 @@ function renderLocationCard(ev){
      +` · <strong>$${runNPKVal.toFixed(2)}</strong> fert value</div>`
     :'';
 
-  // Per-group rows
+  // Per-group rows — identity + weights; Move opens Event Edit for single-group departure
   const groupRows=activeEvGroups.map(egi=>{
     const g=getGroupById(egi.groupId);
     if(!g) return '';
     const gt=getGroupTotals(g);
     const color=g.color||'#639922';
-    const feedBtn=`<button class="btn btn-green btn-sm" onclick="goFeedGroup(${g.id})">Feed</button>`;
-    const moveBtn=`<button class="btn btn-teal btn-sm" onclick="moveGroup(${g.id})">Move</button>`;
+    const moveBtn=`<button class="btn btn-teal btn-sm" onclick="openEventEdit(${ev.id})">Move</button>`;
     const wtBtn=`<button class="btn btn-outline btn-sm" onclick="openWtSheet(${g.id})">⚖</button>`;
-    const splitBtn=activeEvGroups.length>1?`<button class="btn btn-outline btn-sm" onclick="openSplitSheet(${g.id})">Split</button>`:'';
     return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-top:0.5px solid var(--border);">
       <div style="width:6px;height:6px;border-radius:50%;background:${color};flex-shrink:0;"></div>
       <div style="flex:1;min-width:0;">
         <div style="font-size:13px;font-weight:600;">${escHtml(g.name)}</div>
         <div style="font-size:11px;color:var(--text2);">${gt.totalHead} head · avg ${gt.avgWeight} lbs</div>
       </div>
-      <div style="display:flex;gap:4px;flex-shrink:0;">${feedBtn}${moveBtn}${wtBtn}${splitBtn}</div>
+      <div style="display:flex;gap:4px;flex-shrink:0;">${moveBtn}${wtBtn}</div>
     </div>`;
   }).join('');
 
-  // Card-level action buttons
+  // Card-level buttons — Feed and Move All apply to the whole event
+  const feedBtn=activeEvGroups.length?`<button class="btn btn-green btn-sm" onclick="goFeedEvent(${ev.id})">Feed</button>`:'';
+  const moveAllBtn=activeEvGroups.length?`<button class="btn btn-teal btn-sm" onclick="moveAllGroupsInEvent(${ev.id})">Move All</button>`:'';
   const subMoveBtn=`<button class="btn btn-outline btn-sm" onclick="openSubMoveSheet(${ev.id})">Sub-move</button>`;
   const editBtn=`<button class="btn btn-outline btn-sm" onclick="openEventEdit(${ev.id})">Edit event</button>`;
 
@@ -2773,7 +2787,7 @@ function renderLocationCard(ev){
     <div class="grp-card-body">
       ${groupRows||'<div style="font-size:12px;color:var(--text2);padding:6px 0;">No groups currently assigned</div>'}
       ${npkLine?`<div style="margin-top:6px;">${npkLine}</div>`:''}
-      <div class="grp-actions" style="margin-top:8px;">${subMoveBtn}${editBtn}</div>
+      <div class="grp-actions" style="margin-top:8px;">${feedBtn}${moveAllBtn}${subMoveBtn}${editBtn}</div>
     </div>
   </div>`;
 }
@@ -2876,13 +2890,14 @@ function renderGroupCard(g){
     }
   }
 
-  // Action buttons
-  const feedBtn=ae?`<button class="btn btn-green" onclick="goFeedGroup(${g.id})">Feed</button>`:'';
-  const subMoveBtn=ae?`<button class="btn btn-outline" onclick="openSubMoveSheet(${ae.id})">Sub-move</button>`:'';
-  const moveBtn=`<button class="btn btn-teal" onclick="moveGroup(${g.id})">${ae?'Move':'Place'}</button>`;
+  // Action buttons — group-centric view
+  // Move: for placed groups opens Event Edit (single-group departure); for unplaced launches Place wizard
+  const moveBtn=ae
+    ?`<button class="btn btn-teal" onclick="openEventEdit(${ae.id})">Move</button>`
+    :`<button class="btn btn-teal" onclick="moveGroup(${g.id})">Place</button>`;
   const splitBtn=ae?`<button class="btn btn-outline" onclick="openSplitSheet(${g.id})">Split</button>`:'';
   const wtBtn=`<button class="btn btn-outline" onclick="openWtSheet(${g.id})">Weights</button>`;
-  const editEventBtn=ae?`<button class="btn btn-outline" onclick="openEventEdit(${ae.id})">Edit event</button>`:'';
+  const editBtn=`<button class="btn btn-outline" onclick="openEditGroupSheet(${g.id})">Edit</button>`;
 
   return `<div class="grp-card" id="grp-card-${g.id}">
     <div class="grp-card-hdr" onclick="toggleGroupCard(${g.id})">
@@ -2897,7 +2912,7 @@ function renderGroupCard(g){
       <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">${comp}</div>
       ${locBar}
       ${dmiLine}
-      <div class="grp-actions">${feedBtn}${subMoveBtn}${moveBtn}${splitBtn}${wtBtn}${editEventBtn}</div>
+      <div class="grp-actions">${moveBtn}${splitBtn}${wtBtn}${editBtn}</div>
     </div>
   </div>`;
 }
@@ -2911,6 +2926,17 @@ function toggleGroupCard(gId){
 function moveGroup(gId){
   wizGroupIds=[gId];
   nav('move',document.getElementById('bn-home'));
+  initWizFromGroups();
+}
+
+// Move all active groups in an event together — launches close-event wizard with full group set
+function moveAllGroupsInEvent(evId){
+  const ev=S.events.find(e=>e.id===evId&&e.status==='open');
+  if(!ev){alert('Event not found or already closed.');return;}
+  const gids=evGroups(ev).filter(g=>!g.dateRemoved).map(g=>g.groupId);
+  if(!gids.length){alert('No active groups in this event.');return;}
+  wizGroupIds=gids;
+  nav('move',document.getElementById('bn-home')||document.getElementById('dbn-home'));
   initWizFromGroups();
 }
 
@@ -3220,7 +3246,9 @@ function closeQuickFeedSheet(){
   document.getElementById('quick-feed-wrap').classList.remove('open');
   qfLines=[];
   qfEventId=null;
+  const _returnHome = qfFromHome;
   qfFromHome=false;
+  if(_returnHome) nav('home', document.getElementById('bn-home')||document.getElementById('dbn-home'));
 }
 
 function qfShowEventStep(active){
@@ -3426,6 +3454,15 @@ function saveFeedGoal(){
   save();
   closeFeedGoalSheet();
   renderFeedOverview();
+}
+
+// goFeedEvent — feed at event level from location view; finds first active group and delegates to goFeedGroup
+function goFeedEvent(evId){
+  const ev=S.events.find(e=>e.id===evId&&e.status==='open');
+  if(!ev){alert('Event not found or already closed.');return;}
+  const firstGroup=evGroups(ev).filter(g=>!g.dateRemoved)[0];
+  if(!firstGroup){alert('No active groups in this event.');return;}
+  goFeedGroup(firstGroup.groupId);
 }
 
 // Update goFeedGroup to open quick feed sheet pre-selecting that group
@@ -6232,10 +6269,8 @@ function updateHeader(){
   const groups=S.animalGroups||[];
   const totalHead=groups.reduce((s,g)=>s+getGroupTotals(g).totalHead,0);
   let sub='';
-  if(name&&totalHead){
-    sub=name+' · '+totalHead+' head · '+groups.length+' group'+(groups.length!==1?'s':'');
-  } else if(name){
-    sub=name;  // show name even if no animals yet
+  if(name){
+    sub=name;
   } else {
     sub='Set up your operation in Settings';
   }
@@ -10870,13 +10905,25 @@ let pastureSortDir = 1; // tag|class|group|wt
 let animalSortDir = 1; // 1=asc, -1=desc
 
 function renderAnimalsScreen(){
-  // Populate group filter
+  // Populate group filter — hidden select (state) + visible chip pills
   const gf = document.getElementById('animals-group-filter');
+  const curFilter = gf ? gf.value : '';
   if(gf){
-    const cur = gf.value;
     gf.innerHTML = '<option value="">All groups</option>' +
-      sortedGroups().map(g=>`<option value="${g.id}"${String(g.id)===cur?' selected':''}>${g.name}</option>`).join('') +
-      `<option value="unassigned"${cur==='unassigned'?' selected':''}>Unassigned</option>`;
+      sortedGroups().map(g=>`<option value="${g.id}"${String(g.id)===curFilter?' selected':''}>${g.name}</option>`).join('') +
+      `<option value="unassigned"${curFilter==='unassigned'?' selected':''}>Unassigned</option>`;
+  }
+  // Render chip pills
+  const chipsEl = document.getElementById('animals-group-chips');
+  if(chipsEl){
+    const allChip = `<span class="agc-chip${!curFilter?' active':''}" onclick="filterAnimalsByGroup('')">All</span>`;
+    const groupChips = sortedGroups().map(g=>{
+      const active = String(g.id)===curFilter;
+      const dot = `<span class="agc-dot" style="background:${g.color||'var(--green)'}"></span>`;
+      return `<span class="agc-chip${active?' active':''}" onclick="filterAnimalsByGroup(${g.id})">${dot}${escHtml(g.name)}</span>`;
+    }).join('');
+    const unassignedChip = `<span class="agc-chip${curFilter==='unassigned'?' active':''}" onclick="filterAnimalsByGroup('unassigned')">Unassigned</span>`;
+    chipsEl.innerHTML = allChip + groupChips + (S.animals.some(a=>!S.animalGroups.some(g=>(g.animalIds||[]).includes(a.id)))?unassignedChip:'');
   }
 
   const el = document.getElementById('animals-screen-list');
