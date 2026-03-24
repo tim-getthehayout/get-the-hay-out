@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260324.1100" id="app-version-meta"/>
+<meta name="app-version" content="b20260324.1800" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -127,6 +127,8 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 .cp-feature.sel{background:var(--purple-l);color:var(--purple-d);border-color:var(--purple);}
 .cp-calc.sel{background:var(--teal-l);color:var(--teal-d);border-color:var(--teal);}
 .cp-idea.sel{background:var(--green-l);color:var(--green-d);border-color:var(--green);}
+.cp-roadblock.sel{background:var(--red-l);color:var(--red-d);border-color:var(--red);}
+.cp-roadblock{font-weight:700;}
 .ctx-tag{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius);font-size:12px;color:var(--text2);margin-bottom:14px;}
 .confirm-item{padding:12px 14px;background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius-l);margin-bottom:8px;}
 .brief-box{background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius);padding:12px;font-size:12px;line-height:1.65;white-space:pre-wrap;font-family:Menlo,monospace;color:var(--text);max-height:300px;overflow-y:auto;margin-bottom:10px;}
@@ -1055,7 +1057,7 @@ body:not(.field-mode) #field-mode-toggle{
           <div class="sec" style="margin:0;">All feedback</div>
           <select id="fb-filter" onchange="renderFeedbackList()" style="font-size:12px;padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);font-family:inherit;">
             <option value="all">All</option><option value="open">Open</option><option value="resolved">Resolved</option><option value="closed">Closed</option>
-            <option value="bug">Bugs</option><option value="ux">UX</option><option value="feature">Features</option><option value="calc">Calc</option><option value="idea">Ideas</option>
+            <option value="roadblock">Roadblocks</option><option value="bug">Bugs</option><option value="ux">UX</option><option value="feature">Features</option><option value="calc">Calc</option><option value="idea">Ideas</option>
           </select>
         </div>
         <div id="fb-list"></div>
@@ -1496,6 +1498,7 @@ body:not(.field-mode) #field-mode-toggle{
     <div class="ctx-tag"><span id="fb-ctx-text">—</span></div>
     <div style="font-size:13px;color:var(--text2);margin-bottom:8px;">Category</div>
     <div class="cat-pills">
+      <button class="cat-pill cp-roadblock" onclick="selCat('roadblock',this)">🚧 Roadblock</button>
       <button class="cat-pill cp-bug" onclick="selCat('bug',this)">Bug</button>
       <button class="cat-pill cp-ux" onclick="selCat('ux',this)">UX friction</button>
       <button class="cat-pill cp-feature" onclick="selCat('feature',this)">Missing feature</button>
@@ -2727,14 +2730,19 @@ function renderLocationCard(ev){
   // Active groups in this event
   const activeEvGroups=evGroups(ev).filter(g=>!g.dateRemoved);
 
-  // Aggregate head + weight for NPK
-  let totalBW=0;
+  // Aggregate BW and DMI from group-level totals (not event-level stamped head/wt which is
+  // an aggregate snapshot and would be double-counted per group in multi-group events)
+  let totalBW=0, totalDMITarget=0;
   activeEvGroups.forEach(egi=>{
-    const ae2=getActiveEventForGroup(egi.groupId);
-    if(ae2&&ae2.id===ev.id){totalBW+=(ae2.head||0)*(ae2.wt||0);}
+    const grpObj=getGroupById(egi.groupId);
+    if(grpObj){
+      const gt=getGroupTotals(grpObj);
+      totalBW+=(gt.totalHead||0)*(gt.avgWeight||0);
+      totalDMITarget+=(gt.dmiTarget||0);
+    }
   });
 
-  // Running NPK
+  // Running NPK — uses correct aggregated BW
   const st=S.settings;
   const pFrac=pastureFraction(ev);
   const runNPK={
@@ -2748,6 +2756,24 @@ function renderLocationCard(ev){
      +(pFrac<1?` (${Math.round(pFrac*100)}% pasture time)`:'')
      +` · <strong>$${runNPKVal.toFixed(2)}</strong> fert value</div>`
     :'';
+
+  // OI-0049: event-level DMI summary across all groups
+  let dmiEventLine='';
+  if(totalDMITarget>0){
+    const storedDMI=calcConsumedDMI(allEntries,ev.feedResidual||0);
+    const totalTarget=totalDMITarget*days;
+    const fill=totalTarget>0?Math.min(100,Math.round((storedDMI/totalTarget)*100)):0;
+    const pasturePct=ev.noPasture?0:Math.max(0,100-fill);
+    const storedLabel=ev.noPasture
+      ?'<span style="color:var(--amber-d);">100% stored feed</span>'
+      :`${fill}% stored · ${pasturePct}% est. pasture`;
+    dmiEventLine=`<div style="font-size:12px;color:var(--text2);padding:6px 0 2px;">
+      <strong style="color:var(--text);">DMI ${Math.round(totalDMITarget).toLocaleString()} lbs/day</strong> · ${storedLabel}`
+      +(totalTarget>0&&!ev.noPasture
+        ?`<div class="prog" style="margin-top:4px;"><div class="prog-fill" style="width:${fill}%;background:var(--amber);"></div></div>`
+        :'')
+      +'</div>';
+  }
 
   // Per-group rows — identity + weights; Move opens Event Edit for single-group departure
   const groupRows=activeEvGroups.map(egi=>{
@@ -2786,7 +2812,8 @@ function renderLocationCard(ev){
     </div>
     <div class="grp-card-body">
       ${groupRows||'<div style="font-size:12px;color:var(--text2);padding:6px 0;">No groups currently assigned</div>'}
-      ${npkLine?`<div style="margin-top:6px;">${npkLine}</div>`:''}
+      ${dmiEventLine}
+      ${npkLine?`<div style="margin-top:2px;">${npkLine}</div>`:''}
       <div class="grp-actions" style="margin-top:8px;">${feedBtn}${moveAllBtn}${subMoveBtn}${editBtn}</div>
     </div>
   </div>`;
@@ -2857,16 +2884,17 @@ function renderGroupCard(g){
     const allEntries=allFeedEntries(ae);
     const sdmi=calcConsumedDMI(allEntries,ae.feedResidual||0);
     const st=S.settings;
-    // Running NPK based on time elapsed and pasture fraction
     const pFrac=pastureFraction(ae);
-    const bw=(ae.head||0)*(ae.wt||0);
+    // OI-0050: use this group's own head/wt for NPK, not the event-level stamped aggregate
+    // (event head/wt is a snapshot of all groups combined — wrong for per-group NPK)
+    const grpBW=(t.totalHead||0)*(t.avgWeight||0);
     const runNPK={
-      n:bw/1000*(st.nExc||0.32)*days*pFrac,
-      p:bw/1000*(st.pExc||0.09)*days*pFrac,
-      k:bw/1000*(st.kExc||0.30)*days*pFrac,
+      n:grpBW/1000*(st.nExc||0.32)*days*pFrac,
+      p:grpBW/1000*(st.pExc||0.09)*days*pFrac,
+      k:grpBW/1000*(st.kExc||0.30)*days*pFrac,
     };
     const runNPKVal=runNPK.n*(st.nPrice||0.55)+runNPK.p*(st.pPrice||0.65)+runNPK.k*(st.kPrice||0.42);
-    const npkLine=bw>0?
+    const npkLine=grpBW>0?
       `<div style="font-size:11px;color:var(--purple-d);margin-top:3px;">` +
       `NPK deposited: N${runNPK.n.toFixed(1)} / P${runNPK.p.toFixed(1)} / K${runNPK.k.toFixed(1)} lbs` +
       (pFrac<1?` (${Math.round(pFrac*100)}% pasture time)`:'') +
@@ -3254,23 +3282,34 @@ function closeQuickFeedSheet(){
 function qfShowEventStep(active){
   const events = active || getActiveEvents();
   const listEl = document.getElementById('qf-event-list');
+  // OI-0048: location-centric picker — show location name + type badge as primary, group names secondary
   listEl.innerHTML = events.map(ev=>{
-    const g = getGroupById(ev.groupId);
-    const gColor = g?g.color:'#639922';
+    const activeGroups = evGroups(ev).filter(g=>!g.dateRemoved);
+    const groupNames = activeGroups.map(eg=>{ const grp=getGroupById(eg.groupId); return grp?grp.name:'?'; }).join(', ');
+    const locName = evDisplayName(ev);
     const days = daysBetween(ev.dateIn, todayStr());
-    const feedings = (ev.feedEntries||[]).length;
+    const allEntries = allFeedEntries(ev);
+    const isCon = ev.locationType==='confinement';
+    const locBadge = isCon
+      ? '<span class="badge bb" style="font-size:10px;">confinement</span>'
+      : ev.noPasture ? '<span class="badge ba" style="font-size:10px;">stored feed</span>'
+      : '<span class="badge bg" style="font-size:10px;">grazing</span>';
+    const locIcon = isCon?'&#x1F3DA;':'&#x1F33F;';
     return `<div style="display:flex;align-items:center;gap:12px;padding:12px;
         border:0.5px solid var(--border);border-radius:var(--radius-l);margin-bottom:8px;
-        cursor:pointer;border-left:3px solid ${gColor};"
+        cursor:pointer;"
         onclick="qfSelectEvent(${ev.id})">
       <div style="flex:1;">
-        <div style="font-size:14px;font-weight:600;">${g?g.name:'Herd'}</div>
-        <div style="font-size:12px;color:var(--text2);">${evDisplayName(ev)} · Day ${days}</div>
-        <div style="font-size:11px;color:var(--text2);">${feedings} feeding${feedings!==1?'s':''} this event</div>
+        <div style="font-size:14px;font-weight:600;">${locIcon} ${escHtml(locName)} ${locBadge}</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:2px;">${escHtml(groupNames||'No groups')} &middot; Day ${days}</div>
+        <div style="font-size:11px;color:var(--text2);">${allEntries.length} feeding${allEntries.length!==1?'s':''} this event</div>
       </div>
-      <div style="font-size:20px;color:var(--green-d);">→</div>
+      <div style="font-size:20px;color:var(--green-d);">&#x2192;</div>
     </div>`;
   }).join('');
+  // Show cancel on step 1 so user can dismiss without selecting
+  const cancelRow = document.getElementById('qf-step1-cancel');
+  if(cancelRow) cancelRow.style.display = 'block';
   document.getElementById('qf-step-event').style.display='block';
   document.getElementById('qf-step-form').style.display='none';
 }
@@ -3279,15 +3318,21 @@ function qfSelectEvent(eventId){
   qfEventId = eventId;
   const ev = S.events.find(e=>e.id===eventId);
   if(!ev) return;
-  const g = getGroupById(ev.groupId);
   const active = getActiveEvents();
+  const activeGroups = evGroups(ev).filter(g=>!g.dateRemoved);
+  const groupNames = activeGroups.map(eg=>{ const grp=getGroupById(eg.groupId); return grp?grp.name:'?'; }).join(', ');
 
-  document.getElementById('qf-form-title').textContent = (g?g.name:'Herd')+' — Log feeding';
-  document.getElementById('qf-form-subtitle').textContent = evDisplayName(ev)+' · Day '+daysBetween(ev.dateIn,todayStr());
+  // OI-0048: location-centric title matches the picker
+  document.getElementById('qf-form-title').textContent = evDisplayName(ev) + ' — Log feeding';
+  document.getElementById('qf-form-subtitle').textContent = (groupNames||'No groups') + ' · Day ' + daysBetween(ev.dateIn,todayStr());
 
   // Show change button only when multiple events exist
   const changeBtn = document.getElementById('qf-change-event-btn');
   if(changeBtn) changeBtn.style.display = active.length>1 ? 'block' : 'none';
+
+  // Hide step-1 cancel when on form step
+  const cancelRow = document.getElementById('qf-step1-cancel');
+  if(cancelRow) cancelRow.style.display = 'none';
 
   // Default date = today, time = now
   const now = new Date();
@@ -3732,6 +3777,9 @@ function wizCloseEvent(){
              pFraction:Math.round(pFraction*100),subMoveHours:subHrs,totalHours:totalHrs,
              pastureAcres:_totalAcres,
              organicMatterLbs:_residOM};
+  // Per-paddock grass DMI attribution (checkpoint-driven, if checkpoints were recorded)
+  const grassDMIByPaddock = calcGrassDMIByWindow(ae, outDate, feedRes);
+  if(grassDMIByPaddock.length) ae.totals.grassDMIByPaddock = grassDMIByPaddock;
   // Snapshot current acres on paddock records for accurate per-acre calcs
   evPaddocks(ae).forEach(pad=>{
     const rec=paddockRecord(pad);
@@ -5234,19 +5282,7 @@ function renderEeGroupChips(){
     const grp = getGroupById(g.groupId);
     const dot = grp?.color||'var(--green)';
 
-    // ── Primary (index 0, committed) — locked green pill ──────────────────
-    if(i===0 && !g._isNew){
-      return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
-        <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;
-          border-radius:20px;background:var(--green-l);color:var(--green-d);
-          font-size:12px;font-weight:600;">
-          <span style="width:8px;height:8px;border-radius:50%;background:${dot};display:inline-block;flex-shrink:0;"></span>
-          ${g.groupName}
-          <span style="font-size:10px;opacity:0.65;">primary</span>
-        </span>
-      </div>`;
-    }
-
+    // All groups are peers — no primary designation
     const isMoved   = !!g.dateRemoved;
     const isPicking = g._moveAction === 'picking';
     const isExisting= g._moveAction === 'existing';
@@ -6283,7 +6319,7 @@ function updateHeader(){
 }
 
 // ─── FEEDBACK ─────────────────────────────────────────────────────────────────
-const CAT={bug:{label:'Bug',cls:'br',pillCls:'cp-bug'},ux:{label:'UX friction',cls:'ba',pillCls:'cp-ux'},feature:{label:'Missing feature',cls:'bp',pillCls:'cp-feature'},calc:{label:'Calculation',cls:'bt',pillCls:'cp-calc'},idea:{label:'Idea',cls:'bg',pillCls:'cp-idea'}};
+const CAT={roadblock:{label:'🚧 Roadblock',cls:'br',pillCls:'cp-roadblock'},bug:{label:'Bug',cls:'br',pillCls:'cp-bug'},ux:{label:'UX friction',cls:'ba',pillCls:'cp-ux'},feature:{label:'Missing feature',cls:'bp',pillCls:'cp-feature'},calc:{label:'Calculation',cls:'bt',pillCls:'cp-calc'},idea:{label:'Idea',cls:'bg',pillCls:'cp-idea'}};
 let selCatVal='';
 function openFeedbackSheet(){
   const ae=getActive();const ctx=[`Screen: ${curScreen}`];if(ae)ctx.push(`Event: ${evDisplayName(ae)} day ${daysBetween(ae.dateIn,todayStr())}`);
@@ -6338,7 +6374,7 @@ function renderFeedbackList(){
   const el=document.getElementById('fb-list');const filter=document.getElementById('fb-filter').value;
   let items=[...S.feedback].reverse();
   if(['open','resolved','closed'].includes(filter))items=items.filter(f=>f.status===filter);
-  else if(['bug','ux','feature','calc','idea'].includes(filter))items=items.filter(f=>f.cat===filter);
+  else if(['roadblock','bug','ux','feature','calc','idea'].includes(filter))items=items.filter(f=>f.cat===filter);
   if(!items.length){el.innerHTML='<div class="empty">No feedback in this filter</div>';return;}
   el.innerHTML=items.map(f=>{const cfg=CAT[f.cat]||CAT.idea;const d=new Date(f.ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});
     const sb=f.status==='open'?'<span class="badge ba">open</span>':f.status==='resolved'?'<span class="badge bt">awaiting</span>':'<span class="badge bb">closed</span>';
@@ -6358,12 +6394,12 @@ function generateBrief(){
   const now=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
   const testers=[...new Set(S.feedback.map(f=>f.tester).filter(t=>t&&t!=='anonymous'))];
   const open=S.feedback.filter(f=>f.status==='open');const resolved=S.feedback.filter(f=>f.status==='resolved');const closed=S.feedback.filter(f=>f.status==='closed');
-  const catOrder=['bug','calc','ux','feature','idea'];
+  const catOrder=['roadblock','bug','calc','ux','feature','idea'];
   let b=`GET THE HAY OUT — DEV SESSION BRIEF\nGenerated: ${now}\nVersion: ${S.version||'b20260322.0936'}\nTesters: ${testers.length?testers.join(', '):'anonymous'}\nOpen: ${open.length} · Awaiting: ${resolved.length} · Closed: ${closed.length}\n${'═'.repeat(52)}\n`;
-  if(open.length){b+=`\nOPEN ITEMS (${open.length})\n${'─'.repeat(52)}\n`;catOrder.forEach(cat=>{const items=open.filter(f=>f.cat===cat);if(!items.length)return;b+=`\n[${(CAT[cat]||CAT.idea).label.toUpperCase()}]\n`;items.forEach((f,i)=>{const d=new Date(f.ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});const ctx=f.ctx.activeEvent?`screen:${f.ctx.screen} event:${f.ctx.activeEvent.pasture} day${f.ctx.activeEvent.day}`:`screen:${f.ctx.screen}`;b+=`${i+1}. ${f.note}\n   [${ctx}] — ${f.tester}, ${f.version||'?'}, ${d}${f.linkedTo?' ⚠ regression':''}\n`;});});}
+  if(open.length){b+=`\nOPEN ITEMS (${open.length})\n${'─'.repeat(52)}\n`;catOrder.forEach(cat=>{const items=open.filter(f=>f.cat===cat);if(!items.length)return;const catLabel=(CAT[cat]||CAT.idea).label.toUpperCase();const isRoadblock=cat==='roadblock';b+=`\n[${catLabel}]${isRoadblock?' ← HIGH PRIORITY — FIX BEFORE ANYTHING ELSE':''}\n`;items.forEach((f,i)=>{const d=new Date(f.ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});const ctx=f.ctx.activeEvent?`screen:${f.ctx.screen} event:${f.ctx.activeEvent.pasture} day${f.ctx.activeEvent.day}`:`screen:${f.ctx.screen}`;b+=`${i+1}. ${isRoadblock?'🚧 ':''}${f.note}\n   [${ctx}] — ${f.tester}, ${f.version||'?'}, ${d}${f.linkedTo?' ⚠ regression':''}\n`;});});}
   if(resolved.length){b+=`\n${'═'.repeat(52)}\nAWAITING CONFIRMATION (${resolved.length})\n${'─'.repeat(52)}\n`;resolved.forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fix in ${f.resolvedInVersion}: ${f.resolutionNote}\n`;});}
   if(closed.length){b+=`\n${'═'.repeat(52)}\nCLOSED (last 10)\n${'─'.repeat(52)}\n`;closed.slice(-10).forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fixed in ${f.resolvedInVersion||'?'}: ${f.resolutionNote||'—'}. Confirmed: ${f.confirmedBy||'?'}\n`;});}
-  b+=`\n${'═'.repeat(52)}\nCONTEXT\nOperation: ${S.herd.name||'not set'}, ${S.herd.count||0} head ${S.herd.type||''}\nUsers: ${S.users.length} · Paddocks: ${S.pastures.length} · Feed types: ${S.feedTypes.length}\nEvents: ${S.events.length} total · Open todos: ${S.todos.filter(t=>t.status!=='closed').length}\nDrive: ${driveState.connected?'connected ('+driveState.userEmail+')':'not connected'}\n\nPlease review open items first (bugs then calculations then UX). Note which version testers need to load to confirm each fix.
+  b+=`\n${'═'.repeat(52)}\nCONTEXT\nOperation: ${S.herd.name||'not set'}, ${S.herd.count||0} head ${S.herd.type||''}\nUsers: ${S.users.length} · Paddocks: ${S.pastures.length} · Feed types: ${S.feedTypes.length}\nEvents: ${S.events.length} total · Open todos: ${S.todos.filter(t=>t.status!=='closed').length}\nDrive: ${driveState.connected?'connected ('+driveState.userEmail+')':'not connected'}\n\nPlease review open items first (roadblocks first, then bugs, then calculations, then UX). Note which version testers need to load to confirm each fix.
 
 App: Get The Hay Out · getthehayout.com`;
   document.getElementById('brief-text').textContent=b;document.getElementById('brief-out').style.display='block';document.getElementById('copy-btn').style.display='';
@@ -9099,14 +9135,17 @@ function pastureFraction(ev){
 // ── Open sub-move sheet ───────────────────────────────────────────────────────
 let smFeedLines = [];
 let smFeedShown = false;
+let smEditingId = null; // null = add mode; string = editing existing sub-move by id
 
 function openSubMoveSheet(eventId){
   const ev = S.events.find(e=>e.id===eventId);
   if(!ev){alert('Event not found');return;}
   document.getElementById('sm-event-id').value = eventId;
-  const g = getGroupById(ev.groupId);
+  // OI-0052: use evGroups() for label — ev.groupId is legacy and wrong for multi-group events
+  const activeGrps = evGroups(ev).filter(g=>!g.dateRemoved);
+  const grpNamesLabel = activeGrps.map(eg=>{ const grp=getGroupById(eg.groupId); return grp?grp.name:'?'; }).join(', ');
   document.getElementById('sm-event-label').textContent =
-    (g?g.name:'Herd') + ' on ' + ev.pasture + ' — Day ' + daysBetween(ev.dateIn, todayStr());
+    (grpNamesLabel||'Herd') + ' on ' + evDisplayName(ev) + ' — Day ' + daysBetween(ev.dateIn, todayStr());
   document.getElementById('sm-date').value = todayStr();
   document.getElementById('sm-time').value = '';
   const _smto=document.getElementById('sm-time-out');if(_smto)_smto.value='';
@@ -9115,11 +9154,15 @@ function openSubMoveSheet(eventId){
   document.getElementById('sm-notes').value = '';
   smFeedLines = [];
   smFeedShown = false;
+  smEditingId = null;
   document.getElementById('sm-feed-wrap').style.display = 'none';
   document.getElementById('sm-npk-preview').style.display = 'none';
   document.getElementById('sm-quickadd-wrap').style.display = 'none';
   document.getElementById('sm-loc-capture').value = 'no';
   document.getElementById('sm-loc-capfields').style.display = 'none';
+  const _smNp = document.getElementById('sm-no-pasture'); if(_smNp) _smNp.checked = false;
+  document.getElementById('sm-no-pasture-row').style.display = 'none';
+  const _smSaveBtn = document.getElementById('sm-save-btn'); if(_smSaveBtn) _smSaveBtn.textContent = 'Record sub-move';
   // New height / recovery fields
   document.getElementById('sm-height-in').value = '';
   document.getElementById('sm-height-out').value = '';
@@ -9133,8 +9176,11 @@ function openSubMoveSheet(eventId){
   document.getElementById('sm-moveback-section').style.display = 'none';
   document.getElementById('sm-feed-res-row').style.display = 'none';
 
-  // Populate location dropdown: all locations except the current paddock
-  const locs = S.pastures.filter(p=>p.name!==ev.pasture);
+  // OI-0052: exclude ALL paddocks currently part of this event, not just ev.pasture
+  // ev.pasture is the legacy single-paddock field; multi-paddock events use ev.paddocks[]
+  const eventPaddockNames = new Set(evPaddocks(ev).map(p=>p.pastureName).filter(Boolean));
+  if(ev.pasture) eventPaddockNames.add(ev.pasture); // belt-and-suspenders for legacy records
+  const locs = S.pastures.filter(p=>!p.archived && !eventPaddockNames.has(p.name));
   document.getElementById('sm-location').innerHTML =
     '<option value="">— select location —</option>' +
     locs.map(p=>{
@@ -9163,11 +9209,19 @@ function updateSmHeightRecoveryVisibility(){
   if(!val || val==='__new__'){
     document.getElementById('sm-height-section').style.display = 'none';
     document.getElementById('sm-moveback-section').style.display = 'none';
+    const _npRow = document.getElementById('sm-no-pasture-row'); if(_npRow) _npRow.style.display = 'none';
     return;
   }
   const loc = S.pastures.find(p=>p.name===val);
   const isCon = loc ? loc.locationType==='confinement' : false;
-  const showGrazing = !isCon;
+  // Show noPasture toggle for non-confinement locations; auto-hide for confinement
+  const npRow = document.getElementById('sm-no-pasture-row');
+  if(npRow) npRow.style.display = isCon ? 'none' : 'block';
+  // If confinement, clear the noPasture checkbox (not relevant); if non-con, read it
+  const npChk = document.getElementById('sm-no-pasture');
+  if(isCon && npChk) npChk.checked = false;
+  const isNoPasture = !isCon && (npChk?.checked || false);
+  const showGrazing = !isCon && !isNoPasture;
   document.getElementById('sm-height-section').style.display = showGrazing ? 'block' : 'none';
   document.getElementById('sm-moveback-section').style.display = showGrazing ? 'block' : 'none';
   // Pre-fill recovery defaults from location or global settings
@@ -9368,6 +9422,7 @@ function renderSmExistingList(ev){
     const closeBtn = isActive
       ? `<button class="btn btn-teal btn-xs" onclick="event.stopPropagation();openSmCloseForm('${sm.id}')">Record return</button>`
       : '';
+    const editBtn = `<button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openSmEditForm('${sm.id}')" title="Edit sub-move">Edit</button>`;
     const delBtn = `<button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;padding:0 2px;" onclick="event.stopPropagation();deleteSubMove(${ev.id},'${sm.id}')" title="Remove sub-move">×</button>`;
     return `<div style="padding:6px 0;border-bottom:0.5px solid var(--border);">
       <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -9375,7 +9430,7 @@ function renderSmExistingList(ev){
           <span style="font-size:13px;font-weight:600;">⇢ ${escHtml(sm.locationName)}</span> ${statusBadge}
           <div style="font-size:11px;color:var(--text2);margin-top:2px;">${timeDetail}</div>
         </div>
-        <div style="display:flex;gap:4px;align-items:center;flex-shrink:0;">${closeBtn}${delBtn}</div>
+        <div style="display:flex;gap:4px;align-items:center;flex-shrink:0;">${closeBtn}${editBtn}${delBtn}</div>
       </div>
     </div>`;
   }).join('');
@@ -9398,6 +9453,22 @@ function openSmCloseForm(smId){
   document.getElementById('sm-close-grazing-fields').style.display = isCon?'none':'block';
   document.getElementById('sm-close-rec-min').value  = sm.recoveryMinDays||S.settings.recoveryMinDays||'';
   document.getElementById('sm-close-rec-max').value  = sm.recoveryMaxDays||S.settings.recoveryMaxDays||'';
+  // Show bale-feed checkpoint slider when: sub-move is grazing, parent event has feed entries
+  const evId2 = parseInt(document.getElementById('sm-event-id').value);
+  const ev2 = S.events.find(e=>e.id===evId2);
+  const hasBaleFeed = ev2 && (ev2.feedEntries||[]).length > 0;
+  const smIsGrazing = !sm.noPasture;
+  const cpRow = document.getElementById('sm-close-checkpoint-row');
+  if(cpRow){
+    cpRow.style.display = (!isCon && hasBaleFeed && smIsGrazing) ? 'block' : 'none';
+    const cpSlider = document.getElementById('sm-close-checkpoint');
+    const cpPct    = document.getElementById('sm-close-checkpoint-pct');
+    if(cpSlider){
+      const existing = sm.parentFeedCheckpointPct != null ? sm.parentFeedCheckpointPct : 100;
+      cpSlider.value = existing;
+      if(cpPct) cpPct.textContent = existing + '%';
+    }
+  }
   document.getElementById('sm-close-wrap').style.display = 'block';
   document.getElementById('sm-close-wrap').scrollIntoView({behavior:'smooth',block:'nearest'});
 }
@@ -9445,6 +9516,12 @@ function saveSmClose(){
   if(heightOut!==null) sm.heightOut = heightOut;
   if(recMin)    sm.recoveryMinDays = recMin;
   if(recMax)    sm.recoveryMaxDays = recMax;
+  // Save bale-feed checkpoint for grass DMI attribution
+  const cpRow = document.getElementById('sm-close-checkpoint-row');
+  const cpSlider = document.getElementById('sm-close-checkpoint');
+  if(cpRow && cpRow.style.display !== 'none' && cpSlider){
+    sm.parentFeedCheckpointPct = parseInt(cpSlider.value);
+  }
   // Stamp recovery on the location record for getExpectedGrazeDates()
   const loc = S.pastures.find(p=>p.name===sm.locationName);
   if(loc&&loc.locationType!=='confinement'){
@@ -9517,6 +9594,91 @@ function saveSmQuickLocation(){
   alert(name + ' added and selected.');
 }
 
+// ── Edit existing sub-move ────────────────────────────────────────────────────
+function openSmEditForm(smId){
+  const evId = parseInt(document.getElementById('sm-event-id').value);
+  const ev   = S.events.find(e=>e.id===evId);
+  if(!ev) return;
+  const sm   = (ev.subMoves||[]).find(s=>String(s.id)===String(smId));
+  if(!sm) return;
+  smEditingId = String(smId);
+  // Dates / time / duration
+  document.getElementById('sm-date').value  = sm.date||'';
+  const _sti = document.getElementById('sm-time'); if(_sti) _sti.value = sm.time||'';
+  const _sto = document.getElementById('sm-time-out'); if(_sto) _sto.value = sm.timeOut||'';
+  document.getElementById('sm-hours').value = sm.durationHours||'';
+  document.getElementById('sm-notes').value = sm.notes||'';
+  // Rebuild location dropdown (same logic as openSubMoveSheet) and select current location
+  const eventPaddockNames = new Set(evPaddocks(ev).map(p=>p.pastureName).filter(Boolean));
+  if(ev.pasture) eventPaddockNames.add(ev.pasture);
+  const locs = S.pastures.filter(p=>!p.archived && !eventPaddockNames.has(p.name));
+  document.getElementById('sm-location').innerHTML =
+    '<option value="">— select location —</option>' +
+    locs.map(p=>{
+      const isCon = p.locationType==='confinement';
+      return `<option value="${p.name}"${p.name===sm.locationName?' selected':''}>${p.name}${isCon?' [confinement]':''}</option>`;
+    }).join('') +
+    '<option value="__new__">+ Add new location…</option>';
+  // noPasture checkbox
+  const npChk = document.getElementById('sm-no-pasture');
+  if(npChk) npChk.checked = sm.noPasture||false;
+  updateSmHeightRecoveryVisibility();
+  // Grazing / recovery fields
+  const _hi = document.getElementById('sm-height-in');    if(_hi) _hi.value = sm.heightIn||'';
+  const _ho = document.getElementById('sm-height-out');   if(_ho) _ho.value = sm.heightOut||'';
+  const _fr = document.getElementById('sm-feed-res');     if(_fr){ _fr.value=sm.feedResidual||0; }
+  const _rp = document.getElementById('sm-res-pct');      if(_rp) _rp.textContent=(sm.feedResidual||0)+'%';
+  const _rn = document.getElementById('sm-rec-min');      if(_rn) _rn.value=sm.recoveryMinDays||'';
+  const _rx = document.getElementById('sm-rec-max');      if(_rx) _rx.value=sm.recoveryMaxDays||'';
+  updateSmRecoveryPreview();
+  // Reconstruct feed lines from stored feed entries
+  smFeedLines = [];
+  smFeedShown = false;
+  if(sm.feedEntries && sm.feedEntries.length){
+    sm.feedEntries.forEach(entry=>{
+      (entry.lines||[]).forEach(line=>{
+        const ex = smFeedLines.find(l=>l.batchId===line.batchId);
+        if(ex) ex.qty+=line.qty; else smFeedLines.push({batchId:line.batchId, qty:line.qty});
+      });
+    });
+    if(smFeedLines.length){
+      smFeedShown=true;
+      document.getElementById('sm-feed-wrap').style.display='block';
+      const _frr=document.getElementById('sm-feed-res-row'); if(_frr) _frr.style.display='block';
+      renderSmBatches();
+    }
+  }
+  // Swap button labels to edit mode
+  const saveBtn = document.getElementById('sm-save-btn');
+  if(saveBtn) saveBtn.textContent = 'Save changes';
+  const cancelEditBtn = document.getElementById('sm-edit-cancel-btn');
+  if(cancelEditBtn) cancelEditBtn.style.display = 'inline-block';
+  document.getElementById('sm-add-divider')?.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function resetSmForm(){
+  smEditingId = null;
+  smFeedLines = [];
+  smFeedShown = false;
+  document.getElementById('sm-date').value    = todayStr();
+  const _sti=document.getElementById('sm-time');    if(_sti)  _sti.value='';
+  const _sto=document.getElementById('sm-time-out');if(_sto)  _sto.value='';
+  document.getElementById('sm-hours').value   = '';
+  document.getElementById('sm-notes').value   = '';
+  document.getElementById('sm-location').value = '';
+  document.getElementById('sm-feed-wrap').style.display    = 'none';
+  document.getElementById('sm-npk-preview').style.display  = 'none';
+  document.getElementById('sm-quickadd-wrap').style.display = 'none';
+  document.getElementById('sm-height-section').style.display   = 'none';
+  document.getElementById('sm-moveback-section').style.display  = 'none';
+  const _npRow = document.getElementById('sm-no-pasture-row'); if(_npRow) _npRow.style.display='none';
+  const _npChk = document.getElementById('sm-no-pasture');     if(_npChk) _npChk.checked=false;
+  const saveBtn = document.getElementById('sm-save-btn');
+  if(saveBtn) saveBtn.textContent = 'Record sub-move';
+  const cancelEditBtn = document.getElementById('sm-edit-cancel-btn');
+  if(cancelEditBtn) cancelEditBtn.style.display = 'none';
+}
+
 // Save sub-move
 function saveSubMove(){
   const evId = parseInt(document.getElementById('sm-event-id').value);
@@ -9529,6 +9691,9 @@ function saveSubMove(){
   // Determine if sub-location is a grazing location (non-confinement)
   const loc = S.pastures.find(p=>p.name===locName);
   const isCon = loc ? loc.locationType==='confinement' : false;
+  // Read independent noPasture flag (only meaningful for non-confinement locations)
+  const noPastureChk = document.getElementById('sm-no-pasture');
+  const smNoPasture = isCon ? true : (noPastureChk?.checked || false);
 
   // Build feed entries for this sub-move
   const feedEntries = [];
@@ -9536,15 +9701,43 @@ function saveSubMove(){
     feedEntries.push({id:Date.now(),date:document.getElementById('sm-date').value,lines:[...smFeedLines]});
   }
 
-  // Read grazing height / recovery fields (pasture locations only)
-  const heightIn  = !isCon ? (parseFloat(document.getElementById('sm-height-in')?.value)||null) : null;
-  const heightOut = !isCon ? (parseFloat(document.getElementById('sm-height-out')?.value)||null) : null;
-  const feedResidual = (!isCon && feedEntries.length)
+  // Read grazing height / recovery fields (pasture grazing locations only)
+  const isGrazing = !isCon && !smNoPasture;
+  const heightIn  = isGrazing ? (parseFloat(document.getElementById('sm-height-in')?.value)||null) : null;
+  const heightOut = isGrazing ? (parseFloat(document.getElementById('sm-height-out')?.value)||null) : null;
+  const feedResidual = (isGrazing && feedEntries.length)
     ? (parseInt(document.getElementById('sm-feed-res')?.value)||0)
     : 0;
-  const recoveryMinDays = !isCon ? (parseInt(document.getElementById('sm-rec-min')?.value)||null) : null;
-  const recoveryMaxDays = !isCon ? (parseInt(document.getElementById('sm-rec-max')?.value)||null) : null;
+  const recoveryMinDays = isGrazing ? (parseInt(document.getElementById('sm-rec-min')?.value)||null) : null;
+  const recoveryMaxDays = isGrazing ? (parseInt(document.getElementById('sm-rec-max')?.value)||null) : null;
 
+  if(smEditingId !== null){
+    // ── Edit mode: update existing sub-move in place ──────────────────────────
+    const existing = (ev.subMoves||[]).find(s=>String(s.id)===smEditingId);
+    if(!existing){alert('Sub-move not found for editing');return;}
+    existing.date          = document.getElementById('sm-date').value;
+    existing.time          = document.getElementById('sm-time')?.value||null;
+    existing.timeOut       = document.getElementById('sm-time-out')?.value||null;
+    existing.durationHours = hrs;
+    existing.locationName  = locName;
+    existing.noPasture     = smNoPasture;
+    existing.feedEntries   = feedEntries;
+    existing.feedResidual  = feedResidual;
+    existing.heightIn      = heightIn;
+    existing.heightOut     = heightOut;
+    existing.recoveryMinDays = recoveryMinDays;
+    existing.recoveryMaxDays = recoveryMaxDays;
+    existing.notes         = document.getElementById('sm-notes').value.trim();
+    ev.updatedAt=new Date().toISOString();
+    save();
+    resetSmForm();
+    renderSmExistingList(ev);
+    renderHome();
+    alert(`Sub-move updated: ${locName}.`);
+    return;
+  }
+
+  // ── Add mode: create new sub-move ────────────────────────────────────────
   const sm = {
     id: Date.now()+1,
     date: document.getElementById('sm-date').value,
@@ -9552,6 +9745,7 @@ function saveSubMove(){
     timeOut: document.getElementById('sm-time-out')?.value||null,
     durationHours: hrs,
     locationName: locName,
+    noPasture: smNoPasture,
     feedEntries,
     feedResidual,
     heightIn,
@@ -9563,7 +9757,7 @@ function saveSubMove(){
 
   // If sub-location is a pasture and recovery was set, stamp those values on the
   // location record so getExpectedGrazeDates() picks them up via lastGrazingRecordForPasture()
-  if(!isCon && loc && (recoveryMinDays || recoveryMaxDays)){
+  if(isGrazing && loc && (recoveryMinDays || recoveryMaxDays)){
     if(recoveryMinDays) loc.recoveryMinDays = recoveryMinDays;
     if(recoveryMaxDays) loc.recoveryMaxDays = recoveryMaxDays;
   }
@@ -9577,7 +9771,7 @@ function saveSubMove(){
   // Show summary
   const pctOnPasture = Math.round(pastureFraction(ev)*100);
   const _hrLabel = hrs>0?`${hrs}h at `:'at ';
-  const _recNote = (!isCon && recoveryMinDays) ? `\nRecovery window: ${recoveryMinDays}${recoveryMaxDays?'–'+recoveryMaxDays:''}d` : '';
+  const _recNote = (isGrazing && recoveryMinDays) ? `\nRecovery window: ${recoveryMinDays}${recoveryMaxDays?'–'+recoveryMaxDays:''}d` : '';
   const _pctNote = hrs>0 ? '\nPasture time this event: '+pctOnPasture+'% of total hours.' : '';
   alert(`Sub-move recorded: ${_hrLabel}${locName}.${_pctNote}${_recNote}`)
 }
@@ -9616,22 +9810,166 @@ function calcEventTotalsWithSubMoves(ae, outDate, feedRes){
   const g = getGroupById(ae.groupId);
   const t = g ? getGroupTotals(g) : null;
   const dmiTarget = t ? t.dmiTarget : (head*wt*0.025);
-  const pdmi = ae.noPasture ? 0 : (dmiTarget ? Math.max(0, dmiTarget*days - sdmi) : null);
-  const pct  = ae.noPasture ? 0 : (dmiTarget&&dmiTarget*days>0 ? Math.round((pdmi/(dmiTarget*days))*100) : null);
+  // A bale-grazing event (noPasture=true) unlocks pasture inference if any sub-move is grazing
+  const hasGrazingSubMoves = (ae.subMoves||[]).some(sm=>!sm.noPasture);
+  const effectivelyNoPasture = ae.noPasture && !hasGrazingSubMoves;
+  const pdmi = effectivelyNoPasture ? 0 : (dmiTarget ? Math.max(0, dmiTarget*days - sdmi) : null);
+  const pct  = effectivelyNoPasture ? 0 : (dmiTarget&&dmiTarget*days>0 ? Math.round((pdmi/(dmiTarget*days))*100) : null);
 
-  // Sub-move NPK allocations (for crediting to those locations on close)
-  const subMoveNPK = totalHrs>0 ? (ae.subMoves||[]).map(sm=>({
-    locationName: sm.locationName,
-    n: totalNPK.n*(sm.durationHours/totalHrs),
-    p: totalNPK.p*(sm.durationHours/totalHrs),
-    k: totalNPK.k*(sm.durationHours/totalHrs),
-    durationHours: sm.durationHours
-  })) : [];
+  // Sub-move NPK: acres-weighted attribution (replaces time-fraction approach)
+  const subMoveNPK = calcSubMoveNPKByAcres(ae, outDate);
 
   return {days, sdmi, cost, npk, npkVal, pdmi, pct, pFraction, subHrs, totalHrs, subMoveNPK};
 }
 
 // ─── END SUB-MOVE SYSTEM ──────────────────────────────────────────────────────
+
+// ─── PER-PADDOCK ATTRIBUTION ENGINE ──────────────────────────────────────────
+
+// Helper: total feed DMI put out from a set of entries, counting only entries on or before cutoffDate
+function feedDMIPutOutToDate(entries, cutoffDate){
+  return (entries||[])
+    .filter(e => !cutoffDate || e.date <= cutoffDate)
+    .reduce((sum, entry) => sum + (entry.lines||[]).reduce((s, line) => {
+      const b = S.batches.find(x=>x.id===line.batchId);
+      if(!b||!line.qty) return s;
+      const af = b.wt ? line.qty*b.wt : line.qty;
+      return s + af*((b.dm||100)/100);
+    }, 0), 0);
+}
+
+// Grass DMI attribution by checkpoint window.
+// For each window between sub-move closes (that have a parentFeedCheckpointPct recorded),
+// uses mass-balance to infer how much grass DMI occurred and credits it to the paddock that just closed.
+// Falls back to whole-event balance credited to primary paddock if no checkpoints exist.
+// Returns [{locationName, grassDMI}]
+function calcGrassDMIByWindow(ae, outDate, feedRes){
+  const totalDays = daysBetween(ae.dateIn, outDate);
+  if(totalDays <= 0) return [];
+  const grp = getGroupById(ae.groupId);
+  const t = grp ? getGroupTotals(grp) : null;
+  const head = ae.head||0, wt = ae.wt||0;
+  const dmiPerDay = t ? t.dmiTarget : (head*wt*0.025);
+  const primaryPaddock = evPaddocks(ae)[0]?.pastureName || ae.pasture || '';
+
+  // Grazing sub-moves with checkpoint data
+  const cpSMs = (ae.subMoves||[])
+    .filter(sm => sm.dateOut && sm.parentFeedCheckpointPct != null && !sm.noPasture)
+    .sort((a,b) => a.dateOut < b.dateOut ? -1 : 1);
+
+  const result = {};
+
+  if(!cpSMs.length){
+    // No checkpoints — event-level mass balance, primary paddock gets all grass credit
+    const hasGrazingSubMoves = (ae.subMoves||[]).some(sm=>!sm.noPasture);
+    const effectivelyNoPasture = ae.noPasture && !hasGrazingSubMoves;
+    if(effectivelyNoPasture) return [];
+    const subDMI = (ae.subMoves||[]).reduce((s,sm)=>s+calcConsumedDMI(sm.feedEntries||[],sm.feedResidual||0),0);
+    const mainDMI = calcConsumedDMI(ae.feedEntries||[], feedRes||0);
+    const grassDMI = Math.max(0, dmiPerDay*totalDays - mainDMI - subDMI);
+    if(primaryPaddock) result[primaryPaddock] = grassDMI;
+    return Object.entries(result).map(([locationName, grassDMI])=>({locationName, grassDMI}));
+  }
+
+  // Build ordered checkpoints: sub-move closes + final event close
+  const allCPs = [
+    ...cpSMs.map(sm=>({date:sm.dateOut, locationName:sm.locationName, pct:sm.parentFeedCheckpointPct})),
+    {date:outDate, locationName:primaryPaddock, pct:feedRes||0}
+  ].sort((a,b) => a.date < b.date ? -1 : 1);
+
+  let prevDate = ae.dateIn;
+  let prevBaleConsumed = 0;
+
+  allCPs.forEach(cp=>{
+    const daysWindow = daysBetween(prevDate, cp.date);
+    if(daysWindow <= 0){ prevDate = cp.date; return; }
+
+    // Feed DMI put out across main + sub-moves up to this checkpoint date
+    const feedOutToDate = feedDMIPutOutToDate(ae.feedEntries, cp.date) +
+      (ae.subMoves||[]).reduce((s,sm)=>s+feedDMIPutOutToDate(sm.feedEntries||[],cp.date),0);
+    const baleConsumedCumulative = feedOutToDate * (1 - cp.pct/100);
+    const baleDMIWindow = Math.max(0, baleConsumedCumulative - prevBaleConsumed);
+    const grassDMIWindow = Math.max(0, dmiPerDay*daysWindow - baleDMIWindow);
+
+    if(cp.locationName){
+      result[cp.locationName] = (result[cp.locationName]||0) + grassDMIWindow;
+    }
+    prevBaleConsumed = baleConsumedCumulative;
+    prevDate = cp.date;
+  });
+
+  return Object.entries(result).map(([locationName, grassDMI])=>({locationName, grassDMI}));
+}
+
+// Sub-move NPK attribution — acres-weighted, time-windowed.
+// For each interval where sub-moves are active alongside the primary paddock, NPK is split
+// by acres (larger paddocks receive proportionally more deposition).
+// Returns [{locationName, n, p, k, durationHours}] for sub-move locations only.
+// Primary paddock NPK is handled by the existing wizCloseEvent paddockNPK logic.
+function calcSubMoveNPKByAcres(ae, outDate){
+  const totalDays = daysBetween(ae.dateIn, outDate);
+  const head = ae.head||0, wt = ae.wt||0;
+  if(!head||!wt||totalDays<=0) return [];
+  const totalNPK = calcNPK(head, wt, totalDays);
+  const primaryPaddock = evPaddocks(ae)[0]?.pastureName || ae.pasture || '';
+
+  // Build breakpoints from sub-move open/close dates
+  const allDates = new Set([ae.dateIn, outDate]);
+  (ae.subMoves||[]).forEach(sm=>{
+    if(sm.date) allDates.add(sm.date);
+    if(sm.dateOut) allDates.add(sm.dateOut);
+  });
+  const sortedDates = [...allDates].sort();
+
+  const subMoveAccum = {}; // locationName → {n, p, k, durationHours}
+
+  for(let i=0; i<sortedDates.length-1; i++){
+    const wStart = sortedDates[i];
+    const wEnd   = sortedDates[i+1];
+    const daysW  = daysBetween(wStart, wEnd);
+    if(daysW <= 0) continue;
+
+    // Sub-moves active for the full window interval
+    const activeSMs = (ae.subMoves||[]).filter(sm=>{
+      if(!sm.date) return false;
+      const smClose = sm.dateOut || outDate;
+      return sm.date <= wStart && smClose >= wEnd;
+    });
+    if(!activeSMs.length) continue; // no sub-moves active — all NPK stays with primary paddock
+
+    const wNPK = {
+      n: totalNPK.n*(daysW/totalDays),
+      p: totalNPK.p*(daysW/totalDays),
+      k: totalNPK.k*(daysW/totalDays)
+    };
+
+    // All paddocks active during this window: primary + sub-move locations
+    const primaryLoc = S.pastures.find(p=>p.name===primaryPaddock);
+    const activePads = [
+      {name:primaryPaddock, acres:primaryLoc?.acres||0, isSubMove:false}
+    ];
+    activeSMs.forEach(sm=>{
+      const loc = S.pastures.find(p=>p.name===sm.locationName);
+      activePads.push({name:sm.locationName, acres:loc?.acres||0, isSubMove:true});
+    });
+
+    const totalAcres = activePads.reduce((s,p)=>s+p.acres,0);
+    const equalShare = 1/activePads.length;
+
+    activePads.filter(p=>p.isSubMove).forEach(pad=>{
+      const share = totalAcres>0 ? pad.acres/totalAcres : equalShare;
+      if(!subMoveAccum[pad.name]) subMoveAccum[pad.name]={n:0,p:0,k:0,durationHours:0};
+      subMoveAccum[pad.name].n += wNPK.n*share;
+      subMoveAccum[pad.name].p += wNPK.p*share;
+      subMoveAccum[pad.name].k += wNPK.k*share;
+      subMoveAccum[pad.name].durationHours += daysW*24;
+    });
+  }
+
+  return Object.entries(subMoveAccum).map(([locationName,v])=>({locationName,...v}));
+}
+
+// ─── END PER-PADDOCK ATTRIBUTION ENGINE ──────────────────────────────────────
 
 
 // ─── INPUT PRODUCTS & APPLICATIONS ───────────────────────────────────────────
@@ -10678,6 +11016,14 @@ function updateEventEditPreview(ev){
 
 function closeEventEdit(){document.getElementById('event-edit-wrap').classList.remove('open');}
 
+// Bridge: open sub-move sheet from within Event Edit (works on both open and closed events)
+function openSubMoveSheetFromEdit(){
+  const evId = parseInt(document.getElementById('ee-id').value);
+  if(!evId) return;
+  closeEventEdit();
+  openSubMoveSheet(evId);
+}
+
 function saveEventEdit(){
   const id=parseInt(document.getElementById('ee-id').value);
   const ev=S.events.find(e=>e.id===id);if(!ev)return;
@@ -10728,6 +11074,14 @@ function saveEventEdit(){
     recalcEventTotals(ev);
   }
   applyEeGroupMoveActions(); // attach moved groups to destinations / launch wizard
+  // Last-group-out rule: if no active groups remain, close the event
+  const _remainingGroups = (ev.groups||[]).filter(g=>!g.dateRemoved);
+  if(ev.status==='open' && _remainingGroups.length===0){
+    ev.status='closed';
+    ev.dateOut=ev.dateOut||todayStr();
+    ev.feedResidual=ev.feedResidual||0;
+    recalcEventTotals(ev);
+  }
   ev.updatedAt=new Date().toISOString();
   save();closeEventEdit();
   renderEventsLog();renderHome();
@@ -12112,9 +12466,9 @@ function renderRotationCalendar(containerId){
   function eventAUDs(ev){
     if(ev.noPasture) return 0;
     const days = daysBetween(ev.dateIn, ev.dateOut||todayStr());
-    // Prefer stamped head/wt; fall back to live group totals for open events
+    // Prefer stamped head/wt; fall back to group totals when missing (open OR closed multi-group events)
     let head = ev.head||0, wt = ev.wt||0;
-    if((!head || !wt) && ev.status==='open'){
+    if(!head || !wt){
       const grpIds = evGroups(ev).map(g=>g.groupId).filter(Boolean);
       grpIds.forEach(gId=>{
         const g = getGroupById(gId);
@@ -13324,6 +13678,19 @@ applyFieldMode(); // field-mode URL param + user preference — runs after detec
               <input type="number" id="sm-close-rec-max" min="1" max="365" step="1" placeholder="60"/></div>
           </div>
         </div>
+        <!-- Bale feed checkpoint — shown when parent event has bale feed entries and this sub-move is grazing -->
+        <div id="sm-close-checkpoint-row" style="display:none;">
+          <div class="div" style="margin-top:8px;"></div>
+          <div class="sec" style="margin-bottom:4px;">Bale feed remaining right now (%)</div>
+          <div style="font-size:11px;color:var(--text2);margin-bottom:8px;line-height:1.5;">
+            Checkpoint for inferring grass DMI from this paddock. Lower % = more bales consumed = less inferred from grass.
+          </div>
+          <div class="slider-row">
+            <input type="range" id="sm-close-checkpoint" min="0" max="100" step="5" value="100"
+              oninput="document.getElementById('sm-close-checkpoint-pct').textContent=this.value+'%'"/>
+            <span class="slider-out" id="sm-close-checkpoint-pct">100%</span>
+          </div>
+        </div>
         <div class="btn-row" style="margin-top:10px;">
           <button class="btn btn-teal btn-sm" onclick="saveSmClose()">Record return</button>
           <button class="btn btn-outline btn-sm" onclick="cancelSmClose()">Cancel</button>
@@ -13354,6 +13721,16 @@ applyFieldMode(); // field-mode URL param + user preference — runs after detec
       <select id="sm-location" onchange="onSmLocationChange()">
         <option value="">— select location —</option>
       </select>
+    </div>
+    <!-- 100% stored feed toggle — shown for non-confinement locations only -->
+    <div id="sm-no-pasture-row" style="display:none;margin-bottom:10px;">
+      <label style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;background:var(--amber-bg,rgba(251,191,36,0.08));cursor:pointer;">
+        <input type="checkbox" id="sm-no-pasture" style="width:16px;height:16px;accent-color:var(--amber);flex-shrink:0;" onchange="updateSmHeightRecoveryVisibility();calcSubMovePreview();">
+        <div>
+          <div style="font-size:13px;font-weight:500;">100% stored feed at this location</div>
+          <div style="font-size:11px;color:var(--text2);">Bale grazing only — no grass intake inferred from this paddock</div>
+        </div>
+      </label>
     </div>
     <!-- Quick-add new location inline -->
     <div id="sm-quickadd-wrap" style="display:none;">
@@ -13456,7 +13833,8 @@ applyFieldMode(); // field-mode URL param + user preference — runs after detec
       <input type="text" id="sm-notes" placeholder="Milking, shade, supplemental feed…"/>
     </div>
     <div class="btn-row">
-      <button class="btn btn-green" onclick="saveSubMove()">Record sub-move</button>
+      <button id="sm-save-btn" class="btn btn-green" onclick="saveSubMove()">Record sub-move</button>
+      <button id="sm-edit-cancel-btn" class="btn btn-amber btn-sm" style="display:none;" onclick="resetSmForm()">Cancel edit</button>
       <button class="btn btn-outline" onclick="closeSubMoveSheet()">Cancel</button>
     </div>
   </div>
@@ -13736,8 +14114,9 @@ applyFieldMode(); // field-mode URL param + user preference — runs after detec
       <button class="btn btn-green" onclick="saveEventEdit()" style="flex:2;min-width:160px;">Save &amp; recalculate</button>
       <button class="btn btn-outline" onclick="closeEventEdit()" style="flex:1;min-width:80px;">Cancel</button>
     </div>
-    <div style="margin-top:8px;">
-      <button class="btn btn-red btn-sm" onclick="deleteEvent()" style="width:auto;padding:10px 16px;font-size:12px;">Delete event</button>
+    <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-outline btn-sm" onclick="openSubMoveSheetFromEdit()" style="flex:1;">⇢ Manage sub-moves</button>
+      <button class="btn btn-red btn-sm" onclick="deleteEvent()" style="flex:1;padding:10px 16px;font-size:12px;">Delete event</button>
     </div>
   </div>
 </div>
@@ -14263,8 +14642,11 @@ if ('serviceWorker' in navigator) {
     <!-- Step 1: Event selection (hidden when pre-selected) -->
     <div id="qf-step-event">
       <div style="font-size:16px;font-weight:600;margin-bottom:4px;">Feed animals</div>
-      <div style="font-size:12px;color:var(--text2);margin-bottom:14px;">Select which group you are feeding</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:14px;">Select which location you are feeding</div>
       <div id="qf-event-list"></div>
+      <div id="qf-step1-cancel" style="display:none;margin-top:4px;">
+        <button class="btn btn-outline" onclick="closeQuickFeedSheet()">Cancel</button>
+      </div>
     </div>
 
     <!-- Step 2: Feed entry form -->
