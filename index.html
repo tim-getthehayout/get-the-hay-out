@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260324.0054" id="app-version-meta"/>
+<meta name="app-version" content="b20260324.0235" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -2109,7 +2109,21 @@ function mergeData(local,remote){
         if(x.status==='closed'&&ex.status==='open')m[x[key]]=x;
         else if(ex.updatedAt&&x.updatedAt){
           // Both timestamped — newer wins (handles deletes)
-          if(x.updatedAt>ex.updatedAt)m[x[key]]=x;
+          if(x.updatedAt>ex.updatedAt){m[x[key]]=x;}
+          else if(x.updatedAt===ex.updatedAt){
+            // Equal timestamps — neither is definitively newer.
+            // Union-merge sub-arrays so concurrent edits on different devices
+            // don't silently drop each other's groups/paddocks/subMoves.
+            const merged=Object.assign({},ex);
+            ['groups','paddocks','subMoves'].forEach(arrKey=>{
+              const aArr=ex[arrKey]||[];
+              const bArr=x[arrKey]||[];
+              if(!bArr.length)return;
+              const seen=new Set(aArr.map(i=>i&&i.id));
+              merged[arrKey]=[...aArr,...bArr.filter(i=>i&&!seen.has(i.id))];
+            });
+            m[ex[key]]=merged;
+          }
           // else local is newer, keep ex (no assignment needed)
         } else if(ex.updatedAt&&!x.updatedAt){
           // Local has timestamp, remote doesn't — local is newer write, keep ex
@@ -3760,6 +3774,7 @@ function wizCloseEvent(){
     }
     ae.totals.pastureDMI=null;ae.totals.pct=null;
   }
+  ae.updatedAt=new Date().toISOString();
   save();
   let summaryExtra='';
   try{
@@ -5322,6 +5337,7 @@ function applyEeGroupMoveActions(){
           });
           // Keep legacy groupId pointing at first entry
           targetEv.groupId = targetEv.groups[0].groupId;
+          targetEv.updatedAt=new Date().toISOString();
           needsSave = true;
         }
       }
@@ -6801,6 +6817,7 @@ function saveAnimalEvent(){
   } else {
     a.healthEvents.push(evt);
   }
+  a.updatedAt=new Date().toISOString();
   save();
   closeAnimalEventSheet();
   
@@ -6815,6 +6832,7 @@ function deleteAnimalEvent(){
   if(!a||!editId) return;
   if(!confirm('Delete this event record?')) return;
   a.healthEvents = (a.healthEvents||[]).filter(e=>e.id!==editId);
+  a.updatedAt=new Date().toISOString();
   save(); closeAnimalEventSheet(); 
 }
 
@@ -6855,6 +6873,7 @@ function saveAnimalWeight(){
   a.weightLbs = wt;
   if(!a.weightHistory) a.weightHistory=[];
   a.weightHistory.push({date,weightLbs:wt,note:note||'Weight update'});
+  a.updatedAt=new Date().toISOString();
   save(); closeAnimalWeightSheet();  renderGroupsList();
 }
 
@@ -7166,6 +7185,7 @@ function saveSplit(){
       createdAt: new Date().toISOString(),
       _groupChange: true,
     });
+    a.updatedAt = new Date().toISOString();
   });
 
   // ── Remove split animals from source group ──────────────────────────────────
@@ -7247,6 +7267,7 @@ function saveSplit(){
         createdAt: new Date().toISOString(),
         _groupChange: true,
       });
+      a.updatedAt = new Date().toISOString();
     });
 
     // Update destination event head/wt if it has an active event (Scenario C)
@@ -7854,6 +7875,7 @@ function saveAnimalEdit(){
     const newGrp=S.animalGroups.find(g=>g.id===newGrpId);
     if(newGrp){if(!newGrp.animalIds)newGrp.animalIds=[];if(!newGrp.animalIds.includes(id))newGrp.animalIds.push(id);}
   }
+  a.updatedAt=new Date().toISOString();
   save();closeAnimalEdit();renderGroupsList();
 }
 
@@ -8980,6 +9002,7 @@ function saveCalving(){
   // Add calving record to dam
   if(!dam.calvingRecords)dam.calvingRecords=[];
   dam.calvingRecords.push({date:calvDate,calfId,sireTag,stillbirth:isStillbirth});
+  dam.updatedAt=new Date().toISOString();
   // Assign calf to same group as dam (skip if stillbirth)
   if(!isStillbirth){
     const grp=getAnimalGroup(damId);
@@ -9378,6 +9401,7 @@ function saveSmClose(){
     if(recMin) loc.recoveryMinDays = recMin;
     if(recMax) loc.recoveryMaxDays = recMax;
   }
+  ev.updatedAt=new Date().toISOString();
   save();
   cancelSmClose();
   renderSmExistingList(ev);
@@ -9390,6 +9414,7 @@ function deleteSubMove(evId, smId){
   if(!ev) return;
   if(!confirm('Remove this sub-move record?')) return;
   ev.subMoves = (ev.subMoves||[]).filter(s=>String(s.id)!==String(smId));
+  ev.updatedAt=new Date().toISOString();
   save();
   renderSmExistingList(ev);
   renderHome();
@@ -9495,6 +9520,7 @@ function saveSubMove(){
 
   if(!ev.subMoves) ev.subMoves = [];
   ev.subMoves.push(sm);
+  ev.updatedAt=new Date().toISOString();
   save();
   closeSubMoveSheet();
   renderHome();
@@ -10652,6 +10678,7 @@ function saveEventEdit(){
     recalcEventTotals(ev);
   }
   applyEeGroupMoveActions(); // attach moved groups to destinations / launch wizard
+  ev.updatedAt=new Date().toISOString();
   save();closeEventEdit();
   renderEventsLog();renderHome();
 }
@@ -11065,6 +11092,7 @@ function saveAnimalMove(){
       createdAt: new Date().toISOString(),
       _groupChange: true,  // flag for filtering if needed
     });
+    a.updatedAt = new Date().toISOString();
   }
 
   if(animalMoveMode === 'existing'){
