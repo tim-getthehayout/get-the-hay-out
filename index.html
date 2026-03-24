@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260324.1800" id="app-version-meta"/>
+<meta name="app-version" content="b20260324.1830" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -9602,35 +9602,57 @@ function openSmEditForm(smId){
   const sm   = (ev.subMoves||[]).find(s=>String(s.id)===String(smId));
   if(!sm) return;
   smEditingId = String(smId);
+
   // Dates / time / duration
   document.getElementById('sm-date').value  = sm.date||'';
   const _sti = document.getElementById('sm-time'); if(_sti) _sti.value = sm.time||'';
   const _sto = document.getElementById('sm-time-out'); if(_sto) _sto.value = sm.timeOut||'';
   document.getElementById('sm-hours').value = sm.durationHours||'';
   document.getElementById('sm-notes').value = sm.notes||'';
-  // Rebuild location dropdown (same logic as openSubMoveSheet) and select current location
+
+  // Rebuild location dropdown — exclude event's own paddocks but ALWAYS include the
+  // sub-move's current location even if it was since archived (so edit form shows correctly)
   const eventPaddockNames = new Set(evPaddocks(ev).map(p=>p.pastureName).filter(Boolean));
   if(ev.pasture) eventPaddockNames.add(ev.pasture);
-  const locs = S.pastures.filter(p=>!p.archived && !eventPaddockNames.has(p.name));
+  const locs = S.pastures.filter(p=>
+    (!p.archived && !eventPaddockNames.has(p.name)) || p.name===sm.locationName
+  );
   document.getElementById('sm-location').innerHTML =
     '<option value="">— select location —</option>' +
     locs.map(p=>{
       const isCon = p.locationType==='confinement';
-      return `<option value="${p.name}"${p.name===sm.locationName?' selected':''}>${p.name}${isCon?' [confinement]':''}</option>`;
+      const archivedNote = p.archived ? ' [archived]' : '';
+      return `<option value="${p.name}"${p.name===sm.locationName?' selected':''}>${p.name}${isCon?' [confinement]':''}${archivedNote}</option>`;
     }).join('') +
     '<option value="__new__">+ Add new location…</option>';
-  // noPasture checkbox
+
+  // ── Derive visibility directly from sm data — do NOT rely on dropdown .value read ──
+  const loc = S.pastures.find(p=>p.name===sm.locationName);
+  const isCon = loc ? loc.locationType==='confinement' : false;
+  const isNoPasture = isCon ? true : (sm.noPasture||false);
+  const showGrazing = !isCon && !isNoPasture;
+
+  // noPasture row + checkbox
+  const npRow = document.getElementById('sm-no-pasture-row');
+  if(npRow) npRow.style.display = isCon ? 'none' : 'block';
   const npChk = document.getElementById('sm-no-pasture');
-  if(npChk) npChk.checked = sm.noPasture||false;
-  updateSmHeightRecoveryVisibility();
-  // Grazing / recovery fields
+  if(npChk) npChk.checked = isNoPasture;
+
+  // Grazing sections
+  document.getElementById('sm-height-section').style.display   = showGrazing ? 'block' : 'none';
+  document.getElementById('sm-moveback-section').style.display  = showGrazing ? 'block' : 'none';
+  document.getElementById('sm-quickadd-wrap').style.display    = 'none';
+  document.getElementById('sm-npk-preview').style.display      = 'none';
+
+  // Grazing field values (populated regardless — hidden by CSS if !showGrazing)
   const _hi = document.getElementById('sm-height-in');    if(_hi) _hi.value = sm.heightIn||'';
   const _ho = document.getElementById('sm-height-out');   if(_ho) _ho.value = sm.heightOut||'';
-  const _fr = document.getElementById('sm-feed-res');     if(_fr){ _fr.value=sm.feedResidual||0; }
-  const _rp = document.getElementById('sm-res-pct');      if(_rp) _rp.textContent=(sm.feedResidual||0)+'%';
-  const _rn = document.getElementById('sm-rec-min');      if(_rn) _rn.value=sm.recoveryMinDays||'';
-  const _rx = document.getElementById('sm-rec-max');      if(_rx) _rx.value=sm.recoveryMaxDays||'';
+  const _fr = document.getElementById('sm-feed-res');     if(_fr){ _fr.value = sm.feedResidual||0; }
+  const _rp = document.getElementById('sm-res-pct');      if(_rp) _rp.textContent = (sm.feedResidual||0)+'%';
+  const _rn = document.getElementById('sm-rec-min');      if(_rn) _rn.value = sm.recoveryMinDays||'';
+  const _rx = document.getElementById('sm-rec-max');      if(_rx) _rx.value = sm.recoveryMaxDays||'';
   updateSmRecoveryPreview();
+
   // Reconstruct feed lines from stored feed entries
   smFeedLines = [];
   smFeedShown = false;
@@ -9638,22 +9660,27 @@ function openSmEditForm(smId){
     sm.feedEntries.forEach(entry=>{
       (entry.lines||[]).forEach(line=>{
         const ex = smFeedLines.find(l=>l.batchId===line.batchId);
-        if(ex) ex.qty+=line.qty; else smFeedLines.push({batchId:line.batchId, qty:line.qty});
+        if(ex) ex.qty += line.qty; else smFeedLines.push({batchId:line.batchId, qty:line.qty});
       });
     });
     if(smFeedLines.length){
-      smFeedShown=true;
-      document.getElementById('sm-feed-wrap').style.display='block';
-      const _frr=document.getElementById('sm-feed-res-row'); if(_frr) _frr.style.display='block';
+      smFeedShown = true;
+      document.getElementById('sm-feed-wrap').style.display = 'block';
+      const _frr = document.getElementById('sm-feed-res-row'); if(_frr) _frr.style.display = 'block';
       renderSmBatches();
     }
   }
+
   // Swap button labels to edit mode
   const saveBtn = document.getElementById('sm-save-btn');
   if(saveBtn) saveBtn.textContent = 'Save changes';
   const cancelEditBtn = document.getElementById('sm-edit-cancel-btn');
   if(cancelEditBtn) cancelEditBtn.style.display = 'inline-block';
-  document.getElementById('sm-add-divider')?.scrollIntoView({behavior:'smooth',block:'nearest'});
+
+  // Scroll the add form into view with a brief header label change
+  const addHeader = document.getElementById('sm-add-header');
+  if(addHeader) addHeader.textContent = 'Edit sub-move — ' + (sm.locationName||'');
+  document.getElementById('sm-add-divider')?.scrollIntoView({behavior:'smooth', block:'nearest'});
 }
 
 function resetSmForm(){
@@ -9677,6 +9704,8 @@ function resetSmForm(){
   if(saveBtn) saveBtn.textContent = 'Record sub-move';
   const cancelEditBtn = document.getElementById('sm-edit-cancel-btn');
   if(cancelEditBtn) cancelEditBtn.style.display = 'none';
+  const addHeader = document.getElementById('sm-add-header');
+  if(addHeader) addHeader.textContent = 'Add sub-move';
 }
 
 // Save sub-move
@@ -13699,7 +13728,7 @@ applyFieldMode(); // field-mode URL param + user preference — runs after detec
     </div>
 
     <div class="div" style="margin-bottom:14px;" id="sm-add-divider"></div>
-    <div style="font-size:13px;font-weight:600;margin-bottom:10px;">Add sub-move</div>
+    <div id="sm-add-header" style="font-size:13px;font-weight:600;margin-bottom:10px;">Add sub-move</div>
     <div class="two">
       <div class="field"><label>Date</label><input type="date" id="sm-date"/></div>
       <div class="field"><label>Moved in — time <span style="font-size:10px;color:var(--text2);">optional</span></label>
