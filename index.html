@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260324.0859" id="app-version-meta"/>
+<meta name="app-version" content="b20260324.0910" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -2119,8 +2119,10 @@ function mergeData(local,remote){
               const aArr=ex[arrKey]||[];
               const bArr=x[arrKey]||[];
               if(!bArr.length)return;
-              const seen=new Set(aArr.map(i=>i&&i.id));
-              merged[arrKey]=[...aArr,...bArr.filter(i=>i&&!seen.has(i.id))];
+              // Use correct identity key per array type
+              const _idOf=i=>arrKey==='groups'?i&&i.groupId:arrKey==='paddocks'?i&&i.pastureId:i&&i.id;
+              const seen=new Set(aArr.map(_idOf).filter(v=>v!=null));
+              merged[arrKey]=[...aArr,...bArr.filter(i=>i&&_idOf(i)!=null&&!seen.has(_idOf(i)))];
             });
             m[ex[key]]=merged;
           }
@@ -2138,8 +2140,10 @@ function mergeData(local,remote){
             const aArr=ex[arrKey]||[];
             const bArr=x[arrKey]||[];
             if(!bArr.length)return;
-            const seen=new Set(aArr.map(i=>i&&i.id));
-            _merged[arrKey]=[...aArr,...bArr.filter(i=>i&&!seen.has(i.id))];
+            // Use correct identity key per array type
+            const _idOf=i=>arrKey==='groups'?i&&i.groupId:arrKey==='paddocks'?i&&i.pastureId:i&&i.id;
+            const seen=new Set(aArr.map(_idOf).filter(v=>v!=null));
+            _merged[arrKey]=[...aArr,...bArr.filter(i=>i&&_idOf(i)!=null&&!seen.has(_idOf(i)))];
           });
           m[ex[key]]=_merged;
         }
