@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260324.1830" id="app-version-meta"/>
+<meta name="app-version" content="b20260324.1900" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -10801,6 +10801,8 @@ function openEventEdit(eventId){
   // Feed log (all events)
   renderEeFeedList(ev);
   closeEeFeedEntry();
+  // Sub-moves list (all events)
+  renderEeSubMoves(ev);
   const badge=document.getElementById('ee-status-badge');
   badge.textContent=isClosed?'closed':'active';
   badge.className='badge '+(isClosed?'bb':'bt');
@@ -11045,12 +11047,51 @@ function updateEventEditPreview(ev){
 
 function closeEventEdit(){document.getElementById('event-edit-wrap').classList.remove('open');}
 
-// Bridge: open sub-move sheet from within Event Edit (works on both open and closed events)
-function openSubMoveSheetFromEdit(){
+// Render sub-moves inline in the Event Edit sheet
+function renderEeSubMoves(ev){
+  const wrap = document.getElementById('ee-submoves-wrap');
+  const list = document.getElementById('ee-submoves-list');
+  if(!wrap||!list) return;
+  const sms = ev.subMoves||[];
+  if(!sms.length){ wrap.style.display='none'; return; }
+  wrap.style.display = 'block';
+  list.innerHTML = sms.map(sm=>{
+    const isActive = !sm.durationHours;
+    const loc = S.pastures.find(p=>p.name===sm.locationName);
+    const isCon = loc ? loc.locationType==='confinement' : false;
+    const isNoPasture = sm.noPasture || isCon;
+    const statusBadge = isActive
+      ? `<span class="badge bt" style="font-size:10px;">active</span>`
+      : `<span class="badge bb" style="font-size:10px;">${sm.durationHours}h</span>`;
+    const typeBadge = isNoPasture
+      ? `<span class="badge ba" style="font-size:10px;">stored feed</span>`
+      : `<span class="badge bg" style="font-size:10px;">grazing</span>`;
+    const detail = [
+      sm.date ? dLabel(sm.date) : '',
+      sm.dateOut ? '→ '+dLabel(sm.dateOut) : (isActive ? '→ active' : ''),
+      sm.notes ? escHtml(sm.notes) : ''
+    ].filter(Boolean).join(' · ');
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:0.5px solid var(--border);">
+      <div style="min-width:0;">
+        <div style="font-size:13px;font-weight:600;">⇢ ${escHtml(sm.locationName)} ${statusBadge} ${typeBadge}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px;">${detail}</div>
+      </div>
+      <button class="btn btn-outline btn-xs" style="flex-shrink:0;margin-left:8px;"
+        onclick="openSubMoveSheetFromEdit('${sm.id}')">Edit</button>
+    </div>`;
+  }).join('');
+}
+
+// Bridge: open sub-move sheet from within Event Edit, optionally pre-loading a specific sub-move for editing
+function openSubMoveSheetFromEdit(smId){
   const evId = parseInt(document.getElementById('ee-id').value);
   if(!evId) return;
   closeEventEdit();
   openSubMoveSheet(evId);
+  // If a specific sub-move was requested, open its edit form after the sheet renders
+  if(smId){
+    setTimeout(()=>{ openSmEditForm(smId); }, 80);
+  }
 }
 
 function saveEventEdit(){
@@ -14134,6 +14175,15 @@ applyFieldMode(); // field-mode URL param + user preference — runs after detec
     </div>
     <div class="field"><label>Notes <span style="font-size:10px;color:var(--text2);">optional</span></label>
       <input type="text" id="ee-notes"/></div>
+    <!-- Sub-moves list — shown when event has sub-moves -->
+    <div id="ee-submoves-wrap" style="display:none;">
+      <div class="div"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div class="sec" style="margin:0;">Sub-moves</div>
+        <button class="btn btn-outline btn-xs" onclick="openSubMoveSheetFromEdit()">+ Add / manage</button>
+      </div>
+      <div id="ee-submoves-list"></div>
+    </div>
     <!-- Recalc preview -->
     <div id="ee-preview" class="card-inset" style="display:none;margin-bottom:10px;">
       <div style="font-size:12px;font-weight:600;margin-bottom:4px;">Recalculated totals</div>
@@ -14143,9 +14193,8 @@ applyFieldMode(); // field-mode URL param + user preference — runs after detec
       <button class="btn btn-green" onclick="saveEventEdit()" style="flex:2;min-width:160px;">Save &amp; recalculate</button>
       <button class="btn btn-outline" onclick="closeEventEdit()" style="flex:1;min-width:80px;">Cancel</button>
     </div>
-    <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
-      <button class="btn btn-outline btn-sm" onclick="openSubMoveSheetFromEdit()" style="flex:1;">⇢ Manage sub-moves</button>
-      <button class="btn btn-red btn-sm" onclick="deleteEvent()" style="flex:1;padding:10px 16px;font-size:12px;">Delete event</button>
+    <div style="margin-top:8px;">
+      <button class="btn btn-red btn-sm" onclick="deleteEvent()" style="width:auto;padding:10px 16px;font-size:12px;">Delete event</button>
     </div>
   </div>
 </div>
