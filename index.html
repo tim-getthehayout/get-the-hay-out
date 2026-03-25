@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260325.0013" id="app-version-meta"/>
+<meta name="app-version" content="b20260325.0037" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -1984,6 +1984,17 @@ async function driveSync(){
       }
       if(remote){S=mergeData(S,remote);ensureDataArrays();saveLocal();}
     }
+    // Re-read Drive immediately before writing to catch concurrent writes from other devices.
+    // Without this, two devices reading the same stale state both write their (identical) merged
+    // results; whichever writes second wins. A second read tightens the race window to ~100ms
+    // and merges in any new data the other device wrote between our read and our write.
+    if(remoteRaw){
+      const preWriteRaw=await driveFetchFile();
+      if(preWriteRaw&&preWriteRaw!==remoteRaw){
+        let fresh;try{fresh=JSON.parse(preWriteRaw);}catch(e){fresh=null;}
+        if(fresh){S=mergeData(S,fresh);ensureDataArrays();saveLocal();}
+      }
+    }
     // Write merged data back
     await driveWriteFile(JSON.stringify(S,null,2));
     driveState.lastSync=new Date().toISOString();
@@ -2020,6 +2031,36 @@ async function driveSync(){
 function scheduleRetry(ms){
   if(syncRetryTimer)clearTimeout(syncRetryTimer);
   syncRetryTimer=setTimeout(()=>{if(driveState.connected)driveSync();},ms);
+}
+// drivePushLocal: merge current local state with whatever is in Drive, then force-write.
+// Called when import Drive write fails, or when user explicitly wants to push local truth to Drive.
+// Unlike driveSync(), this always reads Drive first to avoid overwriting any good remote data,
+// then merges local wins on conflict (local is assumed to be truth by the caller).
+async function drivePushLocal(){
+  if(!driveState.connected||!driveState.accessToken){alert('Not connected to Drive. Connect Drive first, then try again.');return;}
+  const el=document.getElementById('import-status');
+  el.style.cssText='display:block;';el.textContent='Pushing to Drive…';
+  try{
+    if(!driveState.fileId)await driveFindOrCreateFile();
+    // Read Drive first — merge so we never lose data that's only in Drive
+    const remoteRaw=await driveFetchFile();
+    if(remoteRaw){
+      let remote;try{remote=JSON.parse(remoteRaw);}catch(e){remote=null;}
+      // Local wins on scalar/object conflicts but union-merge all arrays
+      if(remote){S=mergeData(S,remote);ensureDataArrays();saveLocal();}
+    }
+    await driveWriteFile(JSON.stringify(S,null,2));
+    driveState.lastSync=new Date().toISOString();driveState.lastSyncOk=true;saveDriveState();
+    setSyncStatus('ok','Pushed to Drive');
+    el.style.cssText='display:block;';el.textContent='Drive push successful — other devices will sync automatically.';
+    setTimeout(()=>{el.style.display='none';},5000);
+    renderCurrentScreen();
+  }catch(e){
+    setSyncStatus('error','Drive push failed — tap to retry','retry');
+    el.style.cssText='display:block;background:#dc2626;color:#fff;padding:12px;border-radius:8px;margin-top:8px;';
+    el.innerHTML='<strong>⚠️ Drive push failed: '+e.message.slice(0,80)+'</strong><br>'
+      +'<button onclick="drivePushLocal()" style="margin-top:8px;padding:6px 14px;background:#fff;color:#dc2626;border:none;border-radius:6px;font-weight:600;cursor:pointer;">Try again</button>';
+  }
 }
 
 function setSyncStatus(state,label,action){
@@ -2282,15 +2323,29 @@ function importDataJSON(event){
       if(syncTimer){clearTimeout(syncTimer);syncTimer=null;}
       if(syncRetryTimer){clearTimeout(syncRetryTimer);syncRetryTimer=null;}
       saveLocal();
+      const _importStatusEl=document.getElementById('import-status');
       if(driveState.connected&&driveState.accessToken){
         driveWriteFile(JSON.stringify(S,null,2))
-          .then(()=>{driveState.lastSync=new Date().toISOString();driveState.lastSyncOk=true;saveDriveState();setSyncStatus('ok','Restored & synced to Drive');})
-          .catch(()=>{setSyncStatus('warn','Restored locally — Drive write failed, sync manually');});
+          .then(()=>{
+            driveState.lastSync=new Date().toISOString();driveState.lastSyncOk=true;saveDriveState();
+            setSyncStatus('ok','Restored & synced to Drive');
+            _importStatusEl.style.cssText='';_importStatusEl.style.display='block';
+            _importStatusEl.textContent='Restore successful — synced to Drive from '+file.name;
+            setTimeout(()=>{_importStatusEl.style.display='none';},5000);
+          })
+          .catch(()=>{
+            // Drive write failed — show a persistent alert so the user knows other devices are not updated
+            setSyncStatus('error','Restore saved locally — Drive write failed','retry');
+            _importStatusEl.style.cssText='display:block;background:#dc2626;color:#fff;padding:12px;border-radius:8px;margin-top:8px;';
+            _importStatusEl.innerHTML='<strong>⚠️ Backup restored locally but Drive write failed.</strong><br>Other devices will not receive this data until Drive is updated.<br>'
+              +'<button onclick="drivePushLocal()" style="margin-top:8px;padding:6px 14px;background:#fff;color:#dc2626;border:none;border-radius:6px;font-weight:600;cursor:pointer;">Retry Drive push</button>';
+          });
+      } else {
+        _importStatusEl.style.display='block';
+        _importStatusEl.textContent='Restore successful (Drive not connected) — reconnect Drive then tap Sync Now to push to other devices.';
+        setTimeout(()=>{_importStatusEl.style.display='none';},8000);
       }
       renderCurrentScreen();
-      const el=document.getElementById('import-status');el.style.display='block';
-      el.textContent='Restore successful — data rolled back to backup from '+file.name;
-      setTimeout(()=>{el.style.display='none';},5000);
     }catch(err){alert('Import failed: '+err.message);}
     event.target.value='';
   };
