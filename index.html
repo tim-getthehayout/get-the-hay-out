@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260325.0037" id="app-version-meta"/>
+<meta name="app-version" content="b20260325.1918" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -4376,16 +4376,20 @@ function lastGrazingRecordForPasture(pastureId, pastureName){
   return latestSm.dateOut >= lastEv.dateOut ? latestSm : lastEv;
 }
 
-let surveyRatings = {}; // pastureId -> rating (1-10)
-let surveyNotes   = {}; // pastureId -> notes
-let surveyRecovery= {}; // pastureId -> {min, max}
+let surveyRatings    = {}; // pastureId -> rating (0-100)
+let surveyNotes      = {}; // pastureId -> notes
+let surveyRecovery   = {}; // pastureId -> {min, max}
+let surveyVegHeight  = {}; // pastureId -> avg vegetative height (inches)
+let surveyForageCover= {}; // pastureId -> avg forage cover (%)
 
 let surveyFocusPastureId = null; // null = all pastures, string = single pasture mode
 
 function openSurveySheet(pastureId){
-  surveyRatings = {};
-  surveyNotes   = {};
-  surveyRecovery= {};
+  surveyRatings    = {};
+  surveyNotes      = {};
+  surveyRecovery   = {};
+  surveyVegHeight  = {};
+  surveyForageCover= {};
   surveyFocusPastureId = pastureId || null;
   document.getElementById('survey-date').value = todayStr();
 
@@ -4495,6 +4499,25 @@ function renderSurveyPaddocks(){
         </div>
         <div id="survey-selected-${p.id}" style="font-size:12px;margin-top:4px;min-height:18px;"></div>
 
+        <div style="display:flex;gap:12px;margin-top:14px;flex-wrap:wrap;">
+          <div style="flex:1;min-width:120px;">
+            <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:5px;">AVG VEG HEIGHT (in)</div>
+            <input type="number" id="survey-veght-${p.id}" min="0" max="72" step="0.5"
+              value="${surveyVegHeight[p.id]??''}" placeholder="inches"
+              oninput="surveyVegHeight['${p.id}']=parseFloat(this.value)||null"
+              style="width:100%;padding:8px;border:0.5px solid var(--border2);border-radius:var(--radius);
+                     font-size:16px;background:var(--bg);color:var(--text);font-family:inherit;text-align:center;box-sizing:border-box;"/>
+          </div>
+          <div style="flex:1;min-width:120px;">
+            <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:5px;">AVG FORAGE COVER (%)</div>
+            <input type="number" id="survey-cover-${p.id}" min="0" max="100" step="1"
+              value="${surveyForageCover[p.id]??''}" placeholder="%"
+              oninput="surveyForageCover['${p.id}']=parseFloat(this.value)||null"
+              style="width:100%;padding:8px;border:0.5px solid var(--border2);border-radius:var(--radius);
+                     font-size:16px;background:var(--bg);color:var(--text);font-family:inherit;text-align:center;box-sizing:border-box;"/>
+          </div>
+        </div>
+
         <div class="div" style="margin:14px 0;"></div>
         <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Recovery window</div>
         <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:8px;">
@@ -4527,13 +4550,21 @@ function renderSurveyPaddocks(){
     return;
   }
 
+  // Kill the separate recovery section — everything is now embedded per card
+  const recHdr2 = document.getElementById('survey-recovery-section-hdr');
+  if(recHdr2) recHdr2.style.display = 'none';
+  if(recEl) recEl.innerHTML = '';
+
+  // Single consolidated pass: forage quality + measurements + recovery per card
   listEl.innerHTML = pastures.map(p=>{
-    const latest = latestSurveyRating(p.id, p.name);
-    const lastEv = lastClosedEventForPasture(p.id, p.name);
-    const activeEv = S.events.find(e=>e.status==='open'&&evMatchesPasture(e,p.name,p.id));
+    const st      = S.settings;
+    const latest  = latestSurveyRating(p.id, p.name);
+    const lastEv  = lastClosedEventForPasture(p.id, p.name);
+    const activeEv= S.events.find(e=>e.status==='open'&&evMatchesPasture(e,p.name,p.id));
     const daysSince = lastEv&&lastEv.dateOut ?
       Math.round((new Date(todayStr()+'T12:00:00')-new Date(lastEv.dateOut+'T12:00:00'))/86400000) : null;
 
+    // Rating slider
     const curRating = surveyRatings[p.id]??null;
     const ratingBtns = `
       <div style="display:flex;align-items:center;gap:10px;">
@@ -4543,7 +4574,7 @@ function renderSurveyPaddocks(){
           style="flex:1;accent-color:${surveyRatingColor(curRating??50)};cursor:pointer;"/>
         <input type="number" id="survey-num-${p.id}" min="0" max="100" step="1"
           value="${curRating??''}"
-          placeholder="0-100"
+          placeholder="0–100"
           oninput="setSurveyRating('${p.id}','${p.name}',this.value)"
           style="width:60px;padding:5px 6px;border:0.5px solid var(--border2);border-radius:var(--radius);
                  font-size:14px;font-weight:600;text-align:center;background:var(--bg);color:var(--text);font-family:inherit;"/>
@@ -4554,34 +4585,41 @@ function renderSurveyPaddocks(){
 
     const activeNote = activeEv
       ? `<span class="badge bt" style="font-size:10px;">Active · Day ${daysBetween(activeEv.dateIn,todayStr())}</span>`
-      : (daysSince!==null ? `<span style="font-size:11px;color:var(--text2);">${daysSince}d since last graze</span>` : '');
+      : (daysSince!==null ? `<span style="font-size:11px;color:var(--text2);">${daysSince}d ago</span>` : '');
 
     const latestNote = latest
-      ? `<span style="font-size:11px;color:${surveyRatingColor(latest.rating)};">Last rated: ${latest.rating}/10 on ${dLabel(latest.date)}</span>`
+      ? `<span style="font-size:11px;color:${surveyRatingColor(latest.rating)};">Last: ${latest.rating}/100 ${dLabel(latest.date)}</span>`
       : '';
 
-    // Expected graze window — shown inline in each rating card (only when not currently active)
-    let gdHtml = '';
-    if(!activeEv){
-      const gd = getExpectedGrazeDates(p);
-      if(gd){
-        const fmt = d => d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
-        const today = new Date(todayStr()+'T12:00:00');
-        let statusColor = 'var(--text2)', statusTxt = '';
-        if(gd.latest && today > gd.latest){
-          statusColor = 'var(--amber-d)'; statusTxt = '⚠ window closing';
-        } else if(gd.earliest && today >= gd.earliest){
-          statusColor = 'var(--green-d)'; statusTxt = '✓ ready';
-        } else if(gd.earliest){
-          statusTxt = Math.round((gd.earliest - today)/86400000) + 'd until ready';
-        }
-        const windowStr = [gd.earliest ? fmt(gd.earliest) : '', gd.latest ? fmt(gd.latest) : ''].filter(Boolean).join(' – ');
-        gdHtml = `<div style="font-size:11px;color:var(--text2);margin-top:4px;">↻ Ready: ${windowStr}&nbsp;&nbsp;<span style="color:${statusColor};font-weight:600;">${statusTxt}</span></div>`;
-      }
+    // Recovery window values
+    const srcMin = lastEv ? lastEv.recoveryMinDays : p.recoveryMinDays;
+    const srcMax = lastEv ? lastEv.recoveryMaxDays : p.recoveryMaxDays;
+    const curMin = surveyRecovery[p.id]?.min ?? srcMin ?? st.recoveryMinDays ?? 30;
+    const curMax = surveyRecovery[p.id]?.max ?? srcMax ?? st.recoveryMaxDays ?? 60;
+
+    // Graze window preview (updated live by renderSurveyRecoveryPreview on min/max change)
+    let nextGrazeHtml = '';
+    const baseDate = lastEv?.dateOut || null;
+    if(baseDate && curMin && curMax){
+      const base = new Date(baseDate+'T12:00:00');
+      const earliest = new Date(base); earliest.setDate(earliest.getDate()+curMin);
+      const latest2  = new Date(base); latest2.setDate(latest2.getDate()+curMax);
+      const today    = new Date(todayStr()+'T12:00:00');
+      const daysRested = Math.round((today-base)/86400000);
+      let statusHtml = '';
+      if(daysRested >= curMax) statusHtml = '<span style="color:var(--amber-d);font-weight:600;">⚠ window closing</span>';
+      else if(daysRested >= curMin) statusHtml = '<span style="color:var(--green-d);font-weight:600;">✓ ready to graze</span>';
+      else statusHtml = '<span style="color:var(--text2);">'+(curMin-daysRested)+'d until ready</span>';
+      nextGrazeHtml = `<div style="font-size:11px;color:var(--text2);margin-top:4px;">
+        ↻ ${earliest.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${latest2.toLocaleDateString('en-US',{month:'short',day:'numeric'})} &nbsp;·&nbsp; ${statusHtml}
+      </div>`;
+    } else if(!baseDate){
+      nextGrazeHtml = '<div style="font-size:11px;color:var(--text2);margin-top:4px;font-style:italic;">No graze history — window calculates after first move-out</div>';
     }
 
-    return `<div style="padding:10px 0;border-bottom:0.5px solid var(--border);" id="survey-row-${p.id}">
-      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px;">
+    return `<div style="padding:12px 0;border-bottom:0.5px solid var(--border);" id="survey-row-${p.id}">
+
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px;">
         <div>
           <span style="font-size:14px;font-weight:600;">${p.name}</span>
           <span style="font-size:11px;color:var(--text2);margin-left:6px;">${p.acres||0} ac</span>
@@ -4590,65 +4628,35 @@ function renderSurveyPaddocks(){
           ${activeNote} ${latestNote}
         </div>
       </div>
+
+      <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:5px;letter-spacing:0.03em;">FORAGE QUALITY</div>
       <div style="display:flex;gap:4px;flex-wrap:wrap;" id="rating-btns-${p.id}">
         ${ratingBtns}
       </div>
       <div id="survey-selected-${p.id}" style="font-size:11px;margin-top:4px;min-height:16px;"></div>
-      ${gdHtml}
-    </div>`;
-  }).join('');
 
-  // Recovery window — show ALL pastures so new operations can set initial values
-  const recRows = pastures.map(p=>{
-    const lastEv  = lastClosedEventForPasture(p.id, p.name);
-    const st      = S.settings;
-
-    // Priority: surveyRecovery temp state → last event → pasture default → settings default
-    const srcMin  = lastEv ? lastEv.recoveryMinDays : p.recoveryMinDays;
-    const srcMax  = lastEv ? lastEv.recoveryMaxDays : p.recoveryMaxDays;
-    const curMin  = surveyRecovery[p.id]?.min ?? srcMin ?? st.recoveryMinDays ?? 30;
-    const curMax  = surveyRecovery[p.id]?.max ?? srcMax ?? st.recoveryMaxDays ?? 60;
-
-    // Estimated next graze window
-    let nextGrazeHtml = '';
-    const baseDate = lastEv?.dateOut || null;
-    if(baseDate && curMin && curMax){
-      const base = new Date(baseDate+'T12:00:00');
-      const earliest = new Date(base); earliest.setDate(earliest.getDate()+curMin);
-      const latest   = new Date(base); latest.setDate(latest.getDate()+curMax);
-      const today    = new Date(todayStr()+'T12:00:00');
-      const daysRested = Math.round((today-base)/86400000);
-      const readyIn  = curMin - daysRested;
-      let statusHtml = '';
-      if(daysRested >= curMax){
-        statusHtml = '<span style="color:var(--amber-d);font-weight:600;">⚠ window closing</span>';
-      } else if(daysRested >= curMin){
-        statusHtml = '<span style="color:var(--green-d);font-weight:600;">✓ ready to graze</span>';
-      } else {
-        statusHtml = '<span style="color:var(--text2);">'+readyIn+'d until ready</span>';
-      }
-      nextGrazeHtml = `<div style="font-size:11px;color:var(--text2);margin-top:3px;">
-        Next window: ${earliest.toLocaleDateString('en-US',{month:'short',day:'numeric'})}–${latest.toLocaleDateString('en-US',{month:'short',day:'numeric'})} &nbsp;·&nbsp; ${statusHtml}
-      </div>`;
-    } else if(!baseDate){
-      nextGrazeHtml = '<div style="font-size:11px;color:var(--text2);margin-top:3px;font-style:italic;">No graze history — window will calculate after first move</div>';
-    }
-
-    const contextLine = lastEv
-      ? `Last grazed: ${dLabel(lastEv.dateOut)}`
-      : (p.recoveryMinDays ? 'Default set on pasture' : 'No history yet — set initial window');
-
-    return `<div style="padding:10px 0;border-bottom:0.5px solid var(--border);">
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <div style="min-width:110px;">
-          <div style="font-size:13px;font-weight:500;">${p.name}</div>
-          <div style="font-size:11px;color:var(--text2);">${contextLine}</div>
+      <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:110px;">
+          <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;letter-spacing:0.03em;">AVG VEG HEIGHT (in)</div>
+          <input type="number" id="survey-veght-${p.id}" min="0" max="72" step="0.5"
+            value="${surveyVegHeight[p.id]??''}" placeholder="inches"
+            oninput="surveyVegHeight['${p.id}']=parseFloat(this.value)||null"
+            style="width:100%;padding:6px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);
+                   font-size:14px;background:var(--bg);color:var(--text);font-family:inherit;text-align:center;box-sizing:border-box;"/>
         </div>
-        <div style="flex:1;"></div>
-        <div style="font-size:10px;color:var(--text2);margin-bottom:4px;">
-          ${lastEv?'From: '+dLabel(lastEv.dateOut):'No graze history yet'}
+        <div style="flex:1;min-width:110px;">
+          <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;letter-spacing:0.03em;">AVG FORAGE COVER (%)</div>
+          <input type="number" id="survey-cover-${p.id}" min="0" max="100" step="1"
+            value="${surveyForageCover[p.id]??''}" placeholder="%"
+            oninput="surveyForageCover['${p.id}']=parseFloat(this.value)||null"
+            style="width:100%;padding:6px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);
+                   font-size:14px;background:var(--bg);color:var(--text);font-family:inherit;text-align:center;box-sizing:border-box;"/>
         </div>
-        <div style="display:flex;gap:10px;align-items:flex-start;">
+      </div>
+
+      <div style="margin-top:10px;">
+        <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:5px;letter-spacing:0.03em;">RECOVERY WINDOW</div>
+        <div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;">
           <div style="text-align:center;">
             <div style="font-size:9px;color:var(--text2);margin-bottom:2px;">MIN days</div>
             <input type="number" placeholder="${st.recoveryMinDays||30}" min="1" max="365"
@@ -4674,13 +4682,13 @@ function renderSurveyPaddocks(){
               ${(()=>{if(!lastEv?.dateOut||!curMax)return'';const d=new Date(lastEv.dateOut+'T12:00:00');d.setDate(d.getDate()+curMax);return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});})()}
             </div>
           </div>
+          <div style="font-size:11px;color:var(--text2);padding-top:18px;">${lastEv?'from '+dLabel(lastEv.dateOut):'(after first move-out)'}</div>
         </div>
+        <div id="rec-preview-${p.id}">${nextGrazeHtml}</div>
       </div>
-      <div id="rec-preview-${p.id}">${nextGrazeHtml}</div>
+
     </div>`;
   }).join('');
-
-  recEl.innerHTML = recRows || '<div style="font-size:13px;color:var(--text2);">No pasture locations defined yet.</div>';
 }
 
 
@@ -4766,6 +4774,8 @@ function saveSurvey(){
       pastureName: p.name,
       rating:      surveyRatings[p.id],
       notes:       surveyNotes[p.id]||'',
+      vegHeight:   surveyVegHeight[p.id]??null,
+      forageCover: surveyForageCover[p.id]??null,
     }));
 
   if(!ratings.length){
