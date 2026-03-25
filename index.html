@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260324.1945" id="app-version-meta"/>
+<meta name="app-version" content="b20260325.0013" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -2229,9 +2229,14 @@ function mergeData(local,remote){
     users:            ma(local.users||[],         remote.users||[]),
     todos:            ma(local.todos||[],         remote.todos||[]),
     feedback:         ma(local.feedback||[],      remote.feedback||[]),
+    // Reference / config arrays — union-merge so additions on either device are never lost
+    treatmentTypes:   ma(local.treatmentTypes||[], remote.treatmentTypes||[]),
+    aiBulls:          ma(local.aiBulls||[],        remote.aiBulls||[]),
     // Scalar / object fields
     herd:    remote.herd&&remote.herd.name ? remote.herd : (local.herd||{}),
-    _herdMigrated: local._herdMigrated||remote._herdMigrated||false,
+    _herdMigrated:    local._herdMigrated   ||remote._herdMigrated   ||false,
+    _groupsMigrated:  local._groupsMigrated ||remote._groupsMigrated ||false,
+    _paddocksMigrated:local._paddocksMigrated||remote._paddocksMigrated||false,
     errorLog: [...(local.errorLog||[]),...(remote.errorLog||[])].slice(-200),
     settings:mergeObj(local.settings,remote.settings),
     version:     local.version||remote.version||'v1.0',
@@ -13394,6 +13399,9 @@ maybeResumeTokenRefresh();
 if(driveState.connected&&driveState.accessToken&&Date.now()<(driveState.tokenExpiry||0)){driveSync();}
 // Sync whenever the app becomes visible (handles PWA resume + tab switching)
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')onAppResume();});
+// Periodic background sync — pulls Drive changes even when the tab stays open and visible all day
+// Without this, a desktop tab left open all day never sees updates made on mobile
+setInterval(()=>{if(driveState.connected&&driveState.accessToken&&Date.now()<(driveState.tokenExpiry||0)){driveSync();}},5*60*1000);
 detectMode(); // must run last — reads DOM
 applyFieldMode(); // field-mode URL param + user preference — runs after detectMode
 </script>
