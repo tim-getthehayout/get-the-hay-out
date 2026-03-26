@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260325.1918" id="app-version-meta"/>
+<meta name="app-version" content="b20260325.1936" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -4460,23 +4460,31 @@ function renderSurveyPaddocks(){
         <div id="survey-bar-${p.id}" style="height:100%;width:${curRatingSingle??0}%;background:${surveyRatingColor(curRatingSingle??0)};border-radius:4px;transition:width 0.15s,background 0.15s;"></div>
       </div>`;
 
-    // Recovery values
+    // Recovery values — relative to survey date, not lastEv.dateOut
+    const surveyDateSingle = document.getElementById('survey-date')?.value || todayStr();
+    const daysAlreadyRestedSingle = lastEv?.dateOut
+      ? Math.max(0, Math.round((new Date(surveyDateSingle+'T12:00:00') - new Date(lastEv.dateOut+'T12:00:00'))/86400000))
+      : 0;
     const srcMin = lastEv ? lastEv.recoveryMinDays : p.recoveryMinDays;
     const srcMax = lastEv ? lastEv.recoveryMaxDays : p.recoveryMaxDays;
-    const curMin = surveyRecovery[p.id]?.min ?? srcMin ?? st.recoveryMinDays ?? 30;
-    const curMax = surveyRecovery[p.id]?.max ?? srcMax ?? st.recoveryMaxDays ?? 60;
+    // Convert stored event-date-relative values to survey-date-relative for display
+    const displayMin = Math.max(0, (srcMin ?? st.recoveryMinDays ?? 30) - daysAlreadyRestedSingle);
+    const displayMax = Math.max(0, (srcMax ?? st.recoveryMaxDays ?? 60) - daysAlreadyRestedSingle);
+    const curMin = surveyRecovery[p.id]?.min ?? displayMin;
+    const curMax = surveyRecovery[p.id]?.max ?? displayMax;
 
-    // Next graze estimate
+    // Next graze estimate — from survey date
     let nextGrazeHtml = '';
-    if(lastEv?.dateOut && curMin && curMax){
-      const base = new Date(lastEv.dateOut+'T12:00:00');
+    if(curMin && curMax){
+      const base = new Date(surveyDateSingle+'T12:00:00');
       const earliest = new Date(base); earliest.setDate(earliest.getDate()+curMin);
       const latest2  = new Date(base); latest2.setDate(latest2.getDate()+curMax);
-      const daysRested = Math.round((new Date(todayStr()+'T12:00:00')-base)/86400000);
+      const today2   = new Date(todayStr()+'T12:00:00');
+      const daysFromSurvey = Math.round((today2-base)/86400000);
       let statusHtml = '';
-      if(daysRested >= curMax) statusHtml = '<span style="color:var(--amber-d);font-weight:600;">⚠ window closing</span>';
-      else if(daysRested >= curMin) statusHtml = '<span style="color:var(--green-d);font-weight:600;">✓ ready to graze</span>';
-      else statusHtml = '<span style="color:var(--text2);">'+(curMin-daysRested)+'d until ready</span>';
+      if(daysFromSurvey >= curMax) statusHtml = '<span style="color:var(--amber-d);font-weight:600;">⚠ window closing</span>';
+      else if(daysFromSurvey >= curMin) statusHtml = '<span style="color:var(--green-d);font-weight:600;">✓ ready to graze</span>';
+      else statusHtml = '<span style="color:var(--text2);">'+(curMin-daysFromSurvey)+'d until ready</span>';
       nextGrazeHtml = `<div style="font-size:12px;color:var(--text2);margin-top:6px;padding:8px 12px;background:var(--bg2);border-radius:var(--radius);">
         Next window: <strong>${earliest.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</strong> – <strong>${latest2.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</strong> &nbsp;·&nbsp; ${statusHtml}
       </div>`;
@@ -4538,7 +4546,7 @@ function renderSurveyPaddocks(){
               style="width:72px;padding:6px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);
                      font-size:14px;background:var(--bg);color:var(--text);font-family:inherit;text-align:center;"/>
           </div>
-          <div style="font-size:12px;color:var(--text2);padding-bottom:6px;">${lastEv?'days from '+dLabel(lastEv.dateOut):'days (from first move-out)'}</div>
+          <div style="font-size:12px;color:var(--text2);padding-bottom:6px;">days from ${dLabel(surveyDateSingle)}</div>
         </div>
         <div id="rec-preview-${p.id}">${nextGrazeHtml}</div>
       </div>`;
@@ -4591,29 +4599,35 @@ function renderSurveyPaddocks(){
       ? `<span style="font-size:11px;color:${surveyRatingColor(latest.rating)};">Last: ${latest.rating}/100 ${dLabel(latest.date)}</span>`
       : '';
 
-    // Recovery window values
+    // Recovery window values — relative to survey date, not lastEv.dateOut
+    const surveyDate = document.getElementById('survey-date')?.value || todayStr();
+    const daysAlreadyRested = lastEv?.dateOut
+      ? Math.max(0, Math.round((new Date(surveyDate+'T12:00:00') - new Date(lastEv.dateOut+'T12:00:00'))/86400000))
+      : 0;
     const srcMin = lastEv ? lastEv.recoveryMinDays : p.recoveryMinDays;
     const srcMax = lastEv ? lastEv.recoveryMaxDays : p.recoveryMaxDays;
-    const curMin = surveyRecovery[p.id]?.min ?? srcMin ?? st.recoveryMinDays ?? 30;
-    const curMax = surveyRecovery[p.id]?.max ?? srcMax ?? st.recoveryMaxDays ?? 60;
+    // Convert stored event-date-relative values to survey-date-relative for display
+    const displayMin = Math.max(0, (srcMin ?? st.recoveryMinDays ?? 30) - daysAlreadyRested);
+    const displayMax = Math.max(0, (srcMax ?? st.recoveryMaxDays ?? 60) - daysAlreadyRested);
+    const curMin = surveyRecovery[p.id]?.min ?? displayMin;
+    const curMax = surveyRecovery[p.id]?.max ?? displayMax;
 
-    // Graze window preview (updated live by renderSurveyRecoveryPreview on min/max change)
+    // Graze window preview (from survey date)
     let nextGrazeHtml = '';
-    const baseDate = lastEv?.dateOut || null;
-    if(baseDate && curMin && curMax){
-      const base = new Date(baseDate+'T12:00:00');
+    if(curMin && curMax){
+      const base = new Date(surveyDate+'T12:00:00');
       const earliest = new Date(base); earliest.setDate(earliest.getDate()+curMin);
       const latest2  = new Date(base); latest2.setDate(latest2.getDate()+curMax);
-      const today    = new Date(todayStr()+'T12:00:00');
-      const daysRested = Math.round((today-base)/86400000);
+      const today2   = new Date(todayStr()+'T12:00:00');
+      const daysFromSurvey = Math.round((today2-base)/86400000);
       let statusHtml = '';
-      if(daysRested >= curMax) statusHtml = '<span style="color:var(--amber-d);font-weight:600;">⚠ window closing</span>';
-      else if(daysRested >= curMin) statusHtml = '<span style="color:var(--green-d);font-weight:600;">✓ ready to graze</span>';
-      else statusHtml = '<span style="color:var(--text2);">'+(curMin-daysRested)+'d until ready</span>';
+      if(daysFromSurvey >= curMax) statusHtml = '<span style="color:var(--amber-d);font-weight:600;">⚠ window closing</span>';
+      else if(daysFromSurvey >= curMin) statusHtml = '<span style="color:var(--green-d);font-weight:600;">✓ ready to graze</span>';
+      else statusHtml = '<span style="color:var(--text2);">'+(curMin-daysFromSurvey)+'d until ready</span>';
       nextGrazeHtml = `<div style="font-size:11px;color:var(--text2);margin-top:4px;">
         ↻ ${earliest.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${latest2.toLocaleDateString('en-US',{month:'short',day:'numeric'})} &nbsp;·&nbsp; ${statusHtml}
       </div>`;
-    } else if(!baseDate){
+    } else if(!lastEv?.dateOut && !p.recoveryMinDays){
       nextGrazeHtml = '<div style="font-size:11px;color:var(--text2);margin-top:4px;font-style:italic;">No graze history — window calculates after first move-out</div>';
     }
 
@@ -4666,7 +4680,7 @@ function renderSurveyPaddocks(){
               style="width:60px;padding:5px 7px;border:0.5px solid var(--border2);border-radius:var(--radius);
                      font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;text-align:center;"/>
             <div id="rec-min-date-${p.id}" style="font-size:11px;font-weight:600;color:var(--green-d);margin-top:3px;min-height:14px;">
-              ${(()=>{if(!lastEv?.dateOut||!curMin)return'';const d=new Date(lastEv.dateOut+'T12:00:00');d.setDate(d.getDate()+curMin);return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});})()}
+              ${(()=>{if(!curMin)return'';const d=new Date(surveyDate+'T12:00:00');d.setDate(d.getDate()+curMin);return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});})()}
             </div>
           </div>
           <div style="font-size:14px;color:var(--text2);padding-top:18px;">–</div>
@@ -4679,10 +4693,10 @@ function renderSurveyPaddocks(){
               style="width:60px;padding:5px 7px;border:0.5px solid var(--border2);border-radius:var(--radius);
                      font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;text-align:center;"/>
             <div id="rec-max-date-${p.id}" style="font-size:11px;font-weight:600;color:var(--amber-d);margin-top:3px;min-height:14px;">
-              ${(()=>{if(!lastEv?.dateOut||!curMax)return'';const d=new Date(lastEv.dateOut+'T12:00:00');d.setDate(d.getDate()+curMax);return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});})()}
+              ${(()=>{if(!curMax)return'';const d=new Date(surveyDate+'T12:00:00');d.setDate(d.getDate()+curMax);return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});})()}
             </div>
           </div>
-          <div style="font-size:11px;color:var(--text2);padding-top:18px;">${lastEv?'from '+dLabel(lastEv.dateOut):'(after first move-out)'}</div>
+          <div style="font-size:11px;color:var(--text2);padding-top:18px;">days from ${dLabel(surveyDate)}</div>
         </div>
         <div id="rec-preview-${p.id}">${nextGrazeHtml}</div>
       </div>
@@ -4701,35 +4715,32 @@ function renderSurveyRecoveryPreview(pastureId){
                  surveyRecovery[pastureId]?.min||null;
   const maxVal = parseInt(document.getElementById('rec-max-'+pastureId)?.value)||
                  surveyRecovery[pastureId]?.max||null;
-  const lastEv = lastClosedEventForPasture(pastureId, p.name);
-  const baseDate = lastEv?.dateOut||null;
 
-  if(!baseDate){
-    el.innerHTML='<div style="font-size:11px;color:var(--text2);margin-top:3px;font-style:italic;">No graze history — window will calculate after first move</div>';
-    return;
-  }
+  // Use survey date as the base — min/max are "days from survey date"
+  const surveyDate = document.getElementById('survey-date')?.value || todayStr();
+
   if(!minVal||!maxVal){ el.innerHTML=''; return; }
 
-  const base     = new Date(baseDate+'T12:00:00');
+  const base     = new Date(surveyDate+'T12:00:00');
   const earliest = new Date(base); earliest.setDate(earliest.getDate()+minVal);
   const latest   = new Date(base); latest.setDate(latest.getDate()+maxVal);
   const today    = new Date(todayStr()+'T12:00:00');
-  const daysRested = Math.round((today-base)/86400000);
+  const daysFromSurvey = Math.round((today-base)/86400000);
 
   let statusHtml = '';
-  if(daysRested >= maxVal){
+  if(daysFromSurvey >= maxVal){
     statusHtml = '<span style="color:var(--amber-d);font-weight:600;">⚠ window closing</span>';
-  } else if(daysRested >= minVal){
+  } else if(daysFromSurvey >= minVal){
     statusHtml = '<span style="color:var(--green-d);font-weight:600;">✓ ready to graze</span>';
   } else {
-    statusHtml = '<span style="color:var(--text2);">'+(minVal-daysRested)+'d until ready</span>';
+    statusHtml = '<span style="color:var(--text2);">'+(minVal-daysFromSurvey)+'d until ready</span>';
   }
 
   el.innerHTML = `<div style="font-size:11px;color:var(--text2);margin-top:3px;">
-    Next window: ${earliest.toLocaleDateString('en-US',{month:'short',day:'numeric'})}–${latest.toLocaleDateString('en-US',{month:'short',day:'numeric'})} &nbsp;·&nbsp; ${statusHtml}
+    ↻ ${earliest.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${latest.toLocaleDateString('en-US',{month:'short',day:'numeric'})} &nbsp;·&nbsp; ${statusHtml}
   </div>`;
 
-  // Also update the inline date labels under each input
+  // Update the inline date labels under each input
   const minDateEl = document.getElementById('rec-min-date-'+pastureId);
   const maxDateEl = document.getElementById('rec-max-date-'+pastureId);
   if(minDateEl) minDateEl.textContent = earliest.toLocaleDateString('en-US',{month:'short',day:'numeric'});
@@ -4796,8 +4807,8 @@ function saveSurvey(){
     S.surveys.push({id:Date.now(), date, ratings});
   }
 
-  // Apply recovery window edits: to last closed event if it exists,
-  // otherwise store on the pasture record itself for new/ungrazed paddocks
+  // Apply recovery window edits: values entered are "days from survey date".
+  // Convert back to event-date-relative before storing (stored values = days from lastEv.dateOut).
   let recoveryUpdated = 0;
   Object.entries(surveyRecovery).forEach(([pastureId,rec])=>{
     if(rec.min==null && rec.max==null) return;
@@ -4805,10 +4816,14 @@ function saveSurvey(){
     if(!p) return;
     const ev = lastClosedEventForPasture(pastureId, p.name);
     if(ev){
-      if(rec.min!=null) ev.recoveryMinDays=rec.min;
-      if(rec.max!=null) ev.recoveryMaxDays=rec.max;
+      // Add back the days already rested since the event closed so stored value is from event date
+      const daysAlreadyRested = ev.dateOut
+        ? Math.max(0, Math.round((new Date(date+'T12:00:00') - new Date(ev.dateOut+'T12:00:00'))/86400000))
+        : 0;
+      if(rec.min!=null) ev.recoveryMinDays = rec.min + daysAlreadyRested;
+      if(rec.max!=null) ev.recoveryMaxDays = rec.max + daysAlreadyRested;
     } else {
-      // No event yet — store directly on pasture for move wizard to pick up
+      // No event yet — store directly on pasture (survey date IS the reference, no adjustment)
       if(rec.min!=null) p.recoveryMinDays=rec.min;
       if(rec.max!=null) p.recoveryMaxDays=rec.max;
     }
