@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260326.0757" id="app-version-meta"/>
+<meta name="app-version" content="b20260326.0834" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -9584,17 +9584,36 @@ function openSmCloseForm(smId){
   document.getElementById('sm-close-loc-label').textContent = sm.locationName;
   document.getElementById('sm-close-date').value     = todayStr();
   document.getElementById('sm-close-time-out').value = sm.timeOut||'';
-  document.getElementById('sm-close-hours').value    = '';
   document.getElementById('sm-close-height-out').value = sm.heightOut||'';
   const loc = S.pastures.find(p=>p.name===sm.locationName);
   const isCon = loc ? loc.locationType==='confinement' : false;
   document.getElementById('sm-close-grazing-fields').style.display = isCon?'none':'block';
   document.getElementById('sm-close-rec-min').value  = sm.recoveryMinDays||S.settings.recoveryMinDays||'';
   document.getElementById('sm-close-rec-max').value  = sm.recoveryMaxDays||S.settings.recoveryMaxDays||'';
-  // Show bale-feed checkpoint slider when: sub-move is grazing, parent event has feed entries
-  const evId2 = parseInt(document.getElementById('sm-event-id').value);
-  const ev2 = S.events.find(e=>e.id===evId2);
-  const hasBaleFeed = ev2 && (ev2.feedEntries||[]).length > 0;
+  // Populate confirmed time-in hidden field from stored sm.time
+  document.getElementById('sm-close-time-in').value  = sm.time||'';
+  // Read-only move-in display
+  const moveInDisp = document.getElementById('sm-close-movein-disp');
+  if(moveInDisp){
+    moveInDisp.textContent = sm.date
+      ? (dLabel(sm.date) + (sm.time ? '  ·  ' + sm.time : '  ·  time not recorded'))
+      : '—';
+    moveInDisp.style.color = sm.time ? 'var(--text)' : 'var(--amber-d)';
+  }
+  // Correction sub-dialog — auto-show when sm.time is missing
+  const correctWrap = document.getElementById('sm-close-timein-correct');
+  if(correctWrap){
+    const missingTime = !sm.time;
+    correctWrap.style.display = missingTime ? 'block' : 'none';
+    const lbl = document.getElementById('sm-close-correct-label');
+    if(lbl) lbl.textContent = missingTime
+      ? '⚠ Move-in time not recorded — please correct'
+      : '✏ Correct move-in date / time';
+    document.getElementById('sm-close-correct-date').value = sm.date||todayStr();
+    document.getElementById('sm-close-correct-time').value = sm.time||'';
+  }
+  // Bale feed checkpoint
+  const hasBaleFeed = (ev.feedEntries||[]).length > 0;
   const smIsGrazing = !sm.noPasture;
   const cpRow = document.getElementById('sm-close-checkpoint-row');
   if(cpRow){
@@ -9607,6 +9626,7 @@ function openSmCloseForm(smId){
       if(cpPct) cpPct.textContent = existing + '%';
     }
   }
+  document.getElementById('sm-close-duration-disp').textContent = '';
   document.getElementById('sm-close-wrap').style.display = 'block';
   document.getElementById('sm-close-wrap').scrollIntoView({behavior:'smooth',block:'nearest'});
 }
@@ -9616,21 +9636,87 @@ function cancelSmClose(){
   document.getElementById('sm-close-sm-id').value = '';
 }
 
+// Open the correction sub-dialog (also called by the Edit button)
+function openSmCloseTimeInCorrect(){
+  const correctWrap = document.getElementById('sm-close-timein-correct');
+  if(!correctWrap) return;
+  const lbl = document.getElementById('sm-close-correct-label');
+  if(lbl) lbl.textContent = '✏ Correct move-in date / time';
+  correctWrap.style.display = 'block';
+  correctWrap.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+// Confirm the correction: update hidden field + read-only display, hide sub-dialog, recalc
+function confirmSmCloseTimeIn(){
+  const correctDate = document.getElementById('sm-close-correct-date').value;
+  const correctTime = document.getElementById('sm-close-correct-time').value;
+  if(!correctDate || !correctTime){
+    alert('Both date and time are required'); return;
+  }
+  // Update the hidden confirmed field
+  document.getElementById('sm-close-time-in').value = correctTime;
+  // Also patch the sm.date in memory so _smCloseCalcHrs reads the right date-in
+  const evId = parseInt(document.getElementById('sm-event-id').value);
+  const ev   = S.events.find(e=>e.id===evId);
+  const smId = document.getElementById('sm-close-sm-id').value;
+  const sm   = ev ? (ev.subMoves||[]).find(s=>String(s.id)===String(smId)) : null;
+  if(sm){ sm._correctedDate = correctDate; sm._correctedTime = correctTime; }
+  // Update read-only display
+  const moveInDisp = document.getElementById('sm-close-movein-disp');
+  if(moveInDisp){
+    moveInDisp.textContent = dLabel(correctDate) + '  ·  ' + correctTime + '  (corrected)';
+    moveInDisp.style.color = 'var(--teal-d)';
+  }
+  // Hide correction dialog
+  document.getElementById('sm-close-timein-correct').style.display = 'none';
+  calcSmCloseDuration();
+}
+
 function calcSmCloseDuration(){
   const evId = parseInt(document.getElementById('sm-event-id').value);
   const ev   = S.events.find(e=>e.id===evId);
-  if(!ev) return;
+  const disp = document.getElementById('sm-close-duration-disp');
+  if(!disp) return;
+  if(!ev){ disp.textContent=''; return; }
   const smId = document.getElementById('sm-close-sm-id').value;
   const sm   = (ev.subMoves||[]).find(s=>String(s.id)===String(smId));
-  if(!sm||!sm.time) return;
+  if(!sm){ disp.textContent=''; return; }
+  const dateOut = document.getElementById('sm-close-date').value;
   const timeOut = document.getElementById('sm-close-time-out').value;
-  if(!timeOut) return;
-  const [inH,inM]   = sm.time.split(':').map(Number);
-  const [outH,outM] = timeOut.split(':').map(Number);
-  let diffMin = (outH*60+outM)-(inH*60+inM);
-  if(diffMin<=0) diffMin+=24*60; // overnight
-  const hrs = Math.round(diffMin/60*4)/4;
-  document.getElementById('sm-close-hours').value = hrs;
+  // Use corrected time-in if confirmed, otherwise fall back to stored sm.time
+  const confirmedTimeIn = document.getElementById('sm-close-time-in')?.value || sm.time || '';
+  const confirmedDateIn = sm._correctedDate || sm.date;
+  if(!dateOut || !timeOut || !confirmedTimeIn){
+    disp.style.color = 'var(--text2)';
+    disp.textContent = !confirmedTimeIn ? 'Correct move-in time above to calculate duration' : '';
+    return;
+  }
+  const smProxy = { date: confirmedDateIn, time: confirmedTimeIn };
+  const hrs = _smCloseCalcHrs(smProxy, dateOut, timeOut, null);
+  if(hrs===null){
+    disp.style.color='var(--red-d)';
+    disp.textContent = dateOut < confirmedDateIn ? 'Return date is before move-in date' : 'Check return date/time';
+    return;
+  }
+  disp.style.color='var(--teal-d)';
+  const days = Math.floor(hrs/24);
+  const remHrs = Math.round((hrs%24)*4)/4;
+  disp.textContent = '⏱ ' + (days>0 ? `${days}d ${remHrs>0?remHrs+'h':''}`.trim() : `${hrs}h`);
+}
+
+// Pure helper — compute hours from sm.date/sm.time + dateOut/timeOut.
+// Both time-in (sm.time) and timeOut are required — no date-only fallback.
+// Returns null if inputs are invalid or incomplete.
+function _smCloseCalcHrs(sm, dateOut, timeOut, _unused){
+  const dateIn = sm.date;
+  const timeIn = sm.time;
+  if(!dateIn || !dateOut) return null;
+  if(!timeIn || !timeOut) return null;
+  const inMs  = new Date(dateIn  + 'T' + timeIn  + ':00').getTime();
+  const outMs = new Date(dateOut + 'T' + timeOut + ':00').getTime();
+  const diffMs = outMs - inMs;
+  if(diffMs <= 0) return null;
+  return Math.round(diffMs / 3600000 * 4) / 4;
 }
 
 function saveSmClose(){
@@ -9640,17 +9726,30 @@ function saveSmClose(){
   const smId = document.getElementById('sm-close-sm-id').value;
   const sm   = (ev.subMoves||[]).find(s=>String(s.id)===String(smId));
   if(!sm){alert('Sub-move not found');return;}
-  const hrs = parseFloat(document.getElementById('sm-close-hours').value);
-  if(!hrs||hrs<=0){alert('Enter hours or return time to calculate duration');return;}
-  const dateOut   = document.getElementById('sm-close-date').value;
-  const timeOut   = document.getElementById('sm-close-time-out').value||null;
+  const dateOut = document.getElementById('sm-close-date').value;
+  if(!dateOut){alert('Date returned is required');return;}
+  const timeOut = document.getElementById('sm-close-time-out').value||null;
+  if(!timeOut){alert('Time returned is required');return;}
+  // Resolve time-in — use corrected values if the correction dialog was confirmed
+  const confirmedTimeIn = document.getElementById('sm-close-time-in')?.value || sm.time || '';
+  const confirmedDateIn = sm._correctedDate || sm.date;
+  if(!confirmedTimeIn){
+    alert('Move-in time is missing — use the correction dialog above to enter it'); return;
+  }
+  // Build proxy with confirmed date/time for duration calc
+  const smProxy = { date: confirmedDateIn, time: confirmedTimeIn };
+  const hrs = _smCloseCalcHrs(smProxy, dateOut, timeOut, null);
+  if(!hrs||hrs<=0){alert('Could not calculate duration — check the return date and time');return;}
   const heightOut = parseFloat(document.getElementById('sm-close-height-out').value)||null;
   const recMin    = parseInt(document.getElementById('sm-close-rec-min').value)||null;
   const recMax    = parseInt(document.getElementById('sm-close-rec-max').value)||null;
-  // Write close data onto the sub-move record
+  // Write close data — persist any corrected date/time back to sm
+  if(sm._correctedDate){ sm.date = sm._correctedDate; delete sm._correctedDate; }
+  if(sm._correctedTime){ sm.time = sm._correctedTime; delete sm._correctedTime; }
+  if(!sm.time && confirmedTimeIn) sm.time = confirmedTimeIn;
   sm.durationHours = hrs;
   sm.dateOut   = dateOut;
-  if(timeOut)   sm.timeOut   = timeOut;
+  sm.timeOut   = timeOut;
   if(heightOut!==null) sm.heightOut = heightOut;
   if(recMin)    sm.recoveryMinDays = recMin;
   if(recMax)    sm.recoveryMaxDays = recMax;
@@ -9675,7 +9774,10 @@ function saveSmClose(){
   cancelSmClose();
   renderSmExistingList(ev);
   renderHome();
-  alert(`Return from ${sm.locationName} recorded: ${hrs}h.`);
+  const _days = Math.floor(hrs/24);
+  const _hrsRem = Math.round((hrs%24)*4)/4;
+  const _durLabel = _days>0 ? `${_days}d${_hrsRem>0?' '+_hrsRem+'h':''}` : `${hrs}h`;
+  alert(`Return from ${sm.locationName} recorded: ${_durLabel}.`);
 }
 
 function deleteSubMove(evId, smId){
@@ -13929,16 +14031,56 @@ applyFieldMode(); // field-mode URL param + user preference — runs after detec
           Record return — <span id="sm-close-loc-label" style="color:var(--teal-d);"></span>
         </div>
         <input type="hidden" id="sm-close-sm-id"/>
+        <!-- Confirmed time-in — set from sm.time or correction dialog; used by calc + save -->
+        <input type="hidden" id="sm-close-time-in"/>
+
+        <!-- Move-in: read-only display with Edit button -->
+        <div style="display:flex;align-items:center;justify-content:space-between;
+                    padding:7px 10px;border-radius:var(--radius);background:var(--bg2);
+                    border:0.5px solid var(--border2);margin-bottom:8px;">
+          <div>
+            <div style="font-size:10px;color:var(--text2);margin-bottom:1px;">Moved in</div>
+            <div style="font-size:13px;font-weight:500;" id="sm-close-movein-disp">—</div>
+          </div>
+          <button onclick="openSmCloseTimeInCorrect()"
+            style="border:0.5px solid var(--border2);background:var(--bg);color:var(--text2);
+                   cursor:pointer;font-size:11px;padding:4px 10px;border-radius:var(--radius);
+                   line-height:1.4;font-family:inherit;">✏ Edit</button>
+        </div>
+
+        <!-- Correction sub-dialog — auto-shown when sm.time missing; also on Edit -->
+        <div id="sm-close-timein-correct" style="display:none;
+             background:var(--amber-l,rgba(251,191,36,0.10));border:0.5px solid var(--amber);
+             border-radius:var(--radius);padding:10px 12px;margin-bottom:10px;">
+          <div style="font-size:11px;font-weight:600;color:var(--amber-d);margin-bottom:8px;"
+               id="sm-close-correct-label">✏ Correct move-in time</div>
+          <div class="two" style="margin-bottom:8px;">
+            <div class="field" style="margin-bottom:0;">
+              <label style="font-size:11px;">Date moved in</label>
+              <input type="date" id="sm-close-correct-date"
+                style="padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);
+                       font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;width:100%;"/>
+            </div>
+            <div class="field" style="margin-bottom:0;">
+              <label style="font-size:11px;">Time moved in</label>
+              <input type="time" id="sm-close-correct-time"
+                style="padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);
+                       font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;width:100%;"/>
+            </div>
+          </div>
+          <button class="btn btn-teal btn-xs" onclick="confirmSmCloseTimeIn()">Confirm</button>
+        </div>
+
+        <!-- Return date + time (required) -->
         <div class="two">
           <div class="field"><label>Date returned</label>
-            <input type="date" id="sm-close-date"/></div>
-          <div class="field"><label>Time returned <span style="font-size:10px;color:var(--text2);">optional</span></label>
+            <input type="date" id="sm-close-date" oninput="calcSmCloseDuration()"/></div>
+          <div class="field"><label>Time returned</label>
             <input type="time" id="sm-close-time-out" oninput="calcSmCloseDuration()"/></div>
         </div>
-        <div class="field">
-          <label>Duration (hours) <span style="font-size:10px;color:var(--text2);">auto-calc or enter</span></label>
-          <input type="number" id="sm-close-hours" min="0.25" max="240" step="0.25" placeholder="e.g. 4"/>
-        </div>
+        <div id="sm-close-duration-disp"
+             style="font-size:12px;font-weight:500;margin:-4px 0 10px;min-height:16px;"></div>
+
         <div id="sm-close-grazing-fields">
           <div class="field">
             <label>Residual height at sub-location (in) <span style="font-size:10px;color:var(--text2);">optional</span></label>
