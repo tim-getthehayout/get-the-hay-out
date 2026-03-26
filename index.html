@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260325.1936" id="app-version-meta"/>
+<meta name="app-version" content="b20260326.0757" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -2162,10 +2162,44 @@ function mergeData(local,remote){
       if(!m[x[key]]){m[x[key]]=x;}
       else{
         const ex=m[x[key]];
-        if(x.status==='closed'&&ex.status==='open')m[x[key]]=x;
+        // Helper: union-merge feedEntries + subMoves from loser into winner.
+        // feedEntries: union by id — keep all entries from both sides.
+        // subMoves: union by id — for matching ids, prefer the CLOSED version
+        //   (durationHours>0 beats 0; dateOut set beats null) so a "record return"
+        //   saved on one device is never silently reverted by the other.
+        function _mergeEventArrays(winner, loser){
+          const out=Object.assign({},winner);
+          // feedEntries — pure union by id
+          const wFE=winner.feedEntries||[];
+          const lFE=loser.feedEntries||[];
+          if(lFE.length){
+            const seen=new Set(wFE.map(e=>e&&e.id).filter(v=>v!=null));
+            out.feedEntries=[...wFE,...lFE.filter(e=>e&&e.id!=null&&!seen.has(e.id))];
+          }
+          // subMoves — union by id; closed state wins on conflict
+          const wSM=winner.subMoves||[];
+          const lSM=loser.subMoves||[];
+          if(lSM.length){
+            const smMap={};
+            wSM.forEach(s=>{if(s&&s.id!=null)smMap[s.id]=s;});
+            lSM.forEach(s=>{
+              if(!s||s.id==null)return;
+              if(!smMap[s.id]){smMap[s.id]=s;}
+              else{
+                // Prefer the closed version — durationHours>0 is more informative than 0
+                const ws=smMap[s.id];
+                if(!ws.durationHours&&s.durationHours)smMap[s.id]=s;
+                // If both closed, keep winner (already set); if both open, keep winner
+              }
+            });
+            out.subMoves=Object.values(smMap);
+          }
+          return out;
+        }
+        if(x.status==='closed'&&ex.status==='open'){m[x[key]]=_mergeEventArrays(x,ex);}
         else if(ex.updatedAt&&x.updatedAt){
           // Both timestamped — newer wins (handles deletes)
-          if(x.updatedAt>ex.updatedAt){m[x[key]]=x;}
+          if(x.updatedAt>ex.updatedAt){m[x[key]]=_mergeEventArrays(x,ex);}
           else if(x.updatedAt===ex.updatedAt){
             // Equal timestamps — neither is definitively newer.
             // Union-merge sub-arrays so concurrent edits on different devices
@@ -2180,14 +2214,16 @@ function mergeData(local,remote){
               const seen=new Set(aArr.map(_idOf).filter(v=>v!=null));
               merged[arrKey]=[...aArr,...bArr.filter(i=>i&&_idOf(i)!=null&&!seen.has(_idOf(i)))];
             });
-            m[ex[key]]=merged;
+            m[ex[key]]=_mergeEventArrays(merged,x);
           }
-          // else local is newer, keep ex (no assignment needed)
+          // else local is newer, keep ex — but still rescue any loser feedEntries/subMoves
+          else{m[ex[key]]=_mergeEventArrays(ex,x);}
         } else if(ex.updatedAt&&!x.updatedAt){
-          // Local has timestamp, remote doesn't — local is newer write, keep ex
+          // Local has timestamp, remote doesn't — local is newer write; rescue remote arrays
+          m[ex[key]]=_mergeEventArrays(ex,x);
         } else if(!ex.updatedAt&&x.updatedAt){
           // Remote has timestamp, local doesn't — remote is newer
-          m[x[key]]=x;
+          m[x[key]]=_mergeEventArrays(x,ex);
         } else {
           // Neither has updatedAt — can\'t determine winner by timestamp.
           // Union-merge all sub-arrays by id so no device\'s additions are lost.
@@ -2857,6 +2893,15 @@ function renderLocationCard(ev){
   const subMoveBtn=`<button class="btn btn-outline btn-sm" onclick="openSubMoveSheet(${ev.id})">Sub-move</button>`;
   const editBtn=`<button class="btn btn-outline btn-sm" onclick="openEventEdit(${ev.id})">Edit event</button>`;
 
+  // Active sub-move — the paddock the animals are physically in right now
+  const activeSubMove = subMoves.find(sm=>!sm.durationHours);
+  const currentAtLine = activeSubMove
+    ? `<div style="font-size:11px;font-weight:600;color:var(--teal-d);margin-top:3px;">
+        📍 Currently at: ${escHtml(activeSubMove.locationName)}
+        <span style="font-weight:400;color:var(--text2);"> · sub-move since ${dLabel(activeSubMove.date)}</span>
+      </div>`
+    : '';
+
   return `<div class="grp-card expanded" id="loc-card-${ev.id}">
     <div class="grp-card-hdr" style="cursor:default;">
       <div class="grp-color-bar" style="background:${isCon?'#888':'var(--green)'};"></div>
@@ -2866,6 +2911,7 @@ function renderLocationCard(ev){
           ${locBadge}
         </div>
         <div style="font-size:11px;color:var(--text2);margin-top:2px;">Day ${days} · In ${dLabel(ev.dateIn)} · ${allEntries.length} feeding${allEntries.length!==1?'s':''} · $${costAll.toFixed(2)}${subMoves.length?' · '+subMoves.length+' sub-move'+(subMoves.length!==1?'s':'')+' · '+subHrsTotal.toFixed(1)+'h off-paddock · '+pastureHrsPct+'% on pasture':''}</div>
+        ${currentAtLine}
       </div>
     </div>
     <div class="grp-card-body">
@@ -9608,6 +9654,10 @@ function saveSmClose(){
   if(heightOut!==null) sm.heightOut = heightOut;
   if(recMin)    sm.recoveryMinDays = recMin;
   if(recMax)    sm.recoveryMaxDays = recMax;
+  // Mirror the return date onto the matching ev.paddocks[] entry so the chip
+  // in the event edit sheet correctly shows this paddock as closed (red chip).
+  const matchingPad = (ev.paddocks||[]).find(p=>p.pastureName===sm.locationName && !p.dateRemoved);
+  if(matchingPad){ matchingPad.dateRemoved = dateOut; if(timeOut) matchingPad.timeRemoved = timeOut; }
   // Save bale-feed checkpoint for grass DMI attribution
   const cpRow = document.getElementById('sm-close-checkpoint-row');
   const cpSlider = document.getElementById('sm-close-checkpoint');
@@ -9885,6 +9935,20 @@ function saveSubMove(){
 
   if(!ev.subMoves) ev.subMoves = [];
   ev.subMoves.push(sm);
+  // Auto-add the sub-move location to ev.paddocks[] so the event edit
+  // chip list and evDisplayName() stay in sync with where the cattle are.
+  if(!ev.paddocks) ev.paddocks = [];
+  if(!ev.paddocks.some(p=>p.pastureName===locName)){
+    const _smLoc = S.pastures.find(p=>p.name===locName);
+    ev.paddocks.push({
+      pastureId:    _smLoc?_smLoc.id:null,
+      pastureName:  locName,
+      acres:        _smLoc?parseFloat(_smLoc.acres)||null:null,
+      dateAdded:    sm.date||todayStr(),
+      timeAdded:    sm.time||'00:00',
+      locationType: _smLoc?_smLoc.locationType||'pasture':'pasture',
+    });
+  }
   ev.updatedAt=new Date().toISOString();
   save();
   closeSubMoveSheet();
@@ -11873,7 +11937,11 @@ function evMatchesPasture(ev, name, id){
 // Display name — "G-3" or "G-3, G-4, G-5"
 function evDisplayName(ev){
   const pads = evPaddocks(ev);
-  return pads.map(p=>p.pastureName).filter(Boolean).join(', ') || ev.pasture || '—';
+  // Show only active (non-removed) paddocks so the name reflects where the
+  // animals actually are now, not every paddock they have ever visited.
+  const active = pads.filter(p=>!p.dateRemoved);
+  const src = active.length ? active : pads; // fall back to all if all removed
+  return src.map(p=>p.pastureName).filter(Boolean).join(', ') || ev.pasture || '—';
 }
 
 // Total acres across all paddocks in the event
