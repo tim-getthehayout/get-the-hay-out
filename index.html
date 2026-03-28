@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260328.2204" id="app-version-meta"/>
+<meta name="app-version" content="b20260328.2211" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -2111,7 +2111,24 @@ function assembleAnimals(rows){
         sireTag:    he.sireName        ?? null,
         stillbirth: he.calvingStillbirth ?? false,
       }));
-    a.weightHistory  = [];  // now in S.animalWeightRecords; kept empty for backward compat
+    a.weightHistory = [];  // now in S.animalWeightRecords; kept empty for backward compat
+
+    // ── Field name aliases: Supabase column → JS field expected by render code ──
+    if (!a.tagNum && a.tag)    a.tagNum   = a.tag;      // tag → tagNum
+    a.active     = a.status !== 'culled';               // status → active bool
+    a.cullRecord = (a.status === 'culled' && (a.cullDate || a.cullReason))
+      ? { date: a.cullDate ?? null, reason: a.cullReason ?? null }
+      : null;
+    // weightLbs and systemId are not in Supabase — derive from weight records
+    // at render time via S.animalWeightRecords. Set safe defaults.
+    if (a.weightLbs == null) {
+      const wr = (S.animalWeightRecords || [])
+        .filter(r => r.animalId === a.id)
+        .sort((x, y) => (y.recordedAt > x.recordedAt ? 1 : -1));
+      if (wr.length) a.weightLbs = wr[0].weightLbs;
+    }
+    if (!a.systemId) a.systemId = null;
+
     delete a.animalHealthEvents; delete a.animalWeightRecords;
     return a;
   });
@@ -2120,8 +2137,11 @@ function assembleAnimals(rows){
 function assembleGroups(rows){
   return rows.map(r => {
     const g = _sbToCamel(r);
-    g.classes   = (r.animal_group_class_compositions || []).map(_sbToCamel);
-    g.animalIds = [];  // now in S.animalGroupMemberships; kept empty for compat
+    g.classes = (r.animal_group_class_compositions || []).map(_sbToCamel);
+    // Derive animalIds from top-level S.animalGroupMemberships (open rows only)
+    g.animalIds = (S.animalGroupMemberships || [])
+      .filter(m => m.groupId === g.id && !m.dateLeft)
+      .map(m => m.animalId);
     delete g.animalGroupClassCompositions; delete g.animalGroupMemberships;
     return g;
   });
@@ -2210,9 +2230,23 @@ async function loadFromSupabase(operationId){
     if(inputAppRes.error)  logError('supabase-load', 'input_apps: '     + inputAppRes.error.message,   '');
 
     // ── Assemble flat tables ────────────────────────────────────────────────
-    S.pastures                  = (pastureRows || []).map(_sbToCamel);
+    S.pastures = (pastureRows || []).map(r => {
+      const p = _sbToCamel(r);
+      if (!p.locationType && p.type) p.locationType = p.type; // type → locationType
+      return p;
+    });
     S.feedTypes                 = (feedTypeRows        || []).map(_sbToCamel);
-    S.batches                   = (batchRows           || []).map(_sbToCamel);
+    S.batches = (batchRows || []).map(r => {
+      const b = _sbToCamel(r);
+      if (!b.label    && b.name)         b.label    = b.name;          // name → label
+      if (!b.typeId   && b.feedTypeId)   b.typeId   = b.feedTypeId;    // feedTypeId → typeId
+      if (b.dm == null && b.dmPct != null) b.dm     = b.dmPct;         // dmPct → dm
+      if (!b.cpu      && b.costPerUnit)  b.cpu      = b.costPerUnit;   // costPerUnit → cpu
+      // remaining and wt not stored in Supabase — set safe defaults
+      if (b.remaining == null) b.remaining = b.quantity ?? 0;
+      if (b.wt == null)        b.wt        = null;
+      return b;
+    });
     S.animalClasses             = (classRows           || []).map(_sbToCamel);
     S.inputProducts             = (inputProductRows    || []).map(_sbToCamel);
     S.treatmentTypes            = (treatmentTypeRows   || []).map(_sbToCamel);
