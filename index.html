@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260326.0859" id="app-version-meta"/>
+<meta name="app-version" content="b20260328.0008" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -2309,6 +2309,12 @@ function mergeData(local,remote){
     // Reference / config arrays — union-merge so additions on either device are never lost
     treatmentTypes:   ma(local.treatmentTypes||[], remote.treatmentTypes||[]),
     aiBulls:          ma(local.aiBulls||[],        remote.aiBulls||[]),
+    // M0 new top-level arrays — union-merge by id
+    paddockObservations:       ma(local.paddockObservations||[],       remote.paddockObservations||[]),
+    animalWeightRecords:       ma(local.animalWeightRecords||[],       remote.animalWeightRecords||[]),
+    animalGroupMemberships:    ma(local.animalGroupMemberships||[],    remote.animalGroupMemberships||[]),
+    inputApplicationLocations: ma(local.inputApplicationLocations||[], remote.inputApplicationLocations||[]),
+    manureBatchTransactions:   ma(local.manureBatchTransactions||[],   remote.manureBatchTransactions||[]),
     // Scalar / object fields
     herd:    remote.herd&&remote.herd.name ? remote.herd : (local.herd||{}),
     _herdMigrated:    local._herdMigrated   ||remote._herdMigrated   ||false,
@@ -2326,7 +2332,12 @@ function ensureDataArrays(){
   const arrays=['pastures','events','feedTypes','batches','manureBatches',
                 'inputProducts','inputApplications','animalClasses','animalGroups',
                 'animals','users','todos','feedback','surveys',
-                'treatmentTypes','aiBulls'];
+                'treatmentTypes','aiBulls',
+                'paddockObservations',  // M0a-C: unified paddock condition log
+                'animalWeightRecords',  // M0b-F: top-level weight time series
+                'animalGroupMemberships', // M0b-G: top-level membership ledger
+                'inputApplicationLocations', // M0b-H: top-level amendment locations
+                'manureBatchTransactions'];  // M0b-I: top-level transaction ledger
   arrays.forEach(k=>{if(!Array.isArray(S[k]))S[k]=[];});
   if(!S.herd)S.herd={name:'',type:'',count:0,weight:0,dmi:2.5};
   if(S._paddocksMigrated===undefined)S._paddocksMigrated=false;
@@ -2854,7 +2865,7 @@ function renderLocationCard(ev){
   // OI-0049: event-level DMI summary across all groups
   let dmiEventLine='';
   if(totalDMITarget>0){
-    const storedDMI=calcConsumedDMI(allEntries,ev.feedResidual||0);
+    const storedDMI=calcConsumedDMI(allEntries,getEffectiveFeedResidual(ev));
     const totalTarget=totalDMITarget*days;
     const fill=totalTarget>0?Math.min(100,Math.round((storedDMI/totalTarget)*100)):0;
     const pasturePct=ev.noPasture?0:Math.max(0,100-fill);
@@ -2995,7 +3006,7 @@ function renderGroupCard(g){
   if(ae){
     const days=daysBetween(ae.dateIn,todayStr());
     const allEntries=allFeedEntries(ae);
-    const sdmi=calcConsumedDMI(allEntries,ae.feedResidual||0);
+    const sdmi=calcConsumedDMI(allEntries,getEffectiveFeedResidual(ae));
     const st=S.settings;
     const pFrac=pastureFraction(ae);
     // OI-0050: use this group's own head/wt for NPK, not the event-level stamped aggregate
@@ -3878,6 +3889,9 @@ function wizCloseEvent(){
   const {days,sdmi,cost,npk,npkVal,pdmi,pct,pFraction,subHrs,totalHrs,subMoveNPK} = totals;
   ae.dateOut=outDate;ae.timeOut=document.getElementById('w-out-time')?.value||null;ae.heightOut=parseFloat(document.getElementById('w-res-h').value)||null;
   ae.feedResidual=feedRes;
+  // M0a-A: append final-close entry to feedResidualChecks series
+  if(!Array.isArray(ae.feedResidualChecks)) ae.feedResidualChecks=[];
+  ae.feedResidualChecks.push({id:Date.now(),date:outDate,residualPct:feedRes,balesRemainingPct:feedRes,notes:'event_close',isCloseReading:true});
   ae.recoveryMinDays=parseInt(document.getElementById('w-rec-min')?.value)||null;
   ae.recoveryMaxDays=parseInt(document.getElementById('w-rec-max')?.value)||null;
   ae.status='closed';
@@ -3987,6 +4001,38 @@ function wizCloseEvent(){
     }
     ae.totals.pastureDMI=null;ae.totals.pct=null;
   }
+  // M0a-B: write npkLedger entries (one per paddock) from computed totals
+  if(!isCon){
+    if(!Array.isArray(ae.npkLedger)) ae.npkLedger=[];
+    let _nlId=Date.now()+100;
+    (ae.totals.paddockNPK||[]).forEach(padNPK=>{
+      ae.npkLedger.push({id:_nlId++,paddockName:padNPK.pastureName,
+        pastureId:padNPK.pastureId||null,periodStart:ae.dateIn,periodEnd:outDate,
+        head:ae.head||0,avgWeight:ae.wt||0,days,acres:padNPK.acres||null,
+        nLbs:padNPK.n||0,pLbs:padNPK.p||0,kLbs:padNPK.k||0,
+        source:'livestock_excretion'});
+    });
+    // M0b-K: feed residual OM entry for primary paddock (uneaten feed DM deposited)
+    if(_residOM>0){
+      const _primPad=evPrimaryPaddock(ae);
+      ae.npkLedger.push({id:_nlId++,paddockName:_primPad.pastureName,
+        pastureId:_primPad.pastureId||null,periodStart:ae.dateIn,periodEnd:outDate,
+        head:ae.head||0,avgWeight:ae.wt||0,days,acres:_totalAcres||null,
+        nLbs:0,pLbs:0,kLbs:0,
+        source:'feed_residual',dmLbsDeposited:_residOM});
+    }
+  }
+  // M0a-C: write event_close observations for each grazing paddock
+  {let _obsTs=Date.now()+200;
+  evPaddocks(ae).forEach(pad=>{
+    if(pad.locationType==='confinement') return;
+    _writePaddockObservation({id:_obsTs++,pastureId:pad.pastureId||null,
+      pastureName:pad.pastureName,observedAt:outDate,source:'event_close',
+      sourceId:ae.id,confidenceRank:2,vegHeight:ae.heightOut||null,
+      forageCoverPct:null,forageQuality:null,
+      recoveryMinDays:ae.recoveryMinDays||null,recoveryMaxDays:ae.recoveryMaxDays||null,
+      notes:null});
+  });}
   ae.updatedAt=new Date().toISOString();
   save();
   let summaryExtra='';
@@ -4096,6 +4142,18 @@ function wizSaveNew(){
   // Apply multi-paddock array to the just-pushed event
   const _newEv=S.events[S.events.length-1];
   if(_newEv) applyWizPaddocksToEvent(_newEv,inDate);
+  // M0a-C: write event_open paddock observation for each grazing paddock
+  if(_newEv){
+    let _obsTs=Date.now();
+    evPaddocks(_newEv).forEach(pad=>{
+      if(pad.locationType==='confinement') return;
+      _writePaddockObservation({id:_obsTs++,pastureId:pad.pastureId||null,
+        pastureName:pad.pastureName,observedAt:inDate,source:'event_open',
+        sourceId:_newEv.id,confidenceRank:1,vegHeight:_newEv.heightIn||null,
+        forageCoverPct:null,forageQuality:null,
+        recoveryMinDays:null,recoveryMaxDays:null,notes:null});
+    });
+  }
   wizPaddocks=[];
   wizFeedLines=[];save();nav('home',document.getElementById('bn-home'));
 }
@@ -4249,7 +4307,7 @@ function aggregatePaddockPeriod(pastureName, pastureId, periodStart, periodEnd){
         const t2=g2?getGroupTotals(g2):null;
         const dmiT2=t2?t2.dmiTarget:((ev.head||0)*(ev.wt||0)*0.025);
         if(dmiT2>0){
-          const sFeed=calcConsumedDMI(allFeedEntries(ev),ev.feedResidual||0);
+          const sFeed=calcConsumedDMI(allFeedEntries(ev),getEffectiveFeedResidual(ev));
           pastureFrac2=Math.max(0,(dmiT2*daysInPeriod-sFeed))/(dmiT2*daysInPeriod);
         }
       }
@@ -4406,16 +4464,40 @@ function lastClosedEventForPasture(pastureId, pastureName){
 // a date field that serves as the "dateOut" for recovery window calculations.
 // Returns whichever record (closed event OR sub-move) is most recent.
 function lastGrazingRecordForPasture(pastureId, pastureName){
+  // M0a-C: query S.paddockObservations first (populated by event/sub-move/survey saves).
+  // Filter to close-type sources for recovery-window authority (confidence 2+).
+  // Falls back to legacy event scan if paddockObservations is empty (pre-M0a data).
+  const obs = (S.paddockObservations||[]).filter(o=>{
+    const matchId  = pastureId  && String(o.pastureId)===String(pastureId);
+    const matchNm  = pastureName && o.pastureName===pastureName;
+    if(!(matchId||matchNm)) return false;
+    return o.source==='event_close'||o.source==='sub_move_close'||o.source==='survey';
+  });
+  if(obs.length){
+    obs.sort((a,b)=>{
+      if(b.observedAt!==a.observedAt) return b.observedAt.localeCompare(a.observedAt);
+      return (b.confidenceRank||0)-(a.confidenceRank||0);
+    });
+    const best = obs[0];
+    return {
+      dateOut:          best.observedAt,
+      recoveryMinDays:  best.recoveryMinDays||null,
+      recoveryMaxDays:  best.recoveryMaxDays||null,
+      heightOut:        best.vegHeight||null,
+      _fromObservation: true,
+      _source:          best.source,
+    };
+  }
+  // Legacy fallback: scan events + sub-moves directly (pre-M0a data)
   const lastEv = lastClosedEventForPasture(pastureId, pastureName);
-  // Build virtual records from sub-moves across all events that visited this location
   const smRecords = [];
   S.events.forEach(ev=>{
     (ev.subMoves||[]).forEach(sm=>{
       if(sm.locationName !== pastureName) return;
-      if(!sm.recoveryMinDays && !sm.recoveryMaxDays) return; // no recovery data — skip
+      if(!sm.recoveryMinDays && !sm.recoveryMaxDays) return;
       smRecords.push({
         _isSubMove: true,
-        dateOut: sm.date,
+        dateOut: sm.dateOut||sm.date,
         recoveryMinDays: sm.recoveryMinDays||null,
         recoveryMaxDays: sm.recoveryMaxDays||null,
         heightOut: sm.heightOut||null
@@ -4423,11 +4505,9 @@ function lastGrazingRecordForPasture(pastureId, pastureName){
     });
   });
   if(!smRecords.length) return lastEv;
-  // Sort sub-move records descending by date
   smRecords.sort((a,b)=>b.dateOut.localeCompare(a.dateOut));
   const latestSm = smRecords[0];
   if(!lastEv) return latestSm;
-  // Return whichever is more recent
   return latestSm.dateOut >= lastEv.dateOut ? latestSm : lastEv;
 }
 
@@ -4886,6 +4966,19 @@ function saveSurvey(){
   });
 
   save();
+  // M0a-C: write survey paddock observations
+  {const _svId = existing ? existing.id : S.surveys[S.surveys.length-1].id;
+  let _obsTs = Date.now();
+  ratings.forEach(r=>{
+    _writePaddockObservation({id:_obsTs++,pastureId:r.pastureId||null,
+      pastureName:r.pastureName||'',observedAt:date,source:'survey',
+      sourceId:_svId,confidenceRank:3,vegHeight:r.vegHeight||null,
+      forageCoverPct:r.forageCover||null,forageQuality:r.rating||null,
+      recoveryMinDays:surveyRecovery[r.pastureId]?.min||null,
+      recoveryMaxDays:surveyRecovery[r.pastureId]?.max||null,
+      notes:r.notes||null});
+  });
+  saveLocal();} // flush observation rows without triggering a second full save cycle
   closeSurveySheet();
   if(curScreen==='pastures') renderPastures();
 
@@ -6389,15 +6482,19 @@ function loadSettings(){
 }
 function addFeedType(){
   const name=document.getElementById('ft-name').value.trim();if(!name)return;
-  S.feedTypes.push({id:generateFeedTypeId(),archived:false,name,unit:document.getElementById('ft-unit').value,dm:parseFloat(document.getElementById('ft-dm').value)||85,cat:document.getElementById('ft-cat').value});
+  const nPct=parseFloat(document.getElementById('ft-npct').value)||null;
+  const pPct=parseFloat(document.getElementById('ft-ppct').value)||null;
+  const kPct=parseFloat(document.getElementById('ft-kpct').value)||null;
+  S.feedTypes.push({id:generateFeedTypeId(),archived:false,name,unit:document.getElementById('ft-unit').value,dm:parseFloat(document.getElementById('ft-dm').value)||85,cat:document.getElementById('ft-cat').value,nPct,pPct,kPct});
   stampSetup();save();renderFeedTypes();populateBatchTypeSelect();document.getElementById('ft-name').value='';
+  document.getElementById('ft-npct').value='';document.getElementById('ft-ppct').value='';document.getElementById('ft-kpct').value='';
 }
 function renderFeedTypes(){
   const el=document.getElementById('ft-list');
   if(!S.feedTypes.length){el.innerHTML='<div style="font-size:13px;color:var(--text2);margin-bottom:8px;">None yet</div>';populateBatchTypeSelect();return;}
   el.innerHTML=S.feedTypes.map((ft,i)=>ft.archived
     ?`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);opacity:0.45;"><span style="font-size:13px;">${ft.name} <span class="badge bb">archived</span></span><button class="btn btn-outline btn-xs" onclick="unarchive('feedType','${ft.id}')">Unarchive</button></div>`
-    :`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);font-size:13px;"><span>${ft.name} <span class="badge bb">${ft.unit}</span> <span class="badge bg">${ft.dm}% DM</span></span><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;" onclick="tryDeleteFeedType(${i})">×</button></div>`
+    :`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);font-size:13px;"><span>${ft.name} <span class="badge bb">${ft.unit}</span> <span class="badge bg">${ft.dm}% DM</span>${(ft.nPct||ft.pPct||ft.kPct)?` <span class="badge bt">N${ft.nPct??'?'} P${ft.pPct??'?'} K${ft.kPct??'?'}</span>`:''}</span><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;" onclick="tryDeleteFeedType(${i})">×</button></div>`
   ).join('');
   populateBatchTypeSelect();
 }
@@ -6602,14 +6699,23 @@ function exportFeedbackJSON(){
 // ─── MANURE SYSTEM ───────────────────────────────────────────────────────────
 function addToManureBatch(loc,event,nLbs,pLbs,kLbs,volLbs,date){
   const entry={type:'input',date,eventId:event.id,locationName:loc.name,nLbs,pLbs,kLbs,volumeLbs:volLbs};
+  let batchId;
   if(loc.batchMode==='accumulate'&&loc.accumulatingBatchId){
     const b=S.manureBatches.find(x=>x.id===loc.accumulatingBatchId);
-    if(b){b.nLbs+=nLbs;b.pLbs+=pLbs;b.kLbs+=kLbs;b.estimatedVolumeLbs+=volLbs;b.events.push(entry);}
+    if(b){b.nLbs+=nLbs;b.pLbs+=pLbs;b.kLbs+=kLbs;b.estimatedVolumeLbs+=volLbs;b.events.push(entry);batchId=b.id;}
   } else {
-    const batchId=Date.now();
+    batchId=Date.now();
     const label=loc.name+' — '+new Date(date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+' event';
     S.manureBatches.push({id:batchId,label,locationName:loc.name,mode:'event',nLbs,pLbs,kLbs,estimatedVolumeLbs:volLbs,remainingLbs:volLbs,events:[entry],createdAt:new Date().toISOString()});
     event.totals.manureBatchId=batchId;
+  }
+  // M0b-I: also write to S.manureBatchTransactions[]
+  if(batchId){
+    if(!Array.isArray(S.manureBatchTransactions)) S.manureBatchTransactions=[];
+    S.manureBatchTransactions.push({id:Date.now()+2,batchId,
+      type:'input',date,volumeLbs:volLbs,
+      nLbs,pLbs,kLbs,sourceEventId:event.id,
+      applicationId:null,pastureNames:null,notes:null});
   }
 }
 
@@ -6745,6 +6851,12 @@ function saveSpreadEvent(){
   const volApplied=rem*calc.ratio;
   // Add application entry to batch
   b.events.push({type:'application',date,paddock,volumeLbs:volApplied,nLbs:calc.nApp,pLbs:calc.pApp,kLbs:calc.kApp,notes:document.getElementById('sp-notes').value});
+  // M0b-I: also write to S.manureBatchTransactions[]
+  if(!Array.isArray(S.manureBatchTransactions)) S.manureBatchTransactions=[];
+  S.manureBatchTransactions.push({id:Date.now()+3,batchId:id,
+    type:'application',date,volumeLbs:volApplied,
+    nLbs:calc.nApp,pLbs:calc.pApp,kLbs:calc.kApp,
+    applicationId:null,pastureNames:[paddock],notes:document.getElementById('sp-notes').value||null});
   // Add amendment event to pasture event ledger
   S.events.push({id:Date.now(),type:'amend',pasture:paddock,date,amendType:'manure',product:b.label+' (manure)',source:'manure-batch',sourceBatchId:id,totalCost:0,lifeDays:365,lifeDisplay:'1 year',nPct:0,pPct:0,kPct:0,manureNLbs:calc.nApp,manurePLbs:calc.pApp,manureKLbs:calc.kApp,notes:document.getElementById('sp-notes').value});
   save();closeSpreadSheet();
@@ -7086,6 +7198,32 @@ function closeAnimalWeightSheet(){
   document.getElementById('animal-weight-wrap').classList.remove('open');
 }
 
+// M0b-G: group membership ledger helpers
+// Opens a new membership row (animal joins a group). dateJoined null = unknown/historical.
+function _openGroupMembership(animalId, groupId, dateJoined){
+  if(!Array.isArray(S.animalGroupMemberships)) S.animalGroupMemberships=[];
+  // Avoid duplicate open rows for the same animal+group
+  const existing=S.animalGroupMemberships.find(m=>m.animalId===animalId&&m.groupId===groupId&&!m.dateLeft);
+  if(existing) return;
+  S.animalGroupMemberships.push({id:Date.now(),animalId,groupId,dateJoined:dateJoined||null,dateLeft:null});
+}
+// Closes the open membership row for an animal leaving a group. dateLeft null = unknown.
+function _closeGroupMembership(animalId, groupId, dateLeft){
+  if(!Array.isArray(S.animalGroupMemberships)) return;
+  const row=S.animalGroupMemberships.find(m=>m.animalId===animalId&&m.groupId===groupId&&!m.dateLeft);
+  if(row) row.dateLeft=dateLeft||new Date().toISOString().slice(0,10);
+}
+
+
+function _recordAnimalWeight(a, date, wt, note, source){
+  if(!a||!wt) return;
+  if(!a.weightHistory) a.weightHistory=[];
+  a.weightHistory.push({date,weightLbs:wt,note:note||''});
+  if(!Array.isArray(S.animalWeightRecords)) S.animalWeightRecords=[];
+  S.animalWeightRecords.push({id:Date.now(),animalId:a.id,recordedAt:date,
+    weightLbs:wt,note:note||null,source:source||'manual'});
+}
+
 function saveAnimalWeight(){
   const id = parseInt(document.getElementById('aw-animal-id').value);
   const wt = parseFloat(document.getElementById('aw-weight').value);
@@ -7095,8 +7233,7 @@ function saveAnimalWeight(){
   const date = document.getElementById('aw-date').value||todayStr();
   const note = document.getElementById('aw-note').value.trim();
   a.weightLbs = wt;
-  if(!a.weightHistory) a.weightHistory=[];
-  a.weightHistory.push({date,weightLbs:wt,note:note||'Weight update'});
+  _recordAnimalWeight(a, date, wt, note||'Weight update', 'manual');
   a.updatedAt=new Date().toISOString();
   save(); closeAnimalWeightSheet();  renderGroupsList();
 }
@@ -7810,7 +7947,8 @@ function addAnimal(){
   });
   if(groupId){
     const g=S.animalGroups.find(x=>x.id===groupId);
-    if(g){if(!g.animalIds)g.animalIds=[];g.animalIds.push(newId);}
+    if(g){if(!g.animalIds)g.animalIds=[];g.animalIds.push(newId);
+      _openGroupMembership(newId, groupId, new Date().toISOString().slice(0,10));}
   }
   save();renderGroupsList();
   ['a-tag','a-eid','a-wt','a-notes'].forEach(id=>document.getElementById(id).value='');
@@ -8064,8 +8202,7 @@ function saveAnimalEdit(){
   // Update weight if changed
   if(newWt&&newWt!==a.weightLbs){
     a.weightLbs=newWt;
-    if(!a.weightHistory)a.weightHistory=[];
-    a.weightHistory.push({date:new Date().toISOString().slice(0,10),weightLbs:newWt,note:'Manual edit'});
+    _recordAnimalWeight(a, new Date().toISOString().slice(0,10), newWt, 'Manual edit', 'manual');
   }
   // Birth date — if changed, recompute wean target date
   const bdSaveEl=document.getElementById('ae-birthdate');
@@ -8094,10 +8231,14 @@ function saveAnimalEdit(){
   // Handle group assignment change
   const newGrpId=parseInt(document.getElementById('ae-group').value)||null;
   const oldGrp=getAnimalGroup(id);
-  if(oldGrp&&oldGrp.id!==newGrpId)oldGrp.animalIds=(oldGrp.animalIds||[]).filter(x=>x!==id);
+  if(oldGrp&&oldGrp.id!==newGrpId){
+    oldGrp.animalIds=(oldGrp.animalIds||[]).filter(x=>x!==id);
+    _closeGroupMembership(id,oldGrp.id,new Date().toISOString().slice(0,10));
+  }
   if(newGrpId&&(!oldGrp||oldGrp.id!==newGrpId)){
     const newGrp=S.animalGroups.find(g=>g.id===newGrpId);
-    if(newGrp){if(!newGrp.animalIds)newGrp.animalIds=[];if(!newGrp.animalIds.includes(id))newGrp.animalIds.push(id);}
+    if(newGrp){if(!newGrp.animalIds)newGrp.animalIds=[];if(!newGrp.animalIds.includes(id))newGrp.animalIds.push(id);
+      _openGroupMembership(id,newGrpId,new Date().toISOString().slice(0,10));}
   }
   a.updatedAt=new Date().toISOString();
   save();closeAnimalEdit();renderGroupsList();
@@ -8109,7 +8250,12 @@ function deleteAnimal(){
   if(!a)return;
   if(!confirm('Delete '+a.tagNum+'? This cannot be undone.'))return;
   // Remove from any group
-  S.animalGroups.forEach(g=>{g.animalIds=(g.animalIds||[]).filter(x=>x!==id);});
+  S.animalGroups.forEach(g=>{
+    if((g.animalIds||[]).includes(id)){
+      _closeGroupMembership(id,g.id,new Date().toISOString().slice(0,10));
+      g.animalIds=g.animalIds.filter(x=>x!==id);
+    }
+  });
   S.animals=S.animals.filter(x=>x.id!==id);
   save();closeAnimalEdit();renderGroupsList();
 }
@@ -8152,8 +8298,7 @@ function commitWeightUpdates(){
     const newWt=parseFloat(input.value);
     if(!newWt||newWt===a.weightLbs)return;
     a.weightLbs=newWt;
-    if(!a.weightHistory)a.weightHistory=[];
-    a.weightHistory.push({date,weightLbs:newWt,note:'Group weight update'});
+    _recordAnimalWeight(a, date, newWt, 'Group weight update', 'group_update');
     updated++;
   });
   save();closeWtSheet();renderGroupsList()
@@ -8298,10 +8443,19 @@ function saveGroupFromSheet(){
     if(!g){ alert('Group not found'); return; }
     g.name = name;
     g.color = color;
+    // Diff old vs new animalIds for membership ledger
+    const today = new Date().toISOString().slice(0,10);
+    const oldIds = new Set(g.animalIds||[]);
+    const newIds = new Set(animalIds);
+    oldIds.forEach(id=>{ if(!newIds.has(id)) _closeGroupMembership(id,g.id,today); });
+    newIds.forEach(id=>{ if(!oldIds.has(id)) _openGroupMembership(id,g.id,today); });
     g.animalIds = animalIds;
   } else {
     // New group
-    S.animalGroups.push({ id: Date.now(), archived: false, name, color, animalIds });
+    const newGrpId = Date.now();
+    const today = new Date().toISOString().slice(0,10);
+    S.animalGroups.push({ id: newGrpId, archived: false, name, color, animalIds });
+    animalIds.forEach(id=>_openGroupMembership(id,newGrpId,today));
   }
   stampSetup(); save();
   renderGroupsList();
@@ -9230,7 +9384,8 @@ function saveCalving(){
   // Assign calf to same group as dam (skip if stillbirth)
   if(!isStillbirth){
     const grp=getAnimalGroup(damId);
-    if(grp){if(!grp.animalIds)grp.animalIds=[];grp.animalIds.push(calfId);}
+    if(grp){if(!grp.animalIds)grp.animalIds=[];grp.animalIds.push(calfId);
+      _openGroupMembership(calfId,grp.id,calvDate);}
   }
   save();
   closeCalvingSheet();
@@ -9780,6 +9935,21 @@ function saveSmClose(){
     if(recMin) loc.recoveryMinDays = recMin;
     if(recMax) loc.recoveryMaxDays = recMax;
   }
+  // M0a-A: write feedResidualChecks entry on sub-move close when feed was delivered
+  if((sm.feedEntries||[]).length){
+    if(!Array.isArray(sm.feedResidualChecks)) sm.feedResidualChecks=[];
+    const _cpPct = sm.parentFeedCheckpointPct!=null ? sm.parentFeedCheckpointPct : (sm.feedResidual||0);
+    sm.feedResidualChecks.push({id:Date.now(),date:dateOut,residualPct:_cpPct,
+      balesRemainingPct:_cpPct,notes:'sub_move_close',isCloseReading:true});
+  }
+  // M0a-C: write sub_move_close paddock observation
+  if(!sm.noPasture){
+    _writePaddockObservation({id:Date.now()+1,pastureId:loc?loc.id:null,
+      pastureName:sm.locationName,observedAt:dateOut,source:'sub_move_close',
+      sourceId:sm.id,confidenceRank:2,vegHeight:heightOut||null,
+      forageCoverPct:null,forageQuality:null,
+      recoveryMinDays:recMin||null,recoveryMaxDays:recMax||null,notes:null});
+  }
   ev.updatedAt=new Date().toISOString();
   save();
   cancelSmClose();
@@ -10048,6 +10218,13 @@ function saveSubMove(){
 
   if(!ev.subMoves) ev.subMoves = [];
   ev.subMoves.push(sm);
+  // M0a-C: write sub_move_open observation when a grazing height was recorded
+  if(!smNoPasture && sm.heightIn){
+    _writePaddockObservation({id:Date.now()+2,pastureId:loc?loc.id:null,
+      pastureName:locName,observedAt:sm.date,source:'sub_move_open',sourceId:sm.id,
+      confidenceRank:1,vegHeight:sm.heightIn,forageCoverPct:null,forageQuality:null,
+      recoveryMinDays:null,recoveryMaxDays:null,notes:null});
+  }
   // Auto-add the sub-move location to ev.paddocks[] so the event edit
   // chip list and evDisplayName() stay in sync with where the cattle are.
   if(!ev.paddocks) ev.paddocks = [];
@@ -10084,7 +10261,7 @@ function calcEventTotalsWithSubMoves(ae, outDate, feedRes){
 
   // DMI: main event entries use the wizard's feedRes; each sub-move uses its own feedResidual
   const mainDMI = calcConsumedDMI(ae.feedEntries||[], feedRes);
-  const subDMI  = (ae.subMoves||[]).reduce((s,sm)=>s+calcConsumedDMI(sm.feedEntries||[], sm.feedResidual||0), 0);
+  const subDMI  = (ae.subMoves||[]).reduce((s,sm)=>s+calcConsumedDMI(sm.feedEntries||[], getEffectiveFeedResidual(sm)), 0);
   const sdmi = mainDMI + subDMI;
 
   // Cost: main event cost + sub-move costs
@@ -10121,6 +10298,30 @@ function calcEventTotalsWithSubMoves(ae, outDate, feedRes){
 }
 
 // ─── END SUB-MOVE SYSTEM ──────────────────────────────────────────────────────
+
+// ─── M0a HELPERS ─────────────────────────────────────────────────────────────
+
+// getEffectiveFeedResidual: returns final residual % from feedResidualChecks series
+// if present; falls back to scalar feedResidual for pre-M0a events.
+function getEffectiveFeedResidual(evOrSm){
+  const checks = evOrSm.feedResidualChecks;
+  if(Array.isArray(checks) && checks.length) return checks[checks.length-1].residualPct||0;
+  return evOrSm.feedResidual||0;
+}
+
+// _writePaddockObservation: appends one observation to S.paddockObservations[].
+// Deduplicates by source + sourceId + pastureId so re-saves don't double-write.
+function _writePaddockObservation(obs){
+  if(!Array.isArray(S.paddockObservations)) S.paddockObservations=[];
+  const dup = S.paddockObservations.some(o=>
+    o.source===obs.source &&
+    String(o.sourceId)===String(obs.sourceId) &&
+    String(o.pastureId)===String(obs.pastureId)
+  );
+  if(!dup) S.paddockObservations.push(obs);
+}
+
+// ─── END M0a HELPERS ─────────────────────────────────────────────────────────
 
 // ─── PER-PADDOCK ATTRIBUTION ENGINE ──────────────────────────────────────────
 
@@ -10162,7 +10363,7 @@ function calcGrassDMIByWindow(ae, outDate, feedRes){
     const hasGrazingSubMoves = (ae.subMoves||[]).some(sm=>!sm.noPasture);
     const effectivelyNoPasture = ae.noPasture && !hasGrazingSubMoves;
     if(effectivelyNoPasture) return [];
-    const subDMI = (ae.subMoves||[]).reduce((s,sm)=>s+calcConsumedDMI(sm.feedEntries||[],sm.feedResidual||0),0);
+    const subDMI = (ae.subMoves||[]).reduce((s,sm)=>s+calcConsumedDMI(sm.feedEntries||[],getEffectiveFeedResidual(sm)),0);
     const mainDMI = calcConsumedDMI(ae.feedEntries||[], feedRes||0);
     const grassDMI = Math.max(0, dmiPerDay*totalDays - mainDMI - subDMI);
     if(primaryPaddock) result[primaryPaddock] = grassDMI;
@@ -10547,11 +10748,27 @@ function saveApplyInput(){
       }
       b.events.push({type:'application',date,paddocks:locs,volumeLbs:rem*ratio,
         nLbs:nTotal,pLbs:pTotal,kLbs:kTotal,notes});
+      // M0b-I: also write to S.manureBatchTransactions[]
+      if(!Array.isArray(S.manureBatchTransactions)) S.manureBatchTransactions=[];
+      S.manureBatchTransactions.push({id:Date.now()+1,batchId:b.id,
+        type:'application',date,volumeLbs:rem*ratio,
+        nLbs:nTotal,pLbs:pTotal,kLbs:kTotal,
+        applicationId:appId,pastureNames:locs,notes:notes||null});
     }
     application.manureBatchId=parseInt(document.getElementById('ai-manure-batch').value);
   }
 
   S.inputApplications.push(application);
+
+  // M0b-H: write per-paddock rows to S.inputApplicationLocations[]
+  if(!Array.isArray(S.inputApplicationLocations)) S.inputApplicationLocations=[];
+  let _ialId=Date.now()+50;
+  application.locations.forEach(loc=>{
+    S.inputApplicationLocations.push({id:_ialId++,applicationId:appId,
+      pastureId:loc.pastureId||null,pastureName:loc.name,
+      acres:loc.acres||null,nLbs:loc.nLbs||0,pLbs:loc.pLbs||0,kLbs:loc.kLbs||0,
+      costShare:loc.costShare||0});
+  });
 
   // Create per-paddock amend events (NPK ledger)
   application.locations.forEach(loc=>{
@@ -10608,6 +10825,7 @@ function saveCull(){
   // Remove from group (group DMI recalculates immediately)
   S.animalGroups.forEach(g=>{
     if((g.animalIds||[]).includes(id)){
+      _closeGroupMembership(id,g.id,date);
       g.animalIds=g.animalIds.filter(x=>x!==id);
     }
   });
@@ -11452,9 +11670,9 @@ function recalcEventTotals(ev){
 
   // DMI: main event uses ev.feedResidual; each sub-move uses its own feedResidual
   // (matches calcEventTotalsWithSubMoves — do NOT pool all entries with one residual)
-  const mainDMI = calcConsumedDMI(ev.feedEntries||[], ev.feedResidual||0);
+  const mainDMI = calcConsumedDMI(ev.feedEntries||[], getEffectiveFeedResidual(ev));
   const subDMI  = (ev.subMoves||[]).reduce((s,sm)=>
-    s + calcConsumedDMI(sm.feedEntries||[], sm.feedResidual||0), 0);
+    s + calcConsumedDMI(sm.feedEntries||[], getEffectiveFeedResidual(sm)), 0);
   const storedDMI = mainDMI + subDMI;
   const feedCost  = calcEntryCost(ev.feedEntries||[]) +
     (ev.subMoves||[]).reduce((s,sm)=>s + calcEntryCost(sm.feedEntries||[]), 0);
@@ -11500,7 +11718,7 @@ function recalcEventTotals(ev){
   }
 
   const _omRecalc = ev.locationType!=='confinement'
-    ? calcResidualOM(ev.feedEntries||[], ev.feedResidual||0) : 0;
+    ? calcResidualOM(ev.feedEntries||[], getEffectiveFeedResidual(ev)) : 0;
 
   // Paddock NPK — split by acreage
   const _recalcPads = evPaddocks(ev);
@@ -11520,7 +11738,7 @@ function recalcEventTotals(ev){
   const subMoveNPK = calcSubMoveNPKByAcres(ev, ev.dateOut);
 
   // Grass DMI by paddock — checkpoint-driven if checkpoints were recorded
-  const grassDMIByPaddock = calcGrassDMIByWindow(ev, ev.dateOut, ev.feedResidual||0);
+  const grassDMIByPaddock = calcGrassDMIByWindow(ev, ev.dateOut, getEffectiveFeedResidual(ev));
 
   ev.totals = {
     ...ev.totals,
@@ -11906,14 +12124,18 @@ function saveAnimalMove(){
       const fromName = fromGrp ? fromGrp.name : null;
       // Remove from current group
       S.animalGroups.forEach(g=>{
-        if((g.animalIds||[]).includes(id)) g.animalIds = g.animalIds.filter(x=>x!==id);
+        if((g.animalIds||[]).includes(id)){
+          _closeGroupMembership(id,g.id,moveDate);
+          g.animalIds = g.animalIds.filter(x=>x!==id);
+        }
       });
       // Log the change
       logGroupChange(id, fromName, targetGrp.name);
     });
     // Add to target
     if(!targetGrp.animalIds) targetGrp.animalIds = [];
-    ids.forEach(id=>{ if(!targetGrp.animalIds.includes(id)) targetGrp.animalIds.push(id); });
+    ids.forEach(id=>{ if(!targetGrp.animalIds.includes(id)) targetGrp.animalIds.push(id);
+      _openGroupMembership(id,targetGrp.id,moveDate); });
 
     save();
     closeAnimalMoveSheet();
@@ -11932,13 +12154,17 @@ function saveAnimalMove(){
       const fromGrp = getAnimalGroup(id);
       const fromName = fromGrp ? fromGrp.name : null;
       S.animalGroups.forEach(g=>{
-        if((g.animalIds||[]).includes(id)) g.animalIds = g.animalIds.filter(x=>x!==id);
+        if((g.animalIds||[]).includes(id)){
+          _closeGroupMembership(id,g.id,moveDate);
+          g.animalIds = g.animalIds.filter(x=>x!==id);
+        }
       });
       logGroupChange(id, fromName, name);
     });
 
     const newId = Date.now();
     S.animalGroups.push({id:newId, archived:false, name, color:amNewColor, animalIds:[...ids]});
+    ids.forEach(id=>_openGroupMembership(id,newId,moveDate));
 
     save();
     closeAnimalMoveSheet();
@@ -11960,7 +12186,12 @@ function deleteAnimalFromScreen(animalId){
   const a = getAnimalById(animalId); if(!a) return;
   const label = a.tagNum || a.systemId || 'this animal';
   if(!confirm('Delete '+label+'? This permanently removes the animal and all associated records.'))return;
-  S.animalGroups.forEach(g=>{g.animalIds=(g.animalIds||[]).filter(x=>x!==animalId);});
+  S.animalGroups.forEach(g=>{
+    if((g.animalIds||[]).includes(animalId)){
+      _closeGroupMembership(animalId,g.id,new Date().toISOString().slice(0,10));
+      g.animalIds=g.animalIds.filter(x=>x!==animalId);
+    }
+  });
   S.animals = S.animals.filter(x=>x.id!==animalId);
   save(); renderAnimalsScreen(); renderGroupsList();
 }
@@ -11980,7 +12211,7 @@ function calcDmiVariance(ev){
   const dmiPct = t&&t.totalHead>0 ? (t.dmiTarget/(t.totalLiveWeight||head*wt)) : 0.025;
   const expectedDMI = head * wt * dmiPct * days;
   const allEntries = allFeedEntries(ev);
-  const actualDMI = calcConsumedDMI(allEntries, ev.feedResidual||0);
+  const actualDMI = calcConsumedDMI(allEntries, getEffectiveFeedResidual(ev));
   const varianceLbs = actualDMI - expectedDMI;
   const variancePct = expectedDMI > 0 ? Math.round((varianceLbs / expectedDMI) * 100) : 0;
   return { expectedDMI, actualDMI, varianceLbs, variancePct, days, dmiPct };
@@ -12522,6 +12753,185 @@ function daysUntilDate(dateStr){
 }
 
 // ── Migration ─────────────────────────────────────────────────────────────────
+
+// M0a: backfill feedResidualChecks (A), npkLedger (B), and paddockObservations (C)
+// from existing event data. Safe to run multiple times — deduplication guards prevent
+// double-writing. Runs once at init; new writes go through the live write paths above.
+function migrateM0aData(){
+  if(!Array.isArray(S.paddockObservations)) S.paddockObservations=[];
+  let _id = Date.now();
+
+  (S.events||[]).forEach(ev=>{
+    // ── A: backfill feedResidualChecks from scalar feedResidual ──
+    if(typeof ev.feedResidual==='number' && !Array.isArray(ev.feedResidualChecks)){
+      ev.feedResidualChecks=[{id:_id++,date:ev.dateOut||ev.dateIn,
+        residualPct:ev.feedResidual,balesRemainingPct:ev.feedResidual,
+        notes:'migrated_from_scalar',isCloseReading:true}];
+    }
+    // Sub-move feedResidualChecks
+    (ev.subMoves||[]).forEach(sm=>{
+      if(typeof sm.feedResidual==='number' && !Array.isArray(sm.feedResidualChecks)){
+        sm.feedResidualChecks=[{id:_id++,date:sm.dateOut||sm.date,
+          residualPct:sm.feedResidual,balesRemainingPct:sm.feedResidual,
+          notes:'migrated_from_scalar',isCloseReading:true}];
+      }
+    });
+
+    // ── B: backfill npkLedger from totals.paddockNPK on closed events ──
+    if(ev.status==='closed' && ev.totals && !Array.isArray(ev.npkLedger)){
+      const days = ev.totals.days||0;
+      ev.npkLedger=[];
+      (ev.totals.paddockNPK||[]).forEach(padNPK=>{
+        ev.npkLedger.push({id:_id++,paddockName:padNPK.pastureName,
+          pastureId:padNPK.pastureId||null,periodStart:ev.dateIn,
+          periodEnd:ev.dateOut,head:ev.head||0,avgWeight:ev.wt||0,
+          days,acres:padNPK.acres||null,
+          nLbs:padNPK.n||0,pLbs:padNPK.p||0,kLbs:padNPK.k||0,
+          source:'livestock_excretion'});
+      });
+      // Single-paddock fallback when paddockNPK not present but npk is
+      if(!ev.npkLedger.length && ev.totals.npk){
+        const pName = ev.pasture||'';
+        const pId   = ev.pastureId||null;
+        const npk   = ev.totals.npk;
+        ev.npkLedger.push({id:_id++,paddockName:pName,pastureId:pId,
+          periodStart:ev.dateIn,periodEnd:ev.dateOut,head:ev.head||0,
+          avgWeight:ev.wt||0,days,acres:ev.totals.pastureAcres||null,
+          nLbs:npk.n||0,pLbs:npk.p||0,kLbs:npk.k||0,
+          source:'livestock_excretion'});
+      }
+    }
+
+    // ── C: backfill paddockObservations from event open/close heights ──
+    // event_open
+    if(ev.heightIn && ev.dateIn){
+      evPaddocks(ev).forEach(pad=>{
+        if(pad.locationType==='confinement') return;
+        _writePaddockObservation({id:_id++,pastureId:pad.pastureId||null,
+          pastureName:pad.pastureName,observedAt:ev.dateIn,source:'event_open',
+          sourceId:ev.id,confidenceRank:1,vegHeight:ev.heightIn,
+          forageCoverPct:null,forageQuality:null,
+          recoveryMinDays:null,recoveryMaxDays:null,notes:null});
+      });
+    }
+    // event_close
+    if(ev.status==='closed' && ev.dateOut){
+      evPaddocks(ev).forEach(pad=>{
+        if(pad.locationType==='confinement') return;
+        _writePaddockObservation({id:_id++,pastureId:pad.pastureId||null,
+          pastureName:pad.pastureName,observedAt:ev.dateOut,source:'event_close',
+          sourceId:ev.id,confidenceRank:2,vegHeight:ev.heightOut||null,
+          forageCoverPct:null,forageQuality:null,
+          recoveryMinDays:ev.recoveryMinDays||null,
+          recoveryMaxDays:ev.recoveryMaxDays||null,notes:null});
+      });
+    }
+    // sub_move_open / sub_move_close
+    (ev.subMoves||[]).forEach(sm=>{
+      if(sm.noPasture) return;
+      const smLoc = S.pastures.find(p=>p.name===sm.locationName);
+      const smPid = smLoc?smLoc.id:null;
+      if(sm.heightIn && sm.date){
+        _writePaddockObservation({id:_id++,pastureId:smPid,
+          pastureName:sm.locationName,observedAt:sm.date,source:'sub_move_open',
+          sourceId:sm.id,confidenceRank:1,vegHeight:sm.heightIn,
+          forageCoverPct:null,forageQuality:null,
+          recoveryMinDays:null,recoveryMaxDays:null,notes:null});
+      }
+      if(sm.dateOut){
+        _writePaddockObservation({id:_id++,pastureId:smPid,
+          pastureName:sm.locationName,observedAt:sm.dateOut,source:'sub_move_close',
+          sourceId:sm.id,confidenceRank:2,vegHeight:sm.heightOut||null,
+          forageCoverPct:null,forageQuality:null,
+          recoveryMinDays:sm.recoveryMinDays||null,
+          recoveryMaxDays:sm.recoveryMaxDays||null,notes:null});
+      }
+    });
+  });
+
+  // Backfill survey observations from S.surveys[]
+  (S.surveys||[]).forEach(sv=>{
+    (sv.ratings||[]).forEach(r=>{
+      _writePaddockObservation({id:_id++,pastureId:r.pastureId||null,
+        pastureName:r.pastureName||'',observedAt:sv.date,source:'survey',
+        sourceId:sv.id,confidenceRank:3,vegHeight:r.vegHeight||null,
+        forageCoverPct:r.forageCover||null,forageQuality:r.rating||null,
+        recoveryMinDays:null,recoveryMaxDays:null,notes:r.notes||null});
+    });
+  });
+
+  // ── F: backfill S.animalWeightRecords[] from animal.weightHistory[] ──
+  if(!Array.isArray(S.animalWeightRecords)) S.animalWeightRecords=[];
+  const _existingWRIds = new Set(S.animalWeightRecords.map(r=>r.id));
+  (S.animals||[]).forEach(a=>{
+    (a.weightHistory||[]).forEach(wh=>{
+      // Generate stable id from animalId + date + weight to avoid dupes on re-run
+      const _stableId = a.id*1000 + (new Date(wh.date).getTime()%1000000);
+      if(_existingWRIds.has(_stableId)) return;
+      S.animalWeightRecords.push({
+        id:_stableId,
+        animalId:a.id,
+        recordedAt:wh.date,
+        weightLbs:wh.weightLbs,
+        note:wh.note||null,
+        source:'import'
+      });
+      _existingWRIds.add(_stableId);
+    });
+  });
+
+  // ── G: backfill S.animalGroupMemberships[] from group.animalIds[] ──
+  if(!Array.isArray(S.animalGroupMemberships)) S.animalGroupMemberships=[];
+  const _existingMKeys = new Set(
+    S.animalGroupMemberships.map(m=>`${m.animalId}:${m.groupId}`)
+  );
+  (S.animalGroups||[]).forEach(g=>{
+    (g.animalIds||[]).forEach(aId=>{
+      const _key=`${aId}:${g.id}`;
+      if(_existingMKeys.has(_key)) return;
+      S.animalGroupMemberships.push({id:_id++,animalId:aId,groupId:g.id,
+        dateJoined:null,dateLeft:null});
+      _existingMKeys.add(_key);
+    });
+  });
+
+  // ── H: backfill S.inputApplicationLocations[] from inputApplication.locations[] ──
+  if(!Array.isArray(S.inputApplicationLocations)) S.inputApplicationLocations=[];
+  const _existingIALKeys = new Set(
+    S.inputApplicationLocations.map(r=>`${r.applicationId}:${r.pastureName}`)
+  );
+  (S.inputApplications||[]).forEach(app=>{
+    (app.locations||[]).forEach(loc=>{
+      const _key=`${app.id}:${loc.name}`;
+      if(_existingIALKeys.has(_key)) return;
+      S.inputApplicationLocations.push({id:_id++,applicationId:app.id,
+        pastureId:loc.pastureId||null,pastureName:loc.name,
+        acres:loc.acres||null,nLbs:loc.nLbs||0,pLbs:loc.pLbs||0,kLbs:loc.kLbs||0,
+        costShare:loc.costShare||0});
+      _existingIALKeys.add(_key);
+    });
+  });
+
+  // ── I: backfill S.manureBatchTransactions[] from manureBatch.events[] ──
+  if(!Array.isArray(S.manureBatchTransactions)) S.manureBatchTransactions=[];
+  const _existingMBTIds = new Set(S.manureBatchTransactions.map(r=>r.id));
+  (S.manureBatches||[]).forEach(b=>{
+    (b.events||[]).forEach((ev,evIdx)=>{
+      // Stable id: batchId * 10000 + index
+      const _stableId = b.id*10000 + evIdx;
+      if(_existingMBTIds.has(_stableId)) return;
+      S.manureBatchTransactions.push({id:_stableId,batchId:b.id,
+        type:ev.type||'application',date:ev.date||null,
+        volumeLbs:ev.volumeLbs||null,
+        nLbs:ev.nLbs||null,pLbs:ev.pLbs||null,kLbs:ev.kLbs||null,
+        sourceEventId:ev.sourceEventId||null,
+        applicationId:ev.applicationId||null,
+        pastureNames:ev.paddocks||null,notes:ev.notes||null});
+      _existingMBTIds.add(_stableId);
+    });
+  });
+}
+
 function migrateWeaningFields(){
   (S.animals||[]).forEach(a=>{
     if(a.weaned===undefined) a.weaned=null;
@@ -12879,7 +13289,7 @@ function renderRotationCalendar(containerId){
       grpIds.forEach(gId=>{ const g=getGroupById(gId); if(g){ const t=getGroupTotals(g); dmiTarget+=t.dmiTarget||0; } });
       if(!dmiTarget) dmiTarget = head * wt * 0.025;
       if(dmiTarget > 0){
-        const storedDMI = calcConsumedDMI(allFeedEntries(ev), ev.feedResidual||0);
+        const storedDMI = calcConsumedDMI(allFeedEntries(ev), getEffectiveFeedResidual(ev));
         pastureFrac = Math.max(0, (dmiTarget*days - storedDMI)) / (dmiTarget*days);
       }
     }
@@ -13657,6 +14067,7 @@ migrateSystemIds();
 migrateToPaddocksField();
 migrateToGroupsField();
 migrateWeaningFields();
+migrateM0aData(); // M0a: backfill feedResidualChecks, npkLedger, paddockObservations
 updateHeader();
 updateDriveUI();
 updateHeaderAvatar();
@@ -15178,6 +15589,13 @@ if ('serviceWorker' in navigator) {
           <option value="grain">Grain/supp</option>
         </select>
       </div>
+    </div>
+    <div style="font-size:12px;font-weight:600;color:var(--text2);margin:10px 0 4px;">Hay analysis — optional</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">From a lab feed test. Used to credit uneaten bale OM as a fertility input. Leave blank if unknown.</div>
+    <div class="three">
+      <div class="field"><label>N %</label><input type="number" id="ft-npct" placeholder="1.5" step="0.01" min="0" max="10"/></div>
+      <div class="field"><label>P %</label><input type="number" id="ft-ppct" placeholder="0.2" step="0.01" min="0" max="10"/></div>
+      <div class="field"><label>K %</label><input type="number" id="ft-kpct" placeholder="2.0" step="0.01" min="0" max="10"/></div>
     </div>
     <div class="btn-row" style="margin-top:8px;">
       <button class="btn btn-green" onclick="addFeedTypeFromSheet()">Add type</button>
