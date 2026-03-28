@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260328.0316" id="app-version-meta"/>
+<meta name="app-version" content="b20260328.1140" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -610,6 +610,9 @@ body:not(.field-mode) #field-mode-toggle{
       <!-- Mobile performance dial-in strip -->
       <div id="mobile-perf-strip"></div>
 
+      <!-- Cloud sync nudge (M2) — shown when not signed in; populated by renderHome() -->
+      <div id="sb-home-nudge"></div>
+
       <!-- Groups (primary) -->
       <div id="home-groups"></div>
 
@@ -1178,7 +1181,7 @@ body:not(.field-mode) #field-mode-toggle{
       <!-- Users -->
       <div class="card">
         <div class="sec">Farm users</div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.6;">Add everyone who uses the app on this farm. <strong>Phase 1:</strong> users select their name when opening the app (no password). <strong>Phase 2:</strong> real email/password auth via Supabase.</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.6;"><strong>M2:</strong> Identity is now Supabase auth — sign in via the Cloud sync card above to activate cloud sync and set your display name. This local user list is legacy and will be retired after data migration (M4).</div>
         <div id="users-list"></div>
         <div class="div"></div>
         <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Add user</div>
@@ -1776,6 +1779,8 @@ const SUPABASE_URL = 'https://oihivpwftpngbhwpjsqt.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_2lBfbjhN_ZIvmB-9-dM8hw_04S6adT0';
 let _sbClient = null;   // initialised by sbInitClient() at app start
 let _sbSession = null;  // current auth session; updated by auth state listener
+let _sbOperationId = localStorage.getItem('gthy-operation-id') || null;  // M2: cached operation UUID
+let _sbRealtimeChannel = null;  // M2: active realtime subscription
 
 function sbInitClient(){
   if(_sbClient) return;
@@ -1785,16 +1790,26 @@ function sbInitClient(){
   }
   _sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-  // Auth state listener — fires on sign-in, sign-out, token refresh, page load
+  // Auth state listener — fires on sign-in, sign-out, token refresh, and on every page load (INITIAL_SESSION)
   _sbClient.auth.onAuthStateChange((event, session) => {
     _sbSession = session;
     sbUpdateAuthUI();
-    if(event === 'SIGNED_IN'){
-      setSyncStatus('ok', 'Supabase');
-      logError('supabase-auth', 'SIGNED_IN: ' + (session?.user?.email||'?'), '');
+    // M2: trigger data load chain on sign-in or existing session restore
+    if(event === 'SIGNED_IN' || event === 'INITIAL_SESSION'){
+      if(session){
+        logError('supabase-auth', event + ': ' + (session?.user?.email||'?'), '');
+        sbGetOperationId().then(opId => {
+          if(opId){ loadFromSupabase(opId); subscribeRealtime(opId); }
+          else { updateHeaderAvatar(); renderCurrentScreen(); }
+        });
+      }
     }
     if(event === 'SIGNED_OUT'){
       setSyncStatus('off', 'Not signed in');
+      _sbOperationId = null;
+      localStorage.removeItem('gthy-operation-id');
+      updateHeaderAvatar();
+      renderCurrentScreen(); // re-render to show nudge banner
     }
   });
 }
@@ -1847,6 +1862,332 @@ function sbUpdateAuthUI(){
     signedIn.style.display  = 'none';
   }
 }
+
+// ─── SUPABASE M2: OPERATION + LOAD PATH ───────────────────────────────────────
+
+// Identity cache helpers ──────────────────────────────────────────────────────
+// M2 replaces S.users[] with Supabase session identity + gthy-identity localStorage cache.
+// getActiveUser() is the single source of identity for all render functions.
+
+function _sbLoadCachedIdentity(){
+  try{return JSON.parse(localStorage.getItem('gthy-identity')||'null');}catch(e){return null;}
+}
+
+// Write/refresh the identity cache. Called after sign-in, bootstrap, or display-name change.
+function sbCacheIdentity(displayName, operationId){
+  const ex=_sbLoadCachedIdentity();
+  localStorage.setItem('gthy-identity', JSON.stringify({
+    id:          _sbSession?.user?.id || null,
+    displayName: displayName || ex?.displayName || _sbSession?.user?.email?.split('@')[0] || 'Farmer',
+    email:       _sbSession?.user?.email || '',
+    color:       ex?.color     || '#639922',
+    role:        ex?.role      || 'owner',
+    fieldMode:   ex?.fieldMode || false,
+    operationId: operationId || _sbOperationId || ex?.operationId || null,
+  }));
+}
+
+// Operation lookup ─────────────────────────────────────────────────────────────
+
+// Get the operation_id for the signed-in user. Queries operation_members.
+// Bootstraps a new operation row if none found (first-ever sign-in).
+// Caches result in localStorage so subsequent loads skip the query.
+async function sbGetOperationId(){
+  if(_sbOperationId) return _sbOperationId;
+  if(!_sbClient || !_sbSession) return null;
+  try{
+    const {data, error} = await _sbClient
+      .from('operation_members')
+      .select('operation_id')
+      .eq('user_id', _sbSession.user.id)
+      .maybeSingle();
+    if(data?.operation_id){
+      _sbOperationId = data.operation_id;
+      localStorage.setItem('gthy-operation-id', _sbOperationId);
+      sbCacheIdentity(null, _sbOperationId);
+      return _sbOperationId;
+    }
+    // No operation found — bootstrap
+    return await sbBootstrapOperation();
+  } catch(e){
+    logError('supabase-getop', 'sbGetOperationId failed: ' + e.message, '');
+    return null;
+  }
+}
+
+// Bootstrap: create operations + operation_members rows on first sign-in.
+// Runs silently with no confirmation screen. Uses existing S.herd data.
+async function sbBootstrapOperation(){
+  if(!_sbClient || !_sbSession) return null;
+  try{
+    const {data:op, error:opErr} = await _sbClient.from('operations').insert({
+      owner_id:    _sbSession.user.id,
+      name:        S.herd?.name  || 'My Farm',
+      herd_type:   S.herd?.type  || null,
+      herd_count:  S.herd?.count || 0,
+      herd_weight: S.herd?.weight || 0,
+      herd_dmi:    S.herd?.dmi   || 2.5,
+    }).select().single();
+    if(opErr) throw opErr;
+
+    const displayName = S.testerName || _sbSession.user.email;
+    const {error:memErr} = await _sbClient.from('operation_members').insert({
+      operation_id: op.id,
+      user_id:      _sbSession.user.id,
+      display_name: displayName,
+      role:         'owner',
+      field_mode:   false,
+    });
+    if(memErr) throw memErr;
+
+    _sbOperationId = op.id;
+    localStorage.setItem('gthy-operation-id', _sbOperationId);
+    sbCacheIdentity(displayName, op.id);
+    logError('supabase-bootstrap', 'Operation bootstrapped: ' + op.id, '');
+    return op.id;
+  } catch(e){
+    logError('supabase-bootstrap', 'Bootstrap failed: ' + e.message, '');
+    setSyncStatus('error', 'Bootstrap failed — check console');
+    return null;
+  }
+}
+
+// Data assembly helpers ────────────────────────────────────────────────────────
+
+// Convert Supabase snake_case row keys to camelCase. Shallow — values unchanged.
+function _sbToCamel(obj){
+  if(!obj || typeof obj !== 'object') return obj;
+  const out = {};
+  for(const [k, v] of Object.entries(obj)){
+    const ck = k.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+    out[ck] = v;
+  }
+  return out;
+}
+
+// Safe per-table fetch — errors return [] and are logged, never thrown.
+// Used for flat tables that have a direct operation_id FK.
+async function _sbFetch(table, opId){
+  try{
+    const {data, error} = await _sbClient.from(table).select('*').eq('operation_id', opId);
+    if(error){ logError('supabase-fetch', table + ': ' + error.message, ''); return []; }
+    return data || [];
+  } catch(e){ logError('supabase-fetch', table + ': ' + e.message, ''); return []; }
+}
+
+// Assembly functions: re-nest Supabase nested-select rows back into S object shape.
+// Supabase nested select returns sub-arrays under snake_case keys on the parent row.
+// _sbToCamel converts parent fields; sub-arrays are renamed to their JS equivalents.
+// These functions only execute on real data after M4 migration. The guard in
+// loadFromSupabase() short-circuits before assembly when tables are empty (pre-M4).
+
+function assembleEvents(rows){
+  return rows.map(r => {
+    const ev = _sbToCamel(r);
+    ev.subMoves           = (r.event_sub_moves            || []).map(_sbToCamel);
+    ev.feedEntries        = (r.event_feed_deliveries       || []).map(_sbToCamel);
+    ev.feedResidualChecks = (r.event_feed_residual_checks  || []).map(_sbToCamel);
+    ev.npkLedger          = (r.event_npk_deposits          || []).map(_sbToCamel);
+    ev.groups             = (r.event_group_memberships     || []).map(_sbToCamel);
+    ev.paddocks           = (r.event_paddock_windows       || []).map(_sbToCamel);
+    // Remove camelCased duplicates produced by _sbToCamel on the nested keys
+    delete ev.eventSubMoves; delete ev.eventFeedDeliveries; delete ev.eventFeedResidualChecks;
+    delete ev.eventNpkDeposits; delete ev.eventGroupMemberships; delete ev.eventPaddockWindows;
+    return ev;
+  });
+}
+
+function assembleAnimals(rows){
+  return rows.map(r => {
+    const a = _sbToCamel(r);
+    a.healthEvents   = (r.animal_health_events  || []).map(_sbToCamel);
+    a.weightHistory  = [];  // now in S.animalWeightRecords; kept empty for backward compat
+    a.calvingRecords = [];  // in animal_health_events type=calving; populated by M4 script
+    delete a.animalHealthEvents; delete a.animalWeightRecords;
+    return a;
+  });
+}
+
+function assembleGroups(rows){
+  return rows.map(r => {
+    const g = _sbToCamel(r);
+    g.classes   = (r.animal_group_class_compositions || []).map(_sbToCamel);
+    g.animalIds = [];  // now in S.animalGroupMemberships; kept empty for compat
+    delete g.animalGroupClassCompositions; delete g.animalGroupMemberships;
+    return g;
+  });
+}
+
+function assembleManureBatches(rows){
+  return rows.map(r => {
+    const b = _sbToCamel(r);
+    b.events = (r.manure_batch_transactions || []).map(_sbToCamel); // legacy field name
+    delete b.manureBatchTransactions;
+    return b;
+  });
+}
+
+function assembleInputApplications(rows){
+  return rows.map(r => {
+    const a = _sbToCamel(r);
+    a.locations = (r.input_application_locations || []).map(_sbToCamel); // legacy embedded field
+    delete a.inputApplicationLocations;
+    return a;
+  });
+}
+
+// Load all farm data from Supabase and assemble into S object. ─────────────────
+//
+// Guard: if Supabase returns 0 pastures but localStorage has data, M4 hasn't
+// run yet — stay on localStorage so no data is lost.
+//
+// Called by onAuthStateChange on SIGNED_IN and INITIAL_SESSION (page-load with
+// an existing session). localStorage is always loaded first (at init); this
+// function merges Supabase data on top in the background and re-renders.
+//
+async function loadFromSupabase(operationId){
+  if(!_sbClient || !operationId) return;
+  setSyncStatus('pending', 'Loading from Supabase…');
+  try{
+    // Use nested selects for hierarchical tables; _sbFetch for flat tables.
+    // _sbFetch returns [] on error (logged, not thrown) — one table failure
+    // does not abort the whole load.
+    const [
+      evRes, animalRes, groupRes, manureBatchRes, inputAppRes,
+      pastureRows, feedTypeRows, batchRows, classRows, inputProductRows,
+      treatmentTypeRows, aiBullRows, todoRows, feedbackRows,
+      paddockObsRows, weightRecordRows, groupMemberRows,
+      inputAppLocRows, manureTxRows,
+    ] = await Promise.all([
+      // Hierarchical — nested select handles sub-table FKs automatically
+      _sbClient.from('events').select(
+        '*,event_sub_moves(*),event_feed_deliveries(*),event_feed_residual_checks(*),event_npk_deposits(*),event_group_memberships(*),event_paddock_windows(*)'
+      ).eq('operation_id', operationId),
+      _sbClient.from('animals').select(
+        '*,animal_health_events(*),animal_weight_records(*)'
+      ).eq('operation_id', operationId),
+      _sbClient.from('animal_groups').select(
+        '*,animal_group_class_compositions(*),animal_group_memberships(*)'
+      ).eq('operation_id', operationId),
+      _sbClient.from('manure_batches').select(
+        '*,manure_batch_transactions(*)'
+      ).eq('operation_id', operationId),
+      _sbClient.from('input_applications').select(
+        '*,input_application_locations(*)'
+      ).eq('operation_id', operationId),
+      // Flat tables — direct operation_id FK
+      _sbFetch('pastures',                 operationId),
+      _sbFetch('feed_types',               operationId),
+      _sbFetch('batches',                  operationId),
+      _sbFetch('animal_classes',           operationId),
+      _sbFetch('input_products',           operationId),
+      _sbFetch('treatment_types',          operationId),
+      _sbFetch('ai_bulls',                 operationId),
+      _sbFetch('todos',                    operationId),
+      _sbFetch('feedback',                 operationId),
+      _sbFetch('paddock_observations',     operationId),
+      _sbFetch('animal_weight_records',    operationId),       // M0 top-level array
+      _sbFetch('animal_group_memberships', operationId),       // M0 top-level array
+      _sbFetch('input_application_locations', operationId),   // M0 top-level array
+      _sbFetch('manure_batch_transactions', operationId),      // M0 top-level array
+      // S.surveys: no Supabase table (surveys → paddock_observations at M4); keep from localStorage
+    ]);
+
+    // Log any errors on primary hierarchical fetches
+    if(evRes.error)        logError('supabase-load', 'events: '         + evRes.error.message,        '');
+    if(animalRes.error)    logError('supabase-load', 'animals: '        + animalRes.error.message,     '');
+    if(groupRes.error)     logError('supabase-load', 'animal_groups: '  + groupRes.error.message,      '');
+    if(manureBatchRes.error) logError('supabase-load','manure_batches: ' + manureBatchRes.error.message,'');
+    if(inputAppRes.error)  logError('supabase-load', 'input_apps: '     + inputAppRes.error.message,   '');
+
+    // ── Guard: empty tables → pre-M4, stay on localStorage ──────────────────
+    const safePassureRows = pastureRows || [];
+    if(!safePassureRows.length && (S.pastures?.length || S.events?.length)){
+      setSyncStatus('ok', 'Local data (cloud not yet migrated)');
+      logError('supabase-load', 'Tables empty — using localStorage until M4', '');
+      return;
+    }
+
+    // ── Assemble flat tables ────────────────────────────────────────────────
+    S.pastures                  = safePassureRows.map(_sbToCamel);
+    S.feedTypes                 = (feedTypeRows        || []).map(_sbToCamel);
+    S.batches                   = (batchRows           || []).map(_sbToCamel);
+    S.animalClasses             = (classRows           || []).map(_sbToCamel);
+    S.inputProducts             = (inputProductRows    || []).map(_sbToCamel);
+    S.treatmentTypes            = (treatmentTypeRows   || []).map(_sbToCamel);
+    S.aiBulls                   = (aiBullRows          || []).map(_sbToCamel);
+    S.todos                     = (todoRows            || []).map(_sbToCamel);
+    S.feedback                  = (feedbackRows        || []).map(_sbToCamel);
+    S.paddockObservations       = (paddockObsRows      || []).map(_sbToCamel);
+    S.animalWeightRecords       = (weightRecordRows    || []).map(_sbToCamel);
+    S.animalGroupMemberships    = (groupMemberRows     || []).map(_sbToCamel);
+    S.inputApplicationLocations = (inputAppLocRows     || []).map(_sbToCamel);
+    S.manureBatchTransactions   = (manureTxRows        || []).map(_sbToCamel);
+    // S.surveys kept from localStorage — no Supabase surveys table
+
+    // ── Assemble nested structures ──────────────────────────────────────────
+    S.events            = assembleEvents(evRes.data            || []);
+    S.animals           = assembleAnimals(animalRes.data       || []);
+    S.animalGroups      = assembleGroups(groupRes.data         || []);
+    S.manureBatches     = assembleManureBatches(manureBatchRes.data || []);
+    S.inputApplications = assembleInputApplications(inputAppRes.data || []);
+
+    // ── Fetch operation row for herd info + settings (non-critical) ─────────
+    try{
+      const {data:op} = await _sbClient.from('operations')
+        .select('name,herd_type,herd_count,herd_weight,herd_dmi')
+        .eq('id', operationId).single();
+      if(op) S.herd = {
+        name:   op.name       || '',
+        type:   op.herd_type  || '',
+        count:  op.herd_count || 0,
+        weight: op.herd_weight|| 0,
+        dmi:    op.herd_dmi   || 2.5,
+      };
+      const {data:sets} = await _sbClient.from('operation_settings')
+        .select('data').eq('operation_id', operationId).single();
+      if(sets?.data) S.settings = {...S.settings, ...sets.data};
+    } catch(e){ logError('supabase-load', 'Herd/settings fetch: ' + e.message, ''); }
+
+    ensureDataArrays();
+    // Migration guards — all additive, safe to run on Supabase-loaded data
+    migrateHerdToGroups(); migrateGroupsToAnimals(); migrateAnimalSystemIds();
+    migrateSystemIds(); migrateToPaddocksField(); migrateToGroupsField();
+    migrateWeaningFields(); migrateM0aData();
+
+    saveLocal(); // warm localStorage as offline cache
+    setSyncStatus('ok', 'Synced ' + new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}));
+    updateHeader(); updateHeaderAvatar();
+    renderCurrentScreen();
+
+  } catch(e){
+    logError('supabase-load', 'loadFromSupabase failed: ' + e.message, '');
+    setSyncStatus('error', 'Sync failed — showing cached data');
+  }
+}
+
+// Subscribe to Postgres realtime changes for this operation. ───────────────────
+// M2 implementation: full reload on any change (simple + safe).
+// Granular per-record merge is a future optimisation (M5+).
+function subscribeRealtime(operationId){
+  if(_sbRealtimeChannel){ _sbRealtimeChannel.unsubscribe(); _sbRealtimeChannel = null; }
+  if(!_sbClient || !operationId) return;
+  const WATCHED = ['events','todos','animals','pastures','animal_groups','batches',
+                   'feed_types','manure_batches','input_applications','feedback',
+                   'paddock_observations','animal_weight_records'];
+  const ch = _sbClient.channel('gthy-' + operationId);
+  WATCHED.forEach(table => {
+    ch.on('postgres_changes',
+      {event:'*', schema:'public', table, filter:`operation_id=eq.${operationId}`},
+      () => { loadFromSupabase(operationId); }
+    );
+  });
+  _sbRealtimeChannel = ch.subscribe(status => {
+    if(status === 'SUBSCRIBED')
+      logError('supabase-realtime', 'Realtime subscribed for ' + operationId, '');
+  });
+}
+
 // ─── END SUPABASE ─────────────────────────────────────────────────────────────
 if(!driveState.clientId)driveState.clientId='520206017987-2o679cboufc1f486i0hentj0kktdkut6.apps.googleusercontent.com';
 let activeUserId = localStorage.getItem('gthy-user')||null;
@@ -1890,8 +2231,23 @@ function calcResidualOM(entries, residPct){
 
 function calcEntryCost(entries){let c=0;(entries||[]).forEach(e=>e.lines.forEach(l=>{const b=S.batches.find(x=>x.id===l.batchId);if(b)c+=l.qty*(b.cpu||0);}));return c;}
 function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
-function getUser(id){return S.users.find(u=>u.id===id)||null;}
-function getActiveUser(){return getUser(activeUserId)||null;}
+function getUser(id){return S.users.find(u=>u.id===id)||null;} // Legacy — S.users[] local records; kept for todo assignment compat
+
+// M2: Identity comes from Supabase session → gthy-identity cache → guest fallback.
+// Always returns a non-null user-shaped object {id, name, email, color, role, fieldMode}.
+// avatarHtml() and all render functions consume this without knowing the source.
+function getActiveUser(){
+  if(_sbSession?.user){
+    const c=_sbLoadCachedIdentity();
+    return {id:_sbSession.user.id, name:c?.displayName||_sbSession.user.email?.split('@')[0]||'Farmer',
+      email:_sbSession.user.email||'', color:c?.color||'#639922',
+      role:c?.role||'owner', fieldMode:c?.fieldMode||false, _fromSupabase:true};
+  }
+  const c=_sbLoadCachedIdentity();
+  if(c) return {id:c.id, name:c.displayName||'Farmer', email:c.email||'', color:c.color||'#639922',
+    role:c.role||'owner', fieldMode:c.fieldMode||false, _fromCache:true};
+  return {id:null, name:'Guest', email:'', color:'#639922', role:'owner', fieldMode:false, _guest:true};
+}
 function avatarHtml(user,lg=false){
   if(!user)return '';
   const cls=lg?'avatar avatar-lg':'avatar';
@@ -2599,9 +2955,8 @@ function updateHeaderAvatar(){
 
 // Prompt user selection on first open
 function maybePromptUserSelect(){
-  if(S.users.length&&!activeUserId){
-    setTimeout(openUserPicker,500);
-  }
+  // M2: Identity is now Supabase auth. Home screen nudge banner handles unsigned state.
+  // Local user picker is retired. This function is kept as a no-op to avoid call-site errors.
 }
 
 // ─── HOME ─────────────────────────────────────────────────────────────────────
@@ -2820,6 +3175,10 @@ function renderHome(){
   renderDesktopDashboardHeader();
   // ── Mobile: render dial-in performance strip ──────────────────────────────
   renderMobilePerformanceStrip();
+  // M2: cloud sync nudge — visible when not signed in to Supabase
+  const _nudgeEl=document.getElementById('sb-home-nudge');
+  if(_nudgeEl) _nudgeEl.innerHTML=_sbSession?'':
+    `<div style="background:var(--green);color:white;border-radius:var(--radius);padding:10px 14px;margin-bottom:10px;font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:10px;"><span>☁️ Cloud sync not active — data is local only</span><button onclick="nav('settings',document.getElementById('bn-settings'))" style="flex-shrink:0;background:rgba(255,255,255,0.95);color:var(--green);border:none;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:600;cursor:pointer;">Sign in →</button></div>`;
 
   const mode=S.settings.homeViewMode||'groups';
   const groups=S.animalGroups||[];
