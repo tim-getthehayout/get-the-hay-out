@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260328.1140" id="app-version-meta"/>
+<meta name="app-version" content="b20260328.1211" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -1078,19 +1078,43 @@ body:not(.field-mode) #field-mode-toggle{
       <div class="card">
         <div class="sec">Account &amp; sync — Supabase</div>
 
-        <!-- Signed out state -->
+        <!-- Signed out state — two steps -->
         <div id="sb-signed-out">
-          <div style="font-size:13px;color:var(--text2);margin-bottom:14px;line-height:1.6;">
-            Sign in to sync your farm data across devices. A magic link will be sent to your email — no password required.
+
+          <!-- Step 1: Email entry -->
+          <div id="sb-step1">
+            <div style="font-size:13px;color:var(--text2);margin-bottom:14px;line-height:1.6;">
+              Sign in to sync your farm data across devices. Enter your email and we&#39;ll send a 6-digit code — no password required.
+            </div>
+            <div class="field">
+              <label>Email address</label>
+              <input type="email" id="sb-email-input" placeholder="you@example.com"
+                style="max-width:280px;"
+                onkeydown="if(event.key==='Enter')sbSendCode()"/>
+            </div>
+            <button class="btn btn-green btn-sm" id="sb-sendcode-btn" onclick="sbSendCode()">Send code</button>
+            <div id="sb-step1-status" style="display:none;margin-top:10px;font-size:13px;color:var(--red);font-weight:500;"></div>
           </div>
-          <div class="field">
-            <label>Email address</label>
-            <input type="email" id="sb-email-input" placeholder="you@example.com"
-              style="max-width:280px;"
-              onkeydown="if(event.key==='Enter')sbSignIn()"/>
+
+          <!-- Step 2: Code entry (shown after code sent) -->
+          <div id="sb-step2" style="display:none;">
+            <div style="font-size:13px;color:var(--text2);margin-bottom:14px;line-height:1.6;">
+              Check your email for a 6-digit code and enter it below.
+            </div>
+            <div class="field">
+              <label>6-digit code</label>
+              <input type="text" id="sb-otp-input" placeholder="123456"
+                maxlength="6" inputmode="numeric" autocomplete="one-time-code"
+                style="max-width:140px;letter-spacing:0.15em;font-size:18px;font-weight:600;"
+                onkeydown="if(event.key==='Enter')sbVerifyOtp()"/>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <button class="btn btn-green btn-sm" id="sb-verify-btn" onclick="sbVerifyOtp()">Verify code</button>
+              <button class="btn btn-outline btn-sm" onclick="sbResetToStep1()">Use different email</button>
+            </div>
+            <div id="sb-step2-status" style="display:none;margin-top:10px;font-size:13px;font-weight:500;"></div>
           </div>
-          <button class="btn btn-green btn-sm" id="sb-signin-btn" onclick="sbSignIn()">Send magic link</button>
-          <div id="sb-signin-status" style="display:none;margin-top:10px;font-size:13px;color:var(--green-d);font-weight:500;"></div>
+
         </div>
 
         <!-- Signed in state -->
@@ -1814,27 +1838,80 @@ function sbInitClient(){
   });
 }
 
-// Send a magic link to the given email address
-async function sbSignIn(email){
+// Step 1: Send a 6-digit OTP code to the user's email.
+// No emailRedirectTo — avoids the PWA/Safari cross-context storage problem.
+// Supabase emails the code; user types it into the app directly (step 2).
+// Requires the Supabase "Magic Link" email template to include {{ .Token }}.
+async function sbSendCode(){
   if(!_sbClient){ alert('Supabase not initialised'); return; }
-  email = email || document.getElementById('sb-email-input')?.value?.trim();
-  if(!email){ alert('Enter your email address'); return; }
-  const btn = document.getElementById('sb-signin-btn');
+  const email = document.getElementById('sb-email-input')?.value?.trim();
+  if(!email){ _sbStep1Status('Enter your email address', true); return; }
+  const btn = document.getElementById('sb-sendcode-btn');
   if(btn){ btn.disabled = true; btn.textContent = 'Sending…'; }
-  try {
-    const { error } = await _sbClient.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: window.location.origin }
-    });
+  try{
+    const { error } = await _sbClient.auth.signInWithOtp({ email });
     if(error) throw error;
-    const el = document.getElementById('sb-signin-status');
-    if(el){ el.style.display = 'block'; el.textContent = '✓ Magic link sent — check your email'; }
-    if(btn){ btn.disabled = false; btn.textContent = 'Send magic link'; }
+    // Advance to step 2
+    document.getElementById('sb-step1').style.display = 'none';
+    document.getElementById('sb-step2').style.display = 'block';
+    setTimeout(() => document.getElementById('sb-otp-input')?.focus(), 100);
   } catch(e){
-    alert('Sign-in failed: ' + e.message);
-    if(btn){ btn.disabled = false; btn.textContent = 'Send magic link'; }
+    _sbStep1Status('Failed to send code: ' + e.message, true);
+  } finally {
+    if(btn){ btn.disabled = false; btn.textContent = 'Send code'; }
   }
 }
+
+// Step 2: Verify the 6-digit code the user received by email.
+// On success, onAuthStateChange fires SIGNED_IN -> M2 load chain runs.
+async function sbVerifyOtp(){
+  if(!_sbClient){ alert('Supabase not initialised'); return; }
+  const email = document.getElementById('sb-email-input')?.value?.trim();
+  const token = document.getElementById('sb-otp-input')?.value?.trim().replace(/\s/g,'');
+  if(!token || token.length < 6){ _sbStep2Status('Enter the 6-digit code from your email', true); return; }
+  const btn = document.getElementById('sb-verify-btn');
+  if(btn){ btn.disabled = true; btn.textContent = 'Verifying…'; }
+  try{
+    const { error } = await _sbClient.auth.verifyOtp({ email, token, type: 'email' });
+    if(error) throw error;
+    // onAuthStateChange fires SIGNED_IN -> sbGetOperationId -> loadFromSupabase
+    // sbUpdateAuthUI will hide #sb-signed-out and show #sb-signed-in
+    _sbStep2Status('✓ Signed in! Loading your data…', false);
+  } catch(e){
+    _sbStep2Status('Incorrect code — check your email and try again', true);
+    if(btn){ btn.disabled = false; btn.textContent = 'Verify code'; }
+  }
+}
+
+// Helper: show status in step 1
+function _sbStep1Status(msg, isError){
+  const el = document.getElementById('sb-step1-status');
+  if(!el) return;
+  el.style.display = 'block';
+  el.style.color = isError ? 'var(--red)' : 'var(--green-d)';
+  el.textContent = msg;
+}
+
+// Helper: show status in step 2
+function _sbStep2Status(msg, isError){
+  const el = document.getElementById('sb-step2-status');
+  if(!el) return;
+  el.style.display = 'block';
+  el.style.color = isError ? 'var(--red)' : 'var(--green-d)';
+  el.textContent = msg;
+}
+
+// Reset back to step 1 (different email)
+function sbResetToStep1(){
+  document.getElementById('sb-step2').style.display = 'none';
+  document.getElementById('sb-step1').style.display = 'block';
+  document.getElementById('sb-otp-input').value = '';
+  document.getElementById('sb-step2-status').style.display = 'none';
+  document.getElementById('sb-email-input')?.focus();
+}
+
+// Kept as a no-op alias so any stale calls don't throw
+function sbSignIn(){ sbSendCode(); }
 
 // Sign out of Supabase
 async function sbSignOut(){
