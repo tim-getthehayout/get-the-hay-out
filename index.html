@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260328.0157" id="app-version-meta"/>
+<meta name="app-version" content="b20260328.0243" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -474,6 +474,8 @@ body:not(.field-mode) #field-mode-toggle{
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <!-- Supabase JS SDK (M1) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 </head>
 <body>
 
@@ -1069,13 +1071,42 @@ body:not(.field-mode) #field-mode-toggle{
         <button class="btn btn-green btn-sm" onclick="saveSettings()">Save settings</button>
       </div>
 
-      <!-- Google Drive Sync -->
+      <!-- Supabase Auth (M1) -->
       <div class="card">
-        <div class="sec">Data sync — Google Drive</div>
+        <div class="sec">Account &amp; sync — Supabase</div>
+
+        <!-- Signed out state -->
+        <div id="sb-signed-out">
+          <div style="font-size:13px;color:var(--text2);margin-bottom:14px;line-height:1.6;">
+            Sign in to sync your farm data across devices. A magic link will be sent to your email — no password required.
+          </div>
+          <div class="field">
+            <label>Email address</label>
+            <input type="email" id="sb-email-input" placeholder="you@example.com"
+              style="max-width:280px;"
+              onkeydown="if(event.key==='Enter')sbSignIn()"/>
+          </div>
+          <button class="btn btn-green btn-sm" id="sb-signin-btn" onclick="sbSignIn()">Send magic link</button>
+          <div id="sb-signin-status" style="display:none;margin-top:10px;font-size:13px;color:var(--green-d);font-weight:500;"></div>
+        </div>
+
+        <!-- Signed in state -->
+        <div id="sb-signed-in" style="display:none;">
+          <div class="banner ban-green" style="margin-bottom:10px;">
+            <div style="font-size:14px;font-weight:600;color:var(--green-d);">✓ Connected to Supabase</div>
+            <div style="font-size:12px;color:var(--green-d);opacity:0.85;" id="sb-user-email">—</div>
+          </div>
+          <button class="btn btn-outline btn-sm" style="color:var(--red);" onclick="sbSignOut()">Sign out</button>
+        </div>
+      </div>
+
+      <!-- Google Drive Sync (legacy — active until M3 migration) -->
+      <div class="card" style="opacity:0.75;">
+        <div class="sec" style="color:var(--text2);">Legacy sync — Google Drive <span class="badge bb" style="font-size:10px;">being replaced</span></div>
         <div id="drive-disconnected">
           <div class="drive-dashed">
-            <div style="font-size:15px;font-weight:600;margin-bottom:6px;">Connect Google Drive</div>
-            <div style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6;">Your farm data saves to your own Google Drive. Access it from any device. You own the data — it never touches our servers.</div>
+            <div style="font-size:14px;font-weight:600;margin-bottom:6px;">Connect Google Drive</div>
+            <div style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.6;">Drive sync is still active as a safety net during the Supabase migration.</div>
             <button class="btn btn-blue btn-sm" onclick="driveConnect()">Connect Google Drive</button>
           </div>
         </div>
@@ -1085,13 +1116,11 @@ body:not(.field-mode) #field-mode-toggle{
             <div style="font-size:12px;color:var(--green-d);opacity:0.85;" id="drive-account-label">Signed in</div>
           </div>
           <div style="font-size:13px;color:var(--text2);margin-bottom:6px;" id="drive-file-label"></div>
-          <!-- Farm Code -->
           <div class="card-inset" id="farm-code-section" style="display:none;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
               <div style="font-size:13px;font-weight:600;">Farm Code</div>
               <span class="badge bg">owner</span>
             </div>
-            <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.6;">Share this code with workers so they can access your farm data. They paste it under "Join a farm" below, then connect their own Google account.<br><strong style="color:var(--amber-d);">Also share the Drive file:</strong> go to drive.google.com, right-click <code>gthy-data.json</code> → Share → add each worker's Google email with Editor access.</div>
             <div style="font-family:Menlo,monospace;font-size:15px;font-weight:700;background:var(--bg3);padding:12px;border-radius:var(--radius);text-align:center;margin-bottom:10px;letter-spacing:1px;word-break:break-all;" id="farm-code-display">—</div>
             <div class="btn-row">
               <button class="btn btn-green btn-sm" onclick="copyFarmCode()">Copy Farm Code</button>
@@ -1103,10 +1132,8 @@ body:not(.field-mode) #field-mode-toggle{
             <button class="btn btn-outline btn-sm" style="color:var(--red);" onclick="driveDisconnect()">Disconnect</button>
           </div>
         </div>
-        <!-- Worker join section -->
         <div class="div"></div>
         <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Join a farm (workers)</div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.6;">If you have a Farm Code from your farm operator, enter it here. You'll also need to connect your own Google account — the farm owner must share the Drive file with your Google email first.</div>
         <div class="field"><label>Farm Code</label><input type="text" id="farm-code-input" placeholder="Enter code from farm owner" style="font-family:Menlo,monospace;letter-spacing:1px;"/></div>
         <button class="btn btn-blue btn-sm" onclick="joinFarm()">Join farm &amp; connect Drive</button>
       </div>
@@ -1743,6 +1770,84 @@ if(!S.settings.thresholds)S.settings.thresholds={
 };
 
 let driveState = JSON.parse(localStorage.getItem('gthy-drive')||'{}');
+
+// ─── SUPABASE (M1) ───────────────────────────────────────────────────────────
+const SUPABASE_URL = 'https://oihivpwftpngbhwpjsqt.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_2lBfbjhN_ZIvmB-9-dM8hw_04S6adT0';
+let _sbClient = null;   // initialised by sbInitClient() at app start
+let _sbSession = null;  // current auth session; updated by auth state listener
+
+function sbInitClient(){
+  if(_sbClient) return;
+  if(typeof supabase === 'undefined'){
+    console.warn('[GTHY] Supabase SDK not loaded');
+    return;
+  }
+  _sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  // Auth state listener — fires on sign-in, sign-out, token refresh, page load
+  _sbClient.auth.onAuthStateChange((event, session) => {
+    _sbSession = session;
+    sbUpdateAuthUI();
+    if(event === 'SIGNED_IN'){
+      setSyncStatus('ok', 'Supabase');
+      logError('supabase-auth', 'SIGNED_IN: ' + (session?.user?.email||'?'), '');
+    }
+    if(event === 'SIGNED_OUT'){
+      setSyncStatus('off', 'Not signed in');
+    }
+  });
+}
+
+// Send a magic link to the given email address
+async function sbSignIn(email){
+  if(!_sbClient){ alert('Supabase not initialised'); return; }
+  email = email || document.getElementById('sb-email-input')?.value?.trim();
+  if(!email){ alert('Enter your email address'); return; }
+  const btn = document.getElementById('sb-signin-btn');
+  if(btn){ btn.disabled = true; btn.textContent = 'Sending…'; }
+  try {
+    const { error } = await _sbClient.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: window.location.origin }
+    });
+    if(error) throw error;
+    const el = document.getElementById('sb-signin-status');
+    if(el){ el.style.display = 'block'; el.textContent = '✓ Magic link sent — check your email'; }
+    if(btn){ btn.disabled = false; btn.textContent = 'Send magic link'; }
+  } catch(e){
+    alert('Sign-in failed: ' + e.message);
+    if(btn){ btn.disabled = false; btn.textContent = 'Send magic link'; }
+  }
+}
+
+// Sign out of Supabase
+async function sbSignOut(){
+  if(!_sbClient) return;
+  await _sbClient.auth.signOut();
+  _sbSession = null;
+  sbUpdateAuthUI();
+}
+
+// Update the Supabase card in Settings to reflect current auth state
+function sbUpdateAuthUI(){
+  const signedOut = document.getElementById('sb-signed-out');
+  const signedIn  = document.getElementById('sb-signed-in');
+  const emailEl   = document.getElementById('sb-user-email');
+  const statusEl  = document.getElementById('sb-signin-status');
+  if(!signedOut || !signedIn) return;
+  const user = _sbSession?.user;
+  if(user){
+    signedOut.style.display = 'none';
+    signedIn.style.display  = 'block';
+    if(emailEl) emailEl.textContent = user.email || '—';
+    if(statusEl) statusEl.style.display = 'none';
+  } else {
+    signedOut.style.display = 'block';
+    signedIn.style.display  = 'none';
+  }
+}
+// ─── END SUPABASE ─────────────────────────────────────────────────────────────
 if(!driveState.clientId)driveState.clientId='520206017987-2o679cboufc1f486i0hentj0kktdkut6.apps.googleusercontent.com';
 let activeUserId = localStorage.getItem('gthy-user')||null;
 if(activeUserId)activeUserId=parseInt(activeUserId);
@@ -2148,6 +2253,7 @@ function updateDriveUI(){
     } else {farmCodeSection.style.display='none';}
   }
   // Client ID is hardcoded — no input field to populate
+  sbUpdateAuthUI();
 }
 
 // ─── EXPORT / IMPORT ──────────────────────────────────────────────────────────
@@ -2422,7 +2528,7 @@ function renderCurrentScreen(){
   else if(curScreen==='pastures')renderPastures();
   else if(curScreen==='feedback')renderFeedbackTab();
   else if(curScreen==='reports'){renderReportsScreen();}
-  else if(curScreen==='settings'){loadSettings();renderUsersList();renderClassesList();renderGroupsList();renderGrpAnimalPicker();updateDriveUI();}
+  else if(curScreen==='settings'){loadSettings();renderUsersList();renderClassesList();renderGroupsList();renderGrpAnimalPicker();updateDriveUI();sbUpdateAuthUI();}
 }
 
 // ─── USER SYSTEM ──────────────────────────────────────────────────────────────
@@ -14488,6 +14594,7 @@ migrateWeaningFields();
 migrateM0aData(); // M0a: backfill feedResidualChecks, npkLedger, paddockObservations
 updateHeader();
 updateDriveUI();
+sbInitClient(); // M1: init Supabase client + restore session via auth state listener
 updateHeaderAvatar();
 renderHome();
 updateFeedbackBadge();
