@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260328.2258" id="app-version-meta"/>
+<meta name="app-version" content="b20260328.2324" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -2071,6 +2071,18 @@ function assembleEvents(rows){
       }
       smC.feedEntries = [...smFe.values()];
       smC.feedResidualChecks = [];  // populated from top-level S.events[].feedResidualChecks
+
+      // Sub-move field aliases: Supabase column names vs JS field names used by render code.
+      // date_in -> dateIn (camel) but app reads sm.date everywhere.
+      // time_in -> timeIn but app reads sm.time.
+      // pasture_name -> pastureName but app reads sm.locationName.
+      // recovery_days_min/max -> recoveryDaysMin/Max but app reads recoveryMinDays/MaxDays.
+      if (smC.date         == null) smC.date         = smC.dateIn         ?? null;
+      if (smC.time         == null) smC.time         = smC.timeIn         ?? null;
+      if (smC.locationName == null) smC.locationName = smC.pastureName    ?? null;
+      if (smC.recoveryMinDays == null) smC.recoveryMinDays = smC.recoveryDaysMin ?? null;
+      if (smC.recoveryMaxDays == null) smC.recoveryMaxDays = smC.recoveryDaysMax ?? null;
+
       return smC;
     });
 
@@ -2084,6 +2096,10 @@ function assembleEvents(rows){
       if (!pc.locationType) pc.locationType = 'pasture';
       return pc;
     });
+
+    // ── ev.pasture: legacy field used by ~20 render paths. Supabase stores pasture_name
+    // which _sbToCamel maps to pastureName. Alias it back so all render code keeps working.
+    if (!ev.pasture && ev.pastureName) ev.pasture = ev.pastureName;
 
     // ── ev.locationType: derive from pasture record (not stored in events table)
     if (!ev.locationType) {
@@ -2270,6 +2286,9 @@ async function loadFromSupabase(operationId){
     S.pastures = (pastureRows || []).map(r => {
       const p = _sbToCamel(r);
       if (!p.locationType && p.type) p.locationType = p.type; // type → locationType
+      // Supabase stores min_days/max_days; app reads recoveryMinDays/recoveryMaxDays everywhere.
+      if (p.recoveryMinDays == null && p.minDays != null) p.recoveryMinDays = p.minDays;
+      if (p.recoveryMaxDays == null && p.maxDays != null) p.recoveryMaxDays = p.maxDays;
       return p;
     });
     S.feedTypes                 = (feedTypeRows        || []).map(_sbToCamel);
@@ -2327,6 +2346,17 @@ async function loadFromSupabase(operationId){
     migrateSystemIds(); migrateToPaddocksField(); migrateToGroupsField();
     migrateWeaningFields(); migrateM0aData();
 
+    // Rebuild ev.totals for closed events. totals is a computed JS object — it is never
+    // stored in Supabase. On first load, closed events have totals=undefined which causes
+    // blank values in the events log, pasture NPK, reports, and CSV export.
+    // recalcEventTotals is safe to call here — ev.head/wt are already derived above,
+    // feedEntries and subMoves are assembled, S.batches is populated.
+    (S.events || []).forEach(ev => {
+      if (ev.status === 'closed' && !ev.totals) {
+        try { recalcEventTotals(ev); } catch(e) { /* non-fatal — totals stays undefined */ }
+      }
+    });
+
     saveLocal(); // warm localStorage as offline cache
     setSyncStatus('ok', 'Synced ' + new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}));
     updateHeader(); updateHeaderAvatar();
@@ -2375,6 +2405,24 @@ function _sbToSnake(obj){
     out[sk] = v;
   }
   return out;
+}
+
+// Build a Supabase-safe pastures row. pastures table uses `type` (not location_type),
+// `min_days`/`max_days` (not recovery_min_days/recovery_max_days), and `setup_updated_at`.
+// Only schema columns are written — extra JS-only fields (soil, species, etc.) are excluded
+// to prevent PostgREST "column not found" errors.
+function _pastureRow(p, opId){
+  return {
+    id:               p.id,
+    operation_id:     opId,
+    name:             p.name,
+    type:             p.locationType || p.type || 'pasture',
+    acres:            p.acres != null ? parseFloat(p.acres) || null : null,
+    min_days:         p.recoveryMinDays ?? p.minDays ?? null,
+    max_days:         p.recoveryMaxDays ?? p.maxDays ?? null,
+    archived:         p.archived || false,
+    setup_updated_at: p.setupUpdatedAt || null,
+  };
 }
 
 // M3: append/replace one record in the offline write queue
@@ -8192,7 +8240,7 @@ function saveLocEdit(){
       }
     }
     S.pastures.push(loc);
-    stampSetup(); queueWrite('pastures', _sbToSnake({...loc, operationId: _sbOperationId})); save(); closeLocEdit(); renderPastures(); renderManureInventory();
+    stampSetup(); queueWrite('pastures', _pastureRow(loc, _sbOperationId)); save(); closeLocEdit(); renderPastures(); renderManureInventory();
     return;
   }
 
@@ -8222,7 +8270,7 @@ function saveLocEdit(){
     });
     S.todos.filter(t=>t.paddock===oldName).forEach(t=>t.paddock=p.name);
   }
-  stampSetup(); queueWrite('pastures', _sbToSnake({...p, operationId: _sbOperationId})); save(); closeLocEdit(); renderPastures();
+  stampSetup(); queueWrite('pastures', _pastureRow(p, _sbOperationId)); save(); closeLocEdit(); renderPastures();
 }
 
 function tryDeletePastureFromEdit(){
@@ -13340,7 +13388,7 @@ function tryDeletePasture(idx){
     if(!confirm(`"${p.name}" has ${refs.closed.length} past event${refs.closed.length!==1?'s':''}. Delete it?\n\nChoose Cancel and use Archive instead to keep it visible in historical records but hidden from new entries.`))return;
     // Offer archive instead
     const choice=confirm(`Archive "${p.name}" instead of deleting? Archived locations stay linked to past events but won't appear in new entry dropdowns.\n\nOK = Archive  |  Cancel = Delete permanently`);
-    if(choice){p.archived=true;stampSetup();queueWrite('pastures',_sbToSnake({...p,operationId:_sbOperationId}));save();renderPastures();return;}
+    if(choice){p.archived=true;stampSetup();queueWrite('pastures',_pastureRow(p,_sbOperationId));save();renderPastures();return;}
   } else {
     if(!confirm(`Delete "${p.name}"? This cannot be undone.`))return;
   }
