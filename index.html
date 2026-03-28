@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260328.1801" id="app-version-meta"/>
+<meta name="app-version" content="b20260328.2204" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -2047,12 +2047,50 @@ async function _sbFetch(table, opId){
 function assembleEvents(rows){
   return rows.map(r => {
     const ev = _sbToCamel(r);
-    ev.subMoves           = (r.event_sub_moves            || []).map(_sbToCamel);
-    ev.feedEntries        = (r.event_feed_deliveries       || []).map(_sbToCamel);
+
+    // ── feedEntries: reconstruct lines[] from flat event_feed_deliveries rows ──
+    // Migration stored one row per line. Re-group by date for anchor paddock.
+    // Note: Supabase column is `quantity`; render functions expect `qty`.
+    const allDeliveries = (r.event_feed_deliveries || []);
+    const anchorDels = allDeliveries.filter(d => !d.sub_move_id);
+    const feByDate = new Map();
+    for (const d of anchorDels) {
+      if (!feByDate.has(d.date)) feByDate.set(d.date, {id: d.id, date: d.date, lines: []});
+      feByDate.get(d.date).lines.push({batchId: d.batch_id, qty: d.quantity});
+    }
+    ev.feedEntries = [...feByDate.values()];
+
+    // ── subMoves: same feedEntries reconstruction per sub-move ─────────────────
+    ev.subMoves = (r.event_sub_moves || []).map(sm => {
+      const smC = _sbToCamel(sm);
+      const smDels = allDeliveries.filter(d => d.sub_move_id === sm.id);
+      const smFe = new Map();
+      for (const d of smDels) {
+        if (!smFe.has(d.date)) smFe.set(d.date, {id: d.id, date: d.date, lines: []});
+        smFe.get(d.date).lines.push({batchId: d.batch_id, qty: d.quantity});
+      }
+      smC.feedEntries = [...smFe.values()];
+      smC.feedResidualChecks = [];  // populated from top-level S.events[].feedResidualChecks
+      return smC;
+    });
+
     ev.feedResidualChecks = (r.event_feed_residual_checks  || []).map(_sbToCamel);
     ev.npkLedger          = (r.event_npk_deposits          || []).map(_sbToCamel);
     ev.groups             = (r.event_group_memberships     || []).map(_sbToCamel);
-    ev.paddocks           = (r.event_paddock_windows       || []).map(_sbToCamel);
+
+    // ── paddocks: add locationType fallback for backward compat ───────────────
+    ev.paddocks = (r.event_paddock_windows || []).map(p => {
+      const pc = _sbToCamel(p);
+      if (!pc.locationType) pc.locationType = 'pasture';
+      return pc;
+    });
+
+    // ── ev.locationType: derive from pasture record (not stored in events table)
+    if (!ev.locationType) {
+      const pRec = (S.pastures || []).find(p => p.id === ev.pastureId || p.name === ev.pastureName);
+      ev.locationType = pRec?.locationType || pRec?.type || 'pasture';
+    }
+
     // Remove camelCased duplicates produced by _sbToCamel on the nested keys
     delete ev.eventSubMoves; delete ev.eventFeedDeliveries; delete ev.eventFeedResidualChecks;
     delete ev.eventNpkDeposits; delete ev.eventGroupMemberships; delete ev.eventPaddockWindows;
@@ -2063,9 +2101,17 @@ function assembleEvents(rows){
 function assembleAnimals(rows){
   return rows.map(r => {
     const a = _sbToCamel(r);
-    a.healthEvents   = (r.animal_health_events  || []).map(_sbToCamel);
+    const allHealth = (r.animal_health_events || []).map(_sbToCamel);
+    a.healthEvents   = allHealth.filter(he => he.type !== 'calving');
+    a.calvingRecords = allHealth
+      .filter(he => he.type === 'calving')
+      .map(he => ({
+        date:       he.date,
+        calfId:     he.calvingCalfId   ?? null,
+        sireTag:    he.sireName        ?? null,
+        stillbirth: he.calvingStillbirth ?? false,
+      }));
     a.weightHistory  = [];  // now in S.animalWeightRecords; kept empty for backward compat
-    a.calvingRecords = [];  // in animal_health_events type=calving; populated by M4 script
     delete a.animalHealthEvents; delete a.animalWeightRecords;
     return a;
   });
