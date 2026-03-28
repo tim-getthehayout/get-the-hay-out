@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260328.0243" id="app-version-meta"/>
+<meta name="app-version" content="b20260328.0119" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -474,8 +474,6 @@ body:not(.field-mode) #field-mode-toggle{
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-  <!-- Supabase JS SDK (M1) -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 </head>
 <body>
 
@@ -1071,42 +1069,13 @@ body:not(.field-mode) #field-mode-toggle{
         <button class="btn btn-green btn-sm" onclick="saveSettings()">Save settings</button>
       </div>
 
-      <!-- Supabase Auth (M1) -->
+      <!-- Google Drive Sync -->
       <div class="card">
-        <div class="sec">Account &amp; sync — Supabase</div>
-
-        <!-- Signed out state -->
-        <div id="sb-signed-out">
-          <div style="font-size:13px;color:var(--text2);margin-bottom:14px;line-height:1.6;">
-            Sign in to sync your farm data across devices. A magic link will be sent to your email — no password required.
-          </div>
-          <div class="field">
-            <label>Email address</label>
-            <input type="email" id="sb-email-input" placeholder="you@example.com"
-              style="max-width:280px;"
-              onkeydown="if(event.key==='Enter')sbSignIn()"/>
-          </div>
-          <button class="btn btn-green btn-sm" id="sb-signin-btn" onclick="sbSignIn()">Send magic link</button>
-          <div id="sb-signin-status" style="display:none;margin-top:10px;font-size:13px;color:var(--green-d);font-weight:500;"></div>
-        </div>
-
-        <!-- Signed in state -->
-        <div id="sb-signed-in" style="display:none;">
-          <div class="banner ban-green" style="margin-bottom:10px;">
-            <div style="font-size:14px;font-weight:600;color:var(--green-d);">✓ Connected to Supabase</div>
-            <div style="font-size:12px;color:var(--green-d);opacity:0.85;" id="sb-user-email">—</div>
-          </div>
-          <button class="btn btn-outline btn-sm" style="color:var(--red);" onclick="sbSignOut()">Sign out</button>
-        </div>
-      </div>
-
-      <!-- Google Drive Sync (legacy — active until M3 migration) -->
-      <div class="card" style="opacity:0.75;">
-        <div class="sec" style="color:var(--text2);">Legacy sync — Google Drive <span class="badge bb" style="font-size:10px;">being replaced</span></div>
+        <div class="sec">Data sync — Google Drive</div>
         <div id="drive-disconnected">
           <div class="drive-dashed">
-            <div style="font-size:14px;font-weight:600;margin-bottom:6px;">Connect Google Drive</div>
-            <div style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.6;">Drive sync is still active as a safety net during the Supabase migration.</div>
+            <div style="font-size:15px;font-weight:600;margin-bottom:6px;">Connect Google Drive</div>
+            <div style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6;">Your farm data saves to your own Google Drive. Access it from any device. You own the data — it never touches our servers.</div>
             <button class="btn btn-blue btn-sm" onclick="driveConnect()">Connect Google Drive</button>
           </div>
         </div>
@@ -1116,11 +1085,13 @@ body:not(.field-mode) #field-mode-toggle{
             <div style="font-size:12px;color:var(--green-d);opacity:0.85;" id="drive-account-label">Signed in</div>
           </div>
           <div style="font-size:13px;color:var(--text2);margin-bottom:6px;" id="drive-file-label"></div>
+          <!-- Farm Code -->
           <div class="card-inset" id="farm-code-section" style="display:none;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
               <div style="font-size:13px;font-weight:600;">Farm Code</div>
               <span class="badge bg">owner</span>
             </div>
+            <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.6;">Share this code with workers so they can access your farm data. They paste it under "Join a farm" below, then connect their own Google account.<br><strong style="color:var(--amber-d);">Also share the Drive file:</strong> go to drive.google.com, right-click <code>gthy-data.json</code> → Share → add each worker's Google email with Editor access.</div>
             <div style="font-family:Menlo,monospace;font-size:15px;font-weight:700;background:var(--bg3);padding:12px;border-radius:var(--radius);text-align:center;margin-bottom:10px;letter-spacing:1px;word-break:break-all;" id="farm-code-display">—</div>
             <div class="btn-row">
               <button class="btn btn-green btn-sm" onclick="copyFarmCode()">Copy Farm Code</button>
@@ -1132,8 +1103,10 @@ body:not(.field-mode) #field-mode-toggle{
             <button class="btn btn-outline btn-sm" style="color:var(--red);" onclick="driveDisconnect()">Disconnect</button>
           </div>
         </div>
+        <!-- Worker join section -->
         <div class="div"></div>
         <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Join a farm (workers)</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.6;">If you have a Farm Code from your farm operator, enter it here. You'll also need to connect your own Google account — the farm owner must share the Drive file with your Google email first.</div>
         <div class="field"><label>Farm Code</label><input type="text" id="farm-code-input" placeholder="Enter code from farm owner" style="font-family:Menlo,monospace;letter-spacing:1px;"/></div>
         <button class="btn btn-blue btn-sm" onclick="joinFarm()">Join farm &amp; connect Drive</button>
       </div>
@@ -1770,84 +1743,6 @@ if(!S.settings.thresholds)S.settings.thresholds={
 };
 
 let driveState = JSON.parse(localStorage.getItem('gthy-drive')||'{}');
-
-// ─── SUPABASE (M1) ───────────────────────────────────────────────────────────
-const SUPABASE_URL = 'https://oihivpwftpngbhwpjsqt.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_2lBfbjhN_ZIvmB-9-dM8hw_04S6adT0';
-let _sbClient = null;   // initialised by sbInitClient() at app start
-let _sbSession = null;  // current auth session; updated by auth state listener
-
-function sbInitClient(){
-  if(_sbClient) return;
-  if(typeof supabase === 'undefined'){
-    console.warn('[GTHY] Supabase SDK not loaded');
-    return;
-  }
-  _sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-  // Auth state listener — fires on sign-in, sign-out, token refresh, page load
-  _sbClient.auth.onAuthStateChange((event, session) => {
-    _sbSession = session;
-    sbUpdateAuthUI();
-    if(event === 'SIGNED_IN'){
-      setSyncStatus('ok', 'Supabase');
-      logError('supabase-auth', 'SIGNED_IN: ' + (session?.user?.email||'?'), '');
-    }
-    if(event === 'SIGNED_OUT'){
-      setSyncStatus('off', 'Not signed in');
-    }
-  });
-}
-
-// Send a magic link to the given email address
-async function sbSignIn(email){
-  if(!_sbClient){ alert('Supabase not initialised'); return; }
-  email = email || document.getElementById('sb-email-input')?.value?.trim();
-  if(!email){ alert('Enter your email address'); return; }
-  const btn = document.getElementById('sb-signin-btn');
-  if(btn){ btn.disabled = true; btn.textContent = 'Sending…'; }
-  try {
-    const { error } = await _sbClient.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: window.location.origin }
-    });
-    if(error) throw error;
-    const el = document.getElementById('sb-signin-status');
-    if(el){ el.style.display = 'block'; el.textContent = '✓ Magic link sent — check your email'; }
-    if(btn){ btn.disabled = false; btn.textContent = 'Send magic link'; }
-  } catch(e){
-    alert('Sign-in failed: ' + e.message);
-    if(btn){ btn.disabled = false; btn.textContent = 'Send magic link'; }
-  }
-}
-
-// Sign out of Supabase
-async function sbSignOut(){
-  if(!_sbClient) return;
-  await _sbClient.auth.signOut();
-  _sbSession = null;
-  sbUpdateAuthUI();
-}
-
-// Update the Supabase card in Settings to reflect current auth state
-function sbUpdateAuthUI(){
-  const signedOut = document.getElementById('sb-signed-out');
-  const signedIn  = document.getElementById('sb-signed-in');
-  const emailEl   = document.getElementById('sb-user-email');
-  const statusEl  = document.getElementById('sb-signin-status');
-  if(!signedOut || !signedIn) return;
-  const user = _sbSession?.user;
-  if(user){
-    signedOut.style.display = 'none';
-    signedIn.style.display  = 'block';
-    if(emailEl) emailEl.textContent = user.email || '—';
-    if(statusEl) statusEl.style.display = 'none';
-  } else {
-    signedOut.style.display = 'block';
-    signedIn.style.display  = 'none';
-  }
-}
-// ─── END SUPABASE ─────────────────────────────────────────────────────────────
 if(!driveState.clientId)driveState.clientId='520206017987-2o679cboufc1f486i0hentj0kktdkut6.apps.googleusercontent.com';
 let activeUserId = localStorage.getItem('gthy-user')||null;
 if(activeUserId)activeUserId=parseInt(activeUserId);
@@ -2253,7 +2148,6 @@ function updateDriveUI(){
     } else {farmCodeSection.style.display='none';}
   }
   // Client ID is hardcoded — no input field to populate
-  sbUpdateAuthUI();
 }
 
 // ─── EXPORT / IMPORT ──────────────────────────────────────────────────────────
@@ -2528,7 +2422,7 @@ function renderCurrentScreen(){
   else if(curScreen==='pastures')renderPastures();
   else if(curScreen==='feedback')renderFeedbackTab();
   else if(curScreen==='reports'){renderReportsScreen();}
-  else if(curScreen==='settings'){loadSettings();renderUsersList();renderClassesList();renderGroupsList();renderGrpAnimalPicker();updateDriveUI();sbUpdateAuthUI();}
+  else if(curScreen==='settings'){loadSettings();renderUsersList();renderClassesList();renderGroupsList();renderGrpAnimalPicker();updateDriveUI();}
 }
 
 // ─── USER SYSTEM ──────────────────────────────────────────────────────────────
@@ -3300,7 +3194,7 @@ function populateTodoPaddock(preselect){
 }
 
 let todoEditId=null;
-function openTodoSheet(id, fromWiz=false, animalId=null){
+function openTodoSheet(id,fromWiz=false){
   todoEditId=id;
   selectedAssignees=new Set();
   document.getElementById('todo-sheet-title').textContent=id?'Edit task':'New task';
@@ -3308,11 +3202,10 @@ function openTodoSheet(id, fromWiz=false, animalId=null){
   document.getElementById('td-status').value='open';
   document.getElementById('td-note').value='';
   document.getElementById('td-title').value='';
-  // OI-0062 fix: only pre-fill paddock when explicitly from the wizard.
-  // getActive() returns the first open event which may be unrelated to context.
-  const preselect = (fromWiz && wizPaddockForTodo) ? wizPaddockForTodo : '';
+  const ae=getActive();
+  const preselect=fromWiz&&wizPaddockForTodo?wizPaddockForTodo:ae?evPrimaryPaddock(ae).pastureName:'';
   populateTodoPaddock(preselect);
-  populateTodoAnimal(animalId);
+  populateTodoAnimal(null);
   if(id){
     const t=S.todos.find(x=>x.id===id);
     if(t){
@@ -3327,11 +3220,6 @@ function openTodoSheet(id, fromWiz=false, animalId=null){
   populateTodoAssign();
   document.getElementById('todo-sheet-wrap').classList.add('open');
   setTimeout(()=>document.getElementById('td-title').focus(),300);
-}
-
-// Open todo sheet pre-linked to a specific animal (OI-0056)
-function openAnimalTodoSheet(animalId){
-  openTodoSheet(null, false, animalId);
 }
 function closeTodoSheet(){document.getElementById('todo-sheet-wrap').classList.remove('open');wizPaddockForTodo=null;}
 
@@ -5337,8 +5225,7 @@ function addEePaddock(){
   const sel = document.getElementById('ee-paddock');
   const name = sel?.value;
   if(!name){ return; }
-  // Allow re-adding a previously closed paddock; block duplicates of active ones
-  if(eePaddocks.some(p=>p.pastureName===name&&!p.dateRemoved)){ sel.value=''; return; }
+  if(eePaddocks.some(p=>p.pastureName===name)){ sel.value=''; return; }
   const rec = S.pastures.find(p=>p.name===name)||findPastureByName(name);
   eePaddocks.push({
     pastureId:    rec?rec.id:null,
@@ -5350,7 +5237,6 @@ function addEePaddock(){
     _isNew:       true,  // session-only flag — stripped before persist; enables × discard
   });
   sel.value='';
-  renderEeActivePaddocks();
   renderEePaddockChips();
   updateEePaddockNote();
 }
@@ -5361,7 +5247,6 @@ function removeEePaddock(name){
   const p = eePaddocks.find(x=>x.pastureName===name);
   if(!p || !p._isNew){ return; }
   eePaddocks = eePaddocks.filter(x=>x.pastureName!==name);
-  renderEeActivePaddocks();
   renderEePaddockChips();
   updateEePaddockNote();
 }
@@ -11393,10 +11278,7 @@ function openEventEdit(eventId){
   padSel.innerHTML='<option value="">— select —</option>'+
     sortedPastures().map(p=>`<option value="${p.name}">${p.name}</option>`).join('');
   document.getElementById('ee-paddock').onchange=()=>addEePaddock();
-  eePaddockCloseIdx = null;
-  eePaddockJustClosed = null;
   initEePaddocks(ev);
-  renderEeActivePaddocks();
   // Group chips (multi-group system)
   const grpAddSel=document.getElementById('ee-group-sel');
   if(grpAddSel){
@@ -11438,16 +11320,6 @@ function openEventEdit(eventId){
   badge.className='badge '+(isClosed?'bb':'bt');
   if(isClosed){updateEventEditPreview(ev);renderDmiVariance(ev);}
   else{document.getElementById('ee-preview').style.display='none';document.getElementById('ee-dmi-variance').style.display='none';}
-  // Feed checks section — show when noPasture or has existing checks
-  const _hasFeedChecks = (ev.feedResidualChecks||[]).filter(c=>!c.isCloseReading).length>0;
-  const _fcsEl = document.getElementById('ee-feed-checks-section');
-  if(_fcsEl) _fcsEl.style.display = (ev.noPasture||_hasFeedChecks) ? 'block' : 'none';
-  renderEeFeedChecks(ev);
-  // Anchor close button — only for open events
-  const _acbw = document.getElementById('ee-close-event-btn-wrap');
-  if(_acbw) _acbw.style.display = isClosed ? 'none' : 'block';
-  const _acw = document.getElementById('ee-anchor-close-wrap');
-  if(_acw) _acw.style.display = 'none';
   document.getElementById('event-edit-wrap').classList.add('open');
   }catch(err){
     logError('openEventEdit',err.message,err.stack);
@@ -11484,369 +11356,6 @@ function renderEeFeedList(ev){
       </div>
     </div>`;
   }).join('');
-}
-
-// ── FEED CHECKS (intermediate bales-remaining checkpoints) ─────────────────
-function renderEeFeedChecks(ev){
-  const el = document.getElementById('ee-feed-checks-list');
-  if(!el) return;
-  if(!ev){ const evId=parseInt(document.getElementById('ee-id')?.value); ev=S.events.find(e=>e.id===evId); }
-  if(!ev){ el.innerHTML=''; return; }
-  const checks = (ev.feedResidualChecks||[]).filter(c=>!c.isCloseReading);
-  if(!checks.length){
-    el.innerHTML='<div style="font-size:12px;color:var(--text2);font-style:italic;">No checks recorded yet</div>';
-    return;
-  }
-  el.innerHTML = checks.map(ck=>`
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;
-         padding:7px 0;border-bottom:0.5px solid var(--border);">
-      <div>
-        <div style="font-size:13px;font-weight:500;">${dLabel(ck.date)}
-          ${ck.balesRemainingPct!=null?' · '+ck.balesRemainingPct+'% remaining':''}
-          ${ck.residualPct!=null&&ck.balesRemainingPct==null?' · residual '+ck.residualPct+'%':''}
-        </div>
-        ${ck.notes?`<div style="font-size:11px;color:var(--text2);">${escHtml(ck.notes)}</div>`:''}
-      </div>
-      <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;margin-left:8px;">
-        <button class="btn btn-outline btn-xs" onclick="editEeFeedCheck('${ck.id}')">Edit</button>
-        <button class="btn btn-outline btn-xs" style="color:var(--red-d);border-color:var(--red-d);"
-          onclick="deleteEeFeedCheck('${ck.id}')">×</button>
-      </div>
-    </div>`).join('');
-}
-
-function openEeFeedCheck(){
-  document.getElementById('ee-fck-date').value = todayStr();
-  document.getElementById('ee-fck-pct-slider').value = 50;
-  document.getElementById('ee-fck-pct').value = 50;
-  document.getElementById('ee-fck-notes').value = '';
-  document.getElementById('ee-fck-edit-id').value = '';
-  document.getElementById('ee-feed-check-form').style.display = 'block';
-}
-
-function editEeFeedCheck(ckId){
-  const evId=parseInt(document.getElementById('ee-id').value);
-  const ev=S.events.find(e=>e.id===evId); if(!ev) return;
-  const ck=(ev.feedResidualChecks||[]).find(c=>String(c.id)===String(ckId));
-  if(!ck) return;
-  document.getElementById('ee-fck-date').value = ck.date||todayStr();
-  const pct = ck.balesRemainingPct!=null ? ck.balesRemainingPct : (ck.residualPct||50);
-  document.getElementById('ee-fck-pct-slider').value = pct;
-  document.getElementById('ee-fck-pct').value = pct;
-  document.getElementById('ee-fck-notes').value = ck.notes||'';
-  document.getElementById('ee-fck-edit-id').value = ckId;
-  document.getElementById('ee-feed-check-form').style.display = 'block';
-}
-
-function closeEeFeedCheck(){
-  document.getElementById('ee-feed-check-form').style.display = 'none';
-  document.getElementById('ee-fck-edit-id').value = '';
-}
-
-function saveEeFeedCheck(){
-  const evId=parseInt(document.getElementById('ee-id').value);
-  const ev=S.events.find(e=>e.id===evId); if(!ev) return;
-  const date=document.getElementById('ee-fck-date').value;
-  if(!date){ alert('Date is required'); return; }
-  const pct=parseFloat(document.getElementById('ee-fck-pct').value);
-  const notes=document.getElementById('ee-fck-notes').value.trim();
-  const editId=document.getElementById('ee-fck-edit-id').value;
-  if(!ev.feedResidualChecks) ev.feedResidualChecks=[];
-  if(editId){
-    const idx=ev.feedResidualChecks.findIndex(c=>String(c.id)===String(editId));
-    if(idx>=0){
-      ev.feedResidualChecks[idx].date=date;
-      ev.feedResidualChecks[idx].balesRemainingPct=isNaN(pct)?null:pct;
-      ev.feedResidualChecks[idx].residualPct=isNaN(pct)?null:pct;
-      ev.feedResidualChecks[idx].notes=notes||null;
-    }
-  } else {
-    ev.feedResidualChecks.push({
-      id:Date.now(), date, balesRemainingPct:isNaN(pct)?null:pct,
-      residualPct:isNaN(pct)?null:pct, notes:notes||null, isCloseReading:false
-    });
-  }
-  ev.updatedAt=new Date().toISOString();
-  save();
-  closeEeFeedCheck();
-  renderEeFeedChecks(ev);
-}
-
-function deleteEeFeedCheck(ckId){
-  const evId=parseInt(document.getElementById('ee-id').value);
-  const ev=S.events.find(e=>e.id===evId); if(!ev) return;
-  ev.feedResidualChecks=(ev.feedResidualChecks||[]).filter(c=>String(c.id)!==String(ckId));
-  ev.updatedAt=new Date().toISOString();
-  save();
-  renderEeFeedChecks(ev);
-}
-
-// ── ANCHOR CLOSE SEQUENCE ────────────────────────────────────────────────────
-function openEeAnchorClose(){
-  const evId=parseInt(document.getElementById('ee-id').value);
-  const ev=S.events.find(e=>e.id===evId);
-  if(!ev||ev.status!=='open') return;
-  const wrap=document.getElementById('ee-anchor-close-wrap');
-  const steps=document.getElementById('ee-anchor-close-steps');
-  if(!wrap||!steps) return;
-
-  const hasHeadWt = !!(document.getElementById('ee-head')?.value&&document.getElementById('ee-wt')?.value);
-  const hasDateOut = !!document.getElementById('ee-date-out')?.value;
-  const noPasture = document.getElementById('ee-no-pasture')?.checked;
-  const feedEntriesExist = (ev.feedEntries||[]).length>0||
-    (ev.subMoves||[]).some(sm=>(sm.feedEntries||[]).length>0);
-  const groupCount = eeGroups.filter(g=>!g.dateRemoved).length;
-
-  function stepRow(done,label,hint){
-    return `<div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--border);">
-      <div style="width:20px;height:20px;border-radius:50%;flex-shrink:0;margin-top:1px;
-           background:${done?'var(--green-d)':'var(--border2)'};display:flex;align-items:center;justify-content:center;">
-        ${done?'<svg width="11" height="11" viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>':''}
-      </div>
-      <div>
-        <div style="font-size:13px;font-weight:${done?'400':'500'};color:${done?'var(--text2)':'var(--text)'};">${label}</div>
-        ${hint&&!done?`<div style="font-size:11px;color:var(--text2);margin-top:2px;">${hint}</div>`:''}
-      </div>
-    </div>`;
-  }
-
-  steps.innerHTML =
-    stepRow(hasHeadWt,  'Head count &amp; weight recorded',    'Enter head and avg weight above') +
-    stepRow(hasDateOut, 'Close date set',                       'Set "Date out" above') +
-    (noPasture ? stepRow(feedEntriesExist,'Feed entries recorded','At least one feed entry needed for DMI attribution') : '') +
-    `<div style="padding:12px 0;">
-      <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">
-        ${groupCount} group${groupCount!==1?'s':''} will move together. The Move Wizard will open after saving.
-      </div>
-      <div class="btn-row" style="flex-wrap:wrap;gap:8px;">
-        <button class="btn btn-green" onclick="saveAndCloseFromEdit()" style="flex:2;min-width:160px;">
-          Save &amp; open Move Wizard →
-        </button>
-        <button class="btn btn-outline" onclick="cancelEeAnchorClose()" style="flex:1;min-width:80px;">Cancel</button>
-      </div>
-    </div>`;
-
-  wrap.style.display='block';
-  wrap.scrollIntoView({behavior:'smooth',block:'nearest'});
-}
-
-function cancelEeAnchorClose(){
-  const wrap=document.getElementById('ee-anchor-close-wrap');
-  if(wrap) wrap.style.display='none';
-}
-
-// Save event edit then launch Move Wizard for all active groups
-function saveAndCloseFromEdit(){
-  const evId=parseInt(document.getElementById('ee-id').value);
-  saveEventEdit();
-  setTimeout(()=>{
-    const ev=S.events.find(e=>e.id===evId);
-    if(!ev||ev.status!=='open') return;
-    closeEventEdit();
-    moveAllGroupsInEvent(evId);
-  },100);
-}
-
-// ── ACTIVE PADDOCKS BLOCK ────────────────────────────────────────────────────
-// Renders anchor paddock + active additional paddocks as color-coded cards.
-// Active sub-moves shown with "Record return" shortcut.
-// Inline "Close paddock" form expands per card.
-function renderEeActivePaddocks(){
-  const el=document.getElementById('ee-active-paddocks');
-  if(!el) return;
-  const evId=parseInt(document.getElementById('ee-id')?.value);
-  const ev=S.events.find(e=>e.id===evId);
-  const isOpen=ev?.status==='open';
-  const active=eePaddocks.filter(p=>!p.dateRemoved);
-  const activeSms=isOpen?(ev?.subMoves||[]).filter(sm=>!sm.durationHours&&!sm.dateOut):[];
-  let h='';
-
-  active.forEach(p=>{
-    const i=eePaddocks.indexOf(p);
-    const isAnchor=i===0;
-    const loc=S.pastures.find(x=>x.name===p.pastureName);
-    const isCon=loc?.locationType==='confinement';
-    const evNoPasture=ev?.noPasture||isCon;
-    const borderColor=evNoPasture?'var(--amber)':'var(--green)';
-    const bgColor=evNoPasture?'rgba(255,179,0,0.06)':'rgba(100,153,34,0.06)';
-    const acresTxt=p.acres?' · '+p.acres+' ac':'';
-    const typeBadge=evNoPasture
-      ?`<span class="badge ba" style="font-size:10px;">stored feed</span>`
-      :`<span class="badge bg" style="font-size:10px;">grazing</span>`;
-    const anchorLabel=isAnchor?` <span style="font-size:10px;color:var(--text2);font-weight:400;">anchor</span>`:'';
-    const isClosing=eePaddockCloseIdx===i;
-
-    let closeArea='';
-    if(isOpen){
-      if(isClosing){
-        const recFields=!evNoPasture?`
-          <div class="two" style="margin-top:8px;">
-            <div class="field"><label>Recovery min (days)</label>
-              <input type="number" id="ee-pc-rec-min" step="1" min="0" placeholder="${loc?.recoveryMinDays||30}"/></div>
-            <div class="field"><label>Recovery max (days)</label>
-              <input type="number" id="ee-pc-rec-max" step="1" min="0" placeholder="${loc?.recoveryMaxDays||60}"/></div>
-          </div>`:'';
-        const resField=evNoPasture?`
-          <div class="field" style="margin-top:8px;">
-            <label>Feed residual % (bales/feed remaining)</label>
-            <div style="display:flex;align-items:center;gap:8px;margin-top:3px;">
-              <input type="range" id="ee-pc-res-slider" min="0" max="100" step="5" value="0"
-                oninput="document.getElementById('ee-pc-res-num').value=this.value;" style="flex:1;"/>
-              <input type="number" id="ee-pc-res-num" min="0" max="100" step="1" value="0" placeholder="%"
-                oninput="document.getElementById('ee-pc-res-slider').value=this.value||0;"
-                style="width:54px;padding:4px 6px;border:0.5px solid var(--border2);border-radius:var(--radius);
-                       font-size:13px;font-weight:600;text-align:center;background:var(--bg);color:var(--text);font-family:inherit;"/>
-            </div>
-          </div>`:'';
-        closeArea=`<div style="margin-top:10px;padding:10px 12px;background:var(--bg2);border-radius:var(--radius);
-             border:0.5px solid var(--border2);">
-          <div style="font-size:12px;font-weight:600;margin-bottom:10px;">Close ${escHtml(p.pastureName)}</div>
-          <div class="two">
-            <div class="field"><label>Date out</label><input type="date" id="ee-pc-date" value="${todayStr()}"/></div>
-            <div class="field"><label>Time <span style="font-size:10px;color:var(--text2);">opt</span></label>
-              <input type="time" id="ee-pc-time"/></div>
-          </div>
-          <div class="field" style="margin-top:8px;">
-            <label>Post-graze cover % <span style="font-size:10px;color:var(--text2);">opt</span></label>
-            <div style="display:flex;align-items:center;gap:8px;margin-top:3px;">
-              <input type="range" id="ee-pc-cover-slider" min="0" max="100" step="1" value="0"
-                oninput="document.getElementById('ee-pc-cover-num').value=this.value;" style="flex:1;"/>
-              <input type="number" id="ee-pc-cover-num" min="0" max="100" step="1" value="" placeholder="%"
-                oninput="document.getElementById('ee-pc-cover-slider').value=this.value||0;"
-                style="width:54px;padding:4px 6px;border:0.5px solid var(--border2);border-radius:var(--radius);
-                       font-size:13px;font-weight:600;text-align:center;background:var(--bg);color:var(--text);font-family:inherit;"/>
-            </div>
-          </div>
-          ${recFields}${resField}
-          <div class="btn-row" style="margin-top:10px;">
-            <button class="btn btn-xs" onclick="saveEePaddockClose(${i})"
-              style="background:var(--amber);color:#fff;border:none;cursor:pointer;">Close paddock</button>
-            <button class="btn btn-outline btn-xs" onclick="cancelEePaddockClose()">Cancel</button>
-          </div>
-        </div>`;
-      } else {
-        closeArea=`<button class="btn btn-outline btn-xs"
-          style="margin-top:8px;font-size:11px;color:var(--red-d);border-color:var(--red);"
-          onclick="openEePaddockClose(${i})">Close paddock</button>`;
-      }
-    }
-
-    h+=`<div style="border-left:3px solid ${borderColor};background:${bgColor};
-        border-radius:var(--radius);padding:10px 12px;margin-bottom:6px;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-        <div>
-          <div style="font-size:14px;font-weight:600;">${escHtml(p.pastureName)}${anchorLabel}</div>
-          <div style="font-size:11px;color:var(--text2);margin-top:3px;">${typeBadge}${acresTxt}</div>
-        </div>
-        <span style="font-size:11px;font-weight:600;color:var(--green-d);">● Active</span>
-      </div>
-      ${closeArea}
-    </div>`;
-
-    // "Open next paddock" shortcut immediately after the paddock that was just closed
-    if(eePaddockJustClosed&&eePaddockJustClosed._fromIdx===i){
-      h+=`<div style="padding:10px 12px;border:0.5px dashed var(--teal-d);border-radius:var(--radius);
-          margin-bottom:6px;background:rgba(29,158,117,0.05);">
-        <div style="font-size:12px;font-weight:600;color:var(--teal-d);margin-bottom:4px;">Open next paddock?</div>
-        <div style="font-size:11px;color:var(--text2);margin-bottom:8px;">
-          Date in will inherit: <strong>${dLabel(eePaddockJustClosed.dateOut)}</strong>
-          ${eePaddockJustClosed.timeOut?' at '+eePaddockJustClosed.timeOut:''}
-        </div>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <select id="ee-next-paddock-sel" style="flex:1;padding:6px 8px;border:0.5px solid var(--border2);
-            border-radius:var(--radius);font-size:13px;background:var(--bg);color:var(--text);">
-            <option value="">— choose next paddock —</option>
-            ${sortedPastures().filter(p2=>!eePaddocks.some(x=>x.pastureName===p2.name&&!x.dateRemoved))
-              .map(p2=>`<option value="${escHtml(p2.name)}">${escHtml(p2.name)}</option>`).join('')}
-          </select>
-          <button class="btn btn-xs" onclick="addEeNextPaddock()"
-            style="background:var(--teal-d);color:#fff;border:none;cursor:pointer;white-space:nowrap;">Open →</button>
-          <button class="btn btn-outline btn-xs" onclick="dismissEeNextPaddock()">Skip</button>
-        </div>
-      </div>`;
-    }
-  });
-
-  activeSms.forEach(sm=>{
-    const loc=S.pastures.find(p=>p.name===sm.locationName);
-    const isCon=loc?.locationType==='confinement';
-    const isNoPasture=sm.noPasture||isCon;
-    const borderColor=isNoPasture?'var(--amber)':'var(--teal-d)';
-    const bgColor=isNoPasture?'rgba(255,179,0,0.06)':'rgba(29,158,117,0.05)';
-    const typeBadge=isNoPasture
-      ?`<span class="badge ba" style="font-size:10px;">stored feed</span>`
-      :`<span class="badge bt" style="font-size:10px;">grazing</span>`;
-    h+=`<div style="border-left:3px solid ${borderColor};background:${bgColor};
-        border-radius:var(--radius);padding:10px 12px;margin-bottom:6px;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-        <div>
-          <div style="font-size:13px;font-weight:600;">⇢ ${escHtml(sm.locationName)}</div>
-          <div style="font-size:11px;color:var(--text2);margin-top:3px;">
-            ${typeBadge} sub-move · in ${dLabel(sm.date)}${sm.time?' at '+sm.time:''}
-          </div>
-        </div>
-        <button class="btn btn-outline btn-xs" onclick="openSubMoveSheetFromEdit('${sm.id}')">
-          Record return
-        </button>
-      </div>
-    </div>`;
-  });
-
-  if(!active.length&&!activeSms.length){
-    h='<div style="font-size:12px;color:var(--text2);font-style:italic;padding:6px 0;">No active paddocks</div>';
-  }
-  el.innerHTML=h;
-  updateEePaddockNote();
-}
-
-function openEePaddockClose(idx){
-  eePaddockJustClosed=null;
-  eePaddockCloseIdx=idx;
-  renderEeActivePaddocks();
-}
-function cancelEePaddockClose(){
-  eePaddockCloseIdx=null;
-  renderEeActivePaddocks();
-}
-function saveEePaddockClose(idx){
-  const dateOut=document.getElementById('ee-pc-date')?.value;
-  if(!dateOut){alert('Date out is required');return;}
-  const timeOut=document.getElementById('ee-pc-time')?.value||null;
-  const coverNum=document.getElementById('ee-pc-cover-num');
-  const recMinEl=document.getElementById('ee-pc-rec-min');
-  const recMaxEl=document.getElementById('ee-pc-rec-max');
-  const resNumEl=document.getElementById('ee-pc-res-num');
-  eePaddocks[idx].dateRemoved=dateOut;
-  eePaddocks[idx].timeRemoved=timeOut;
-  if(coverNum?.value!=='') eePaddocks[idx].forageCoverOut=parseFloat(coverNum.value);
-  if(recMinEl?.value!=='') eePaddocks[idx].recoveryMinDays=parseInt(recMinEl.value);
-  if(recMaxEl?.value!=='') eePaddocks[idx].recoveryMaxDays=parseInt(recMaxEl.value);
-  if(resNumEl?.value!=='') eePaddocks[idx].feedResidualPct=parseInt(resNumEl.value);
-  eePaddockJustClosed={dateOut,timeOut,name:eePaddocks[idx].pastureName,_fromIdx:idx};
-  eePaddockCloseIdx=null;
-  renderEeActivePaddocks();
-  renderEePaddockChips();
-}
-function addEeNextPaddock(){
-  const sel=document.getElementById('ee-next-paddock-sel');
-  if(!sel||!sel.value){alert('Select a paddock first');return;}
-  const name=sel.value;
-  if(eePaddocks.some(p=>p.pastureName===name&&!p.dateRemoved)) return;
-  const rec=S.pastures.find(p=>p.name===name);
-  eePaddocks.push({
-    _isNew:true, pastureName:name, pastureId:rec?.id||null,
-    locationType:rec?.locationType||'pasture', acres:rec?.acres||0,
-    dateAdded:eePaddockJustClosed?.dateOut||todayStr(),
-    timeAdded:eePaddockJustClosed?.timeOut||null,
-    dateRemoved:null, timeRemoved:null
-  });
-  eePaddockJustClosed=null;
-  renderEeActivePaddocks();
-  renderEePaddockChips();
-}
-function dismissEeNextPaddock(){
-  eePaddockJustClosed=null;
-  renderEeActivePaddocks();
 }
 
 function openEeFeedEntry(){
@@ -12002,10 +11511,6 @@ function editEeFeedEntry(entryId){
 
 function onEeNoPastureChange(){
   updateEventEditPreview();
-  // Toggle feed checks section visibility
-  const noPasture = document.getElementById('ee-no-pasture')?.checked;
-  const _fcsEl = document.getElementById('ee-feed-checks-section');
-  if(_fcsEl && noPasture) _fcsEl.style.display = 'block';
   // Show/hide variance panel
   const evId=parseInt(document.getElementById('ee-id').value);
   const ev=S.events.find(e=>e.id===evId);
@@ -12502,7 +12007,6 @@ function renderAnimalsScreen(){
             ${isCulled?`<span class="badge br" style="font-size:10px;">${a.cullRecord?a.cullRecord.reason:'culled'}</span>`:''}
             ${ae?`<span class="badge bt" style="font-size:10px;">${ae.pasture}</span>`:''}
             ${a.confirmedBred?`<span class="badge" style="font-size:10px;background:var(--teal-l,#e0f5f2);color:var(--teal);border-radius:4px;padding:1px 5px;">✓ bred</span>`:''}
-            ${(()=>{const _nt=S.todos.filter(t=>t.animalId===a.id&&t.status!=='closed').length;return _nt>0?`<span class="badge" style="font-size:10px;background:var(--amber-l,#fff8e1);color:var(--amber-d);border-radius:4px;padding:1px 5px;">📋 ${_nt}</span>`:'';})()}
           </div>
           <div style="font-size:11px;color:var(--text2);">${cls?cls.name:'No class'} · ${grp?grp.name:'unassigned'}</div>
         </div>
@@ -12521,7 +12025,6 @@ function renderAnimalsScreen(){
         <button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openAnimalEventSheet(${a.id},'treatment')">💉 Treatment</button>
         ${a.sex==='female'?`<button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openAnimalEventSheet(${a.id},'breeding')">♀ Breeding</button>`:''}
         <button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openAnimalEventSheet(${a.id},'bcs')">📊 BCS</button>
-        <button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openAnimalTodoSheet(${a.id})" style="border-color:var(--amber);color:var(--amber-d);">📋 Todo</button>
       </div>
     </div>`;
   }).join('');
@@ -14594,7 +14097,6 @@ migrateWeaningFields();
 migrateM0aData(); // M0a: backfill feedResidualChecks, npkLedger, paddockObservations
 updateHeader();
 updateDriveUI();
-sbInitClient(); // M1: init Supabase client + restore session via auth state listener
 updateHeaderAvatar();
 renderHome();
 updateFeedbackBadge();
@@ -15420,23 +14922,17 @@ applyFieldMode(); // field-mode URL param + user preference — runs after detec
   <div class="sheet-backdrop" onclick="closeEventEdit()"></div>
   <div class="sheet">
     <div class="sheet-handle"></div>
-    <input type="hidden" id="ee-id"/>
-    <!-- Header -->
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
       <div style="font-size:16px;font-weight:600;">Edit event</div>
       <span id="ee-status-badge" class="badge"></span>
     </div>
-    <!-- ── ACTIVE PADDOCKS BLOCK ─────────────────────────────────────── -->
-    <div style="margin-bottom:10px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-        <div class="sec" style="margin:0;">Paddocks</div>
-        <div style="font-size:11px;color:var(--text2);" id="ee-paddock-note"></div>
-      </div>
-      <div id="ee-active-paddocks"></div>
-      <div id="ee-paddock-chips" style="margin-top:4px;"></div>
-      <select id="ee-paddock" style="max-width:100%;margin-top:6px;">
+    <input type="hidden" id="ee-id"/>
+    <div class="field"><label>Paddock(s)</label>
+      <div id="ee-paddock-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;min-height:0;"></div>
+      <select id="ee-paddock" style="max-width:100%;">
         <option value="">— add paddock —</option>
       </select>
+      <div style="font-size:11px;color:var(--text2);margin-top:2px;" id="ee-paddock-note"></div>
     </div>
     <div class="two">
       <div class="field"><label>Date in</label><input type="date" id="ee-date-in"/></div>
@@ -15476,54 +14972,17 @@ applyFieldMode(); // field-mode URL param + user preference — runs after detec
         </div>
       </div>
     </div>
-    <!-- 100% stored feed flag -->
-    <label style="display:flex;align-items:center;gap:10px;padding:10px 0;
-         border-top:0.5px solid var(--border);border-bottom:0.5px solid var(--border);
-         cursor:pointer;margin-bottom:10px;">
-      <input type="checkbox" id="ee-no-pasture"
-        style="width:18px;height:18px;accent-color:var(--amber);flex-shrink:0;"
-        onchange="onEeNoPastureChange()">
+    <!-- 100% stored feed flag — visible for all events (open and closed) -->
+    <label style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:0.5px solid var(--border);border-bottom:0.5px solid var(--border);cursor:pointer;margin-bottom:10px;">
+      <input type="checkbox" id="ee-no-pasture" style="width:18px;height:18px;accent-color:var(--amber);flex-shrink:0;" onchange="onEeNoPastureChange()">
       <div>
         <div style="font-size:13px;font-weight:500;">100% stored feed (no pasture available)</div>
         <div style="font-size:11px;color:var(--text2);">Bale grazing, drought feeding, winter lot — pasture DMI set to zero</div>
       </div>
     </label>
-    <!-- ── FEED CHECKS ─────────────────────────────────────────────── -->
-    <div id="ee-feed-checks-section" style="display:none;margin-bottom:10px;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
-        <div>
-          <div class="sec" style="margin:0;">Feed checks</div>
-          <div style="font-size:11px;color:var(--text2);margin-top:2px;">Bales remaining % at each check</div>
-        </div>
-        <button class="btn btn-outline btn-xs" onclick="openEeFeedCheck()">+ Add check</button>
-      </div>
-      <div id="ee-feed-checks-list" style="margin-bottom:8px;"></div>
-      <div id="ee-feed-check-form" style="display:none;" class="card-inset">
-        <div class="two">
-          <div class="field"><label>Date</label><input type="date" id="ee-fck-date"/></div>
-          <div class="field">
-            <label>Bales remaining %</label>
-            <div style="display:flex;align-items:center;gap:7px;margin-top:3px;">
-              <input type="range" id="ee-fck-pct-slider" min="0" max="100" step="5" value="50"
-                oninput="document.getElementById('ee-fck-pct').value=this.value;" style="flex:1;"/>
-              <input type="number" id="ee-fck-pct" min="0" max="100" step="1" value="50" placeholder="%"
-                oninput="document.getElementById('ee-fck-pct-slider').value=this.value||0;"
-                style="width:54px;padding:5px 6px;border:0.5px solid var(--border2);border-radius:var(--radius);
-                       font-size:13px;font-weight:600;text-align:center;background:var(--bg);color:var(--text);font-family:inherit;"/>
-            </div>
-          </div>
-        </div>
-        <div class="field"><label>Notes <span style="font-size:10px;color:var(--text2);">opt</span></label>
-          <input type="text" id="ee-fck-notes" placeholder="e.g. checked before morning move"/></div>
-        <input type="hidden" id="ee-fck-edit-id"/>
-        <div class="btn-row">
-          <button class="btn btn-green btn-xs" onclick="saveEeFeedCheck()">Save check</button>
-          <button class="btn btn-outline btn-xs" onclick="closeEeFeedCheck()">Cancel</button>
-        </div>
-      </div>
-    </div>
-    <!-- Closed event: feed residual + DMI variance -->
+    <!-- Closed event fields -->
     <div id="ee-closed-fields">
+      <!-- Feed residual -->
       <div class="field">
         <label>Feed residual — % of last feeding left uneaten</label>
         <div class="slider-row">
@@ -15533,18 +14992,20 @@ applyFieldMode(); // field-mode URL param + user preference — runs after detec
         </div>
         <div style="font-size:11px;color:var(--text2);margin-top:2px;">Reduces DMI of the most recent feeding to account for waste / leftover</div>
       </div>
+      <!-- DMI variance display (noPasture events only) -->
       <div id="ee-dmi-variance" style="display:none;" class="card-inset">
         <div style="font-size:12px;font-weight:600;margin-bottom:6px;">DMI actual vs expected</div>
         <div id="ee-dmi-variance-content" style="font-size:12px;color:var(--text2);line-height:1.8;"></div>
       </div>
     </div>
-    <!-- ── FEED ENTRIES ──────────────────────────────────────────────── -->
+    <!-- Feed log (all events) -->
     <div class="div"></div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
       <div class="sec" style="margin:0;">Feed entries</div>
       <button class="btn btn-green btn-xs" onclick="openEeFeedEntry()">+ Add feed</button>
     </div>
     <div id="ee-feed-list" style="margin-bottom:10px;"></div>
+    <!-- Inline feed entry form -->
     <div id="ee-feed-form" style="display:none;" class="card-inset">
       <div class="field"><label>Date</label><input type="date" id="ee-feed-date"/></div>
       <div id="ee-feed-batch-sel" style="margin-bottom:8px;"></div>
@@ -15556,7 +15017,16 @@ applyFieldMode(); // field-mode URL param + user preference — runs after detec
     </div>
     <div class="field"><label>Notes <span style="font-size:10px;color:var(--text2);">optional</span></label>
       <input type="text" id="ee-notes"/></div>
-    <!-- ── GROUPS ─────────────────────────────────────────────────────── -->
+    <!-- Sub-moves list — shown when event has sub-moves -->
+    <div id="ee-submoves-wrap" style="display:none;">
+      <div class="div"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div class="sec" style="margin:0;">Sub-moves</div>
+        <button class="btn btn-outline btn-xs" onclick="openSubMoveSheetFromEdit()">+ Add / manage</button>
+      </div>
+      <div id="ee-submoves-list"></div>
+    </div>
+    <!-- Groups section — at bottom, consistent with sub-moves list pattern -->
     <div class="div"></div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
       <div class="sec" style="margin:0;">Group(s)</div>
@@ -15565,40 +15035,17 @@ applyFieldMode(); // field-mode URL param + user preference — runs after detec
     <select id="ee-group-sel" style="max-width:100%;margin-bottom:4px;">
       <option value="">— add group —</option>
     </select>
-    <!-- ── SUB-MOVE HISTORY ──────────────────────────────────────────── -->
-    <div id="ee-submoves-wrap" style="display:none;">
-      <div class="div"></div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <div class="sec" style="margin:0;">Sub-move history</div>
-        <button class="btn btn-outline btn-xs" onclick="openSubMoveSheetFromEdit()">Manage</button>
-      </div>
-      <div id="ee-submoves-list"></div>
-    </div>
     <!-- Recalc preview -->
     <div id="ee-preview" class="card-inset" style="display:none;margin-bottom:10px;">
       <div style="font-size:12px;font-weight:600;margin-bottom:4px;">Recalculated totals</div>
       <div id="ee-preview-content" style="font-size:12px;color:var(--text2);line-height:1.8;"></div>
     </div>
-    <!-- ── ANCHOR CLOSE SEQUENCE ────────────────────────────────────── -->
-    <div id="ee-anchor-close-wrap" style="display:none;margin-bottom:14px;">
-      <div class="div"></div>
-      <div style="font-size:13px;font-weight:600;margin-bottom:10px;">Pre-flight checklist</div>
-      <div id="ee-anchor-close-steps"></div>
-    </div>
     <div class="btn-row" style="flex-wrap:wrap;gap:8px;">
       <button class="btn btn-green" onclick="saveEventEdit()" style="flex:2;min-width:160px;">Save &amp; recalculate</button>
       <button class="btn btn-outline" onclick="closeEventEdit()" style="flex:1;min-width:80px;">Cancel</button>
     </div>
-    <div id="ee-close-event-btn-wrap" style="display:none;margin-top:10px;">
-      <button class="btn" onclick="openEeAnchorClose()"
-        style="width:100%;background:var(--amber);color:#fff;border:none;
-               font-size:14px;font-weight:600;padding:13px;border-radius:var(--radius);cursor:pointer;">
-        ⬇ Close this event &amp; move groups
-      </button>
-    </div>
     <div style="margin-top:8px;">
-      <button class="btn btn-red btn-sm" onclick="deleteEvent()"
-        style="width:auto;padding:10px 16px;font-size:12px;">Delete event</button>
+      <button class="btn btn-red btn-sm" onclick="deleteEvent()" style="width:auto;padding:10px 16px;font-size:12px;">Delete event</button>
     </div>
   </div>
 </div>
