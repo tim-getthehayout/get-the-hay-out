@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260328.1211" id="app-version-meta"/>
+<meta name="app-version" content="b20260328.1221" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -1099,13 +1099,13 @@ body:not(.field-mode) #field-mode-toggle{
           <!-- Step 2: Code entry (shown after code sent) -->
           <div id="sb-step2" style="display:none;">
             <div style="font-size:13px;color:var(--text2);margin-bottom:14px;line-height:1.6;">
-              Check your email for a 6-digit code and enter it below.
+              Check your email for the sign-in code and enter it below.
             </div>
             <div class="field">
-              <label>6-digit code</label>
-              <input type="text" id="sb-otp-input" placeholder="123456"
-                maxlength="6" inputmode="numeric" autocomplete="one-time-code"
-                style="max-width:140px;letter-spacing:0.15em;font-size:18px;font-weight:600;"
+              <label>Sign-in code</label>
+              <input type="text" id="sb-otp-input" placeholder="12345678"
+                maxlength="8" inputmode="numeric" autocomplete="one-time-code"
+                style="max-width:160px;letter-spacing:0.15em;font-size:18px;font-weight:600;"
                 onkeydown="if(event.key==='Enter')sbVerifyOtp()"/>
             </div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
@@ -1868,7 +1868,7 @@ async function sbVerifyOtp(){
   if(!_sbClient){ alert('Supabase not initialised'); return; }
   const email = document.getElementById('sb-email-input')?.value?.trim();
   const token = document.getElementById('sb-otp-input')?.value?.trim().replace(/\s/g,'');
-  if(!token || token.length < 6){ _sbStep2Status('Enter the 6-digit code from your email', true); return; }
+  if(!token || token.length < 4){ _sbStep2Status('Enter the code from your email', true); return; }
   const btn = document.getElementById('sb-verify-btn');
   if(btn){ btn.disabled = true; btn.textContent = 'Verifying…'; }
   try{
