@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260328.1221" id="app-version-meta"/>
+<meta name="app-version" content="b20260328.1801" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -1123,46 +1123,18 @@ body:not(.field-mode) #field-mode-toggle{
             <div style="font-size:14px;font-weight:600;color:var(--green-d);">✓ Connected to Supabase</div>
             <div style="font-size:12px;color:var(--green-d);opacity:0.85;" id="sb-user-email">—</div>
           </div>
-          <button class="btn btn-outline btn-sm" style="color:var(--red);" onclick="sbSignOut()">Sign out</button>
-        </div>
-      </div>
-
-      <!-- Google Drive Sync (legacy — active until M3 migration) -->
-      <div class="card" style="opacity:0.75;">
-        <div class="sec" style="color:var(--text2);">Legacy sync — Google Drive <span class="badge bb" style="font-size:10px;">being replaced</span></div>
-        <div id="drive-disconnected">
-          <div class="drive-dashed">
-            <div style="font-size:14px;font-weight:600;margin-bottom:6px;">Connect Google Drive</div>
-            <div style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.6;">Drive sync is still active as a safety net during the Supabase migration.</div>
-            <button class="btn btn-blue btn-sm" onclick="driveConnect()">Connect Google Drive</button>
+          <!-- OI-0074: display name input -->
+          <div class="field" style="margin-top:10px;">
+            <label>Display name</label>
+            <input type="text" id="sb-display-name-input" placeholder="Your name"
+              style="max-width:220px;"
+              onkeydown="if(event.key==='Enter')sbSaveDisplayName()"/>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:8px;align-items:center;">
+            <button class="btn btn-outline btn-sm" onclick="sbSaveDisplayName()">Save name</button>
+            <button class="btn btn-outline btn-sm" style="color:var(--red);" onclick="sbSignOut()">Sign out</button>
           </div>
         </div>
-        <div id="drive-connected" style="display:none;">
-          <div class="banner ban-green" style="margin-bottom:10px;">
-            <div style="font-size:14px;font-weight:600;color:var(--green-d);">Connected to Google Drive</div>
-            <div style="font-size:12px;color:var(--green-d);opacity:0.85;" id="drive-account-label">Signed in</div>
-          </div>
-          <div style="font-size:13px;color:var(--text2);margin-bottom:6px;" id="drive-file-label"></div>
-          <div class="card-inset" id="farm-code-section" style="display:none;">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-              <div style="font-size:13px;font-weight:600;">Farm Code</div>
-              <span class="badge bg">owner</span>
-            </div>
-            <div style="font-family:Menlo,monospace;font-size:15px;font-weight:700;background:var(--bg3);padding:12px;border-radius:var(--radius);text-align:center;margin-bottom:10px;letter-spacing:1px;word-break:break-all;" id="farm-code-display">—</div>
-            <div class="btn-row">
-              <button class="btn btn-green btn-sm" onclick="copyFarmCode()">Copy Farm Code</button>
-              <button class="btn btn-outline btn-sm" onclick="shareFarmCode()">Share…</button>
-            </div>
-          </div>
-          <div class="btn-row" style="margin-top:10px;">
-            <button class="btn btn-outline btn-sm" onclick="driveSync()">Sync now</button>
-            <button class="btn btn-outline btn-sm" style="color:var(--red);" onclick="driveDisconnect()">Disconnect</button>
-          </div>
-        </div>
-        <div class="div"></div>
-        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Join a farm (workers)</div>
-        <div class="field"><label>Farm Code</label><input type="text" id="farm-code-input" placeholder="Enter code from farm owner" style="font-family:Menlo,monospace;letter-spacing:1px;"/></div>
-        <button class="btn btn-blue btn-sm" onclick="joinFarm()">Join farm &amp; connect Drive</button>
       </div>
 
       <!-- Manual backup -->
@@ -1627,7 +1599,7 @@ body:not(.field-mode) #field-mode-toggle{
 //
 // L1533   APP UPDATE BANNER        showUpdateBanner, checkForAppUpdate, applyAppUpdate
 // L1594   DATA                     S object init, localStorage keys, save helpers
-// L1682   GOOGLE DRIVE             driveConnect, sync, token refresh
+// L1682   SUPABASE M3 WRITE PATH   queueWrite, queueEventWrite, flushToSupabase
 // L1984   EXPORT / IMPORT          mergeData, ensureDataArrays, exportDataJSON, importDataJSON
 // L2138   NAV                      nav(), renderCurrentScreen()
 // L2164   USER SYSTEM              addUser, renderUsersList, openUserPicker
@@ -1796,7 +1768,6 @@ if(!S.settings.thresholds)S.settings.thresholds={
   costDay:   {target:50,  warnPct:1.25, direction:'lower',  label:'Feed cost / day ($)'},
 };
 
-let driveState = JSON.parse(localStorage.getItem('gthy-drive')||'{}');
 
 // ─── SUPABASE (M1) ───────────────────────────────────────────────────────────
 const SUPABASE_URL = 'https://oihivpwftpngbhwpjsqt.supabase.co';
@@ -1934,10 +1905,25 @@ function sbUpdateAuthUI(){
     signedIn.style.display  = 'block';
     if(emailEl) emailEl.textContent = user.email || '—';
     if(statusEl) statusEl.style.display = 'none';
+    // OI-0074: populate display name input
+    const nameEl = document.getElementById('sb-display-name-input');
+    if(nameEl){ const c = _sbLoadCachedIdentity(); nameEl.value = c?.displayName || ''; }
   } else {
     signedOut.style.display = 'block';
     signedIn.style.display  = 'none';
   }
+}
+
+// OI-0074: save display name to identity cache
+function sbSaveDisplayName(){
+  const el = document.getElementById('sb-display-name-input');
+  if(!el) return;
+  const name = el.value.trim();
+  if(!name){ alert('Enter a display name'); return; }
+  sbCacheIdentity(name, _sbOperationId);
+  updateHeader();
+  el.style.outline = '2px solid var(--green)';
+  setTimeout(() => { el.style.outline = ''; }, 1500);
 }
 
 // ─── SUPABASE M2: OPERATION + LOAD PATH ───────────────────────────────────────
@@ -2056,7 +2042,7 @@ async function _sbFetch(table, opId){
 // Supabase nested select returns sub-arrays under snake_case keys on the parent row.
 // _sbToCamel converts parent fields; sub-arrays are renamed to their JS equivalents.
 // These functions only execute on real data after M4 migration. The guard in
-// loadFromSupabase() short-circuits before assembly when tables are empty (pre-M4).
+// loadFromSupabase() assembles all S arrays from Supabase tables. M4 complete.
 
 function assembleEvents(rows){
   return rows.map(r => {
@@ -2177,16 +2163,8 @@ async function loadFromSupabase(operationId){
     if(manureBatchRes.error) logError('supabase-load','manure_batches: ' + manureBatchRes.error.message,'');
     if(inputAppRes.error)  logError('supabase-load', 'input_apps: '     + inputAppRes.error.message,   '');
 
-    // ── Guard: empty tables → pre-M4, stay on localStorage ──────────────────
-    const safePassureRows = pastureRows || [];
-    if(!safePassureRows.length && (S.pastures?.length || S.events?.length)){
-      setSyncStatus('ok', 'Local data (cloud not yet migrated)');
-      logError('supabase-load', 'Tables empty — using localStorage until M4', '');
-      return;
-    }
-
     // ── Assemble flat tables ────────────────────────────────────────────────
-    S.pastures                  = safePassureRows.map(_sbToCamel);
+    S.pastures                  = (pastureRows || []).map(_sbToCamel);
     S.feedTypes                 = (feedTypeRows        || []).map(_sbToCamel);
     S.batches                   = (batchRows           || []).map(_sbToCamel);
     S.animalClasses             = (classRows           || []).map(_sbToCamel);
@@ -2266,14 +2244,168 @@ function subscribeRealtime(operationId){
 }
 
 // ─── END SUPABASE ─────────────────────────────────────────────────────────────
-if(!driveState.clientId)driveState.clientId='520206017987-2o679cboufc1f486i0hentj0kktdkut6.apps.googleusercontent.com';
 let activeUserId = localStorage.getItem('gthy-user')||null;
 if(activeUserId)activeUserId=parseInt(activeUserId);
 
+// ─── SUPABASE M3: WRITE PATH ──────────────────────────────────────────────────
+
+// M3: camelCase → snake_case converter for flat record upserts (shallow)
+function _sbToSnake(obj){
+  if(!obj || typeof obj !== 'object') return obj;
+  const out = {};
+  for(const [k, v] of Object.entries(obj)){
+    const sk = k.replace(/([A-Z])/g, '_$1').toLowerCase();
+    out[sk] = v;
+  }
+  return out;
+}
+
+// M3: append/replace one record in the offline write queue
+function queueWrite(table, record){
+  try{
+    const queue = JSON.parse(localStorage.getItem('gthy-sync-queue') || '[]');
+    const idx = queue.findIndex(q => q.table === table && q.record.id === record.id);
+    if(idx >= 0) queue[idx] = { table, record };
+    else queue.push({ table, record });
+    localStorage.setItem('gthy-sync-queue', JSON.stringify(queue));
+  } catch(e){ logError('queue-write', e.message, ''); }
+}
+
+// M3: queue parent event + all 6 child tables in one call
+// Paddock/group entries get synthetic ids if missing: ev.id*1000+i / ev.id*2000+i
+// Feed entries flattened: each line becomes one event_feed_deliveries row
+function queueEventWrite(ev){
+  if(!ev || !_sbOperationId) return;
+  const opId = _sbOperationId;
+  // Parent event (flat fields only)
+  queueWrite('events', _sbToSnake({
+    id: ev.id, operationId: opId,
+    pastureId: ev.pastureId || null, pastureName: ev.pasture || null,
+    status: ev.status, dateIn: ev.dateIn, dateOut: ev.dateOut || null,
+    timeIn: ev.timeIn || null, timeOut: ev.timeOut || null,
+    noPasture: ev.noPasture || false,
+    notes: ev.notes || null, updatedAt: ev.updatedAt || null,
+  }));
+  // event_paddock_windows (ev.paddocks[])
+  (ev.paddocks || []).forEach((p, i) => {
+    const padId = p.id || (ev.id * 1000 + i);
+    if(!p.id) p.id = padId; // persist synthetic id (write-once)
+    queueWrite('event_paddock_windows', _sbToSnake({
+      id: padId, eventId: ev.id, operationId: opId,
+      pastureId: p.pastureId || null, pastureName: p.pastureName,
+      isPrimary: i === 0, acres: p.acres || null,
+      dateAdded: p.dateAdded, dateRemoved: p.dateRemoved || null,
+    }));
+  });
+  // event_group_memberships (ev.groups[])
+  (ev.groups || []).forEach((g, i) => {
+    const gId = g.id || (ev.id * 2000 + i);
+    if(!g.id) g.id = gId;
+    queueWrite('event_group_memberships', _sbToSnake({
+      id: gId, eventId: ev.id, operationId: opId,
+      groupId: g.groupId, groupName: g.groupName || null,
+      headSnapshot: g.head || null, weightSnapshot: g.wt || null,
+      dateAdded: g.dateAdded, dateRemoved: g.dateRemoved || null,
+    }));
+  });
+  // event_sub_moves (ev.subMoves[])
+  (ev.subMoves || []).forEach(sm => {
+    queueWrite('event_sub_moves', _sbToSnake({
+      id: sm.id, eventId: ev.id, operationId: opId,
+      pastureId: sm.pastureId || null, pastureName: sm.locationName || null,
+      dateIn: sm.date || null, timeIn: sm.time || null,
+      dateOut: sm.dateOut || null, timeOut: sm.timeOut || null,
+      durationHours: sm.durationHours || 0, noPasture: sm.noPasture || false,
+      heightIn: sm.heightIn || null, heightOut: sm.heightOut || null,
+      recoveryDaysMin: sm.recoveryMinDays || null, recoveryDaysMax: sm.recoveryMaxDays || null,
+      parentFeedCheckpointPct: sm.parentFeedCheckpointPct || null,
+      notes: sm.notes || null, updatedAt: sm.updatedAt || null,
+    }));
+  });
+  // event_feed_deliveries — flatten each feedEntry.lines[] to one row per line
+  (ev.feedEntries || []).forEach(entry => {
+    (entry.lines || []).forEach((line, li) => {
+      queueWrite('event_feed_deliveries', _sbToSnake({
+        id: entry.id * 1000 + li, eventId: ev.id, operationId: opId,
+        subMoveId: null,
+        batchId: line.batchId, date: entry.date,
+        quantity: line.qty || null, unit: line.unit || null,
+        dmPct: null, dmLbs: null, cost: line.cost || null,
+        updatedAt: entry.updatedAt || null,
+      }));
+    });
+  });
+  // event_feed_residual_checks (ev.feedResidualChecks[])
+  (ev.feedResidualChecks || []).forEach(rc => {
+    queueWrite('event_feed_residual_checks', _sbToSnake({
+      id: rc.id, eventId: ev.id, operationId: opId,
+      subMoveId: null,
+      checkDate: rc.date, residualPct: rc.residualPct || null,
+      balesRemainingPct: rc.balesRemainingPct || null,
+      isCloseReading: rc.isCloseReading || false, notes: rc.notes || null,
+    }));
+  });
+  // event_npk_deposits (ev.npkLedger[])
+  (ev.npkLedger || []).forEach(dep => {
+    queueWrite('event_npk_deposits', _sbToSnake({
+      id: dep.id, eventId: ev.id, operationId: opId,
+      pastureId: dep.pastureId || null, pastureName: dep.paddockName || null,
+      periodStart: dep.periodStart, periodEnd: dep.periodEnd,
+      source: dep.source || 'livestock_excretion',
+      head: dep.head || null, avgWeightLbs: dep.avgWeight || null,
+      days: dep.days || null, acres: dep.acres || null,
+      nLbs: dep.nLbs || 0, pLbs: dep.pLbs || 0, kLbs: dep.kLbs || 0,
+      npkValue: dep.npkVal || null, dmLbsDeposited: dep.dmLbsDeposited || null,
+    }));
+  });
+}
+
+// M3: drain the offline queue to Supabase — best-effort (continues on failure)
+async function flushToSupabase(){
+  if(!_sbClient || !_sbOperationId) return;
+  const queue = JSON.parse(localStorage.getItem('gthy-sync-queue') || '[]');
+  if(!queue.length) return;
+  const failed = [];
+  for(const op of queue){
+    try{
+      const { error } = await _sbClient.from(op.table).upsert(op.record, { onConflict: 'id' });
+      if(error) failed.push(op);
+    } catch(e){
+      failed.push(op);
+      logError('supabase-flush', op.table + ': ' + e.message, '');
+    }
+  }
+  if(failed.length){
+    localStorage.setItem('gthy-sync-queue', JSON.stringify(failed));
+    setSyncStatus('error', failed.length + ' item(s) pending — will retry');
+  } else {
+    localStorage.removeItem('gthy-sync-queue');
+    setSyncStatus('ok', 'Synced ' + new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}));
+  }
+}
+
+// M3: debounced flush — replaces driveSyncDebounced
+let _supabaseTimer;
+function supabaseSyncDebounced(){
+  setSyncStatus('pending', 'Saving…');
+  if(_supabaseTimer) clearTimeout(_supabaseTimer);
+  _supabaseTimer = setTimeout(flushToSupabase, 800);
+}
+
+// M3-D: setSyncStatus — Drive branches removed; 4 states: off · pending · ok · error
+function setSyncStatus(state, label){
+  const dot = document.getElementById('sync-dot');
+  const lbl = document.getElementById('sync-label');
+  if(dot) dot.className = 'sync-dot sync-'+state;
+  if(lbl) lbl.textContent = label || '';
+  syncSidebarSync(state, label);
+}
+
+// ─── END SUPABASE M3 ──────────────────────────────────────────────────────────
+
 function saveLocal(){localStorage.setItem('gthy',JSON.stringify(S));}
-function saveDriveState(){localStorage.setItem('gthy-drive',JSON.stringify(driveState));}
 function setActiveUser(id){activeUserId=id;localStorage.setItem('gthy-user',String(id));}
-function save(){saveLocal();if(driveState.connected&&driveState.accessToken)driveSyncDebounced();}
+function save(){saveLocal();if(_sbSession)supabaseSyncDebounced();}
 function todayStr(){return new Date().toISOString().slice(0,10);}
 function dLabel(d){return d?new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}):'--';}
 function daysBetween(a,b){return Math.max(1,Math.round((new Date(b+'T12:00:00')-new Date(a+'T12:00:00'))/86400000)+1);}
@@ -2332,362 +2464,6 @@ function avatarHtml(user,lg=false){
   return `<span class="${cls}" style="background:${user.color||'var(--green)'};">${initials}</span>`;
 }
 
-// ─── GOOGLE DRIVE ─────────────────────────────────────────────────────────────
-const DRIVE_SCOPE='https://www.googleapis.com/auth/drive.file';
-const DATA_FILENAME='gthy-data.json';
-let syncTimer=null;
-
-
-function driveConnect(){
-  if(!driveState.clientId){alert('Enter your OAuth Client ID first.');return;}
-  loadGISAndConnect(false);
-}
-
-// loadGISAndConnect: see new version with silent param above
-
-let _tokenClient=null;
-let _tokenRefreshTimer=null;
-
-function doGISConnect(silent=false){
-  _tokenClient=google.accounts.oauth2.initTokenClient({
-    client_id:driveState.clientId,
-    scope:DRIVE_SCOPE+' https://www.googleapis.com/auth/userinfo.email',
-    // prompt:'' means silent refresh — no popup if user already has active Google session
-    // prompt:'select_account' is used for the initial explicit connect
-    prompt: silent ? '' : 'select_account',
-    callback:async(resp)=>{
-      if(resp.error){
-        if(silent){
-          // Silent refresh failed (session gone, user logged out of Google)
-          // Fall back to showing the expired message — user must tap to reconnect
-          setSyncStatus('error','Session expired — tap to reconnect','reconnect');
-        } else {
-          setSyncStatus('error','Auth failed — try again');
-        }
-        return;
-      }
-      driveState.accessToken=resp.access_token;
-      const expiresIn=(resp.expires_in||3600);
-      driveState.tokenExpiry=Date.now()+(expiresIn-60)*1000;
-      driveState.connected=true;
-      if(!silent)driveState.isOwner=true;
-      saveDriveState();
-      // Fetch user email on first connect only
-      if(!silent&&!driveState.userEmail){
-        try{
-          const r=await fetch('https://www.googleapis.com/oauth2/v1/userinfo?alt=json',
-            {headers:{Authorization:'Bearer '+driveState.accessToken}});
-          const u=await r.json();
-          driveState.userEmail=u.email||'Google account';
-          saveDriveState();
-        }catch(e){}
-      }
-      // Schedule next silent refresh for 5 minutes before expiry
-      scheduleTokenRefresh(expiresIn);
-      updateDriveUI();
-      await driveSync();
-    }
-  });
-  _tokenClient.requestAccessToken();
-}
-
-function scheduleTokenRefresh(expiresInSeconds){
-  if(_tokenRefreshTimer)clearTimeout(_tokenRefreshTimer);
-  // Refresh 5 minutes (300s) before expiry, minimum 30s from now
-  const refreshIn=Math.max(30000,(expiresInSeconds-300)*1000);
-  _tokenRefreshTimer=setTimeout(()=>{
-    if(!driveState.connected)return;
-    // Only silent-refresh if GIS library is loaded
-    if(typeof google!=='undefined'&&google.accounts){
-      doGISConnect(true); // silent=true — no popup
-    }
-  },refreshIn);
-}
-
-// On page load: if we have a valid token, set up the refresh schedule for remaining time
-function maybeResumeTokenRefresh(){
-  if(!driveState.connected||!driveState.tokenExpiry)return;
-  const remaining=driveState.tokenExpiry-Date.now();
-  if(remaining<=0){
-    // Already expired — attempt silent refresh immediately
-    loadGISAndConnect(true);
-  } else {
-    // Still valid — schedule refresh for 5 min before expiry
-    const expiresIn=Math.round(remaining/1000)+60; // convert back to seconds
-    scheduleTokenRefresh(expiresIn);
-  }
-}
-
-// Called whenever the app becomes visible (tab switch, PWA resume, phone unlock).
-// Ensures mobile stays in sync even after the OAuth token expires in the background.
-function onAppResume(){
-  if(!driveState.connected)return;
-  if(Date.now()<(driveState.tokenExpiry||0)){
-    // Token still valid — sync now to pull any changes made on other devices
-    driveSync();
-  } else {
-    // Token expired — silent refresh first; callback will call driveSync()
-    loadGISAndConnect(true);
-  }
-}
-
-function loadGISAndConnect(silent=false){
-  if(typeof google!=='undefined'&&google.accounts){doGISConnect(silent);return;}
-  const s=document.createElement('script');
-  s.src='https://accounts.google.com/gsi/client';
-  s.onload=()=>doGISConnect(silent);
-  document.head.appendChild(s);
-}
-
-function joinFarm(){
-  const code=document.getElementById('farm-code-input').value.trim();
-  if(!code){alert('Enter the Farm Code from your farm owner');return;}
-  try{
-    const decoded=atob(code);
-    const[fileId,...rest]=decoded.split('|');
-    if(!fileId){throw new Error('Invalid code');}
-    driveState.fileId=fileId;
-    driveState.isOwner=false;
-    saveDriveState();
-    if(!driveState.clientId){alert('You also need to enter the OAuth Client ID above first.');return;}
-    loadGISAndConnect(false);
-  }catch(e){alert('Invalid Farm Code — check with your farm owner.');}
-}
-
-function generateFarmCode(){
-  if(!driveState.fileId)return null;
-  return btoa(driveState.fileId+'|'+driveState.userEmail);
-}
-
-function copyFarmCode(){
-  const code=generateFarmCode();
-  if(!code){alert('Connect Drive first to generate a Farm Code');return;}
-  navigator.clipboard.writeText(code).then(()=>{
-    const el=document.getElementById('farm-code-display');
-    const prev=el.textContent;
-    el.textContent='Copied!';
-    el.style.color='var(--green-d)';
-    setTimeout(()=>{el.textContent=prev;el.style.color='';},2000);
-  }).catch(()=>{
-    // Fallback for browsers that block clipboard without HTTPS
-    prompt('Copy this Farm Code and share it with your workers:',code);
-  });
-}
-
-function shareFarmCode(){
-  const code=generateFarmCode();
-  if(!code){alert('Connect Drive first');return;}
-  const text='Your Farm Code for Get The Hay Out:\n\n'+code+'\n\nSteps:\n1. Open getthehayout.com\n2. Go to Settings → Join a farm\n3. Paste this code\n4. Connect your Google account\n\n(The farm owner must also share the gthy-data.json Drive file with your Google email.)';
-  if(navigator.share){
-    navigator.share({title:'Get The Hay Out — Farm Code',text}).catch(()=>{});
-  } else {
-    prompt('Copy this message to share with your workers:',text);
-  }
-}
-
-
-function driveDisconnect(){
-  if(!confirm('Disconnect Google Drive? Local data stays on this device.'))return;
-  driveState={clientId:driveState.clientId};saveDriveState();updateDriveUI();setSyncStatus('off','Drive');
-}
-
-let syncRetryTimer=null;
-
-async function driveSync(){
-  if(!driveState.connected||!driveState.accessToken)return;
-  // Token expiry check
-  if(Date.now()>(driveState.tokenExpiry||0)){
-    // Attempt silent refresh before giving up
-    if(typeof google!=='undefined'&&google.accounts&&_tokenClient){
-      setSyncStatus('pending','Refreshing session...');
-      doGISConnect(true);
-      return; // callback will call driveSync() again after token refresh
-    }
-    setSyncStatus('error','Session expired — tap to reconnect','reconnect');
-    return;
-  }
-  ensureDataArrays();  // guard before any operation that might render
-  setSyncStatus('pending','Syncing...');
-  try{
-    if(!driveState.fileId)await driveFindOrCreateFile();
-    // Fetch remote
-    const remoteRaw=await driveFetchFile();
-    if(remoteRaw){
-      let remote;
-      try{remote=JSON.parse(remoteRaw);}
-      catch(parseErr){
-        // Remote file is corrupt — log but don't overwrite with bad data
-        console.warn('Remote JSON parse failed — writing local data over corrupt remote',parseErr);
-        remote=null;
-      }
-      if(remote){S=mergeData(S,remote);ensureDataArrays();saveLocal();}
-    }
-    // Re-read Drive immediately before writing to catch concurrent writes from other devices.
-    // Without this, two devices reading the same stale state both write their (identical) merged
-    // results; whichever writes second wins. A second read tightens the race window to ~100ms
-    // and merges in any new data the other device wrote between our read and our write.
-    if(remoteRaw){
-      const preWriteRaw=await driveFetchFile();
-      if(preWriteRaw&&preWriteRaw!==remoteRaw){
-        let fresh;try{fresh=JSON.parse(preWriteRaw);}catch(e){fresh=null;}
-        if(fresh){S=mergeData(S,fresh);ensureDataArrays();saveLocal();}
-      }
-    }
-    // Write merged data back
-    await driveWriteFile(JSON.stringify(S,null,2));
-    driveState.lastSync=new Date().toISOString();
-    driveState.lastSyncOk=true;
-    driveState.consecutiveErrors=0;
-    saveDriveState();
-    const code=generateFarmCode();
-    if(code&&document.getElementById('farm-code-display'))document.getElementById('farm-code-display').textContent=code;
-    setSyncStatus('ok','Synced '+new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}));
-    updateHeader();  // refresh operation name after Drive merge
-    renderCurrentScreen();
-  }catch(e){
-    console.error('Drive sync error:',e);
-    driveState.consecutiveErrors=(driveState.consecutiveErrors||0)+1;
-    driveState.lastSyncOk=false;
-    saveDriveState();
-    // Map error codes to user-friendly messages + actions
-    const code=e.code||'';
-    let msg='Sync failed';
-    let action=null; // 'reconnect' | 'retry' | null
-    if(code==='AUTH_REVOKED'){msg='Drive access revoked — reconnect';action='reconnect';}
-    else if(code==='QUOTA'){msg='Google Drive storage full';}
-    else if(code==='FILE_NOT_FOUND'){msg='Data file missing — tap to recreate';action='recreate';}
-    else if(code==='RATE_LIMIT'){msg='Rate limited — retrying in 30s';action='retry';scheduleRetry(30000);}
-    else if(code==='SERVER_ERROR'){msg='Drive unavailable — retrying in 60s';action='retry';scheduleRetry(60000);}
-    else if(code==='FORBIDDEN'){msg='Drive access denied — check permissions';}
-    else if(e.name==='TypeError'&&(e.message.toLowerCase().includes('network')||e.message.toLowerCase().includes('fetch')||e.message.toLowerCase().includes('failed to fetch')||e.message.toLowerCase().includes('load failed'))){msg='No internet connection';action='retry';}
-    else if(e.name==='TypeError'){msg='Sync error ('+e.message.slice(0,50)+')';action='reconnect';console.error('Sync TypeError detail:',e.message,e.stack);}
-    else{msg='Sync failed: '+e.message.slice(0,40);}
-    setSyncStatus('error',msg,action);
-  }
-}
-
-function scheduleRetry(ms){
-  if(syncRetryTimer)clearTimeout(syncRetryTimer);
-  syncRetryTimer=setTimeout(()=>{if(driveState.connected)driveSync();},ms);
-}
-// drivePushLocal: merge current local state with whatever is in Drive, then force-write.
-// Called when import Drive write fails, or when user explicitly wants to push local truth to Drive.
-// Unlike driveSync(), this always reads Drive first to avoid overwriting any good remote data,
-// then merges local wins on conflict (local is assumed to be truth by the caller).
-async function drivePushLocal(){
-  if(!driveState.connected||!driveState.accessToken){alert('Not connected to Drive. Connect Drive first, then try again.');return;}
-  const el=document.getElementById('import-status');
-  el.style.cssText='display:block;';el.textContent='Pushing to Drive…';
-  try{
-    if(!driveState.fileId)await driveFindOrCreateFile();
-    // Read Drive first — merge so we never lose data that's only in Drive
-    const remoteRaw=await driveFetchFile();
-    if(remoteRaw){
-      let remote;try{remote=JSON.parse(remoteRaw);}catch(e){remote=null;}
-      // Local wins on scalar/object conflicts but union-merge all arrays
-      if(remote){S=mergeData(S,remote);ensureDataArrays();saveLocal();}
-    }
-    await driveWriteFile(JSON.stringify(S,null,2));
-    driveState.lastSync=new Date().toISOString();driveState.lastSyncOk=true;saveDriveState();
-    setSyncStatus('ok','Pushed to Drive');
-    el.style.cssText='display:block;';el.textContent='Drive push successful — other devices will sync automatically.';
-    setTimeout(()=>{el.style.display='none';},5000);
-    renderCurrentScreen();
-  }catch(e){
-    setSyncStatus('error','Drive push failed — tap to retry','retry');
-    el.style.cssText='display:block;background:#dc2626;color:#fff;padding:12px;border-radius:8px;margin-top:8px;';
-    el.innerHTML='<strong>⚠️ Drive push failed: '+e.message.slice(0,80)+'</strong><br>'
-      +'<button onclick="drivePushLocal()" style="margin-top:8px;padding:6px 14px;background:#fff;color:#dc2626;border:none;border-radius:6px;font-weight:600;cursor:pointer;">Try again</button>';
-  }
-}
-
-function setSyncStatus(state,label,action){
-  const dot=document.getElementById('sync-dot');
-  const lbl=document.getElementById('sync-label');
-  if(dot)dot.className='sync-dot sync-'+state;
-  if(!lbl)return;
-  if(action==='reconnect'){
-    lbl.innerHTML=`<span style="text-decoration:underline;cursor:pointer;" onclick="driveConnect()">${label}</span>`;
-  } else if(action==='recreate'){
-    lbl.innerHTML=`<span style="text-decoration:underline;cursor:pointer;" onclick="driveRecreateFile()">${label}</span>`;
-  } else if(action==='retry'){
-    lbl.innerHTML=`<span style="text-decoration:underline;cursor:pointer;" onclick="driveSync()">${label}</span>`;
-  } else {
-    lbl.textContent=label;
-  }
-  syncSidebarSync(state, label);
-}
-
-async function driveRecreateFile(){
-  driveState.fileId=null;saveDriveState();
-  await driveSync();
-}
-
-function driveSyncDebounced(){
-  setSyncStatus('pending','Unsaved');
-  if(syncTimer)clearTimeout(syncTimer);
-  syncTimer=setTimeout(driveSync,3000);
-}
-
-async function driveFindOrCreateFile(){
-  // If joining (not owner), fileId already set from Farm Code
-  if(driveState.fileId&&!driveState.isOwner)return;
-  const q=encodeURIComponent(`name='${DATA_FILENAME}' and trashed=false`);
-  const r=await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`,{headers:{Authorization:'Bearer '+driveState.accessToken}});
-  const data=await r.json();
-  if(data.files&&data.files.length>0){driveState.fileId=data.files[0].id;}
-  else{
-    const cr=await fetch('https://www.googleapis.com/drive/v3/files',{method:'POST',headers:{Authorization:'Bearer '+driveState.accessToken,'Content-Type':'application/json'},body:JSON.stringify({name:DATA_FILENAME,mimeType:'application/json'})});
-    const cf=await cr.json();driveState.fileId=cf.id;
-  }
-  saveDriveState();
-}
-
-async function driveFetchFile(){
-  if(!driveState.fileId)return null;
-  const r=await fetch(`https://www.googleapis.com/drive/v3/files/${driveState.fileId}?alt=media`,{headers:{Authorization:'Bearer '+driveState.accessToken}});
-  if(r.status===401)throw Object.assign(new Error('Google account access revoked — reconnect Drive'),{code:'AUTH_REVOKED'});
-  if(r.status===403){const body=await r.text();if(body.includes('storageQuota'))throw Object.assign(new Error('Google Drive storage is full'),{code:'QUOTA'});throw Object.assign(new Error('Drive access denied (403)'),{code:'FORBIDDEN'});}
-  if(r.status===404)throw Object.assign(new Error('Farm data file not found in Drive'),{code:'FILE_NOT_FOUND'});
-  if(r.status>=500)throw Object.assign(new Error('Google Drive is temporarily unavailable'),{code:'SERVER_ERROR'});
-  if(!r.ok)throw Object.assign(new Error('Drive fetch failed (HTTP '+r.status+')'),{code:'HTTP_ERROR'});
-  return await r.text();
-}
-
-async function driveWriteFile(content){
-  const boundary='pt_boundary';
-  const meta=JSON.stringify({name:DATA_FILENAME,mimeType:'application/json'});
-  const body=`--${boundary}\r\nContent-Type: application/json\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${content}\r\n--${boundary}--`;
-  const method=driveState.fileId?'PATCH':'POST';
-  const url=driveState.fileId?`https://www.googleapis.com/upload/drive/v3/files/${driveState.fileId}?uploadType=multipart`:'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
-  const r=await fetch(url,{method,headers:{Authorization:'Bearer '+driveState.accessToken,'Content-Type':`multipart/related; boundary=${boundary}`},body});
-  if(r.status===401)throw Object.assign(new Error('Google account access revoked — reconnect Drive'),{code:'AUTH_REVOKED'});
-  if(r.status===403){const body2=await r.text();if(body2.includes('storageQuota'))throw Object.assign(new Error('Google Drive storage is full'),{code:'QUOTA'});throw Object.assign(new Error('Drive write access denied (403)'),{code:'FORBIDDEN'});}
-  if(r.status===429)throw Object.assign(new Error('Google Drive rate limit — will retry shortly'),{code:'RATE_LIMIT'});
-  if(r.status>=500)throw Object.assign(new Error('Google Drive is temporarily unavailable'),{code:'SERVER_ERROR'});
-  if(!r.ok)throw Object.assign(new Error('Drive write failed (HTTP '+r.status+')'),{code:'HTTP_ERROR'});
-}
-
-// setSyncStatus: see new version in driveSync block above
-
-function updateDriveUI(){
-  const conn=driveState.connected;
-  document.getElementById('drive-disconnected').style.display=conn?'none':'block';
-  document.getElementById('drive-connected').style.display=conn?'block':'none';
-  if(conn){
-    document.getElementById('drive-account-label').textContent='Signed in as '+(driveState.userEmail||'Google account')+(driveState.isOwner?' (owner)':' (worker)');
-    document.getElementById('drive-file-label').textContent='File: '+DATA_FILENAME+(driveState.lastSync?' · Last sync: '+new Date(driveState.lastSync).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}):'');
-    setSyncStatus('ok','Drive');
-    const farmCodeSection=document.getElementById('farm-code-section');
-    if(driveState.isOwner&&driveState.fileId){
-      farmCodeSection.style.display='block';
-      const code=generateFarmCode();
-      document.getElementById('farm-code-display').textContent=code||'Sync to generate…';
-    } else {farmCodeSection.style.display='none';}
-  }
-  // Client ID is hardcoded — no input field to populate
-  sbUpdateAuthUI();
-}
 
 // ─── EXPORT / IMPORT ──────────────────────────────────────────────────────────
 function mergeData(local,remote){
@@ -2906,31 +2682,11 @@ function importDataJSON(event){
       migrateSystemIds();
       migrateToPaddocksField();
       ensureDataArrays();
-      if(syncTimer){clearTimeout(syncTimer);syncTimer=null;}
-      if(syncRetryTimer){clearTimeout(syncRetryTimer);syncRetryTimer=null;}
       saveLocal();
       const _importStatusEl=document.getElementById('import-status');
-      if(driveState.connected&&driveState.accessToken){
-        driveWriteFile(JSON.stringify(S,null,2))
-          .then(()=>{
-            driveState.lastSync=new Date().toISOString();driveState.lastSyncOk=true;saveDriveState();
-            setSyncStatus('ok','Restored & synced to Drive');
-            _importStatusEl.style.cssText='';_importStatusEl.style.display='block';
-            _importStatusEl.textContent='Restore successful — synced to Drive from '+file.name;
-            setTimeout(()=>{_importStatusEl.style.display='none';},5000);
-          })
-          .catch(()=>{
-            // Drive write failed — show a persistent alert so the user knows other devices are not updated
-            setSyncStatus('error','Restore saved locally — Drive write failed','retry');
-            _importStatusEl.style.cssText='display:block;background:#dc2626;color:#fff;padding:12px;border-radius:8px;margin-top:8px;';
-            _importStatusEl.innerHTML='<strong>⚠️ Backup restored locally but Drive write failed.</strong><br>Other devices will not receive this data until Drive is updated.<br>'
-              +'<button onclick="drivePushLocal()" style="margin-top:8px;padding:6px 14px;background:#fff;color:#dc2626;border:none;border-radius:6px;font-weight:600;cursor:pointer;">Retry Drive push</button>';
-          });
-      } else {
-        _importStatusEl.style.display='block';
-        _importStatusEl.textContent='Restore successful (Drive not connected) — reconnect Drive then tap Sync Now to push to other devices.';
-        setTimeout(()=>{_importStatusEl.style.display='none';},8000);
-      }
+      _importStatusEl.style.display='block';
+      _importStatusEl.textContent='Restore successful. Sign in to sync to other devices.';
+      setTimeout(()=>{_importStatusEl.style.display='none';},5000);
       renderCurrentScreen();
     }catch(err){alert('Import failed: '+err.message);}
     event.target.value='';
@@ -2961,7 +2717,7 @@ function renderCurrentScreen(){
   else if(curScreen==='pastures')renderPastures();
   else if(curScreen==='feedback')renderFeedbackTab();
   else if(curScreen==='reports'){renderReportsScreen();}
-  else if(curScreen==='settings'){loadSettings();renderUsersList();renderClassesList();renderGroupsList();renderGrpAnimalPicker();updateDriveUI();sbUpdateAuthUI();}
+  else if(curScreen==='settings'){loadSettings();renderUsersList();renderClassesList();renderGroupsList();renderGrpAnimalPicker();sbUpdateAuthUI();}
 }
 
 // ─── USER SYSTEM ──────────────────────────────────────────────────────────────
@@ -3786,9 +3542,10 @@ function saveTodo(){
   };
   if(id){
     const idx=S.todos.findIndex(t=>t.id===id);
-    if(idx>=0){S.todos[idx]={...S.todos[idx],...data};}
+    if(idx>=0){S.todos[idx]={...S.todos[idx],...data};queueWrite('todos',_sbToSnake({...S.todos[idx],operationId:_sbOperationId}));}
   } else {
     S.todos.push({id:Date.now(),createdBy:activeUserId,createdAt:new Date().toISOString(),...data});
+    const _nt=S.todos[S.todos.length-1];queueWrite('todos',_sbToSnake({..._nt,operationId:_sbOperationId}));
   }
   save();closeTodoSheet();updateTodoBadge();
   if(curScreen==='todos')renderTodos();
@@ -4123,6 +3880,7 @@ function saveQuickFeed(){
     const b = S.batches.find(x=>x.id===l.batchId);
     if(b&&l.qty>0) b.remaining = Math.max(0, +(b.remaining-l.qty).toFixed(2));
   });
+  queueEventWrite(ev); // M3
   save();
   const returnHome = qfFromHome;
   closeQuickFeedSheet(); // resets qfFromHome
@@ -4582,6 +4340,7 @@ function wizCloseEvent(){
       notes:null});
   });}
   ae.updatedAt=new Date().toISOString();
+  queueEventWrite(ae); // M3
   save();
   let summaryExtra='';
   try{
@@ -4703,7 +4462,9 @@ function wizSaveNew(){
     });
   }
   wizPaddocks=[];
-  wizFeedLines=[];save();nav('home',document.getElementById('bn-home'));
+  wizFeedLines=[];
+  queueEventWrite(S.events[S.events.length-1]); // M3
+  save();nav('home',document.getElementById('bn-home'));
 }
 
 // ─── EVENTS ───────────────────────────────────────────────────────────────────
@@ -6179,6 +5940,7 @@ function applyEeGroupMoveActions(){
           // Keep legacy groupId pointing at first entry
           targetEv.groupId = targetEv.groups[0].groupId;
           targetEv.updatedAt=new Date().toISOString();
+          queueEventWrite(targetEv); // M3
           needsSave = true;
         }
       }
@@ -6206,6 +5968,8 @@ function addTreatmentType(){
     alert('Treatment type already exists'); return;
   }
   S.treatmentTypes.push({id:'TT-'+Date.now(), name, archived:false});
+  const _tt=S.treatmentTypes[S.treatmentTypes.length-1];
+  queueWrite('treatment_types',_sbToSnake({..._tt,operationId:_sbOperationId}));
   save(); renderTreatmentTypesList();
   document.getElementById('tt-name').value='';
 }
@@ -6230,11 +5994,11 @@ function renderTreatmentTypesList(){
 
 function archiveTreatmentType(id){
   const t = (S.treatmentTypes||[]).find(x=>x.id===id);
-  if(t){ t.archived=true; save(); renderTreatmentTypesList(); renderMtTypesList(); }
+  if(t){ t.archived=true; queueWrite('treatment_types',_sbToSnake({...t,operationId:_sbOperationId})); save(); renderTreatmentTypesList(); renderMtTypesList(); }
 }
 function unarchiveTreatmentType(id){
   const t = (S.treatmentTypes||[]).find(x=>x.id===id);
-  if(t){ t.archived=false; save(); renderTreatmentTypesList(); renderMtTypesList(); }
+  if(t){ t.archived=false; queueWrite('treatment_types',_sbToSnake({...t,operationId:_sbOperationId})); save(); renderTreatmentTypesList(); renderMtTypesList(); }
 }
 
 // ─── AI BULLS ─────────────────────────────────────────────────────────────────
@@ -6251,6 +6015,8 @@ function addAIBull(){
     notes:   document.getElementById('ab-notes').value.trim()||null,
     archived:false,
   });
+  const _nb=S.aiBulls[S.aiBulls.length-1];
+  queueWrite('ai_bulls',_sbToSnake({..._nb,operationId:_sbOperationId}));
   save(); renderAIBullsList();
   ['ab-name','ab-reg','ab-breed','ab-epds','ab-notes'].forEach(id=>document.getElementById(id).value='');
 }
@@ -6278,11 +6044,11 @@ function renderAIBullsList(){
 
 function archiveAIBull(id){
   const b = (S.aiBulls||[]).find(x=>x.id===id);
-  if(b){ b.archived=true; save(); renderAIBullsList(); }
+  if(b){ b.archived=true; queueWrite('ai_bulls',_sbToSnake({...b,operationId:_sbOperationId})); save(); renderAIBullsList(); }
 }
 function unarchiveAIBull(id){
   const b = (S.aiBulls||[]).find(x=>x.id===id);
-  if(b){ b.archived=false; save(); renderAIBullsList(); }
+  if(b){ b.archived=false; queueWrite('ai_bulls',_sbToSnake({...b,operationId:_sbOperationId})); save(); renderAIBullsList(); }
 }
 // ─── END TREATMENT TYPES / AI BULLS ──────────────────────────────────────────
 
@@ -6314,7 +6080,8 @@ function addClassFromSheet(){
     defaultWeightLbs:parseFloat(document.getElementById('mc-cls-wt').value)||1000,
     dmiPct:parseFloat(document.getElementById('mc-cls-dmi').value)||2.5,
   });
-  stampSetup();save();renderMcClassesList();renderClassesList();
+  const _nc=S.animalClasses[S.animalClasses.length-1];
+  stampSetup();queueWrite('animal_classes',_sbToSnake({..._nc,operationId:_sbOperationId}));save();renderMcClassesList();renderClassesList();
   document.getElementById('mc-cls-name').value='';
   document.getElementById('mc-cls-wt').value='';
   document.getElementById('mc-cls-dmi').value='';
@@ -6391,18 +6158,19 @@ function addTreatmentTypeFromSheet(){
   const category=(document.getElementById('mt-category')?.value||'').trim();
   if(!S.treatmentTypes)S.treatmentTypes=[];
   if(_editingTreatmentId){
-    // Edit mode — update existing
     const t=S.treatmentTypes.find(x=>x.id===_editingTreatmentId);
     if(!t){alert('Treatment not found');return;}
     const dupe=S.treatmentTypes.find(x=>x.id!==_editingTreatmentId&&x.name.toLowerCase()===name.toLowerCase());
     if(dupe){alert('Another treatment type already has that name');return;}
     t.name=name;
     t.category=category||null;
+    queueWrite('treatment_types',_sbToSnake({...t,operationId:_sbOperationId}));
     _editingTreatmentId=null;
   } else {
-    // Add mode — new entry
     if(S.treatmentTypes.find(t=>t.name.toLowerCase()===name.toLowerCase())){alert('Treatment type already exists');return;}
     S.treatmentTypes.push({id:'TT-'+Date.now(),name,category:category||null,archived:false});
+    const _tt=S.treatmentTypes[S.treatmentTypes.length-1];
+    queueWrite('treatment_types',_sbToSnake({..._tt,operationId:_sbOperationId}));
   }
   save();renderMtTypesList();renderTreatmentTypesList();
   _mtResetForm();
@@ -6436,6 +6204,8 @@ function addAIBullFromSheet(){
     epds:document.getElementById('mab-epds').value.trim()||null,
     notes:document.getElementById('mab-notes').value.trim()||null,
   });
+  const _mab=S.aiBulls[S.aiBulls.length-1];
+  queueWrite('ai_bulls',_sbToSnake({..._mab,operationId:_sbOperationId}));
   save();renderMabBullsList();renderAIBullsList();
   ['mab-name','mab-reg','mab-breed','mab-epds','mab-notes'].forEach(id=>document.getElementById(id).value='');
 }
@@ -7008,7 +6778,8 @@ function addFeedType(){
   const pPct=parseFloat(document.getElementById('ft-ppct').value)||null;
   const kPct=parseFloat(document.getElementById('ft-kpct').value)||null;
   S.feedTypes.push({id:generateFeedTypeId(),archived:false,name,unit:document.getElementById('ft-unit').value,dm:parseFloat(document.getElementById('ft-dm').value)||85,cat:document.getElementById('ft-cat').value,nPct,pPct,kPct});
-  stampSetup();save();renderFeedTypes();populateBatchTypeSelect();document.getElementById('ft-name').value='';
+  const _ft=S.feedTypes[S.feedTypes.length-1];
+  stampSetup();queueWrite('feed_types',_sbToSnake({..._ft,operationId:_sbOperationId}));save();renderFeedTypes();populateBatchTypeSelect();document.getElementById('ft-name').value='';
   document.getElementById('ft-npct').value='';document.getElementById('ft-ppct').value='';document.getElementById('ft-kpct').value='';
 }
 function renderFeedTypes(){
@@ -7029,6 +6800,8 @@ function addBatch(){
   const qty=parseFloat(document.getElementById('b-qty').value);if(!qty){alert('Enter quantity');return;}
   const label=document.getElementById('b-label').value.trim()||(ft.name+' '+new Date().toLocaleDateString('en-US',{month:'short',year:'numeric'}));
   S.batches.push({id:Date.now(),archived:false,typeId,typeName:ft.name,unit:ft.unit,dm:ft.dm,qty,remaining:qty,wt:parseFloat(document.getElementById('b-wt').value)||null,cpu:parseFloat(document.getElementById('b-cpu').value)||0,label,date:todayStr()});
+  const _nb=S.batches[S.batches.length-1];
+  queueWrite('batches',_sbToSnake({..._nb,operationId:_sbOperationId}));
   save();renderBatchListS();renderFeedOverview();['b-qty','b-wt','b-cpu','b-tcost','b-label'].forEach(id=>document.getElementById(id).value='');
 }
 function renderBatchListS(){
@@ -7091,6 +6864,8 @@ function saveFeedbackItem(){
   if(!note){document.getElementById('fb-note').style.borderColor='var(--red)';setTimeout(()=>document.getElementById('fb-note').style.borderColor='',1500);return;}
   const ae=getActive();
   S.feedback.push({id:Date.now(),cat:selCatVal||'idea',note,tester:S.testerName||(getActiveUser()?getActiveUser().name:'anonymous'),version:S.version||'b20260322.0936',status:'open',ctx:{screen:curScreen,activeEvent:ae?{pasture:ae.pasture,day:daysBetween(ae.dateIn,todayStr())}:null},ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:null});
+  const _nf=S.feedback[S.feedback.length-1];
+  queueWrite('feedback',_sbToSnake({..._nf,operationId:_sbOperationId}));
   save();closeFeedbackSheet();updateFeedbackBadge();if(curScreen==='feedback')renderFeedbackTab();
 }
 function renderFeedbackTab(){renderConfirmSection();renderFeedbackStats();renderFeedbackList();}
@@ -7102,11 +6877,14 @@ function renderConfirmSection(){
     return `<div class="confirm-item"><div class="ci-tag"><span class="badge ${cfg.cls}">${cfg.label}</span> · ${f.version||'?'} · by ${f.tester}</div><div style="font-size:14px;margin-bottom:6px;line-height:1.5;">${escHtml(f.note)}</div><div style="font-size:12px;color:var(--teal-d);background:var(--teal-l);padding:6px 10px;border-radius:var(--radius);margin-bottom:8px;">Fix: ${escHtml(f.resolutionNote||'—')}</div><div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Resolved in ${f.resolvedInVersion||'?'}</div><div class="btn-row"><button class="btn btn-teal btn-sm" onclick="confirmFixed(${f.id})">This is fixed</button><button class="btn btn-outline btn-sm" style="color:var(--red);border-color:var(--red);" onclick="reopenIssue(${f.id})">Still broken</button></div></div>`;
   }).join('');
 }
-function confirmFixed(id){const f=S.feedback.find(x=>x.id===id);if(!f)return;f.status='closed';f.confirmedBy=S.testerName||'anonymous';f.confirmedAt=new Date().toISOString();save();renderFeedbackTab();updateFeedbackBadge();}
+function confirmFixed(id){const f=S.feedback.find(x=>x.id===id);if(!f)return;f.status='closed';f.confirmedBy=S.testerName||'anonymous';f.confirmedAt=new Date().toISOString();queueWrite('feedback',_sbToSnake({...f,operationId:_sbOperationId}));save();renderFeedbackTab();updateFeedbackBadge();}
 function reopenIssue(id){
   const orig=S.feedback.find(x=>x.id===id);if(!orig)return;
   orig.status='closed';orig.confirmedBy=S.testerName||'anonymous';orig.confirmedAt=new Date().toISOString();
   S.feedback.push({id:Date.now(),cat:orig.cat,note:`[Regression] ${orig.note}`,tester:S.testerName||'anonymous',version:S.version||'b20260322.0936',status:'open',ctx:orig.ctx,ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:orig.id});
+  const _rf=S.feedback[S.feedback.length-1];
+  queueWrite('feedback',_sbToSnake({...orig,operationId:_sbOperationId}));
+  queueWrite('feedback',_sbToSnake({..._rf,operationId:_sbOperationId}));
   save();renderFeedbackTab();updateFeedbackBadge();
 }
 function openResolveSheet(id){
@@ -7120,6 +6898,7 @@ function saveResolve(){
   if(!note){alert('Describe what was changed');return;}
   const f=S.feedback.find(x=>x.id===id);if(!f)return;
   f.status='resolved';f.resolutionNote=note;f.resolvedInVersion=S.version||'b20260322.0936';f.resolvedAt=new Date().toISOString();
+  queueWrite('feedback',_sbToSnake({...f,operationId:_sbOperationId}));
   save();closeResolveSheet();renderFeedbackTab();updateFeedbackBadge();
 }
 function renderFeedbackStats(){
@@ -7156,7 +6935,7 @@ function generateBrief(){
   if(open.length){b+=`\nOPEN ITEMS (${open.length})\n${'─'.repeat(52)}\n`;catOrder.forEach(cat=>{const items=open.filter(f=>f.cat===cat);if(!items.length)return;const catLabel=(CAT[cat]||CAT.idea).label.toUpperCase();const isRoadblock=cat==='roadblock';b+=`\n[${catLabel}]${isRoadblock?' ← HIGH PRIORITY — FIX BEFORE ANYTHING ELSE':''}\n`;items.forEach((f,i)=>{const d=new Date(f.ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});const ctx=f.ctx.activeEvent?`screen:${f.ctx.screen} event:${f.ctx.activeEvent.pasture} day${f.ctx.activeEvent.day}`:`screen:${f.ctx.screen}`;b+=`${i+1}. ${isRoadblock?'🚧 ':''}${f.note}\n   [${ctx}] — ${f.tester}, ${f.version||'?'}, ${d}${f.linkedTo?' ⚠ regression':''}\n`;});});}
   if(resolved.length){b+=`\n${'═'.repeat(52)}\nAWAITING CONFIRMATION (${resolved.length})\n${'─'.repeat(52)}\n`;resolved.forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fix in ${f.resolvedInVersion}: ${f.resolutionNote}\n`;});}
   if(closed.length){b+=`\n${'═'.repeat(52)}\nCLOSED (last 10)\n${'─'.repeat(52)}\n`;closed.slice(-10).forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fixed in ${f.resolvedInVersion||'?'}: ${f.resolutionNote||'—'}. Confirmed: ${f.confirmedBy||'?'}\n`;});}
-  b+=`\n${'═'.repeat(52)}\nCONTEXT\nOperation: ${S.herd.name||'not set'}, ${S.herd.count||0} head ${S.herd.type||''}\nUsers: ${S.users.length} · Paddocks: ${S.pastures.length} · Feed types: ${S.feedTypes.length}\nEvents: ${S.events.length} total · Open todos: ${S.todos.filter(t=>t.status!=='closed').length}\nDrive: ${driveState.connected?'connected ('+driveState.userEmail+')':'not connected'}\n\nPlease review open items first (roadblocks first, then bugs, then calculations, then UX). Note which version testers need to load to confirm each fix.
+  b+=`\n${'═'.repeat(52)}\nCONTEXT\nOperation: ${S.herd.name||'not set'}, ${S.herd.count||0} head ${S.herd.type||''}\nUsers: ${S.users.length} · Paddocks: ${S.pastures.length} · Feed types: ${S.feedTypes.length}\nEvents: ${S.events.length} total · Open todos: ${S.todos.filter(t=>t.status!=='closed').length}\n\nPlease review open items first (roadblocks first, then bugs, then calculations, then UX). Note which version testers need to load to confirm each fix.
 
 App: Get The Hay Out · getthehayout.com`;
   document.getElementById('brief-text').textContent=b;document.getElementById('brief-out').style.display='block';document.getElementById('copy-btn').style.display='';
@@ -7231,13 +7010,16 @@ function addToManureBatch(loc,event,nLbs,pLbs,kLbs,volLbs,date){
     S.manureBatches.push({id:batchId,label,locationName:loc.name,mode:'event',nLbs,pLbs,kLbs,estimatedVolumeLbs:volLbs,remainingLbs:volLbs,events:[entry],createdAt:new Date().toISOString()});
     event.totals.manureBatchId=batchId;
   }
-  // M0b-I: also write to S.manureBatchTransactions[]
   if(batchId){
     if(!Array.isArray(S.manureBatchTransactions)) S.manureBatchTransactions=[];
-    S.manureBatchTransactions.push({id:Date.now()+2,batchId,
+    const _mbt={id:Date.now()+2,batchId,
       type:'input',date,volumeLbs:volLbs,
       nLbs,pLbs,kLbs,sourceEventId:event.id,
-      applicationId:null,pastureNames:null,notes:null});
+      applicationId:null,pastureNames:null,notes:null};
+    S.manureBatchTransactions.push(_mbt);
+    queueWrite('manure_batch_transactions',_sbToSnake({..._mbt,operationId:_sbOperationId}));
+    const _mb=S.manureBatches.find(x=>x.id===batchId);
+    if(_mb) queueWrite('manure_batches',_sbToSnake({..._mb,operationId:_sbOperationId}));
   }
 }
 
@@ -7381,6 +7163,9 @@ function saveSpreadEvent(){
     applicationId:null,pastureNames:[paddock],notes:document.getElementById('sp-notes').value||null});
   // Add amendment event to pasture event ledger
   S.events.push({id:Date.now(),type:'amend',pasture:paddock,date,amendType:'manure',product:b.label+' (manure)',source:'manure-batch',sourceBatchId:id,totalCost:0,lifeDays:365,lifeDisplay:'1 year',nPct:0,pPct:0,kPct:0,manureNLbs:calc.nApp,manurePLbs:calc.pApp,manureKLbs:calc.kApp,notes:document.getElementById('sp-notes').value});
+  const _mbt=S.manureBatchTransactions[S.manureBatchTransactions.length-1];
+  queueWrite('manure_batches',_sbToSnake({...b,operationId:_sbOperationId}));
+  queueWrite('manure_batch_transactions',_sbToSnake({..._mbt,operationId:_sbOperationId}));
   save();closeSpreadSheet();
   if(curScreen==='pastures')renderPastures();
   alert('Manure application recorded. '+calc.nApp.toFixed(1)+' lbs N · '+calc.pApp.toFixed(1)+' lbs P · '+calc.kApp.toFixed(1)+' lbs K credited to '+paddock+'.');
@@ -7724,16 +7509,19 @@ function closeAnimalWeightSheet(){
 // Opens a new membership row (animal joins a group). dateJoined null = unknown/historical.
 function _openGroupMembership(animalId, groupId, dateJoined){
   if(!Array.isArray(S.animalGroupMemberships)) S.animalGroupMemberships=[];
-  // Avoid duplicate open rows for the same animal+group
   const existing=S.animalGroupMemberships.find(m=>m.animalId===animalId&&m.groupId===groupId&&!m.dateLeft);
   if(existing) return;
-  S.animalGroupMemberships.push({id:Date.now(),animalId,groupId,dateJoined:dateJoined||null,dateLeft:null});
+  const row={id:Date.now(),animalId,groupId,dateJoined:dateJoined||null,dateLeft:null};
+  S.animalGroupMemberships.push(row);
+  queueWrite('animal_group_memberships',_sbToSnake({...row,operationId:_sbOperationId}));
 }
-// Closes the open membership row for an animal leaving a group. dateLeft null = unknown.
 function _closeGroupMembership(animalId, groupId, dateLeft){
   if(!Array.isArray(S.animalGroupMemberships)) return;
   const row=S.animalGroupMemberships.find(m=>m.animalId===animalId&&m.groupId===groupId&&!m.dateLeft);
-  if(row) row.dateLeft=dateLeft||new Date().toISOString().slice(0,10);
+  if(row){
+    row.dateLeft=dateLeft||new Date().toISOString().slice(0,10);
+    queueWrite('animal_group_memberships',_sbToSnake({...row,operationId:_sbOperationId}));
+  }
 }
 
 
@@ -7742,8 +7530,10 @@ function _recordAnimalWeight(a, date, wt, note, source){
   if(!a.weightHistory) a.weightHistory=[];
   a.weightHistory.push({date,weightLbs:wt,note:note||''});
   if(!Array.isArray(S.animalWeightRecords)) S.animalWeightRecords=[];
-  S.animalWeightRecords.push({id:Date.now(),animalId:a.id,recordedAt:date,
-    weightLbs:wt,note:note||null,source:source||'manual'});
+  const rec={id:Date.now(),animalId:a.id,recordedAt:date,
+    weightLbs:wt,note:note||null,source:source||'manual'};
+  S.animalWeightRecords.push(rec);
+  queueWrite('animal_weight_records',_sbToSnake({...rec,operationId:_sbOperationId}));
 }
 
 function saveAnimalWeight(){
@@ -7757,6 +7547,7 @@ function saveAnimalWeight(){
   a.weightLbs = wt;
   _recordAnimalWeight(a, date, wt, note||'Weight update', 'manual');
   a.updatedAt=new Date().toISOString();
+  queueWrite('animals',_sbToSnake({...a,operationId:_sbOperationId}));
   save(); closeAnimalWeightSheet();  renderGroupsList();
 }
 
@@ -7772,7 +7563,8 @@ function addAnimalClass(){
     defaultWeightLbs:parseFloat(document.getElementById('cls-wt').value)||1000,
     dmiPct:parseFloat(document.getElementById('cls-dmi').value)||2.5,
   });
-  stampSetup();save();renderClassesList();
+  const _ac=S.animalClasses[S.animalClasses.length-1];
+  stampSetup();queueWrite('animal_classes',_sbToSnake({..._ac,operationId:_sbOperationId}));save();renderClassesList();
   document.getElementById('cls-name').value='';
   document.getElementById('cls-wt').value='';
   document.getElementById('cls-dmi').value='';
@@ -8282,7 +8074,7 @@ function saveLocEdit(){
       }
     }
     S.pastures.push(loc);
-    stampSetup(); save(); closeLocEdit(); renderPastures(); renderManureInventory();
+    stampSetup(); queueWrite('pastures', _sbToSnake({...loc, operationId: _sbOperationId})); save(); closeLocEdit(); renderPastures(); renderManureInventory();
     return;
   }
 
@@ -8312,7 +8104,7 @@ function saveLocEdit(){
     });
     S.todos.filter(t=>t.paddock===oldName).forEach(t=>t.paddock=p.name);
   }
-  stampSetup(); save(); closeLocEdit(); renderPastures();
+  stampSetup(); queueWrite('pastures', _sbToSnake({...p, operationId: _sbOperationId})); save(); closeLocEdit(); renderPastures();
 }
 
 function tryDeletePastureFromEdit(){
@@ -8694,7 +8486,7 @@ function saveAnimalEdit(){
     S.animals.push(newA);
     const newGrpId=parseInt(document.getElementById('ae-group').value)||null;
     if(newGrpId){const g=S.animalGroups.find(x=>x.id===newGrpId);if(g){if(!g.animalIds)g.animalIds=[];g.animalIds.push(newId);}}
-    save();closeAnimalEdit();renderAnimalsScreen();renderGroupsList();
+    queueWrite('animals',_sbToSnake({...newA,operationId:_sbOperationId})); save();closeAnimalEdit();renderAnimalsScreen();renderGroupsList();
     return;
   }
   // ── Edit existing animal path ────────────────────────────────────────────────
@@ -8763,7 +8555,7 @@ function saveAnimalEdit(){
       _openGroupMembership(id,newGrpId,new Date().toISOString().slice(0,10));}
   }
   a.updatedAt=new Date().toISOString();
-  save();closeAnimalEdit();renderGroupsList();
+  queueWrite('animals',_sbToSnake({...a,operationId:_sbOperationId})); save();closeAnimalEdit();renderGroupsList();
 }
 
 function deleteAnimal(){
@@ -8972,14 +8764,16 @@ function saveGroupFromSheet(){
     oldIds.forEach(id=>{ if(!newIds.has(id)) _closeGroupMembership(id,g.id,today); });
     newIds.forEach(id=>{ if(!oldIds.has(id)) _openGroupMembership(id,g.id,today); });
     g.animalIds = animalIds;
+    stampSetup(); queueWrite('animal_groups',_sbToSnake({...g,operationId:_sbOperationId})); save();
   } else {
     // New group
     const newGrpId = Date.now();
     const today = new Date().toISOString().slice(0,10);
     S.animalGroups.push({ id: newGrpId, archived: false, name, color, animalIds });
     animalIds.forEach(id=>_openGroupMembership(id,newGrpId,today));
+    const _ng=S.animalGroups[S.animalGroups.length-1];
+    stampSetup(); queueWrite('animal_groups',_sbToSnake({..._ng,operationId:_sbOperationId})); save();
   }
-  stampSetup(); save();
   renderGroupsList();
   renderAnimalsScreen();
   closeAddGroupSheet();
@@ -10481,6 +10275,7 @@ function saveSmClose(){
       recoveryMinDays:recMin||null,recoveryMaxDays:recMax||null,notes:null});
   }
   ev.updatedAt=new Date().toISOString();
+  queueEventWrite(ev); // M3
   save();
   cancelSmClose();
   renderSmExistingList(ev);
@@ -10497,6 +10292,7 @@ function deleteSubMove(evId, smId){
   if(!confirm('Remove this sub-move record?')) return;
   ev.subMoves = (ev.subMoves||[]).filter(s=>String(s.id)!==String(smId));
   ev.updatedAt=new Date().toISOString();
+  queueEventWrite(ev); // M3
   save();
   renderSmExistingList(ev);
   renderHome();
@@ -10721,6 +10517,7 @@ function saveSubMove(){
     existing.recoveryMaxDays = recoveryMaxDays;
     existing.notes         = document.getElementById('sm-notes').value.trim();
     ev.updatedAt=new Date().toISOString();
+    queueEventWrite(ev); // M3
     save();
     resetSmForm();
     renderSmExistingList(ev);
@@ -10780,6 +10577,7 @@ function saveSubMove(){
     });
   }
   ev.updatedAt=new Date().toISOString();
+  queueEventWrite(ev); // M3
   save();
   closeSubMoveSheet();
   renderHome();
@@ -10858,7 +10656,10 @@ function _writePaddockObservation(obs){
     String(o.sourceId)===String(obs.sourceId) &&
     String(o.pastureId)===String(obs.pastureId)
   );
-  if(!dup) S.paddockObservations.push(obs);
+  if(!dup){
+    S.paddockObservations.push(obs);
+    queueWrite('paddock_observations',_sbToSnake({...obs,operationId:_sbOperationId}));
+  }
 }
 
 // ─── END M0a HELPERS ─────────────────────────────────────────────────────────
@@ -11027,7 +10828,8 @@ function addInputProduct(){
     kPct:parseFloat(document.getElementById('ip-k').value)||0,
     notes:document.getElementById('ip-notes').value.trim(),
   });
-  stampSetup();save();renderInputProductsList();
+  const _ip=S.inputProducts[S.inputProducts.length-1];
+  stampSetup();queueWrite('input_products',_sbToSnake({..._ip,operationId:_sbOperationId}));save();renderInputProductsList();
   ['ip-name','ip-cpu','ip-n','ip-p','ip-k','ip-notes'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('ip-cat').value='fertilizer';
   document.getElementById('ip-unit').value='ton';
@@ -11304,11 +11106,19 @@ function saveApplyInput(){
   if(!Array.isArray(S.inputApplicationLocations)) S.inputApplicationLocations=[];
   let _ialId=Date.now()+50;
   application.locations.forEach(loc=>{
-    S.inputApplicationLocations.push({id:_ialId++,applicationId:appId,
+    const _ial={id:_ialId++,applicationId:appId,
       pastureId:loc.pastureId||null,pastureName:loc.name,
       acres:loc.acres||null,nLbs:loc.nLbs||0,pLbs:loc.pLbs||0,kLbs:loc.kLbs||0,
-      costShare:loc.costShare||0});
+      costShare:loc.costShare||0};
+    S.inputApplicationLocations.push(_ial);
+    queueWrite('input_application_locations',_sbToSnake({..._ial,operationId:_sbOperationId}));
   });
+  // Queue manure batch transaction written above (if any)
+  if(sourceType==='manure'){
+    const _lastMbt=S.manureBatchTransactions?.[S.manureBatchTransactions.length-1];
+    if(_lastMbt&&_lastMbt.applicationId===appId)
+      queueWrite('manure_batch_transactions',_sbToSnake({..._lastMbt,operationId:_sbOperationId}));
+  }
 
   // Create per-paddock amend events (NPK ledger)
   application.locations.forEach(loc=>{
@@ -11369,6 +11179,7 @@ function saveCull(){
       g.animalIds=g.animalIds.filter(x=>x!==id);
     }
   });
+  queueWrite('animals',_sbToSnake({...a,operationId:_sbOperationId})); // M3
   save();
   closeCullSheet();
   closeAnimalEdit();
@@ -11382,6 +11193,7 @@ function reactivateAnimal(animalId){
   if(!confirm('Reactivate '+a.systemId+(a.tagNum?' ('+a.tagNum+')':'')+'? You can reassign them to a group after reactivation.'))return;
   a.active=true;
   a.cullRecord=null;
+  queueWrite('animals',_sbToSnake({...a,operationId:_sbOperationId})); // M3
   save();
   closeAnimalEdit();
   renderGroupsList();
@@ -11432,28 +11244,18 @@ async function executeReset(){
   const mode=document.getElementById('reset-confirm-btn').dataset.mode||'all';
   const ver=S.version||'b20260322.0936';
   if(mode==='events'){
-    // Events-only reset — preserve setup data
     S.events=[];
     S.manureBatches=[];
     S.inputApplications=[];
     S.todos=[];
-    // Reset batch inventory to original quantities (since events consumed them)
     S.batches.forEach(b=>b.remaining=b.qty);
     saveLocal();
     closeResetSheet();
-    if(driveState.connected&&driveState.accessToken&&driveState.fileId){
-      setSyncStatus('pending','Resetting Drive...');
-      driveWriteFile(JSON.stringify(S,null,2)).then(()=>{
-        driveState.lastSync=new Date().toISOString();saveDriveState();
-        setSyncStatus('ok','Events reset');
-      }).catch(e=>setSyncStatus('error','Local reset done — Drive write failed'));
-    }
     updateHeader();renderHome();renderCurrentScreen();
     alert('All event data erased. Setup data (animals, locations, feed inventory) preserved. Batch inventory restored to original quantities.');
     return;
   }
   // Full reset
-  // Wipe S to empty state
   S={
     pastures:[],events:[],feedTypes:[],batches:[],
     herd:{name:'',type:'',count:0,weight:0,dmi:2.5},
@@ -11464,23 +11266,8 @@ async function executeReset(){
     animalClasses:[],animalGroups:[],animals:[],
     _herdMigrated:true,
   };
-  // Save to localStorage first
   saveLocal();
   closeResetSheet();
-  // Write empty data directly to Drive — bypass driveSync() which would
-  // fetch+merge the old remote data back and undo the reset entirely
-  if(driveState.connected&&driveState.accessToken&&driveState.fileId){
-    setSyncStatus('pending','Resetting Drive...');
-    try{
-      await driveWriteFile(JSON.stringify(S,null,2));
-      driveState.lastSync=new Date().toISOString();
-      saveDriveState();
-      setSyncStatus('ok','Drive reset');
-    }catch(e){
-      console.error('Drive reset write failed:',e);
-      setSyncStatus('error','Local reset done — Drive write failed, reconnect and sync manually');
-    }
-  }
   // Full re-render
   updateHeader();
   renderHome();
@@ -12337,6 +12124,7 @@ function saveEeFeedEntry(){
   // Recalculate totals if closed
   ev.updatedAt=new Date().toISOString();
   if(ev.status==='closed')recalcEventTotals(ev);
+  queueEventWrite(ev); // M3
   save();
   renderEeFeedList(ev);
   closeEeFeedEntry();
@@ -12366,6 +12154,7 @@ function deleteEeFeedEntry(entryId){
   }
   ev.updatedAt=new Date().toISOString();
   if(ev.status==='closed')recalcEventTotals(ev);
+  queueEventWrite(ev); // M3
   save();renderEeFeedList(ev);updateEventEditPreview(ev);
   if(curScreen==='feed')renderFeedScreen();
 }
@@ -12587,6 +12376,7 @@ function saveEventEdit(){
     recalcEventTotals(ev);
   }
   ev.updatedAt=new Date().toISOString();
+  queueEventWrite(ev); // M3
   save();closeEventEdit();
   renderEventsLog();renderHome();
 }
@@ -13432,7 +13222,7 @@ function tryDeletePasture(idx){
     if(!confirm(`"${p.name}" has ${refs.closed.length} past event${refs.closed.length!==1?'s':''}. Delete it?\n\nChoose Cancel and use Archive instead to keep it visible in historical records but hidden from new entries.`))return;
     // Offer archive instead
     const choice=confirm(`Archive "${p.name}" instead of deleting? Archived locations stay linked to past events but won't appear in new entry dropdowns.\n\nOK = Archive  |  Cancel = Delete permanently`);
-    if(choice){p.archived=true;stampSetup();save();renderPastures();return;}
+    if(choice){p.archived=true;stampSetup();queueWrite('pastures',_sbToSnake({...p,operationId:_sbOperationId}));save();renderPastures();return;}
   } else {
     if(!confirm(`Delete "${p.name}"? This cannot be undone.`))return;
   }
@@ -13444,7 +13234,7 @@ function tryDeleteFeedType(idx){
   const {batches,inUse}=getFeedTypeRefs(ft.id);
   if(batches.length&&inUse){
     const choice=confirm(`"${ft.name}" has feed batches with inventory remaining. Archive it instead?\n\nOK = Archive  |  Cancel = Delete permanently`);
-    if(choice){ft.archived=true;stampSetup();save();renderFeedTypes();return;}
+    if(choice){ft.archived=true;stampSetup();queueWrite('feed_types',_sbToSnake({...ft,operationId:_sbOperationId}));save();renderFeedTypes();return;}
     if(!confirm('Delete permanently? This cannot be undone.'))return;
   } else if(batches.length){
     if(!confirm(`Delete "${ft.name}"? It has ${batches.length} batch${batches.length!==1?'es':''} (all depleted).`))return;
@@ -13464,7 +13254,7 @@ function tryDeleteAnimalClass(idx){
   const archived=S.animals.filter(a=>a.classId===c.id&&a.active===false);
   if(archived.length){
     const choice=confirm(`"${c.name}" is used by ${archived.length} culled animal record${archived.length!==1?'s':''}. Archive the class instead?\n\nOK = Archive  |  Cancel = Delete permanently`);
-    if(choice){c.archived=true;stampSetup();save();renderClassesList();return;}
+    if(choice){c.archived=true;stampSetup();queueWrite('animal_classes',_sbToSnake({...c,operationId:_sbOperationId}));save();renderClassesList();return;}
     if(!confirm('Delete permanently?'))return;
   } else {
     if(!confirm(`Delete class "${c.name}"?`))return;
@@ -13479,7 +13269,7 @@ function tryDeleteAnimalGroup(idx){
   const refs=getAnimalGroupRefs(g.id);
   if(refs.closed.length){
     const choice=confirm(`"${g.name}" has ${refs.closed.length} past event${refs.closed.length!==1?'s':''}. Archive it instead of deleting?\n\nOK = Archive  |  Cancel = Delete permanently`);
-    if(choice){g.archived=true;stampSetup();save();renderGroupsList();renderHome();return;}
+    if(choice){g.archived=true;stampSetup();queueWrite('animal_groups',_sbToSnake({...g,operationId:_sbOperationId}));save();renderGroupsList();renderHome();return;}
     if(!confirm('Delete permanently?'))return;
   } else {
     if(!confirm(`Delete group "${g.name}"? Animals will become unassigned.`))return;
@@ -13492,7 +13282,7 @@ function tryDeleteInputProduct(idx){
   const refs=getInputProductRefs(p.id);
   if(refs.length){
     const choice=confirm(`"${p.name}" has been used in ${refs.length} application${refs.length!==1?'s':''}. Archive it instead?\n\nOK = Archive  |  Cancel = Delete permanently`);
-    if(choice){p.archived=true;stampSetup();save();renderInputProductsList();return;}
+    if(choice){p.archived=true;stampSetup();queueWrite('input_products',_sbToSnake({...p,operationId:_sbOperationId}));save();renderInputProductsList();return;}
     if(!confirm('Delete permanently?'))return;
   } else {
     if(!confirm(`Delete "${p.name}"?`))return;
@@ -13506,7 +13296,7 @@ function tryDeleteBatch(idx){
   const used=S.events.some(e=>allFeedEntries(e).some(fe=>fe.lines.some(l=>l.batchId===b.id)));
   if(b.remaining<b.qty||used){
     const choice=confirm(`"${b.label}" has been used in feed entries. Archive it instead?\n\nOK = Archive  |  Cancel = Delete permanently`);
-    if(choice){b.archived=true;stampSetup();save();renderBatchListS();return;}
+    if(choice){b.archived=true;stampSetup();queueWrite('batches',_sbToSnake({...b,operationId:_sbOperationId}));save();renderBatchListS();return;}
     if(!confirm('Delete permanently?'))return;
   } else {
     if(!confirm(`Delete batch "${b.label}"?`))return;
@@ -13516,9 +13306,12 @@ function tryDeleteBatch(idx){
 
 function unarchive(type, id){
   const map={pasture:S.pastures,feedType:S.feedTypes,class:S.animalClasses,group:S.animalGroups,product:S.inputProducts,batch:S.batches};
+  const tbl={pasture:'pastures',feedType:'feed_types',class:'animal_classes',group:'animal_groups',product:'input_products',batch:'batches'};
   const arr=map[type];if(!arr)return;
   const item=arr.find(x=>x.id===id);if(!item)return;
-  item.archived=false;stampSetup();save();
+  item.archived=false;stampSetup();
+  if(tbl[type]) queueWrite(tbl[type],_sbToSnake({...item,operationId:_sbOperationId}));
+  save();
   if(type==='pasture')renderPastures();
   else if(type==='feedType')renderFeedTypes();
   else if(type==='class')renderClassesList();
@@ -15012,22 +14805,14 @@ migrateToGroupsField();
 migrateWeaningFields();
 migrateM0aData(); // M0a: backfill feedResidualChecks, npkLedger, paddockObservations
 updateHeader();
-updateDriveUI();
 sbInitClient(); // M1: init Supabase client + restore session via auth state listener
 updateHeaderAvatar();
 renderHome();
 updateFeedbackBadge();
 updateTodoBadge();
 maybePromptUserSelect();
-// Resume Drive session: schedule token refresh or silent-reconnect if expired
-maybeResumeTokenRefresh();
-// Sync if token is still valid
-if(driveState.connected&&driveState.accessToken&&Date.now()<(driveState.tokenExpiry||0)){driveSync();}
-// Sync whenever the app becomes visible (handles PWA resume + tab switching)
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')onAppResume();});
-// Periodic background sync — pulls Drive changes even when the tab stays open and visible all day
-// Without this, a desktop tab left open all day never sees updates made on mobile
-setInterval(()=>{if(driveState.connected&&driveState.accessToken&&Date.now()<(driveState.tokenExpiry||0)){driveSync();}},5*60*1000);
+// Flush Supabase queue when app becomes visible (handles PWA resume + tab switching)
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')flushToSupabase();});
 detectMode(); // must run last — reads DOM
 applyFieldMode(); // field-mode URL param + user preference — runs after detectMode
 </script>
