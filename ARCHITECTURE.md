@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260329.1859`
+**Current build:** `b20260329.1929`
 **Last updated:** 2026-03-29
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -961,7 +961,11 @@ Farmer-reported observations captured through the in-app feedback sheet (`openFe
 | `feature` | Missing feature | `bp` (purple) | 5th |
 | `idea` | Idea | `bg` (green) | 6th |
 
-Roadblocks are operational blockers that prevent normal farm work. `generateBrief()` surfaces them before all other categories with a `← HIGH PRIORITY` flag.
+**Feedback areas (`f.area`)** — defined in `AREA` object (~L7142): `home` · `animals` · `events` · `feed` · `pastures` · `reports` · `todos` · `settings` · `sync` · `other`. Auto-suggested from current screen via `SCREEN_AREA` map. Stored as flat `area` column in Supabase `feedback` table.
+
+**`_feedbackRow(f, opId)`** (~L7148) — builds a Supabase-safe feedback row with only known schema columns. All feedback `queueWrite` calls must use this helper — never `_sbToSnake` on a raw feedback item (the nested `ctx` object has no Supabase column).
+
+**Assembly note:** Supabase `feedback` rows have no `ctx` JSONB column — migration stored `ctx.screen` as a flat `screen` column. Assembly layer in `loadFromSupabase()` reconstructs `f.ctx = { screen: f.screen||'?', activeEvent: null }` so all render/export code continues to work unchanged.
 
 ### Stream 2 — Claude Observations (Session Notes)
 Developer-level observations made by Claude during coding sessions — things noticed off the current task.

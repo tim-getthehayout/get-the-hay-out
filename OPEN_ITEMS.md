@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260329.1855
-**Reconciled against build:** b20260329.1855
+**Last updated:** b20260329.1917
+**Reconciled against build:** b20260329.1917
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -19,26 +19,27 @@
 | Status | Count |
 |---|---|
 | 🔴 Open — Roadblock | 0 |
-| 🔴 Open — Bug | 5 |
-| 🟡 Open — Polish | 0 |
+| 🔴 Open — Bug | 3 |
+| 🟡 Open — Polish | 1 |
 | 🔵 Open — Enhancement | 21 |
 | ⚪ Open — Debt | 5 |
-| ✅ Closed | 57 |
+| ✅ Closed | 59 |
 
 ---
 
 ## Session Queue
 
-Recommended work order as of b20260329.1708. Update after each session.
+Recommended work order as of b20260329.1917. Update after each session.
 
 | Priority | OI | Title | Notes |
 |---|---|---|---|
 | 1 | OI-0021 | Event AUD recalc on animal move/cull | 🔵 Enhancement — design first |
 | 2 | — | M5 — Offline Queue Polish | Migration next phase — design sub-tasks first |
 
-> **OI-0091 closed** at b20260329.1855 — todos `assignedTo` string→array parse at assembly; crash on render fixed.
+> **OI-0092 added** at b20260329.1917 — migrated feedback rows have `area: null`; one-time backfill needed.
+> **OI-0092 and OI-0093 closed** at b20260329.1917 — feedback ctx crash + write 400 error both fixed.
 > **Next priority is OI-0021** — event AUD recalc design.
-> **Last updated:** b20260329.1855
+> **Last updated:** b20260329.1917
 
 ---
 
@@ -52,7 +53,65 @@ Recommended work order as of b20260329.1708. Update after each session.
 
 ## Open Items
 
-### OI-0091
+### OI-0094
+**Source:** Claude observation — b20260329.1917
+**Area:** Supabase `feedback` table
+**Severity:** Polish
+**Status:** 🟡 Open
+**Found:** b20260329.1917
+
+Feedback rows migrated before b20260329.1917 have `area = null` in Supabase. The app renders these without an area badge (graceful) but they won't appear in any area filter. A one-time SQL backfill could assign best-guess areas from the existing `screen` column:
+
+```sql
+UPDATE feedback
+SET area = CASE
+  WHEN screen IN ('feed') THEN 'feed'
+  WHEN screen IN ('animals') THEN 'animals'
+  WHEN screen IN ('events') THEN 'events'
+  WHEN screen IN ('pastures') THEN 'pastures'
+  WHEN screen IN ('reports') THEN 'reports'
+  WHEN screen IN ('todos') THEN 'todos'
+  WHEN screen IN ('settings') THEN 'settings'
+  WHEN screen IN ('home') THEN 'home'
+  ELSE 'other'
+END
+WHERE operation_id = '1355641a-40b7-4e82-ba3d-6cdd33e8f26d'
+  AND area IS NULL;
+```
+
+Low priority — run in Supabase SQL editor when convenient.
+
+---
+
+
+**Source:** Claude observation — b20260329.1917
+**Area:** `saveFeedbackItem()`, `confirmFixed()`, `reopenIssue()`, `saveResolve()` (~L7155–7190)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260329.1917
+**Closed:** b20260329.1917
+
+All feedback write paths were calling `queueWrite('feedback', _sbToSnake({...f, operationId}))`. `_sbToSnake` serialised the JS-only nested `ctx` object as a `ctx` key — no such column exists in the Supabase `feedback` table — causing PostgREST 400 errors on every feedback save.
+Fix: new `_feedbackRow(f, opId)` helper writes only the known schema columns (`id`, `operation_id`, `cat`, `status`, `note`, `tester`, `version`, `ts`, `screen`, `area`, `resolved_in_version`, `resolution_note`, `resolved_at`, `confirmed_by`, `confirmed_at`, `linked_to`). All five write sites updated.
+
+---
+
+### OI-0092
+**Source:** Claude observation — b20260329.1917
+**Area:** `loadFromSupabase()` feedback assembly (~L2342), `renderFeedbackList()` (~L7220), `generateBrief()` (~L7242), `exportFeedbackCSV()` (~L7268)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260329.1917
+**Closed:** b20260329.1917
+
+Feedback items loaded from Supabase had no `ctx` property — migration stored `ctx.screen` as a flat `screen` column with no JSONB `ctx` column. `_sbToCamel` returned `f.screen` (flat) but no `f.ctx`. Every render/export path reading `f.ctx.screen` threw `TypeError: Cannot read properties of undefined (reading 'screen')`, silently killing `renderFeedbackList()` on its first Supabase-sourced item. Same crash in `generateBrief()` and `exportFeedbackCSV()`.
+Fix: assembly layer — feedback rows now reconstruct `f.ctx = { screen: f.screen||'?', activeEvent: null }` when absent. All render/export code unchanged (assembly is the correct aliasing boundary).
+
+**Follow-up (OI-0094):** Migrated rows have `area: null` — a one-time SQL backfill is needed to assign sensible areas to existing feedback data. Low priority; app is tolerant of null area.
+
+---
+
+
 **Source:** User report — b20260329.1855
 **Area:** `loadFromSupabase()` todos assembly (~L2332), `todoCardHtml()` (~L3648), `renderHome()` (~L3287)
 **Severity:** Bug

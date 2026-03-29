@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260329.1859" id="app-version-meta"/>
+<meta name="app-version" content="b20260329.1929" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -1064,10 +1064,25 @@ body:not(.field-mode) #field-mode-toggle{
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
           <div class="sec" style="margin:0;">All feedback</div>
-          <select id="fb-filter" onchange="renderFeedbackList()" style="font-size:12px;padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);font-family:inherit;">
-            <option value="all">All</option><option value="open">Open</option><option value="resolved">Resolved</option><option value="closed">Closed</option>
-            <option value="roadblock">Roadblocks</option><option value="bug">Bugs</option><option value="ux">UX</option><option value="feature">Features</option><option value="calc">Calc</option><option value="idea">Ideas</option>
-          </select>
+          <div style="display:flex;gap:6px;">
+            <select id="fb-area-filter" onchange="renderFeedbackList()" style="font-size:12px;padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);font-family:inherit;">
+              <option value="all">All areas</option>
+              <option value="home">Home</option>
+              <option value="animals">Animals</option>
+              <option value="events">Events</option>
+              <option value="feed">Feed</option>
+              <option value="pastures">Pastures</option>
+              <option value="reports">Reports</option>
+              <option value="todos">To-Dos</option>
+              <option value="settings">Settings</option>
+              <option value="sync">Sync / Data</option>
+              <option value="other">Other</option>
+            </select>
+            <select id="fb-filter" onchange="renderFeedbackList()" style="font-size:12px;padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);font-family:inherit;">
+              <option value="all">All</option><option value="open">Open</option><option value="resolved">Resolved</option><option value="closed">Closed</option>
+              <option value="roadblock">Roadblocks</option><option value="bug">Bugs</option><option value="ux">UX</option><option value="feature">Features</option><option value="calc">Calc</option><option value="idea">Ideas</option>
+            </select>
+          </div>
         </div>
         <div id="fb-list"></div>
       </div>
@@ -1534,6 +1549,22 @@ body:not(.field-mode) #field-mode-toggle{
       <button class="cat-pill cp-feature" onclick="selCat('feature',this)">Missing feature</button>
       <button class="cat-pill cp-calc" onclick="selCat('calc',this)">Calculation</button>
       <button class="cat-pill cp-idea" onclick="selCat('idea',this)">Idea</button>
+    </div>
+    <div class="field" style="margin-top:10px;">
+      <label>Area</label>
+      <select id="fb-area" style="width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);font-family:inherit;font-size:14px;">
+        <option value="">— pick area —</option>
+        <option value="home">Home</option>
+        <option value="animals">Animals</option>
+        <option value="events">Events</option>
+        <option value="feed">Feed</option>
+        <option value="pastures">Pastures</option>
+        <option value="reports">Reports</option>
+        <option value="todos">To-Dos</option>
+        <option value="settings">Settings</option>
+        <option value="sync">Sync / Data</option>
+        <option value="other">Other</option>
+      </select>
     </div>
     <div class="field"><label>Note</label><textarea id="fb-note" placeholder="What did you notice? What did you expect?"></textarea></div>
     <div class="btn-row">
@@ -2339,7 +2370,13 @@ async function loadFromSupabase(operationId){
       if (!Array.isArray(t.assignedTo)) t.assignedTo = [];
       return t;
     });
-    S.feedback                  = (feedbackRows        || []).map(_sbToCamel);
+    S.feedback = (feedbackRows || []).map(r => {
+      const f = _sbToCamel(r);
+      // Migration stored ctx.screen as flat 'screen' column — reconstruct the
+      // nested ctx object so all render/export code that reads f.ctx.screen works.
+      if (!f.ctx) f.ctx = { screen: f.screen || '?', activeEvent: null };
+      return f;
+    });
     S.paddockObservations       = (paddockObsRows      || []).map(_sbToCamel);
     S.animalWeightRecords       = (weightRecordRows    || []).map(_sbToCamel);
     S.animalGroupMemberships    = (groupMemberRows     || []).map(_sbToCamel);
@@ -7139,11 +7176,27 @@ function updateHeader(){
 
 // ─── FEEDBACK ─────────────────────────────────────────────────────────────────
 const CAT={roadblock:{label:'🚧 Roadblock',cls:'br',pillCls:'cp-roadblock'},bug:{label:'Bug',cls:'br',pillCls:'cp-bug'},ux:{label:'UX friction',cls:'ba',pillCls:'cp-ux'},feature:{label:'Missing feature',cls:'bp',pillCls:'cp-feature'},calc:{label:'Calculation',cls:'bt',pillCls:'cp-calc'},idea:{label:'Idea',cls:'bg',pillCls:'cp-idea'}};
+const AREA={home:'Home',animals:'Animals',events:'Events',feed:'Feed',pastures:'Pastures',reports:'Reports',todos:'To-Dos',settings:'Settings',sync:'Sync / Data',other:'Other'};
+// Maps the current screen name to the most relevant area for auto-suggestion in the feedback sheet.
+const SCREEN_AREA={home:'home',feed:'feed',animals:'animals',events:'events',todos:'todos',pastures:'pastures',feedback:'other',reports:'reports',settings:'settings'};
+// Builds a Supabase-safe feedback row. Only writes known columns — excludes the
+// JS-only nested ctx object which has no Supabase column and would cause a 400 error.
+function _feedbackRow(f,opId){
+  return {
+    id:f.id,operation_id:opId,cat:f.cat||'idea',status:f.status||'open',
+    note:f.note||null,tester:f.tester||null,version:f.version||null,
+    ts:f.ts||null,screen:f.ctx?.screen||f.screen||null,area:f.area||null,
+    resolved_in_version:f.resolvedInVersion||null,resolution_note:f.resolutionNote||null,
+    resolved_at:f.resolvedAt||null,confirmed_by:f.confirmedBy||null,
+    confirmed_at:f.confirmedAt||null,linked_to:f.linkedTo||null,
+  };
+}
 let selCatVal='';
 function openFeedbackSheet(){
   const ae=getActive();const ctx=[`Screen: ${curScreen}`];if(ae)ctx.push(`Event: ${evDisplayName(ae)} day ${daysBetween(ae.dateIn,todayStr())}`);
   document.getElementById('fb-ctx-text').textContent=ctx.join(' · ');
   document.getElementById('fb-note').value='';selCatVal='';document.querySelectorAll('.cat-pill').forEach(p=>p.classList.remove('sel'));
+  document.getElementById('fb-area').value=SCREEN_AREA[curScreen]||'';
   document.getElementById('fb-sheet-wrap').classList.add('open');setTimeout(()=>document.getElementById('fb-note').focus(),300);
 }
 function closeFeedbackSheet(){document.getElementById('fb-sheet-wrap').classList.remove('open');}
@@ -7151,10 +7204,10 @@ function selCat(cat,btn){selCatVal=cat;document.querySelectorAll('.cat-pill').fo
 function saveFeedbackItem(){
   const note=document.getElementById('fb-note').value.trim();
   if(!note){document.getElementById('fb-note').style.borderColor='var(--red)';setTimeout(()=>document.getElementById('fb-note').style.borderColor='',1500);return;}
-  const ae=getActive();
-  S.feedback.push({id:Date.now(),cat:selCatVal||'idea',note,tester:S.testerName||(getActiveUser()?getActiveUser().name:'anonymous'),version:S.version||'b20260322.0936',status:'open',ctx:{screen:curScreen,activeEvent:ae?{pasture:ae.pasture,day:daysBetween(ae.dateIn,todayStr())}:null},ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:null});
+  const ae=getActive();const area=document.getElementById('fb-area').value||'other';
+  S.feedback.push({id:Date.now(),cat:selCatVal||'idea',area,note,tester:S.testerName||(getActiveUser()?getActiveUser().name:'anonymous'),version:S.version||'b20260322.0936',status:'open',ctx:{screen:curScreen,activeEvent:ae?{pasture:ae.pasture,day:daysBetween(ae.dateIn,todayStr())}:null},ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:null});
   const _nf=S.feedback[S.feedback.length-1];
-  queueWrite('feedback',_sbToSnake({..._nf,operationId:_sbOperationId}));
+  queueWrite('feedback',_feedbackRow(_nf,_sbOperationId));
   save();closeFeedbackSheet();updateFeedbackBadge();if(curScreen==='feedback')renderFeedbackTab();
 }
 function renderFeedbackTab(){renderConfirmSection();renderFeedbackStats();renderFeedbackList();}
@@ -7166,14 +7219,14 @@ function renderConfirmSection(){
     return `<div class="confirm-item"><div class="ci-tag"><span class="badge ${cfg.cls}">${cfg.label}</span> · ${f.version||'?'} · by ${f.tester}</div><div style="font-size:14px;margin-bottom:6px;line-height:1.5;">${escHtml(f.note)}</div><div style="font-size:12px;color:var(--teal-d);background:var(--teal-l);padding:6px 10px;border-radius:var(--radius);margin-bottom:8px;">Fix: ${escHtml(f.resolutionNote||'—')}</div><div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Resolved in ${f.resolvedInVersion||'?'}</div><div class="btn-row"><button class="btn btn-teal btn-sm" onclick="confirmFixed(${f.id})">This is fixed</button><button class="btn btn-outline btn-sm" style="color:var(--red);border-color:var(--red);" onclick="reopenIssue(${f.id})">Still broken</button></div></div>`;
   }).join('');
 }
-function confirmFixed(id){const f=S.feedback.find(x=>x.id===id);if(!f)return;f.status='closed';f.confirmedBy=S.testerName||'anonymous';f.confirmedAt=new Date().toISOString();queueWrite('feedback',_sbToSnake({...f,operationId:_sbOperationId}));save();renderFeedbackTab();updateFeedbackBadge();}
+function confirmFixed(id){const f=S.feedback.find(x=>x.id===id);if(!f)return;f.status='closed';f.confirmedBy=S.testerName||'anonymous';f.confirmedAt=new Date().toISOString();queueWrite('feedback',_feedbackRow(f,_sbOperationId));save();renderFeedbackTab();updateFeedbackBadge();}
 function reopenIssue(id){
   const orig=S.feedback.find(x=>x.id===id);if(!orig)return;
   orig.status='closed';orig.confirmedBy=S.testerName||'anonymous';orig.confirmedAt=new Date().toISOString();
-  S.feedback.push({id:Date.now(),cat:orig.cat,note:`[Regression] ${orig.note}`,tester:S.testerName||'anonymous',version:S.version||'b20260322.0936',status:'open',ctx:orig.ctx,ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:orig.id});
+  S.feedback.push({id:Date.now(),cat:orig.cat,area:orig.area||'other',note:`[Regression] ${orig.note}`,tester:S.testerName||'anonymous',version:S.version||'b20260322.0936',status:'open',ctx:orig.ctx,ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:orig.id});
   const _rf=S.feedback[S.feedback.length-1];
-  queueWrite('feedback',_sbToSnake({...orig,operationId:_sbOperationId}));
-  queueWrite('feedback',_sbToSnake({..._rf,operationId:_sbOperationId}));
+  queueWrite('feedback',_feedbackRow(orig,_sbOperationId));
+  queueWrite('feedback',_feedbackRow(_rf,_sbOperationId));
   save();renderFeedbackTab();updateFeedbackBadge();
 }
 function openResolveSheet(id){
@@ -7187,7 +7240,7 @@ function saveResolve(){
   if(!note){alert('Describe what was changed');return;}
   const f=S.feedback.find(x=>x.id===id);if(!f)return;
   f.status='resolved';f.resolutionNote=note;f.resolvedInVersion=S.version||'b20260322.0936';f.resolvedAt=new Date().toISOString();
-  queueWrite('feedback',_sbToSnake({...f,operationId:_sbOperationId}));
+  queueWrite('feedback',_feedbackRow(f,_sbOperationId));
   save();closeResolveSheet();renderFeedbackTab();updateFeedbackBadge();
 }
 function renderFeedbackStats(){
@@ -7196,15 +7249,18 @@ function renderFeedbackStats(){
   el.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;"><span class="badge ba">${open} open</span><span class="badge bt">${resolved} awaiting</span><span class="badge bb">${closed} closed</span></div>`;
 }
 function renderFeedbackList(){
-  const el=document.getElementById('fb-list');const filter=document.getElementById('fb-filter').value;
+  const el=document.getElementById('fb-list');const filter=document.getElementById('fb-filter').value;const areaFilter=document.getElementById('fb-area-filter').value;
   let items=[...S.feedback].reverse();
   if(['open','resolved','closed'].includes(filter))items=items.filter(f=>f.status===filter);
   else if(['roadblock','bug','ux','feature','calc','idea'].includes(filter))items=items.filter(f=>f.cat===filter);
+  if(areaFilter&&areaFilter!=='all')items=items.filter(f=>f.area===areaFilter);
   if(!items.length){el.innerHTML='<div class="empty">No feedback in this filter</div>';return;}
   el.innerHTML=items.map(f=>{const cfg=CAT[f.cat]||CAT.idea;const d=new Date(f.ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});
     const sb=f.status==='open'?'<span class="badge ba">open</span>':f.status==='resolved'?'<span class="badge bt">awaiting</span>':'<span class="badge bb">closed</span>';
-    const ctx=[`Screen: ${f.ctx.screen}`,f.ctx.activeEvent?`Event: ${f.ctx.activeEvent.pasture} day ${f.ctx.activeEvent.day}`:null].filter(Boolean).join(' · ');
-    return `<div class="row"><div class="row-head"><span><span class="badge ${cfg.cls}">${cfg.label}</span> ${sb}${f.linkedTo?' <span class="badge br">regression</span>':''}</span><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:20px;padding:2px 6px;" onclick="S.feedback=S.feedback.filter(x=>x.id!==${f.id});save();renderFeedbackTab();updateFeedbackBadge();">×</button></div><div style="font-size:14px;margin-top:4px;line-height:1.5;">${escHtml(f.note)}</div>${f.resolutionNote?`<div style="font-size:12px;color:var(--teal-d);background:var(--teal-l);padding:4px 8px;border-radius:var(--radius);margin-top:4px;">Fix (${f.resolvedInVersion}): ${escHtml(f.resolutionNote)}</div>`:''}${f.confirmedBy?`<div style="font-size:11px;color:var(--text2);margin-top:3px;">Confirmed: ${f.confirmedBy}</div>`:''}<div class="row-detail" style="margin-top:4px;">${ctx} · ${f.tester} · ${f.version||'?'} · ${d}</div>${f.status==='open'?`<button class="btn btn-outline btn-xs" style="margin-top:8px;" onclick="openResolveSheet(${f.id})">Mark resolved</button>`:''}</div>`;
+    const fCtx=f.ctx||{screen:f.screen||'?',activeEvent:null};
+    const ctx=[`Screen: ${fCtx.screen}`,fCtx.activeEvent?`Event: ${fCtx.activeEvent.pasture} day ${fCtx.activeEvent.day}`:null].filter(Boolean).join(' · ');
+    const areaBadge=f.area&&AREA[f.area]?`<span class="badge bb" style="font-size:10px;opacity:0.85;">${AREA[f.area]}</span> `:'';
+    return `<div class="row"><div class="row-head"><span><span class="badge ${cfg.cls}">${cfg.label}</span> ${sb} ${areaBadge}${f.linkedTo?' <span class="badge br">regression</span>':''}</span><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:20px;padding:2px 6px;" onclick="S.feedback=S.feedback.filter(x=>x.id!==${f.id});save();renderFeedbackTab();updateFeedbackBadge();">×</button></div><div style="font-size:14px;margin-top:4px;line-height:1.5;">${escHtml(f.note)}</div>${f.resolutionNote?`<div style="font-size:12px;color:var(--teal-d);background:var(--teal-l);padding:4px 8px;border-radius:var(--radius);margin-top:4px;">Fix (${f.resolvedInVersion}): ${escHtml(f.resolutionNote)}</div>`:''}${f.confirmedBy?`<div style="font-size:11px;color:var(--text2);margin-top:3px;">Confirmed: ${f.confirmedBy}</div>`:''}<div class="row-detail" style="margin-top:4px;">${ctx} · ${f.tester} · ${f.version||'?'} · ${d}</div>${f.status==='open'?`<button class="btn btn-outline btn-xs" style="margin-top:8px;" onclick="openResolveSheet(${f.id})">Mark resolved</button>`:''}</div>`;
   }).join('');
 }
 function updateFeedbackBadge(){
@@ -7221,7 +7277,7 @@ function generateBrief(){
   const open=S.feedback.filter(f=>f.status==='open');const resolved=S.feedback.filter(f=>f.status==='resolved');const closed=S.feedback.filter(f=>f.status==='closed');
   const catOrder=['roadblock','bug','calc','ux','feature','idea'];
   let b=`GET THE HAY OUT — DEV SESSION BRIEF\nGenerated: ${now}\nVersion: ${S.version||'b20260322.0936'}\nTesters: ${testers.length?testers.join(', '):'anonymous'}\nOpen: ${open.length} · Awaiting: ${resolved.length} · Closed: ${closed.length}\n${'═'.repeat(52)}\n`;
-  if(open.length){b+=`\nOPEN ITEMS (${open.length})\n${'─'.repeat(52)}\n`;catOrder.forEach(cat=>{const items=open.filter(f=>f.cat===cat);if(!items.length)return;const catLabel=(CAT[cat]||CAT.idea).label.toUpperCase();const isRoadblock=cat==='roadblock';b+=`\n[${catLabel}]${isRoadblock?' ← HIGH PRIORITY — FIX BEFORE ANYTHING ELSE':''}\n`;items.forEach((f,i)=>{const d=new Date(f.ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});const ctx=f.ctx.activeEvent?`screen:${f.ctx.screen} event:${f.ctx.activeEvent.pasture} day${f.ctx.activeEvent.day}`:`screen:${f.ctx.screen}`;b+=`${i+1}. ${isRoadblock?'🚧 ':''}${f.note}\n   [${ctx}] — ${f.tester}, ${f.version||'?'}, ${d}${f.linkedTo?' ⚠ regression':''}\n`;});});}
+  if(open.length){b+=`\nOPEN ITEMS (${open.length})\n${'─'.repeat(52)}\n`;catOrder.forEach(cat=>{const items=open.filter(f=>f.cat===cat);if(!items.length)return;const catLabel=(CAT[cat]||CAT.idea).label.toUpperCase();const isRoadblock=cat==='roadblock';b+=`\n[${catLabel}]${isRoadblock?' ← HIGH PRIORITY — FIX BEFORE ANYTHING ELSE':''}\n`;items.forEach((f,i)=>{const d=new Date(f.ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});const fCtx=f.ctx||{screen:f.screen||'?',activeEvent:null};const ctx=fCtx.activeEvent?`screen:${fCtx.screen} event:${fCtx.activeEvent.pasture} day${fCtx.activeEvent.day}`:`screen:${fCtx.screen}`;const areaTag=f.area&&AREA[f.area]?` area:${AREA[f.area]}`:'';b+=`${i+1}. ${isRoadblock?'🚧 ':''}${f.note}\n   [${ctx}${areaTag}] — ${f.tester}, ${f.version||'?'}, ${d}${f.linkedTo?' ⚠ regression':''}\n`;});});}
   if(resolved.length){b+=`\n${'═'.repeat(52)}\nAWAITING CONFIRMATION (${resolved.length})\n${'─'.repeat(52)}\n`;resolved.forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fix in ${f.resolvedInVersion}: ${f.resolutionNote}\n`;});}
   if(closed.length){b+=`\n${'═'.repeat(52)}\nCLOSED (last 10)\n${'─'.repeat(52)}\n`;closed.slice(-10).forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fixed in ${f.resolvedInVersion||'?'}: ${f.resolutionNote||'—'}. Confirmed: ${f.confirmedBy||'?'}\n`;});}
   b+=`\n${'═'.repeat(52)}\nCONTEXT\nOperation: ${S.herd.name||'not set'}, ${S.herd.count||0} head ${S.herd.type||''}\nUsers: ${S.users.length} · Paddocks: ${S.pastures.length} · Feed types: ${S.feedTypes.length}\nEvents: ${S.events.length} total · Open todos: ${S.todos.filter(t=>t.status!=='closed').length}\n\nPlease review open items first (roadblocks first, then bugs, then calculations, then UX). Note which version testers need to load to confirm each fix.
@@ -7242,8 +7298,8 @@ function exportCSV(){
 }
 function exportFeedbackCSV(){
   if(!S.feedback.length){alert('No feedback');return;}
-  const rows=[['Category','Status','Note','Tester','Version','Resolved in','Resolution','Confirmed by','Screen','Date']];
-  S.feedback.forEach(f=>rows.push([f.cat,f.status,f.note,f.tester,f.version||'',f.resolvedInVersion||'',f.resolutionNote||'',f.confirmedBy||'',f.ctx.screen,new Date(f.ts).toLocaleDateString()]));
+  const rows=[['Category','Area','Status','Note','Tester','Version','Resolved in','Resolution','Confirmed by','Screen','Date']];
+  S.feedback.forEach(f=>{const fCtx=f.ctx||{screen:f.screen||'?',activeEvent:null};rows.push([f.cat,f.area||'',f.status,f.note,f.tester,f.version||'',f.resolvedInVersion||'',f.resolutionNote||'',f.confirmedBy||'',fCtx.screen,new Date(f.ts).toLocaleDateString()]);});
   dlCSV(rows,'pasture-feedback.csv');
 }
 function dlCSV(rows,fname){
@@ -7267,12 +7323,13 @@ function exportFeedbackJSON(){
     feedback: S.feedback.map(f=>({
       id: f.id,
       cat: f.cat,
+      area: f.area||null,
       status: f.status,
       note: f.note,
       tester: f.tester||'anonymous',
       version: f.version||'?',
       ts: f.ts,
-      screen: f.ctx?.screen||'?',
+      screen: f.ctx?.screen||f.screen||'?',
       activeEvent: f.ctx?.activeEvent||null,
       resolvedInVersion: f.resolvedInVersion||null,
       resolutionNote: f.resolutionNote||null,

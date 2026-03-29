@@ -446,6 +446,31 @@ Drive card retained but demoted: reduced to 0.75 opacity, section label changed 
 
 ---
 
+## b20260329.1917
+
+**Feedback system — area tagging + Supabase crash/write fixes**
+
+**Bug: feedback items not rendering (ctx crash on Supabase-loaded rows)**
+Root cause: migration script stored `ctx.screen` as a flat `screen` column; no `ctx` JSONB column in Supabase. `_sbToCamel` returned rows with `f.screen` but no `f.ctx`. Every render/export path reading `f.ctx.screen` threw `TypeError: Cannot read properties of undefined (reading 'screen')`, silently killing `renderFeedbackList()` on its first item.
+Fix: assembly layer in `loadFromSupabase()` — feedback rows now reconstruct `f.ctx = { screen: f.screen||'?', activeEvent: null }` when `ctx` is absent. Render code unchanged.
+
+**Bug: feedback queueWrite sending invalid column to PostgREST (400 errors)**
+Root cause: `_sbToSnake({...f, operationId})` serialised the JS-only nested `ctx` object as `ctx: {...}` — a key with no corresponding Supabase column. PostgREST rejected all feedback writes.
+Fix: new `_feedbackRow(f, opId)` helper builds an explicit column-safe row. All five write sites (`saveFeedbackItem`, `confirmFixed`, `reopenIssue` ×2, `saveResolve`) now use `_feedbackRow`.
+
+**Feature: area tagging on feedback items**
+- `AREA` constant — 10 options: Home, Animals, Events, Feed, Pastures, Reports, To-Dos, Settings, Sync/Data, Other.
+- `SCREEN_AREA` map — `openFeedbackSheet()` auto-suggests the area for the current screen.
+- Feedback sheet: Area `<select id="fb-area">` added between category pills and note field.
+- `saveFeedbackItem()` reads and stores `f.area`; `reopenIssue()` carries area to regression item.
+- `renderFeedbackList()`: second filter `<select id="fb-area-filter">` added; area badge shown on each row.
+- `generateBrief()`: area appended to each item context line; ctx null crash fixed.
+- `exportFeedbackCSV()`: Area column added; ctx null crash fixed.
+- `exportFeedbackJSON()`: `area` field added per item; `screen` fallback uses `f.screen` for Supabase rows.
+No schema changes required — `area` and `screen` columns already exist in the Supabase `feedback` table.
+
+---
+
 ## b20260329.1751
 
 **OI-0029 closed — Event log: parent + sub-move consolidation**
