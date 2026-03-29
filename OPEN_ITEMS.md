@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260329.2139
-**Reconciled against build:** b20260329.2139
+**Last updated:** b20260329.2156
+**Reconciled against build:** b20260329.2156
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -21,9 +21,9 @@
 | 🔴 Open — Roadblock | 0 |
 | 🔴 Open — Bug | 3 |
 | 🟡 Open — Polish | 1 |
-| 🔵 Open — Enhancement | 21 |
+| 🔵 Open — Enhancement | 23 |
 | ⚪ Open — Debt | 5 |
-| ✅ Closed | 63 |
+| ✅ Closed | 64 |
 
 ---
 
@@ -36,12 +36,14 @@ Recommended work order as of b20260329.2010. Update after each session.
 | 1 | OI-0021 | Event AUD recalc on animal move/cull | 🔵 Enhancement — design first |
 | 2 | — | M5 — Offline Queue Polish | Migration next phase — design sub-tasks first |
 
+> **OI-0101 and OI-0102 added** at b20260329.2156 — delete to-do + edit feedback items.
+> **OI-0100 closed** at b20260329.2156 — queue self-heal via `_sanitizeQueueRecord` in `flushToSupabase`.
 > **Queue inspector added** at b20260329.2139 — full type audit clean; `renderSyncQueueInspector` + `exportSyncQueue` in Settings.
 > **OI-0099 added and closed** at b20260329.2134 — `paddock_observations` 400: `source_id` type mismatch fixed.
 > **OI-0097/0098 added and closed** at b20260329.2112 — `activeSmGC` crash + `paddock_observations` 400 fixed; password sign-in added.
 > **OI-0096 added and closed** at b20260329.2010 — stale green sync indicator + data loss on reconnect both fixed.
 > **Next priority is OI-0021** — event AUD recalc design.
-> **Last updated:** b20260329.2139
+> **Last updated:** b20260329.2156
 
 ---
 

@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260329.2150" id="app-version-meta"/>
+<meta name="app-version" content="b20260329.2206" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -2906,6 +2906,34 @@ function queueEventWrite(ev){
 }
 
 // M3: drain the offline queue to Supabase — best-effort (continues on failure)
+// Allowed columns per table — any extra fields in a queued record are stripped before upsert.
+// Keeps stale pre-fix queue items from failing permanently due to schema changes.
+const _SB_ALLOWED_COLS = {
+  paddock_observations: new Set(['id','operation_id','pasture_id','observed_at','source','source_id','confidence_rank','veg_height','forage_cover_pct','forage_quality','recovery_min_days','recovery_max_days','notes','recorded_at']),
+  feedback:             new Set(['id','operation_id','cat','status','note','tester','version','ts','screen','area','resolved_in_version','resolution_note','linked_to']),
+  animals:              new Set(['id','operation_id','tag','name','sex','class_id','birth_date','weaned','weaned_date','wean_target_date','dam_id','status','cull_date','cull_reason','notes','updated_at']),
+  batches:              new Set(['id','operation_id','feed_type_id','name','quantity','unit','dm_pct','cost_per_unit','purchase_date','notes','updated_at']),
+  animal_groups:        new Set(['id','operation_id','name','color','archived','setup_updated_at']),
+  animal_classes:       new Set(['id','operation_id','name','species','archived']),
+  ai_bulls:             new Set(['id','operation_id','name','breed','tag','archived']),
+  input_products:       new Set(['id','operation_id','name','type','npk_n','npk_p','npk_k','cost_per_unit','unit','archived']),
+  todos:                new Set(['id','operation_id','title','status','note','paddock','animal_id','assigned_to','created_by','created_at','updated_at']),
+  feed_types:           new Set(['id','operation_id','name','dm_pct','unit','n_pct','p_pct','k_pct','archived','setup_updated_at']),
+  treatment_types:      new Set(['id','operation_id','name','category','archived']),
+  animal_group_memberships: new Set(['id','operation_id','group_id','animal_id','date_joined','date_left','reason']),
+  animal_weight_records: new Set(['id','operation_id','animal_id','recorded_at','weight_lbs','note','source','created_at']),
+  manure_batch_transactions: new Set(['id','operation_id','batch_id','type','date','volume_lbs','n_lbs','p_lbs','k_lbs','source_event_id','application_id','pasture_names','notes','recorded_at']),
+};
+function _sanitizeQueueRecord(table, record){
+  const allowed = _SB_ALLOWED_COLS[table];
+  if(!allowed) return record; // unknown table — pass through unchanged
+  const clean = {};
+  for(const [k,v] of Object.entries(record)){
+    if(allowed.has(k)) clean[k] = v;
+  }
+  return clean;
+}
+
 async function flushToSupabase(){
   if(!_sbClient || !_sbOperationId) return;
   const rawQueue = JSON.parse(localStorage.getItem('gthy-sync-queue') || '[]');
@@ -2919,8 +2947,10 @@ async function flushToSupabase(){
   const failed = [];
   for(const op of queue){
     try{
-      const { error } = await _sbClient.from(op.table).upsert(op.record, { onConflict: op.conflictKey || 'id' });
-      if(error) failed.push(op);
+      // Sanitize record against known schema — strips extra fields from pre-fix queue items
+      const record = _sanitizeQueueRecord(op.table, op.record);
+      const { error } = await _sbClient.from(op.table).upsert(record, { onConflict: op.conflictKey || 'id' });
+      if(error){ failed.push(op); logError('supabase-flush', op.table+': '+error.message, ''); }
     } catch(e){
       failed.push(op);
       logError('supabase-flush', op.table + ': ' + e.message, '');

@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260329.2150`
+**Current build:** `b20260329.2206`
 **Last updated:** 2026-03-29
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -914,6 +914,11 @@ across reloads via `sb-*` localStorage — rate limit only affects new sign-in a
 **Root cause (data loss):** `onAuthStateChange` fired `loadFromSupabase()` immediately on `SIGNED_IN`, overwriting `S.*` from Supabase before the pending write queue was flushed. Data entered while signed out was queued with valid operation IDs but never reached Supabase before the load erased it from memory.
 **Fix:** `save()` now calls `setSyncStatus('off', 'Not signed in — saved locally')` when no session. `onAuthStateChange` for `SIGNED_IN` now calls `flushToSupabase()` first, then chains `loadFromSupabase()` in `.then()`. `INITIAL_SESSION` path is unchanged.
 **Pattern:** On any reconnect (`SIGNED_IN`), always flush the write queue before loading from the remote — local state takes precedence over remote state during the reconnect window.
+
+### Stale queue items survive schema fixes — OI-0100 (Fixed b20260329.2156)
+**Root cause:** `flushToSupabase()` sent raw queued records with no schema enforcement. Pre-fix queue items with extra columns caused permanent 400s on every retry.
+**Fix:** `_sanitizeQueueRecord(table, record)` at ~L2909 holds an allowed-columns allowlist for 14 tables and strips extra keys before every upsert. Self-heals stale items without a manual queue clear.
+**Pattern:** Sanitize at flush time, not just write time. Queue items persist across deployments.
 
 ### `paddock_observations` `source_id` type mismatch — OI-0099 (Fixed b20260329.2134)
 **Root cause:** `_paddockObservationRow()` sent `source_id: String(obs.sourceId)` — Supabase column is bigint; PostgREST rejected the string type.
