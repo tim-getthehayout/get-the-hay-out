@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260329.2229`
+**Current build:** `b20260329.2239`
 **Last updated:** 2026-03-29
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -31,11 +31,12 @@ build = 'b' + datetime.now().strftime('%Y%m%d') + '.' + datetime.now().strftime(
 
 | Line Range | Section |
 |---|---|
-| 1–460 | `<head>`: meta, PWA manifest (line 8 = build stamp), inline `<style>` CSS; Supabase JS SDK CDN tag (line ~478, M1) |
+| 1–460 | `<head>`: meta, PWA manifest (line 8 = build stamp), inline `<style>` CSS |
 | 461–526 | `<body>`: desktop sidebar nav (220px fixed, IDs: `#dbn-*`) |
 | 527–1367 | Screen divs (`#s-home` through `#s-settings`) + mobile bottom nav (`#bn-*`) |
 | 1368–1452 | Global sheet overlays always in DOM: `#fb-sheet-wrap`, `#resolve-sheet-wrap`, `#todo-sheet-wrap` |
-| 1453 | `<script>` tag + JS Section TOC comment block |
+| ~1649 | Supabase JS SDK CDN `<script>` tag (moved from `<head>` to body in b20260329.2238 — `document.body` null fix) |
+| ~1650 | Main app `<script>` tag + JS Section TOC comment block |
 | ~1533 | App Update Banner |
 | ~1594 | Data init (`S` object), localStorage keys, save helpers |
 | ~1682 | **Supabase M3 write path:** `_sbToSnake`, `_pastureRow`, shape functions (`_animalRow`, `_batchRow`, `_feedTypeRow`, `_animalClassRow`, `_animalGroupRow`, `_aiBullRow`, `_inputProductRow`, `_todoRow`, `_treatmentTypeRow`, `_animalGroupMembershipRow`, `_animalWeightRecordRow`, `_manureBatchTransactionRow`), `queueWrite`, `queueEventWrite`, `flushToSupabase`, `supabaseSyncDebounced`, `setSyncStatus` |
@@ -914,6 +915,11 @@ across reloads via `sb-*` localStorage — rate limit only affects new sign-in a
 **Root cause (data loss):** `onAuthStateChange` fired `loadFromSupabase()` immediately on `SIGNED_IN`, overwriting `S.*` from Supabase before the pending write queue was flushed. Data entered while signed out was queued with valid operation IDs but never reached Supabase before the load erased it from memory.
 **Fix:** `save()` now calls `setSyncStatus('off', 'Not signed in — saved locally')` when no session. `onAuthStateChange` for `SIGNED_IN` now calls `flushToSupabase()` first, then chains `loadFromSupabase()` in `.then()`. `INITIAL_SESSION` path is unchanged.
 **Pattern:** On any reconnect (`SIGNED_IN`), always flush the write queue before loading from the remote — local state takes precedence over remote state during the reconnect window.
+
+### Supabase SDK `<script>` must be in `<body>` — OI-0104
+**Root cause:** SDK was in `<head>` — `document.body` is null at that point; SDK throws on init.
+**Fix:** SDK `<script>` tag moved to just before the main app `<script>` inside `<body>`.
+**Rule:** The Supabase CDN tag must always be inside `<body>`, directly before the main app script. Never in `<head>`.
 
 ### `operations`/`operation_settings` 403 after main load batch — OI-0103 (Fixed b20260329.2220)
 **Root cause:** Sequential fetch after 19-table `Promise.all` — JWT could refresh between execution points, leaving follow-on queries with a stale token that RLS rejected.

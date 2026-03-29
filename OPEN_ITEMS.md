@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260329.2220
-**Reconciled against build:** b20260329.2220
+**Last updated:** b20260329.2238
+**Reconciled against build:** b20260329.2238
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -23,7 +23,7 @@
 | 🟡 Open — Polish | 1 |
 | 🔵 Open — Enhancement | 23 |
 | ⚪ Open — Debt | 5 |
-| ✅ Closed | 65 |
+| ✅ Closed | 66 |
 
 ---
 
@@ -36,6 +36,7 @@ Recommended work order as of b20260329.2010. Update after each session.
 | 1 | OI-0021 | Event AUD recalc on animal move/cull | 🔵 Enhancement — design first |
 | 2 | — | M5 — Offline Queue Polish | Migration next phase — design sub-tasks first |
 
+> **OI-0104 closed** at b20260329.2238 — Supabase SDK `document.body` null error fixed.
 > **OI-0103 closed** at b20260329.2220 — operations/operation_settings 403 fixed.
 > **OI-0101 and OI-0102 added** at b20260329.2156 — delete to-do + edit feedback items.
 > **OI-0100 closed** at b20260329.2156 — queue self-heal via `_sanitizeQueueRecord` in `flushToSupabase`.
@@ -44,7 +45,7 @@ Recommended work order as of b20260329.2010. Update after each session.
 > **OI-0097/0098 added and closed** at b20260329.2112 — `activeSmGC` crash + `paddock_observations` 400 fixed; password sign-in added.
 > **OI-0096 added and closed** at b20260329.2010 — stale green sync indicator + data loss on reconnect both fixed.
 > **Next priority is OI-0021** — event AUD recalc design.
-> **Last updated:** b20260329.2220
+> **Last updated:** b20260329.2238
 
 ---
 
@@ -57,6 +58,20 @@ Recommended work order as of b20260329.2010. Update after each session.
 ---
 
 ## Open Items
+
+### OI-0104
+**Source:** User report — b20260329.2238
+**Area:** HTML `<head>` — Supabase SDK `<script>` tag (~L484)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260329.2238
+**Closed:** b20260329.2238
+
+`TypeError: null is not an object (evaluating 'document.body.scrollHeight')` thrown from `supabase.min.js` at global scope on every page load. The Supabase SDK internally touches `document.body` during initialisation for storage/CORS detection. With the script in `<head>`, `document.body` is null at execution time.
+
+**Fix:** Moved SDK `<script>` tag from `<head>` to inside `<body>`, directly before the main app `<script>` tag. Execution order preserved — SDK loads first, then app script, both with `document.body` available.
+
+---
 
 ### OI-0103
 **Source:** User report — b20260329.2220
