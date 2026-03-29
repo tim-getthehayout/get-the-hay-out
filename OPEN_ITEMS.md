@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260329.1816
-**Reconciled against build:** b20260329.1816
+**Last updated:** b20260329.1831
+**Reconciled against build:** b20260329.1831
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -23,7 +23,7 @@
 | 🟡 Open — Polish | 0 |
 | 🔵 Open — Enhancement | 21 |
 | ⚪ Open — Debt | 5 |
-| ✅ Closed | 53 |
+| ✅ Closed | 55 |
 
 ---
 
@@ -36,10 +36,9 @@ Recommended work order as of b20260329.1708. Update after each session.
 | 1 | OI-0021 | Event AUD recalc on animal move/cull | 🔵 Enhancement — design first |
 | 2 | — | M5 — Offline Queue Polish | Migration next phase — design sub-tasks first |
 
-> **OI-0072 closed** at b20260329.1816 — sub-move time-in required (add-mode validation guard).
-> **OI-0086 and OI-0087 closed** at b20260329.1816 — pasture survey ID type mismatch + home todos null-user fallback.
+> **OI-0088 and OI-0089 closed** at b20260329.1831 — desktop mobile view on load + sync queue accumulation fixed.
 > **Next priority is OI-0021** — event AUD recalc design.
-> **Last updated:** b20260329.1816
+> **Last updated:** b20260329.1831
 
 ---
 
@@ -52,6 +51,32 @@ Recommended work order as of b20260329.1708. Update after each session.
 ---
 
 ## Open Items
+
+### OI-0089
+**Source:** User report — b20260329.1831
+**Area:** `flushToSupabase()` (~L2535), `_writePaddockObservation()` (~L10926), `migrateM0aData()` (~L13796)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260329.1831
+**Closed:** b20260329.1831
+
+Sync indicator showed "36 items pending — will retry" on every load with no new data. Each reload added ~36 more stale items. Root cause: `migrateM0aData()` runs at startup (line 15120) before `sbInitClient()` (line 15122), so `_sbOperationId` is null at that point. Every `_writePaddockObservation()` call triggered `queueWrite('paddock_observations', {..., operationId: null})`. Supabase rejected all of them (NOT NULL on `operation_id`), leaving them stuck in queue. New `Date.now()`-based IDs bypass queue dedup so count grew on every reload.
+
+Two-part fix: (1) `_writePaddockObservation()` guards `if(_sbOperationId)` before calling `queueWrite` — skips write during startup migration, which is correct since `loadFromSupabase()` supplies the canonical rows. (2) `flushToSupabase()` strips items with `operation_id == null` before flushing, clearing accumulated stale entries from prior loads without touching valid items.
+
+---
+
+### OI-0088
+**Source:** User report — b20260329.1831
+**Area:** App startup sequence (~L15120), `detectMode()` (~L13634)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260329.1831
+**Closed:** b20260329.1831
+
+Desktop app loaded in mobile view (no sidebar, mobile bottom nav visible) on initial page load. Root cause: `detectMode()` and `applyFieldMode()` were called at end of the startup block (after all renders), so the `body.desktop` class was not set when `renderHome()` ran. The re-render triggered by `detectMode()` corrected it but there was a flash, and subsequent `renderCurrentScreen()` calls from `loadFromSupabase()` could race against it. Fix: moved `detectMode()` + `applyFieldMode()` to run immediately after `updateHeader()`, before `sbInitClient()` and `renderHome()`, so every render from first paint onward uses the correct layout class.
+
+---
 
 ### OI-0087
 **Source:** User report — b20260329.1816

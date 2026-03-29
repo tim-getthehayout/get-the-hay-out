@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260329.1822" id="app-version-meta"/>
+<meta name="app-version" content="b20260329.1834" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -2534,7 +2534,13 @@ function queueEventWrite(ev){
 // M3: drain the offline queue to Supabase — best-effort (continues on failure)
 async function flushToSupabase(){
   if(!_sbClient || !_sbOperationId) return;
-  const queue = JSON.parse(localStorage.getItem('gthy-sync-queue') || '[]');
+  const rawQueue = JSON.parse(localStorage.getItem('gthy-sync-queue') || '[]');
+  // Strip any items that were queued before sign-in (operation_id null) — they
+  // will be rejected by Supabase NOT NULL constraints and can never succeed.
+  const queue = rawQueue.filter(op => op.record && op.record.operation_id != null);
+  if(rawQueue.length !== queue.length){
+    localStorage.setItem('gthy-sync-queue', JSON.stringify(queue));
+  }
   if(!queue.length) return;
   const failed = [];
   for(const op of queue){
@@ -10932,7 +10938,11 @@ function _writePaddockObservation(obs){
   );
   if(!dup){
     S.paddockObservations.push(obs);
-    queueWrite('paddock_observations',_sbToSnake({...obs,operationId:_sbOperationId}));
+    // Guard: _sbOperationId may be null during startup migration (runs before sbInitClient).
+    // Skip queueWrite if not signed in — loadFromSupabase will supply canonical rows.
+    if(_sbOperationId){
+      queueWrite('paddock_observations',_sbToSnake({...obs,operationId:_sbOperationId}));
+    }
   }
 }
 
@@ -15119,6 +15129,8 @@ migrateToGroupsField();
 migrateWeaningFields();
 migrateM0aData(); // M0a: backfill feedResidualChecks, npkLedger, paddockObservations
 updateHeader();
+detectMode(); // run before first render so layout class is set correctly
+applyFieldMode(); // field-mode URL param + user preference — runs after detectMode
 sbInitClient(); // M1: init Supabase client + restore session via auth state listener
 updateHeaderAvatar();
 renderHome();
@@ -15127,8 +15139,6 @@ updateTodoBadge();
 maybePromptUserSelect();
 // Flush Supabase queue when app becomes visible (handles PWA resume + tab switching)
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')flushToSupabase();});
-detectMode(); // must run last — reads DOM
-applyFieldMode(); // field-mode URL param + user preference — runs after detectMode
 </script>
 
 <!-- SPREAD MANURE SHEET -->

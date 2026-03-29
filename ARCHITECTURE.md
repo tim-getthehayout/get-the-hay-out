@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260329.1822`
+**Current build:** `b20260329.1834`
 **Last updated:** 2026-03-29
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -673,6 +673,14 @@ The `×` delete button and its `onclick="deleteAnimalFromScreen()"` call were re
 
 ---
 
+### Startup Sequence Ordering (as of b20260329.1831)
+Critical ordering constraint for the app init block at bottom of `<script>`:
+1. `detectMode()` + `applyFieldMode()` — **must run before any render** so `body.desktop` class is set on first paint
+2. `sbInitClient()` — auth restore; may trigger `loadFromSupabase()` asynchronously
+3. `renderHome()` — first paint; layout class must already be set
+4. Migration functions (`migrateM0aData()` etc.) run **before** `sbInitClient()`, so `_sbOperationId` is null at that point. They must never call `queueWrite` directly — any writes must guard on `if(_sbOperationId)`.
+
+
 ## Supabase Backend (M4 — data migration complete)
 
 **Status:** M4 complete. Data migrated from localStorage backup to Supabase tables. Supabase is now the source of truth. localStorage is the offline cache only.
@@ -884,6 +892,16 @@ across reloads via `sb-*` localStorage — rate limit only affects new sign-in a
 ### Home Todos Always Empty — OI-0087 (Fixed b20260329.1816)
 **Root cause:** `renderHome()` filters todos by `(t.assignedTo||[]).includes(activeUserId)`. In the Supabase-only world (M6 not yet landed) `activeUserId` is `null` — no legacy `gthy-user` key is set. No `assignedTo` array includes `null`, so the card always rendered "No open tasks assigned to you" even with open todos present.
 **Fix:** When `activeUserId` is null, `renderHome()` falls back to showing all open todos (`S.todos.filter(t=>t.status!=='closed')`).
+
+
+### Desktop Loads in Mobile View — OI-0088 (Fixed b20260329.1831)
+**Root cause:** `detectMode()` and `applyFieldMode()` were called at end of startup, after `renderHome()`. The `body.desktop` class was not set on first render — app always painted in mobile layout, then re-rendered after `detectMode()` fired.
+**Fix:** Moved both calls to immediately after `updateHeader()`, before `sbInitClient()` and `renderHome()`. The `body.desktop` class is now correct on first paint. The comment "must run last — reads DOM" was written before Supabase — DOM is fully available at any point in the inline script at bottom of body.
+
+### Sync Queue Accumulation (36 items pending) — OI-0089 (Fixed b20260329.1831)
+**Root cause:** `migrateM0aData()` runs at startup before `sbInitClient()`, so `_sbOperationId` is null. Every `_writePaddockObservation()` call queued a `paddock_observations` row with `operation_id: null`. Supabase rejects these (NOT NULL constraint) → items stay in queue → count grows each reload. `Date.now()`-based IDs bypass queue dedup so each load added ~36 items.
+**Fix (two parts):** (1) `_writePaddockObservation()` guards `if(_sbOperationId)` before `queueWrite` — skips write during startup migration (canonical rows come from `loadFromSupabase()`). (2) `flushToSupabase()` strips items with `operation_id == null` from queue before flushing, clearing accumulated stale entries from prior loads.
+**Pattern:** Any function that calls `queueWrite` and may be invoked before `sbInitClient()` must guard on `_sbOperationId`. Migration functions run at startup and must never queue writes directly.
 
 
 ## ⚠️ Dead Code — Removed (Do Not Re-Add)
