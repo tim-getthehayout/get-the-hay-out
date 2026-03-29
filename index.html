@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260329.1737" id="app-version-meta"/>
+<meta name="app-version" content="b20260329.1759" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -6733,20 +6733,54 @@ function renderEventsLog(){
         </span>`
       :'';
 
-    return `<div class="row" style="cursor:pointer;" onclick="openEventEdit(${e.id})">
-      <div class="row-head">
-        <div>
-          <span style="font-size:14px;font-weight:600;">${evDisplayName(e)}</span>
-          ${isMulti?`<span style="font-size:10px;color:var(--text2);margin-left:5px;">${pads.length} paddocks</span>`:''}
+    // ── Sub-move thread (OI-0029) ─────────────────────────────────────────────
+    // Sort chronologically so the paddock sequence reads top-to-bottom.
+    const sms=(e.subMoves||[]).slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+    const hasSMs=sms.length>0;
+
+    const smThread=hasSMs?`
+      <div style="margin-left:16px;padding-left:10px;border-left:2px solid var(--teal);padding-bottom:4px;">
+        ${sms.map((sm,idx)=>{
+          const paddockClosed=(e.paddocks||[]).some(p=>p.pastureName===sm.locationName&&p.dateRemoved);
+          const smActive=!sm.durationHours&&!sm.dateOut&&!paddockClosed;
+          const dur=sm.durationHours?`${Math.round(sm.durationHours*10)/10}h`:null;
+          const feedCt=(sm.feedEntries||[]).length;
+          const dateStr=sm.date?dLabel(sm.date):'';
+          const outStr=sm.dateOut?dLabel(sm.dateOut):smActive?'now':'?';
+          const dateRange=dateStr?`${dateStr} → ${outStr}`:'';
+          const meta=[dateRange,dur,feedCt?`${feedCt} feed${feedCt>1?'s':''}`:null].filter(Boolean).join(' · ');
+          const isLast=idx===sms.length-1;
+          return `<div style="padding:5px 0;${isLast?'':'border-bottom:0.5px solid var(--border);'}cursor:pointer;"
+            onclick="event.stopPropagation();openEventEdit(${e.id})">
+            <div style="display:flex;align-items:baseline;gap:5px;">
+              <span style="font-size:12px;font-weight:600;color:${smActive?'var(--teal-d)':'var(--text)'};">⇢ ${escHtml(sm.locationName||'?')}</span>
+              <span class="badge ${smActive?'bt':'bb'}" style="font-size:9px;">${smActive?'active':'returned'}</span>
+            </div>
+            ${meta?`<div style="font-size:11px;color:var(--text2);margin-top:1px;">${meta}</div>`:''}
+          </div>`;
+        }).join('')}
+      </div>` : '';
+    // ─────────────────────────────────────────────────────────────────────────
+
+    // Parent row: suppress bottom border when sub-move thread follows (thread provides visual separation)
+    return `<div style="margin-bottom:${hasSMs?'8px':'0'};">
+      <div class="row" style="cursor:pointer;${hasSMs?'border-bottom:none;padding-bottom:6px;':''}" onclick="openEventEdit(${e.id})">
+        <div class="row-head">
+          <div>
+            <span style="font-size:14px;font-weight:600;">${evDisplayName(e)}</span>
+            ${isMulti?`<span style="font-size:10px;color:var(--text2);margin-left:5px;">${pads.length} paddocks</span>`:''}
+            ${hasSMs?`<span style="font-size:10px;color:var(--teal-d);margin-left:5px;">${sms.length} sub-move${sms.length>1?'s':''}</span>`:''}
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            ${gDisp?`<span style="font-size:11px;color:var(--text2);">${gDisp}</span>`:''}
+            <span class="badge ${isClosed?'bb':'bt'}">${isClosed?'closed':'active'}</span>
+            <button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openEventEdit(${e.id})">Edit</button>
+          </div>
         </div>
-        <div style="display:flex;gap:6px;align-items:center;">
-          ${gDisp?`<span style="font-size:11px;color:var(--text2);">${gDisp}</span>`:''}
-          <span class="badge ${isClosed?'bb':'bt'}">${isClosed?'closed':'active'}</span>
-          <button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openEventEdit(${e.id})">Edit</button>
-        </div>
+        ${padLine}
+        <div class="row-detail">${detailLine}${npkLine}${dmiLine}</div>
       </div>
-      ${padLine}
-      <div class="row-detail">${detailLine}${npkLine}${dmiLine}</div>
+      ${smThread}
     </div>`;
   }).join('');
 }

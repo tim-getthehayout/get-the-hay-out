@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260329.1737`
+**Current build:** `b20260329.1759`
 **Last updated:** 2026-03-29
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -58,7 +58,7 @@ build = 'b' + datetime.now().strftime('%Y%m%d') + '.' + datetime.now().strftime(
 | ~4780 | Multi-paddock wizard helpers + Event Edit multi-paddock |
 | ~5347 | Treatment Types, AI Bulls, Manage sheets (classes/treatments/sires) + `TREATMENT_CATEGORIES` |
 | ~5598 | Batch Adjustment / Reconcile |
-| ~5805 | **`renderEventsLog()`** ← displaced here by Batch Adj insertion; logically part of Events section above |
+| ~5805 | **`renderEventsLog()`** ← displaced here by Batch Adj insertion; logically part of Events section above. Now renders consolidated parent + sub-move thread (OI-0029, b20260329.1751) |
 | ~5954 | Pastures screen + recovery date helpers |
 | ~6030 | Settings screen |
 | ~6222 | Feedback tab + Dev Brief + Export CSV |

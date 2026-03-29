@@ -435,3 +435,24 @@ Drive card retained but demoted: reduced to 0.75 opacity, section label changed 
 
 **Settings nav handler updated**
 `sbUpdateAuthUI()` added to the `curScreen==='settings'` branch so the card updates correctly when navigating to Settings from another screen.
+
+---
+
+## b20260329.1751
+
+**OI-0029 closed — Event log: parent + sub-move consolidation**
+
+`renderEventsLog()` (~L6648) now renders sub-moves as a threaded visual unit beneath their parent event.
+
+**Events without sub-moves:** Render unchanged.
+
+**Events with sub-moves:**
+- Parent row title gains a teal `N sub-moves` badge alongside any existing paddocks indicator.
+- Parent row bottom border suppressed — the sub-move thread flows directly below with no visual gap.
+- A teal left-border thread (2px solid `var(--teal)`, indented 16px) hangs beneath the parent containing one row per sub-move.
+- Each sub-move row shows: `⇢ Location` name + `active`/`returned` badge + date-in → date-out (or "now" if active) · duration in hours · feed count if any.
+- Sub-moves sorted chronologically by `sm.date` so the paddock sequence reads top-to-bottom.
+- Clicking any sub-move row calls `openEventEdit(id)` — same as the parent row. Full sub-move management remains in the event edit sheet.
+- Outer wrapper uses `margin-bottom:8px` to separate consolidated event blocks from one another.
+
+**No data model changes.** Reads from `e.subMoves[]` (already assembled). All existing field aliases (`sm.date`, `sm.locationName`, `sm.durationHours`, `sm.dateOut`, `sm.feedEntries`) used directly.

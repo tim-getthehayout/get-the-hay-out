@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260329.1708
-**Reconciled against build:** b20260329.1708
+**Last updated:** b20260329.1751
+**Reconciled against build:** b20260329.1751
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -20,10 +20,10 @@
 |---|---|
 | 🔴 Open — Roadblock | 0 |
 | 🔴 Open — Bug | 4 |
-| 🟡 Open — Polish | 1 |
+| 🟡 Open — Polish | 0 |
 | 🔵 Open — Enhancement | 21 |
 | ⚪ Open — Debt | 5 |
-| ✅ Closed | 51 |
+| ✅ Closed | 52 |
 
 ---
 
@@ -33,13 +33,13 @@ Recommended work order as of b20260329.1708. Update after each session.
 
 | Priority | OI | Title | Notes |
 |---|---|---|---|
-| 1 | OI-0029 | Event log: consolidate parent + sub-moves | 🟡 Polish |
+| 1 | OI-0072 | Sub-move time required | 🔴 Bug — small, high value |
 | 2 | OI-0021 | Event AUD recalc on animal move/cull | 🔵 Enhancement — design first |
-| 3 | — | M5 — Offline Queue Polish | Migration next phase |
+| 3 | — | M5 — Offline Queue Polish | Migration next phase — design sub-tasks first |
 
-> **OI-0060 closed** at b20260329.1708 — rotation calendar active-event highlighting (white ring + pulse animation + NOW badge).
-> **Next priority is OI-0029** — event log parent + sub-move consolidation.
-> **Last updated:** b20260329.1708
+> **OI-0029 closed** at b20260329.1751 — event log parent + sub-move consolidation (teal thread view).
+> **Next priority is OI-0072** — make sub-move time-in required (small fix, high correctness value).
+> **Last updated:** b20260329.1751
 
 ---
 
@@ -863,17 +863,13 @@ Mobile header restructured to two-row layout. `.hdr` now uses `flex-direction:co
 
 ### OI-0029
 **Source:** In-app feedback — id:1774271246604
-**Area:** Events Log (`renderEventsLog()`, ~L5013)
+**Area:** Events Log (`renderEventsLog()`, ~L6648)
 **Severity:** Polish
-**Status:** 🟡 Open
+**Status:** ✅ Closed
 **Found:** b20260322.2207 (feedback dated 2026-03-23, v1.2)
-**Closed:** —
+**Closed:** b20260329.1751
 
-In the event log, the parent event and its sub-moves are displayed as separate entries with no visual connection. The request is to consolidate them visually — showing the parent event as a container with sub-moves nested or indented beneath it, making the full grazing journey of a group across multiple paddocks readable as a single flow.
-
-**Fix:** In `renderEventsLog()`, group events and their sub-moves. Render the parent event as a header row with sub-moves displayed as child rows beneath it (indented, lighter style). A timeline or chain connector between sub-moves would reinforce the sequential nature.
-
-**Acceptance criteria:** Parent event and all associated sub-moves render as a consolidated visual unit in the event log. The paddock sequence and date flow are easy to read at a glance.
+Sub-moves are now rendered as a teal-threaded visual unit beneath their parent event in the log. Parent row gains an `N sub-moves` teal badge and drops its bottom border; a 2px teal left-rail indented thread shows each sub-move as `⇢ Location · active/returned · date range · duration · feed count`. Sub-moves sorted chronologically. Clicking any row opens `openEventEdit()`. Events without sub-moves render unchanged.
 
 ---
 
