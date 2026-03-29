@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260329.2239`
+**Current build:** `b20260329.2340`
 **Last updated:** 2026-03-29
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -70,7 +70,7 @@ build = 'b' + datetime.now().strftime('%Y%m%d') + '.' + datetime.now().strftime(
 | ~8311 | Setup Template Export / Import (XLSX) |
 | ~8797 | Stats Engine |
 | ~8901 | Calving sheet |
-| ~9030 | Sub-move system (`openSubMoveSheet`, `saveSubMove`, `calcEventTotalsWithSubMoves`, `lastGrazingRecordForPasture`) |
+| ~9030 | Sub-move system (`openSubMoveSheet`, `saveSubMove`, `calcEventTotalsWithSubMoves`, `lastGrazingRecordForPasture`); **`_memberWeightedDays`** (OI-0021 — membership-weighted AUD helper, fallback for multi-group/no-data) |
 | ~9830 | Per-paddock attribution engine (`feedDMIPutOutToDate`, `calcGrassDMIByWindow`, `calcSubMoveNPKByAcres`) |
 | ~9634 | Input Products & Applications |
 | ~9875 | Cull system + Reset data |
@@ -84,6 +84,7 @@ build = 'b' + datetime.now().strftime('%Y%m%d') + '.' + datetime.now().strftime(
 | ~12796 | App init (top-level bootstrap, not DOMContentLoaded) |
 | ~12840 | All sheet HTML (spread manure → batch adj; last sheet ~L14300) |
 | ~13778 | Service Worker registration |
+| ~15587 | App init tail: `visibilitychange` → `flushToSupabase()`; M5-B `online`/`offline` connectivity listeners |
 
 ---
 

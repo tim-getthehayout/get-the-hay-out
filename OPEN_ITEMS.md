@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260329.2238
-**Reconciled against build:** b20260329.2238
+**Last updated:** b20260329.2336
+**Reconciled against build:** b20260329.2336
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -29,23 +29,17 @@
 
 ## Session Queue
 
-Recommended work order as of b20260329.2010. Update after each session.
+Recommended work order as of b20260329.2336. Update after each session.
 
 | Priority | OI | Title | Notes |
 |---|---|---|---|
-| 1 | OI-0021 | Event AUD recalc on animal move/cull | 🔵 Enhancement — design first |
-| 2 | — | M5 — Offline Queue Polish | Migration next phase — design sub-tasks first |
+| 1 | — | M6 — User system + multi-farmer | Pre-session: run SQL ALTERs in Supabase SQL Editor |
+| 2 | OI-0105 | Membership-weighted NPK for multi-group events | Design first — future enhancement |
 
-> **OI-0104 closed** at b20260329.2238 — Supabase SDK `document.body` null error fixed.
-> **OI-0103 closed** at b20260329.2220 — operations/operation_settings 403 fixed.
-> **OI-0101 and OI-0102 added** at b20260329.2156 — delete to-do + edit feedback items.
-> **OI-0100 closed** at b20260329.2156 — queue self-heal via `_sanitizeQueueRecord` in `flushToSupabase`.
-> **Queue inspector added** at b20260329.2139 — full type audit clean; `renderSyncQueueInspector` + `exportSyncQueue` in Settings.
-> **OI-0099 added and closed** at b20260329.2134 — `paddock_observations` 400: `source_id` type mismatch fixed.
-> **OI-0097/0098 added and closed** at b20260329.2112 — `activeSmGC` crash + `paddock_observations` 400 fixed; password sign-in added.
-> **OI-0096 added and closed** at b20260329.2010 — stale green sync indicator + data loss on reconnect both fixed.
-> **Next priority is OI-0021** — event AUD recalc design.
-> **Last updated:** b20260329.2238
+> **OI-0021 closed** at b20260329.2336 — membership-weighted AUD for NPK. `_memberWeightedDays` helper in both close and recalc paths.
+> **OI-0105 added** at b20260329.2336 — multi-group membership-weighted NPK (deferred from OI-0021).
+> **M5 complete** at b20260329.2319 — online/offline listeners, Flush now button, >24h stuck warning.
+> **Last updated:** b20260329.2336
 
 ---
 
@@ -58,6 +52,21 @@ Recommended work order as of b20260329.2010. Update after each session.
 ---
 
 ## Open Items
+
+### OI-0105
+**Source:** Claude observation — b20260329.2336
+**Area:** `_memberWeightedDays`, `calcEventTotalsWithSubMoves`, `recalcEventTotals`
+**Severity:** Enhancement
+**Status:** 🔵 Open
+**Found:** b20260329.2336
+
+Multi-group events (ae.groups with >1 active group) are explicitly excluded from the OI-0021 membership-weighted NPK calculation. `_memberWeightedDays` returns `null` for these events and both callers fall back to `ae.head × days` — identical to pre-OI-0021 behaviour, no regression.
+
+The full fix requires summing weighted days across multiple groups' membership histories, accounting for each group's `dateRemoved` partial-duration window and potentially different per-animal entry/exit dates. This is a meaningfully more complex calculation and multi-group events are uncommon in practice.
+
+**Acceptance criteria:** For multi-group events, NPK is computed by summing `_memberWeightedDays` results across each active group's membership window (clamped both by membership dates and the group's `dateRemoved` if set), using each group's average weight.
+
+---
 
 ### OI-0104
 **Source:** User report — b20260329.2238
@@ -1012,21 +1021,13 @@ The toggle-off logic already existed in `filterAnimalsByGroup()` but was not vis
 
 ### OI-0021
 **Source:** In-app feedback — id:1774260349182
-**Area:** Animal Move / Event Totals (`calcEventTotalsWithSubMoves`, ~L8093)
+**Area:** Animal Move / Event Totals (`calcEventTotalsWithSubMoves`, `recalcEventTotals`, `_memberWeightedDays`)
 **Severity:** Enhancement
-**Status:** 🔵 Open
-**Found:** b20260322.2207 (feedback dated 2026-03-23, v1.1)
-**Closed:** —
+**Status:** ✅ Closed
+**Found:** b20260322.2207
+**Closed:** b20260329.2336
 
-When an animal is moved into or out of a group from the Animals screen (e.g. culled mid-event, or added retroactively), the open event the group is attached to does not recalculate AU/AUDs based on the actual animal membership window. Example: a cow is retroactively recorded as culled on day 2 of a 6-day event — she should only count toward AUDs for 2 days, not the full 6.
-
-This is relevant for accurate DMI inference and fertility ledger accounting — AUD × DMI rate is the basis for the pasture withdrawal calculation.
-
-**Architectural note:** `calcEventTotalsWithSubMoves()` currently uses the group's current headcount and weight. It needs access to per-animal entry/exit timestamps to correctly apportion AUDs. This is a data model question as well as a calculation one — animal join/leave dates may not be stored at sufficient resolution today.
-
-**Deferred:** Needs a design conversation about animal membership history before coding.
-
-**Acceptance criteria:** AUD and DMI totals for an event reflect the actual animal membership window, not the current group composition at recalc time.
+When an animal was moved or culled mid-event, AUD and NPK totals used the snapshot `ae.head × days` regardless of actual membership windows. New `_memberWeightedDays(ae, outDate)` helper sums each membership row's overlap with the event window, clamping to `[ae.dateIn, outDate]`. `dateJoined null` = present from event start. Fallback to `ae.head × days` when no membership data or multi-group event (see OI-0105). Both `calcEventTotalsWithSubMoves` (close path) and `recalcEventTotals` (edit-closed-event path) use `effectiveAUD` for NPK.
 
 ---
 
