@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260329.1841`
+**Current build:** `b20260329.1859`
 **Last updated:** 2026-03-29
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -907,6 +907,13 @@ across reloads via `sb-*` localStorage — rate limit only affects new sign-in a
 ### Supabase SDK Not Initialised on Sign-In — OI-0090 (Fixed b20260329.1838)
 **Root cause:** Supabase SDK CDN script can fail to load on first load after a SW cache update. The SW `fetch` handler returns early for cross-origin requests (`if (!req.url.startsWith(self.location.origin)) return`) without calling `event.respondWith()`. `sbInitClient()` silently returns when `typeof supabase === 'undefined'`. Both `sbSendCode()` and `sbVerifyOtp()` hit their `if(!_sbClient)` guard and showed a bare "Supabase not initialised" alert.
 **Fix:** Both functions now call `sbInitClient()` on the spot — if the global became available since startup this recovers silently. If still unavailable, a `confirm()` offers a page reload. This covers the common case where a reload resolves the CDN load failure.
+
+
+### Todos `assignedTo` String Crash — OI-0091 (Fixed b20260329.1855)
+**Root cause:** Migration script stored `assigned_to` as `JSON.stringify(array)` — a JS string literal `"[123]"`. PostgREST returns this JSONB as a string, not a parsed array. `(t.assignedTo||[])` evaluates to the non-empty string (truthy), so the `||[]` fallback never fires. `.map`/`.includes`/`.some` on a string throws `TypeError`. Crashed `todoCardHtml`, `renderHome`, `renderTodos`, and `openTodoSheet`.
+**Fix:** Assembly layer in `loadFromSupabase()` — todos rows detect `typeof t.assignedTo === 'string'`, JSON-parse it, and normalise non-array values to `[]`. Render code unchanged.
+**Pattern:** JSONB columns stored via `JSON.stringify()` in migration scripts must be parsed back at assembly time. The assembly layer is the correct place — not render functions.
+**Supabase repair SQL:** `UPDATE todos SET assigned_to = assigned_to::text::jsonb WHERE jsonb_typeof(assigned_to) = 'string';`
 
 
 ## ⚠️ Dead Code — Removed (Do Not Re-Add)

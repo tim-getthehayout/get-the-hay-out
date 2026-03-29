@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260329.1838
-**Reconciled against build:** b20260329.1838
+**Last updated:** b20260329.1855
+**Reconciled against build:** b20260329.1855
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -23,7 +23,7 @@
 | 🟡 Open — Polish | 0 |
 | 🔵 Open — Enhancement | 21 |
 | ⚪ Open — Debt | 5 |
-| ✅ Closed | 56 |
+| ✅ Closed | 57 |
 
 ---
 
@@ -36,9 +36,9 @@ Recommended work order as of b20260329.1708. Update after each session.
 | 1 | OI-0021 | Event AUD recalc on animal move/cull | 🔵 Enhancement — design first |
 | 2 | — | M5 — Offline Queue Polish | Migration next phase — design sub-tasks first |
 
-> **OI-0090 closed** at b20260329.1838 — Supabase SDK load failure now shows reload prompt instead of bare alert.
+> **OI-0091 closed** at b20260329.1855 — todos `assignedTo` string→array parse at assembly; crash on render fixed.
 > **Next priority is OI-0021** — event AUD recalc design.
-> **Last updated:** b20260329.1838
+> **Last updated:** b20260329.1855
 
 ---
 
@@ -51,6 +51,29 @@ Recommended work order as of b20260329.1708. Update after each session.
 ---
 
 ## Open Items
+
+### OI-0091
+**Source:** User report — b20260329.1855
+**Area:** `loadFromSupabase()` todos assembly (~L2332), `todoCardHtml()` (~L3648), `renderHome()` (~L3287)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260329.1855
+**Closed:** b20260329.1855
+
+`TypeError: (t.assignedTo||[]).map is not a function` crash on every render involving todos. Root cause: migration script stored `assigned_to` as `JSON.stringify(array)` (a JS string `"[123]"`). PostgREST returns JSONB stored as a string literal back as a JS string — not a parsed array. `(t.assignedTo||[])` evaluates to the string `"[123]"` which is truthy, so the `||[]` fallback never fires, and `.map` on a string throws. All four downstream call sites (`.map`, `.includes`, `.some`, `new Set(...)`) were affected.
+
+Fix: assembly layer in `loadFromSupabase()`. Todos rows now detect `typeof t.assignedTo === 'string'`, JSON-parse it back to an array, and normalise any remaining non-array value to `[]`. Render code unchanged (correct architecture — assembly is the aliasing boundary).
+
+**Data loss note:** One todo entered during testing between builds was lost. Root cause: `saveTodo()` queued the write but the crash in `renderHome()` occurred before flush completed; next load pulled from Supabase (which didn't have it) and overwrote localStorage. This fix closes the crash window; the lost todo cannot be recovered.
+
+**Supabase repair:** Run in SQL Editor to fix migrated rows that still hold stringified arrays:
+```sql
+UPDATE todos
+SET assigned_to = assigned_to::text::jsonb
+WHERE jsonb_typeof(assigned_to) = 'string';
+```
+
+---
 
 ### OI-0090
 **Source:** User report — b20260329.1838
