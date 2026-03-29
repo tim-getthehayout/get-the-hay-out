@@ -7,12 +7,24 @@
 REPO="$HOME/github/get-the-hay-out"
 # ──────────────────────────────────────────
 
+
 cd "$REPO" || { echo "❌ Could not find repo at $REPO — check the path in push.command"; read -p "Press Enter to close..."; exit 1; }
 
 echo ""
 echo "┌─────────────────────────────────────┐"
 echo "│       Get The Hay Out — Deploy      │"
 echo "└─────────────────────────────────────┘"
+echo ""
+
+# Confirm index.html is current
+read -p "⚠️  Have you renamed the HTML to index.html and copied it into the repo? (y/n): " READY
+if [ "$READY" != "y" ] && [ "$READY" != "Y" ]; then
+  echo ""
+  echo "❌ Deploy cancelled — copy and rename the HTML file first, then re-run."
+  read -p "Press Enter to close..."
+  exit 1
+fi
+
 echo ""
 
 # Prompt for commit message
