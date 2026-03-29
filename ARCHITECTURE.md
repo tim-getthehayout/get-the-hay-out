@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260329.1834`
+**Current build:** `b20260329.1841`
 **Last updated:** 2026-03-29
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -902,6 +902,11 @@ across reloads via `sb-*` localStorage — rate limit only affects new sign-in a
 **Root cause:** `migrateM0aData()` runs at startup before `sbInitClient()`, so `_sbOperationId` is null. Every `_writePaddockObservation()` call queued a `paddock_observations` row with `operation_id: null`. Supabase rejects these (NOT NULL constraint) → items stay in queue → count grows each reload. `Date.now()`-based IDs bypass queue dedup so each load added ~36 items.
 **Fix (two parts):** (1) `_writePaddockObservation()` guards `if(_sbOperationId)` before `queueWrite` — skips write during startup migration (canonical rows come from `loadFromSupabase()`). (2) `flushToSupabase()` strips items with `operation_id == null` from queue before flushing, clearing accumulated stale entries from prior loads.
 **Pattern:** Any function that calls `queueWrite` and may be invoked before `sbInitClient()` must guard on `_sbOperationId`. Migration functions run at startup and must never queue writes directly.
+
+
+### Supabase SDK Not Initialised on Sign-In — OI-0090 (Fixed b20260329.1838)
+**Root cause:** Supabase SDK CDN script can fail to load on first load after a SW cache update. The SW `fetch` handler returns early for cross-origin requests (`if (!req.url.startsWith(self.location.origin)) return`) without calling `event.respondWith()`. `sbInitClient()` silently returns when `typeof supabase === 'undefined'`. Both `sbSendCode()` and `sbVerifyOtp()` hit their `if(!_sbClient)` guard and showed a bare "Supabase not initialised" alert.
+**Fix:** Both functions now call `sbInitClient()` on the spot — if the global became available since startup this recovers silently. If still unavailable, a `confirm()` offers a page reload. This covers the common case where a reload resolves the CDN load failure.
 
 
 ## ⚠️ Dead Code — Removed (Do Not Re-Add)

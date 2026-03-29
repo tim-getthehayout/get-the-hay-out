@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260329.1834" id="app-version-meta"/>
+<meta name="app-version" content="b20260329.1841" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -1820,7 +1820,15 @@ function sbInitClient(){
 // Supabase emails the code; user types it into the app directly (step 2).
 // Requires the Supabase "Magic Link" email template to include {{ .Token }}.
 async function sbSendCode(){
-  if(!_sbClient){ alert('Supabase not initialised'); return; }
+  if(!_sbClient){
+    sbInitClient();
+    if(!_sbClient){
+      if(confirm('The sync service failed to load.\nReload the page to retry?')){
+        location.reload();
+      }
+      return;
+    }
+  }
   const email = document.getElementById('sb-email-input')?.value?.trim();
   if(!email){ _sbStep1Status('Enter your email address', true); return; }
   const btn = document.getElementById('sb-sendcode-btn');
@@ -1842,7 +1850,15 @@ async function sbSendCode(){
 // Step 2: Verify the 6-digit code the user received by email.
 // On success, onAuthStateChange fires SIGNED_IN -> M2 load chain runs.
 async function sbVerifyOtp(){
-  if(!_sbClient){ alert('Supabase not initialised'); return; }
+  if(!_sbClient){
+    sbInitClient();
+    if(!_sbClient){
+      if(confirm('The sync service failed to load.\nReload the page to retry?')){
+        location.reload();
+      }
+      return;
+    }
+  }
   const email = document.getElementById('sb-email-input')?.value?.trim();
   const token = document.getElementById('sb-otp-input')?.value?.trim().replace(/\s/g,'');
   if(!token || token.length < 4){ _sbStep2Status('Enter the code from your email', true); return; }

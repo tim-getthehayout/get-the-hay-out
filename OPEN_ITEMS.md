@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260329.1831
-**Reconciled against build:** b20260329.1831
+**Last updated:** b20260329.1838
+**Reconciled against build:** b20260329.1838
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -23,7 +23,7 @@
 | 🟡 Open — Polish | 0 |
 | 🔵 Open — Enhancement | 21 |
 | ⚪ Open — Debt | 5 |
-| ✅ Closed | 55 |
+| ✅ Closed | 56 |
 
 ---
 
@@ -36,9 +36,9 @@ Recommended work order as of b20260329.1708. Update after each session.
 | 1 | OI-0021 | Event AUD recalc on animal move/cull | 🔵 Enhancement — design first |
 | 2 | — | M5 — Offline Queue Polish | Migration next phase — design sub-tasks first |
 
-> **OI-0088 and OI-0089 closed** at b20260329.1831 — desktop mobile view on load + sync queue accumulation fixed.
+> **OI-0090 closed** at b20260329.1838 — Supabase SDK load failure now shows reload prompt instead of bare alert.
 > **Next priority is OI-0021** — event AUD recalc design.
-> **Last updated:** b20260329.1831
+> **Last updated:** b20260329.1838
 
 ---
 
@@ -51,6 +51,18 @@ Recommended work order as of b20260329.1708. Update after each session.
 ---
 
 ## Open Items
+
+### OI-0090
+**Source:** User report — b20260329.1838
+**Area:** `sbSendCode()` (~L1822), `sbVerifyOtp()` (~L1844)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260329.1838
+**Closed:** b20260329.1838
+
+"Supabase not initialised" alert appeared when attempting to sign in. Root cause: Supabase SDK CDN script (`cdn.jsdelivr.net`) can fail to load on first page load after a service worker cache update — the SW `fetch` handler returns early for cross-origin requests without calling `event.respondWith()`, which causes a race where the script tag fires before the browser's own cache for that URL is warm. `sbInitClient()` checks `typeof supabase === 'undefined'` and returns silently, leaving `_sbClient` null. Fix: both `sbSendCode()` and `sbVerifyOtp()` now call `sbInitClient()` on the spot before bailing — if the global became available this recovers silently. If still unavailable, a `confirm()` dialog prompts a page reload (which re-fetches the SDK successfully). User-facing message changed from a cryptic alert to an actionable reload prompt.
+
+---
 
 ### OI-0089
 **Source:** User report — b20260329.1831
