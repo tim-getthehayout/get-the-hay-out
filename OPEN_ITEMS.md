@@ -1,0 +1,1501 @@
+# Get The Hay Out — Open Items
+**Last updated:** b20260328.2241
+**Reconciled against build:** b20260328.2241
+**Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
+
+> **Two input streams:**
+> - **Claude observations** — things noticed during coding sessions, off the current task
+> - **In-app feedback** — items imported from `S.feedback` via `exportFeedbackJSON()`
+>
+> **At session start:** Upload latest `gthy-feedback-YYYY-MM-DD-HHMM.json` and Claude imports
+> new feedback items. Claude also surfaces relevant open items before work begins.
+>
+> **At session end:** Claude delivers the updated file alongside HTML and ARCHITECTURE.md.
+
+---
+
+## Status Summary
+
+| Status | Count |
+|---|---|
+| 🔴 Open — Roadblock | 0 |
+| 🔴 Open — Bug | 4 |
+| 🟡 Open — Polish | 2 |
+| 🔵 Open — Enhancement | 21 |
+| ⚪ Open — Debt | 3 |
+| ✅ Closed | 50 |
+
+---
+
+## Session Queue
+
+Recommended work order as of b20260328.1623. Update after each session.
+
+| Priority | OI | Title | Notes |
+|---|---|---|---|
+| 1 | OI-0060 | Rotation calendar: sub-move pasture = green | Bug — parked during migration |
+| 2 | OI-0029 | Event log: consolidate parent + sub-moves | 🟡 Polish |
+| 3 | OI-0021 | Event AUD recalc on animal move/cull | 🔵 Enhancement — design first |
+
+> **OI-0080–0083 closed** at b20260328.2324 — Supabase assembly audit: sub-move aliases, ev.pasture alias, pasture recovery aliases + write-path fix, ev.totals auto-rebuild.
+> **Next priority is OI-0060** — rotation calendar sub-move colour bug.
+> **Last updated:** b20260328.2324
+
+---
+
+## Severity & Source Reference
+
+**Severity:** `Bug` · `Polish` · `Enhancement` · `Debt`
+
+**Source:** `Claude observation` · `In-app feedback` · `User report` · `Session regression`
+
+---
+
+## Open Items
+
+### OI-0074
+**Source:** Claude observation — b20260328.1140
+**Area:** Supabase M2 — identity cache (`gthy-identity`)
+**Severity:** Debt
+**Status:** ✅ Closed
+**Found:** b20260328.1140
+**Closed:** b20260328.1623
+
+Display name input added to `#sb-signed-in` Settings block. `sbSaveDisplayName()` saves to `gthy-identity` cache via `sbCacheIdentity()`. `sbUpdateAuthUI()` populates the input from cached identity on sign-in. Sign out button retained alongside Save name button.
+
+---
+
+### OI-0076
+**Source:** Claude observation — b20260328.1211
+**Area:** Supabase auth — PWA standalone mode
+**Severity:** Debt
+**Status:** ✅ Closed
+**Found:** b20260328.1211
+**Closed:** b20260328.1211
+
+**Root cause documented:** Magic link auth fails silently in PWA standalone mode because clicking a magic link opens regular Safari, not the PWA. PWA and Safari have isolated `localStorage` contexts — Supabase writes `sb-*` session tokens to Safari's storage; the PWA's `onAuthStateChange` listener never fires; `gthy-identity` and `gthy-operation-id` are never written; the home screen nudge never clears.
+
+**Fix applied:** Replaced magic link flow with 6-digit OTP code (`signInWithOtp` without `emailRedirectTo` + `verifyOtp`). Code is entered directly in the app within the PWA localStorage context. Session tokens written to PWA storage. Requires Supabase email template to use `{{ .Token }}` instead of `{{ .ConfirmationURL }}`.
+
+**Note for future auth work:** Any auth flow that requires a browser redirect (OAuth, magic links) will hit this same PWA isolation wall. OTP / password-based flows that verify in-app are safe. Keep this in mind if Google SSO or similar is ever considered for M6 multi-farmer.
+
+---
+
+### OI-0078
+**Source:** Claude observation — b20260328.2211
+**Area:** Supabase schema — `batches` table
+**Severity:** Debt
+**Status:** ✅ Closed
+**Found:** b20260328.2211
+**Closed:** b20260328.2241
+
+`alter table batches add column wt numeric` run in Supabase SQL Editor. Existing batches populated: Peanut Hay / Oak Field Barn / Tarped → 750 lbs; Alfalfa Small Squares → 50 lbs. Batch assembly updated to read `wt` directly (no alias needed — no underscore conversion). `saveBatchAdj` also fixed: was missing `queueWrite('batches', ...)` entirely — batch edits never synced to Supabase. Both fixed in b20260328.2241.
+
+---
+
+### OI-0083
+**Source:** Claude observation — b20260328.2324 (Supabase assembly audit)
+**Area:** Supabase M4 assembly — `ev.totals` not rebuilt on load
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260328.2324
+**Closed:** b20260328.2324
+
+`ev.totals` is a computed JS object never stored in Supabase. All closed events loaded from Supabase had `ev.totals === undefined`, producing blank/zero values in the events log detail line (cost, pasture%), pasture screen NPK totals, reports screen, and CSV export — without any error thrown.
+
+**Fix:** Added a pass in `loadFromSupabase()` after all migrations complete: `S.events.forEach(ev => { if (ev.status==='closed' && !ev.totals) recalcEventTotals(ev); })`. Try/catch per event so one bad event doesn't abort the load.
+
+---
+
+### OI-0082
+**Source:** Claude observation — b20260328.2324 (Supabase assembly audit)
+**Area:** Supabase M4 assembly + write path — pasture `recoveryMinDays`/`recoveryMaxDays`
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260328.2324
+**Closed:** b20260328.2324
+
+`pastures` table uses `min_days`/`max_days`; `_sbToCamel` produces `minDays`/`maxDays`. App reads `p.recoveryMinDays`/`p.recoveryMaxDays` in 6 places. Recovery windows on the pasture screen and expected graze dates were always showing the settings default, never the per-paddock value.
+
+Write-path also broken: `_sbToSnake({...p})` converted `recoveryMinDays` → `recovery_min_days` and `locationType` → `location_type` — neither column exists in the `pastures` table (columns are `min_days`, `max_days`, `type`). Any pasture save would have sent PostgREST unknown-column fields.
+
+**Fix (read):** Added `p.recoveryMinDays = p.minDays ?? null` aliases in flat pasture assembly.
+**Fix (write):** New `_pastureRow(p, opId)` helper writes the exact schema column names. All three `queueWrite('pastures',...)` call sites updated.
+
+---
+
+### OI-0081
+**Source:** Claude observation — b20260328.2324 (Supabase assembly audit)
+**Area:** Supabase M4 assembly — `ev.pasture` alias missing
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260328.2324
+**Closed:** b20260328.2324
+
+`pasture_name` → `pastureName` via `_sbToCamel`. App uses `ev.pasture` (not `ev.pastureName`) in ~20 render paths: event list display, location cards home screen, manure batch summary, CSV export, wizard paddock filter, event-rename propagation. All were producing blank/undefined for Supabase-loaded events.
+
+**Fix:** Added `if (!ev.pasture && ev.pastureName) ev.pasture = ev.pastureName;` in `assembleEvents()`.
+
+---
+
+### OI-0080
+**Source:** Claude observation — b20260328.2324 (Supabase assembly audit)
+**Area:** Supabase M4 assembly — sub-move field aliases missing
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260328.2324
+**Closed:** b20260328.2324
+
+`assembleEvents()` applied `_sbToCamel(sm)` to sub-move rows but added no field aliases. Five column-name mismatches made all sub-move data invisible to every render and calc function:
+
+| Supabase → camelCase | App reads | Broken paths |
+|---|---|---|
+| `date_in` → `dateIn` | `sm.date` | Sub-move list display, close sheet, duration calc |
+| `time_in` → `timeIn` | `sm.time` | Duration calc, time display |
+| `pasture_name` → `pastureName` | `sm.locationName` | All sub-move name display, paddock matching |
+| `recovery_days_min` → `recoveryDaysMin` | `sm.recoveryMinDays` | Recovery window after sub-move close |
+| `recovery_days_max` → `recoveryDaysMax` | `sm.recoveryMaxDays` | Recovery window after sub-move close |
+
+**Fix:** Five `if (smC.x == null) smC.x = smC.y ?? null` aliases added in the sub-move assembly block inside `assembleEvents()`.
+
+---
+
+### OI-0079
+**Source:** User report — b20260328.2258
+**Area:** Supabase M4 assembly — Event Edit sheet data population
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260328.2258
+**Closed:** b20260328.2258
+
+Event Edit sheet showed blank fields for head count, average weight, pre/post graze heights, forage cover, and recovery min/max on all events loaded from Supabase.
+
+**Root cause:** The `events` Supabase table has a minimal schema — `head`, `wt`, `heightIn`, `heightOut`, `forageCoverIn/Out`, `recoveryMinDays/MaxDays` are not stored on the event row. They live in child tables (`event_group_memberships` for head/wt, `paddock_observations` for heights/cover/recovery). `assembleEvents()` called `_sbToCamel(r)` on the event row only, leaving all these fields undefined.
+
+**Fix 1 — `assembleEvents()`:** Derives missing fields after assembling child arrays:
+- `ev.head` / `ev.wt` — summed/averaged from `ev.groups[].headSnapshot` / `weightSnapshot` (active groups only).
+- `ev.heightIn`, `ev.forageCoverIn` — from `S.paddockObservations` where `sourceId === ev.id` and `source === 'event_open'`.
+- `ev.heightOut`, `ev.forageCoverOut`, `ev.recoveryMinDays`, `ev.recoveryMaxDays` — from `S.paddockObservations` where `source === 'event_close'`.
+
+**Fix 2 — `queueEventWrite()`:** Group membership rows were being written with `headSnapshot: g.head` but assembled group objects use `g.headSnapshot`/`g.weightSnapshot`. Fixed to `g.headSnapshot ?? g.head ?? ev.head` so all three cases are covered: Supabase-assembled groups, legacy localStorage groups, and newly created events.
+
+---
+
+### OI-0075
+**Source:** Claude observation — b20260328.1140
+**Area:** Supabase M4 — assembly functions
+**Severity:** Debt
+**Status:** ✅ Closed
+**Found:** b20260328.1140
+**Closed:** b20260328.2204
+
+Two bugs found and fixed during live verification:
+
+**Bug 1 — feedEntries shape mismatch (b20260328.2200):** `assembleEvents` was putting flat `event_feed_deliveries` rows directly into `ev.feedEntries[]`. Every render function reads `fe.lines[]`. Fixed: rows are now grouped by date, reconstructing `{id, date, lines:[{batchId, qty}]}`. Sub-move feed deliveries handled separately per `sub_move_id`. `ev.locationType` now derived from `S.pastures` lookup. Paddock entries get `locationType` fallback.
+
+**Bug 2 — calvingRecords always empty (b20260328.2204):** `assembleAnimals` set `calvingRecords = []` as a hardcoded empty array. Data was correctly in `animal_health_events` type=calving but never read back out. Fixed: health events now split by type — calving events mapped to `calvingRecords[]` with `{date, calfId, sireTag, stillbirth}` shape.
+
+---
+
+### OI-0073
+**Source:** Claude observation — b20260328.0140
+**Area:** Dev tooling — JS syntax check process
+**Severity:** Debt
+**Status:** ⚪ Open
+**Found:** b20260328.0140
+**Closed:** —
+
+The app HTML contains two `<script>` blocks: the main app script (~L1453–L15142) and a service worker registration block (~L15143–L15800). The current `node --check` syntax verification step extracts only the first `<script>…</script>` match, so the service worker registration block is never syntax-checked.
+
+In practice the SW block is short and stable, but the gap in coverage is a latent risk — a stale extraction regex could silently skip a broken block on a future session.
+
+**Proposed fix:** Update the syntax check snippet in `deploy.py` (or the session-start check pattern) to extract and check both script blocks independently. A simple approach: use `re.findall(r'<script>(.*?)</script>', html, re.DOTALL)` and run `node --check` on each block in sequence. Flag if either fails.
+
+---
+
+### OI-0072
+**Source:** Claude observation — b20260326.0859
+**Area:** Sub-move sheet (`saveSubMove()` ~L9804, form HTML ~L14000)
+**Severity:** Bug
+**Status:** 🔴 Open
+**Found:** b20260326.0859
+**Closed:** —
+
+The "Add sub-move" form's time-in field (`sm-time`) is currently optional — the label reads "Moved in — time (optional)". Tim has clarified that time of entry or exit must always be present on all moves. However the Record Return form now requires time-out and blocks save without time-in. If a sub-move is initially recorded without time-in, the only recovery path is the correction sub-dialog on Record Return — which is a workaround, not the right design.
+
+**Proposed fix:** Make `sm-time` required when saving a new sub-move. Remove the "(optional)" label. Add a validation guard in `saveSubMove()` that blocks save and focuses the time field if `sm-time` is empty. The duration calc and preview can then always derive from time-in + time-out when both are present.
+
+---
+
+### OI-0071
+**Source:** Claude observation — b20260326.0757
+**Area:** Feed Screen / Batch Inventory (`S.batches[]`, `renderBatchListS()`)
+**Severity:** Bug
+**Status:** 🔴 Open
+**Found:** b20260326.0757
+**Closed:** —
+
+Batch `remaining` values are not trustworthy when a sync collision has occurred. The `remaining` field is decremented live at feed-entry-save time (`b.remaining -= l.qty`), but if a sync later overwrites the event and drops the `feedEntries[]` that caused those decrements, `remaining` stays at the decremented value — it is never restored. The inverse also occurs: if the "winning" device never applied those decrements, `remaining` may be higher than reality.
+
+Observed in backup `gthy-backup-2026-03-26-0708.json`:
+- Oak Field Barn: `remaining=45` (same as `qty=45`) but 6 bales exist in surviving feedEntries
+- Tarped: `remaining=106` with `qty=40` — physically impossible; likely from a prior manual adjustment followed by a `qty` edit that didn't proportionally update `remaining`
+- Peanut Hay: `remaining=17 = qty=17` but 1 bale survives in a feed entry
+
+**Proposed fix:** Add a "Recalculate from feed entries" option to the batch management sheet. Traverses all `S.events[].feedEntries[]` and `S.events[].subMoves[].feedEntries[]`, sums usage per `batchId`, then sets `remaining = qty - consumed`. Should warn the user that manual reconcile adjustments will be overwritten.
+
+---
+
+### OI-0070
+**Source:** User report + Claude observation — b20260326.0757
+**Area:** Drive Sync (`mergeData()` → `ma()`, ~L2157)
+**Severity:** Bug
+**Status:** 🔴 Open
+**Found:** b20260326.0757
+**Closed:** —
+
+Data loss event on 2026-03-26: adding a sub-paddock (K-2) to the K-4 event on desktop bumped `ev.updatedAt` on the desktop copy. When the merge ran, desktop's newer-timestamped K-4 won wholesale — silently discarding mobile's `feedEntries[]` and the closed state of the K-5 sub-move (`durationHours`, `dateOut`). Additionally, ~20 feedback items entered on 2026-03-25 were lost because mobile's S state was overwritten before those items could be written to Drive.
+
+**Partial fix applied b20260326.0757:** `_mergeEventArrays()` now union-merges `feedEntries` and `subMoves` from the losing side regardless of which side wins the `updatedAt` comparison. Closed sub-move state (`durationHours > 0`) is preferred over open state (`0`) when IDs match.
+
+**Remaining risk:** The batch `remaining` field is still a scalar that resolves to the "local-wins" device's value when neither batch record has `updatedAt`. If the winning device's feed entries are missing, `remaining` reflects those missing entries' decrements — see OI-0071. Full mitigation requires either ETag-based Drive locking (true atomicity) or deriving `remaining` from the feedEntries ledger at runtime rather than storing it as a mutable scalar.
+
+---
+
+### OI-0069
+**Source:** Claude observation + User report — b20260325.0037
+**Area:** Drive Sync (`importDataJSON` ~L2265, `driveSync` ~L1958, new `drivePushLocal`)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260325.0037
+**Closed:** b20260325.0037
+
+Three drive sync robustness fixes applied together:
+
+**A — Silent import Drive write failure (root cause of this session's data loss).** `importDataJSON` wrote to Drive in a `.catch()` that only updated the sync status dot for a few seconds — easy to miss, especially while the success toast was also showing. If the PWA token had expired, Drive never received the restored data. Desktop then synced against the stale Drive state (48 items) and wrote 48 back, making both devices wrong.
+
+**Fix A:** Import Drive write failure now shows a persistent red error card at the bottom of Settings. Card does not auto-dismiss. Contains a **"Retry Drive push"** button wired to the new `drivePushLocal()` function. Success path also shows an explicit status message that auto-dismisses after 5s.
+
+**B — No force-push mechanism.** When a device has local truth and Drive is stale, there was no way to explicitly push local state to Drive without relying on the merge cycle.
+
+**Fix B:** New `drivePushLocal()` function. Reads Drive first (so any remote-only data is union-merged in), then writes the merged result back. Called by the import retry button; also callable from console for recovery.
+
+**C — Concurrent-write race in `driveSync()`.** Two devices reading the same stale Drive state both merge and write; whichever writes second overwrites the first device's new data. With the 5-minute poll added in b20260325.0013, this race is more likely — both devices poll around the same interval.
+
+**Fix C:** `driveSync()` re-reads Drive immediately before the final write. If the remote changed between the initial read and the write (i.e. another device wrote in the meantime), it merges again with the fresh data before writing. Shrinks the race window from minutes to ~100ms.
+
+**Data recovery procedure:** Import `Mobile_gthy-backup-2026-03-25-2001.json` directly on desktop via Settings → Import. Watch for "Restored & synced to Drive" confirmation. Mobile then taps Sync Now.
+
+---
+
+### OI-0056
+**Source:** In-app feedback — id:1774374875449 (Tim)
+**Area:** Animals Screen (`renderAnimalsScreen()`, ~L10830)
+**Severity:** 🚧 Roadblock
+**Status:** ✅ Closed
+**Found:** b20260325.0013 (feedback dated 2026-03-24, v1.2)
+**Closed:** b20260328.0157
+
+📋 **Todo** button (amber) added to each animal row. Calls `openAnimalTodoSheet(animalId)` → `openTodoSheet(null, false, animalId)`, pre-selecting that animal in the existing `td-animal` dropdown. Open-todo count badge (amber, 📋 N) added to name line when the animal has any non-closed todos. Data model was already in place — this was a missing entry point.
+
+---
+
+### OI-0057
+**Source:** In-app feedback — id:1774396779567 (Tim) + Claude observation — b20260325.0013
+**Area:** Drive Sync (`mergeData()`, ~L2116; init block, ~L13394)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260325.0013
+**Closed:** b20260325.0013
+
+"Feedback is not syncing properly between desktop and mobile. I have 56 items in my mobile data and only 45 on desktop." Backup diff confirmed 11 feedback items, 2 todos, 1 event, and 2 treatment types on mobile that were absent from desktop.
+
+**Root cause A — No periodic sync poll.** `driveSync()` was only triggered by: app load, `visibilitychange` → visible, and the post-save debounce. A desktop tab left open all day without tab-switching never fired `visibilitychange` and never pulled Drive. Everything added on mobile after ~10:41 AM on March 24th was invisible to desktop all day.
+
+**Root cause B — `treatmentTypes` and `aiBulls` absent from `mergeData()` return.** Both arrays were in `ensureDataArrays()` (so they're initialized) but were never present in the merge return object. Any treatment types or AI bulls created on one device were silently dropped on every sync, regardless of the polling gap.
+
+**Root cause C — `_groupsMigrated` and `_paddocksMigrated` flags absent from `mergeData()` return.** These OR'd boolean migration flags could diverge between devices, causing one-time migrations to re-run on a device where they'd already completed.
+
+**Fixes applied (b20260325.0013):**
+- `mergeData()` return: added `treatmentTypes: ma(...)` and `aiBulls: ma(...)` — union-merge by `id`, same pattern as `todos` and `feedback`
+- `mergeData()` return: added `_groupsMigrated` and `_paddocksMigrated` — OR'd booleans, same pattern as `_herdMigrated`
+- Init block: added `setInterval` (5 min / 300,000ms) — fires `driveSync()` when token is valid; ensures open tabs stay current with Drive even without visibility events
+
+**Data recovery note:** Deploy b20260325.0013 to both devices. Load mobile first (it has the complete data — 59 feedback, 2 treatment types, 8 events, 2 todos). It will push to Drive. Desktop will pull on next sync cycle (≤5 min) and merge in all missing items cleanly.
+
+---
+
+### OI-0058
+**Source:** In-app feedback — id:1774356724442
+**Area:** Rotation Calendar (`renderRotationCalendar()`, ~L11971)
+**Severity:** Bug
+**Status:** 🔴 Open
+**Found:** b20260325.0013 (feedback dated 2026-03-24, v1.2)
+**Closed:** —
+
+"Sub moves that are pasture (versus the primary bale grazing paddock) should be green on the rotation calendar." Currently all sub-move blocks use the same colour as the parent event (hay/tan). A sub-move on a grazing paddock should use the green pasture colour to correctly represent where the animals actually are and what the fertility picture looks like.
+
+**Fix:** In `renderRotationCalendar()`, when rendering a sub-move block, check `sm.noPasture`. If false (or undefined for legacy records), render it with the pasture/green style. If true, render with the hay/tan style.
+
+---
+
+### OI-0059
+**Source:** In-app feedback — id:1774356942281
+**Area:** Architecture / Calculations — cross-cutting
+**Severity:** Enhancement
+**Status:** 🔵 Open
+**Found:** b20260325.0013 (feedback dated 2026-03-24, v1.2)
+**Closed:** —
+
+"Audit all calculation related functions for proper logic etc. Document all calculations occurring in the application in the architecture document in both equation form as well as narrative so that the reader can understand the context. Will be used to verify calculations are dialed in as they are key to the fertility ledger being useful and accurate."
+
+**Deferred:** Schedule a dedicated calculation audit session. Output: a Calculations section in ARCHITECTURE.md covering DMI inference, NPK attribution, AUD computation, pasture % split, sub-move time-weighting, and per-paddock grass DMI attribution — each with equation + narrative.
+
+---
+
+### OI-0060
+**Source:** In-app feedback — id:1774361239173 (Tim)
+**Area:** Rotation Calendar (`renderRotationCalendar()`, ~L11971)
+**Severity:** Polish
+**Status:** 🟡 Open
+**Found:** b20260325.0013 (feedback dated 2026-03-24, v1.2)
+**Closed:** —
+
+"In rotation calendar highlight currently active paddocks." Open events (status `'open'`) should be visually distinct from closed events in the calendar grid — e.g. a pulsing border, brighter fill, or "ACTIVE" label on the current bar — so the farmer can immediately see which paddocks are occupied right now.
+
+---
+
+### OI-0061
+**Source:** In-app feedback — id:1774375050876 (Tim) + id:1774375067914 (Tim) + id:1774376187163 (Tim)
+**Area:** Animal Edit Sheet (`openAnimalEdit`, ~L7579) + Treatment Sheet (`openAnimalEventSheet`, ~L6342)
+**Severity:** Enhancement
+**Status:** 🔵 Open
+**Found:** b20260325.0013 (feedback dated 2026-03-24, v1.2)
+**Closed:** —
+
+Three related treatment UX requests, batched together:
+
+**A — Treatment accessible from Edit Animal sheet:** "In edit animal allow for treatment." Launching a treatment entry currently requires going to the animal's action buttons on the list. Should also be accessible from inside the edit sheet.
+
+**B — Multiple treatments at once:** "Allow multiple treatment selection at one time." When treating an animal (e.g. castration + worming on the same day), the user should be able to select and log multiple treatment types in a single health event entry.
+
+**C — Treatment type auto-populates fields:** "Treatment type should populate other treatment fields when appropriate." Selecting a treatment type from the type list should pre-fill relevant fields (dose, unit, withdrawal period) based on the selected treatment type's defaults — requires adding optional default fields to the `treatmentTypes` schema.
+
+**Deferred:** Design session needed for the multi-treatment model (single health event with multiple treatment refs vs multiple events).
+
+---
+
+### OI-0062
+**Source:** In-app feedback — id:1774377202625 (Tim)
+**Area:** To-Do System (`openTodoSheet`, ~L2921)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260325.0013 (feedback dated 2026-03-24, v1.2)
+**Closed:** b20260328.0157
+
+Root cause: `openTodoSheet` called `getActive()` → `getAnyActiveEvent()` = `S.events.find(e=>e.status==='open')` — the first open event in the array, regardless of user context. Fix: removed the `getActive()` call. Paddock is now blank by default for all new todos except when launched from the Move Wizard with `fromWiz && wizPaddockForTodo` set.
+
+---
+
+### OI-0063
+**Source:** In-app feedback — id:1774375315950 (Tim)
+**Area:** Animals Screen (`renderAnimalsScreen()`, ~L10830)
+**Severity:** Polish
+**Status:** 🟡 Open
+**Found:** b20260325.0013 (feedback dated 2026-03-24, v1.2)
+**Closed:** —
+
+"When selecting animal from list the add to group question jumps the list ahead. Keep it still." Tapping an animal in the list causes a UI element (group assignment prompt) to expand inline, which shifts the scroll position and makes the user lose their place.
+
+**Fix:** When the group prompt expands on an animal row, preserve scroll position. Options: (a) expand below the tapped row without reflowing the list; (b) open the group prompt in a sheet instead of inline; (c) scroll the viewport to keep the tapped row at its original screen position after the DOM reflow.
+
+---
+
+### OI-0064
+**Source:** In-app feedback — id:1774381838610 (Tim)
+**Area:** Quick Feed Sheet (`openQuickFeedSheet`, ~L3222)
+**Severity:** Enhancement
+**Status:** 🔵 Open
+**Found:** b20260325.0013 (feedback dated 2026-03-24, v1.2)
+**Closed:** —
+
+"Add required DMI to feed dialog with progress bar." When entering feed on the Quick Feed sheet, the user should be able to see the event's total DMI target and a progress bar showing how much of that has been covered by feed entries already logged for the current day. Helps the farmer know if they've fed enough.
+
+**Fix:** In `qfSelectEvent()` / the step-2 form render, call `getGroupTotals()` across all active groups in the event to compute total daily DMI target. Show a compact `DMI target: X lbs/day` line and a progress bar filled by `feedEntriesToday / dmiTarget`. Use the same amber progress style as the Feed screen dashboard tile.
+
+---
+
+### OI-0065
+**Source:** In-app feedback — id:1774385774185 (Tim)
+**Area:** Rotation Calendar (`renderRotationCalendar()`, ~L11971)
+**Severity:** Enhancement
+**Status:** 🔵 Open
+**Found:** b20260325.0013 (feedback dated 2026-03-24, v1.2)
+**Closed:** —
+
+"Render pasture status on rotation view with green gradient showing survey status of pasture. Single vertical for each inactive pasture with red bar indicating current min max." 
+
+Inactive paddocks (not currently grazed) should be shown as a vertical status bar to the right of the calendar's "today" line. Height of the green fill = current survey rating (% of estimated full growth). A red band = the min–max grazing window. This gives the farmer a full picture — historical occupancy on the left, current forage availability on the right — in one view.
+
+**Related to OI-0066** — the "today" vertical line is a prerequisite.
+
+**Deferred:** Design session needed. Touches calendar layout, pasture survey data (`S.surveys`), and the min–max recovery window computation.
+
+---
+
+### OI-0066
+**Source:** In-app feedback — id:1774386129481 (Tim)
+**Area:** Rotation Calendar (`renderRotationCalendar()`, ~L11971)
+**Severity:** Enhancement
+**Status:** 🔵 Open
+**Found:** b20260325.0013 (feedback dated 2026-03-24, v1.2)
+**Closed:** —
+
+"Rotation View — after historic and active paddocks render a vertical line representing 'today' on right side of line is current inactive pasture status bars."
+
+A vertical "today" line should divide the calendar into: left = historical record, right = future / current status. Inactive paddocks' status bars (OI-0065) appear to the right of this line.
+
+**Prerequisite for OI-0065.** Together these two items form a full rotation dashboard.
+
+---
+
+### OI-0067
+**Source:** In-app feedback — id:1774386058617 (Tim)
+**Area:** Feedback Tab (`renderFeedbackTab()`, ~L6222; `openFeedbackSheet()`, `saveFeedbackItem()`)
+**Severity:** Enhancement
+**Status:** 🔵 Open
+**Found:** b20260325.0013 (feedback dated 2026-03-24, v1.2)
+**Closed:** —
+
+"Feedback — add area field so user can refer to specific functions and they can be grouped for development. Allow editing of feedback with time stamp for edits."
+
+Two sub-features:
+**A — Area field:** Free-text or dropdown on the feedback submission form. Stored as `f.area`. Used as a grouping/filter dimension in `renderFeedbackList()` and `generateBrief()`.
+**B — Editable feedback:** Allow the user to edit an existing feedback item's note or area after submission. Edit saves an `f.editedAt` timestamp.
+
+---
+
+### OI-0068
+**Source:** In-app feedback — id:1774356942281 (idea — see OI-0059) + id:1774351616357 (idea — "Look at feedback architecture to anticipate multiple instances of the app in the future...")
+**Area:** Feedback System — future architecture
+**Severity:** Enhancement
+**Status:** 🔵 Open
+**Found:** b20260325.0013
+**Closed:** —
+
+"Look at feedback architecture to anticipate multiple instances of the app in the future. Store feedback in central repository so that gathering and response can be automated in the future." Long-horizon idea — no immediate action. Logged for awareness when designing any future multi-tenancy or server-side infrastructure.
+
+**Deferred:** No action until multi-instance architecture is on the roadmap.
+
+---
+
+### OI-0041
+**Source:** In-app feedback — id:1774290156334
+**Area:** Home Screen / Quick Feed Sheet (`closeQuickFeedSheet`, ~L3219)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260324.0910 (triage)
+**Closed:** b20260324.0955
+
+Quick Feed sheet opened from home screen (via Feed button on group card or location card) did not return to home on cancel. The save path (`saveQuickFeed`) already snapshotted `qfFromHome` before calling `closeQuickFeedSheet()` and navigated home correctly. The cancel path — both the Cancel button and backdrop tap — called `closeQuickFeedSheet()` directly, which reset `qfFromHome=false` before the nav check could run, always leaving the user on the Feed screen.
+
+**Fix:** `closeQuickFeedSheet()` now snapshots `_returnHome = qfFromHome` before resetting the flag, then calls `nav('home',...)` when true. The closed-event guard path also benefits.
+
+---
+
+### OI-0040
+**Source:** In-app feedback — id:1774290092842 + id:1774290156334 + id:1774290232282
+**Area:** Home Screen — `renderLocationCard()` + `renderGroupCard()` (~L2696, ~L2800)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260324.0910 (triage)
+**Closed:** b20260324.0955
+
+Home screen lacked a consistent semantic split between the two views. Key problems:
+- Feed button appeared per-group in location view (should be event-level)
+- Move button on individual groups in location view launched the full close-event wizard (should open Event Edit for single-group departure)
+- Group view contained Feed, Sub-move, and "Edit event" buttons — actions that belong to the event, not the group
+- No "Move All" option at location card level
+
+**Fix — Location view (`renderLocationCard`):**
+- Per-group rows: **Move** (opens Event Edit) + **⚖ Weights** only. Feed and Split removed.
+- Card-level: **Feed** · **Move All** · **Sub-move** · **Edit event**
+
+**Fix — Group view (`renderGroupCard`):**
+- Buttons: **Move** (placed → Event Edit; unplaced → Place wizard) · **Split** · **Weights** · **Edit** (opens `openEditGroupSheet`)
+- Removed: Feed, Sub-move, Edit event
+
+**New helpers added:**
+- `goFeedEvent(evId)` (~L3434) — event-level feed bridge; finds first active group, delegates to `goFeedGroup`
+- `moveAllGroupsInEvent(evId)` (~L2930) — collects all active group IDs, sets `wizGroupIds`, launches Move Wizard
+
+---
+
+### OI-0035
+**Source:** Claude observation — b20260324.0910
+**Area:** Drive Sync — `mergeData()` union-merge identity keys (~L2110)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260324.0910
+**Closed:** b20260324.0910
+
+Both union-merge blocks introduced in b20260324.0235 (equal-timestamp) and b20260324.0859 (no-timestamp) used `i.id` as the identity key for **all** sub-arrays including `groups` and `paddocks`. These arrays do not have an `id` field — `groups` uses `groupId` and `paddocks` uses `pastureId`. Because `i.id` was `undefined` for every element, `seen` = `{undefined}` and `seen.has(undefined)` returned `true` for every remote item — causing all remote `groups` and `paddocks` entries to be silently filtered out. The union-merge appeared to run but produced no additions.
+
+**Confirmed by screenshots:** After deploying b20260324.0859 and restoring the merged backup, Desktop showed "K - 4, K - 5" correctly but Mobile still showed "K - 4" only after syncing — the K-5 paddock was being discarded on every merge despite the fix code running.
+
+**Fix:** Both blocks now use a per-array identity helper: `arrKey==='groups' ? i.groupId : arrKey==='paddocks' ? i.pastureId : i.id`. The `seen` set filters out null/undefined values. Remote items are only added when their identity key is non-null and not already in the seen set.
+
+---
+
+### OI-0034
+**Source:** Claude observation — b20260324.0910
+**Area:** Drive Sync — `mergeData()` no-timestamp fallback (~L2128)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260324.0910
+**Closed:** b20260324.0910
+
+The `mergeData()` no-timestamp fallback (reached when **neither** record has `updatedAt`) previously compared `feedEntries.length` and `subMoves.length` and replaced the entire record if the remote had more entries. `paddocks` was never checked — so if local had fewer paddocks than remote but equal subMoves and feedEntries counts, local won silently and the remote paddock was dropped.
+
+**Confirmed by live backup diff:** After restoring the merged backup in b20260324.0235, Mobile synced and the K-5 paddock (added to event 1774197894299 on Desktop on March 21) was dropped again. Both devices had the same subMove count (1 each, same ID), so the length check never fired — local (Mobile, K-4 only) won.
+
+**Fix:** Replaced the whole-record length-comparison fallback with the same union-merge logic used by the equal-timestamp path: union-merges `groups`, `paddocks`, `subMoves`, and `feedEntries` by `id`, taking all items from either side. This is now the default for any record without `updatedAt` — guarantees no additions are lost regardless of which device is local.
+
+---
+
+### OI-0033
+**Source:** Claude observation — b20260324.0910
+**Area:** Drive Sync — `mergeData()` (~L2098)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260324.0910
+**Closed:** b20260324.0910
+
+`mergeData()` used a strict greater-than comparison for `updatedAt` timestamps: when two records had **equal** timestamps the remote changes were silently discarded (local always won). This is the "silent data loss" vector for concurrent edits made within the same second or for records where the stamp wasn't bumped before save.
+
+**Fix:** When both records have identical `updatedAt` values the merge now union-merges their `groups`, `paddocks`, and `subMoves` sub-arrays (new IDs from the remote side are appended; existing IDs kept from local). Scalar fields still default to local. This acts as a safety net even after all timestamp-bump fixes are in place.
+
+---
+
+### OI-0032
+**Source:** Claude observation — b20260324.0910
+**Area:** Drive Sync — event and animal mutation functions (14 sites)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260324.0910
+**Closed:** b20260324.0910
+
+`mergeData()` resolves conflicts by comparing `ev.updatedAt` / `a.updatedAt`. Fourteen mutation functions were saving changes to events or animals **without bumping these timestamps**, making the merge unable to determine which device had the newer version — causing silent data loss on sync.
+
+**Root cause confirmed by backup diff:** Mac and Mobile diverged on 3 events and 1 animal after their last successful sync. The differing events had identical `updatedAt` on both devices despite different content — Mac had made further edits (added Culls group, changed head/wt snapshot, added K-5 paddock) without bumping the timestamp. Mobile's stale version silently won every merge.
+
+**Sites fixed (14 new stamps added):**
+
+| Function | What changed |
+|---|---|
+| `wizCloseEvent` | `ae.updatedAt` before `save()` |
+| `saveSubMove` | `ev.updatedAt` before `save()` |
+| `saveSmClose` | `ev.updatedAt` before `save()` |
+| `deleteSubMove` | `ev.updatedAt` before `save()` |
+| `saveEventEdit` | `ev.updatedAt` before `save()` |
+| `applyEeGroupMoveActions` | `targetEv.updatedAt` when group pushed to destination event |
+| `saveAnimalEdit` (edit path) | `a.updatedAt` before `save()` |
+| `saveAnimalWeight` | `a.updatedAt` before `save()` |
+| Health event save | `a.updatedAt` before `save()` |
+| `deleteAnimalEvent` | `a.updatedAt` before `save()` |
+| `saveSplit` loop 1 (split-from note) | `a.updatedAt` inside `forEach` |
+| `saveSplit` loop 2 (moved-to note) | `a.updatedAt` inside `forEach` |
+| `logGroupChange` helper (`saveAnimalMove`) | `a.updatedAt` inside helper — covers both existing and new-group move paths |
+| `saveCalving` | `dam.updatedAt` before `save()` |
+
+**Pre-existing stamps (untouched — already correct):** `saveQuickFeed`, `addEeFeedEntry`, `deleteEeFeedEntry`, `saveSplit` srcAe/destAe event snapshots.
+
+**Restore procedure:** Deploy `b20260324.0910` to both devices first, then restore `gthy-merged-2026-03-24-2210.json` on one device. It will push to Drive. Open the other device — it will sync cleanly with the corrected merge logic.
+
+---
+**Source:** Claude observation — b20260323.2354
+**Area:** Sub-Move System (`openSubMoveSheet`, `saveSubMove`, ~L9030)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260323.2354
+**Closed:** b20260324.0054
+
+Active sub-moves (durationHours: 0) can now be closed from the sub-move sheet. Six new functions added: `renderSmExistingList(ev)`, `openSmCloseForm(smId)`, `cancelSmClose()`, `calcSmCloseDuration()`, `saveSmClose()`, `deleteSubMove(evId, smId)`. New `sm.dateOut` field added for multi-day return tracking. `openSubMoveSheet` now calls `renderSmExistingList` and `cancelSmClose` on open. Sheet HTML restructured with "Recorded sub-moves" section at top and inline close form revealed per active sub-move. Full lifecycle documented in ARCHITECTURE Critical Behavioral Notes.
+
+---
+
+### OI-0031
+**Source:** Claude observation — b20260323.2354
+**Area:** ARCHITECTURE.md — systematic drift
+**Severity:** Debt
+**Status:** ✅ Closed
+**Found:** b20260323.2354
+**Closed:** b20260324.0112
+
+Full architecture audit completed. All discrepancies resolved in ARCHITECTURE.md b20260324.0112:
+
+**Line ranges recalibrated** — every section from `renderEventsLog` onward was off by 800–1,600 lines due to ~520 lines of accumulated growth. All corrected to grep-verified actuals. File header updated: `~13,872` → `~14,392` lines.
+
+**Screen Map corrected** — `renderEventsLog` ref `~5013` → `~5805`; `renderRotationCalendar` ref `~L11782` → `~L11971`; duplicate warning block removed.
+
+**Data Model expanded** — `S.treatmentTypes` now documents `category` field; `S.testerName` and legacy `S.version` added; `S.settings` expanded from a one-liner into a full 14-field sub-table.
+
+**Key Utility Functions corrected** — `closeGroup()` (does not exist) replaced with `startMoveGroup()` and three undocumented companion functions: `setMoveGroupExisting()`, `setMoveGroupWizard()`, `cancelGroupMove()`; treatment system functions added: `editTreatmentType()`, `cancelEditTreatment()`, `_mtResetForm()`.
+
+**Two new Critical Behavioral Notes added** — Treatment Type Categories (TREATMENT_CATEGORIES constant, `_editingTreatmentId` state machine, dual list renderer gotcha); Multi-Group Event Departure Flow (`_moveAction` state machine, explicit `closeGroup()` tombstone warning).
+
+---
+
+### OI-0016
+**Source:** In-app feedback — id:1774259652890
+**Area:** Animals Screen (`renderAnimalsScreen()`, ~L9626)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260322.2207 (feedback dated 2026-03-23, v1.1)
+**Closed:** b20260323.2336
+
+A delete (✕) button was appearing on each row in the main animal list. Removed the button and its `onclick="deleteAnimalFromScreen()"` call from the row template in `renderAnimalsScreen()`. Cull action remains accessible only from within the animal edit sheet (`#ae-cull-section`).
+
+---
+
+### OI-0017
+**Source:** In-app feedback — id:1774259757925
+**Area:** Treatments Sheet / Animal Health Events (~L4612 JS, ~L13865 HTML)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260322.2207 (feedback dated 2026-03-23, v1.1)
+**Closed:** b20260323.2354
+
+**A — Centering:** Not a regression — the `manage-treatments-wrap` uses the standard `.sheet-wrap` / `.sheet` classes which have the correct desktop centering rule (`calc(220px + ((100vw - 220px) / 2))`). Structure is identical to `manage-classes-wrap` which centers correctly.
+
+**B — Existing treatments editable:** Implemented. Each active treatment row now has an Edit button. Tapping populates the form with the existing name and category, changes the button label to "Save changes", and shows a Cancel button. `_editingTreatmentId` tracks edit state. `editTreatmentType(id)`, `cancelEditTreatment()`, `_mtResetForm()` added. Duplicate name check in edit mode excludes the item being edited.
+
+**C — Treatment categories:** Implemented. `TREATMENT_CATEGORIES` constant defines six categories: Vaccine, Parasite Control, Antibiotic, Wound/Surgery, Nutritional, Other. A category `<select>` added to the sheet form alongside the name field. Category stored as `t.category: string | null` on each treatment type. Category badge shown on each row in the manage list.
+
+---
+
+### OI-0018
+**Source:** In-app feedback — id:1774259962696
+**Area:** Animals Screen / Animal Edit Sheet (`renderAnimalsScreen()`, `closeAnimalEdit()`)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260322.2207 (feedback dated 2026-03-23, v1.1)
+**Closed:** b20260323.2336
+
+**A — Fixed:** `closeAnimalEdit()` now calls `renderAnimalsScreen()` when `curScreen==='animals'`, so changes in the edit sheet are immediately reflected in the list on close. The save path (`saveAnimalEdit` already called `renderAnimalsScreen()`) now also runs it on close-without-save.
+
+**B — Retag delay:** Not reproduced in code review. The save path calls `save()` + `renderAnimalsScreen()` sequentially with no async gaps. If the delay resurfaces, profile the `save()` call on a large dataset.
+
+---
+
+### OI-0019
+**Source:** In-app feedback — id:1774260052866
+**Area:** Animals Screen (`renderAnimalsScreen()`, ~L9626)
+**Severity:** Polish
+**Status:** ✅ Closed
+**Found:** b20260322.2207 (feedback dated 2026-03-23, v1.1)
+**Closed:** b20260324.1030
+
+Animals screen filter area rebuilt.
+
+**A — Compact chip pills:** `<select>` dropdown replaced with `.agc-chips` container of inline-flex pill chips (`.agc-chip`). Chips render All + one per group (with color dot) + Unassigned (when relevant). Active chip highlighted green. Chips wrap horizontally — no vertical stacking. The hidden `<select>` is kept for state compatibility with `filterAnimalsByGroup()`.
+
+**B — Search below chips:** Search bar moved below the chip row. "Show culled" + "+ Add animal" controls sit in a compact row below search.
+
+**C — Sticky header:** The entire filter area (chips + search + controls) is wrapped in `.agc-wrap { position:sticky; top:0; z-index:20; background:var(--bg) }` so it stays anchored while the animal list scrolls below.
+
+---
+
+### OI-0020
+**Source:** In-app feedback — id:1774260146466
+**Area:** Animals Screen (`renderAnimalsScreen()`)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260322.2207 (feedback dated 2026-03-23, v1.1)
+**Closed:** b20260323.2336
+
+The toggle-off logic already existed in `filterAnimalsByGroup()` but was not visually communicated. Fixed by updating the active group chip in `renderGroupsList()` to show a `✕ clear filter` badge (green, cursor:pointer) when that group is the active filter. Tapping the chip again deselects it and restores the full list.
+
+---
+
+### OI-0021
+**Source:** In-app feedback — id:1774260349182
+**Area:** Animal Move / Event Totals (`calcEventTotalsWithSubMoves`, ~L8093)
+**Severity:** Enhancement
+**Status:** 🔵 Open
+**Found:** b20260322.2207 (feedback dated 2026-03-23, v1.1)
+**Closed:** —
+
+When an animal is moved into or out of a group from the Animals screen (e.g. culled mid-event, or added retroactively), the open event the group is attached to does not recalculate AU/AUDs based on the actual animal membership window. Example: a cow is retroactively recorded as culled on day 2 of a 6-day event — she should only count toward AUDs for 2 days, not the full 6.
+
+This is relevant for accurate DMI inference and fertility ledger accounting — AUD × DMI rate is the basis for the pasture withdrawal calculation.
+
+**Architectural note:** `calcEventTotalsWithSubMoves()` currently uses the group's current headcount and weight. It needs access to per-animal entry/exit timestamps to correctly apportion AUDs. This is a data model question as well as a calculation one — animal join/leave dates may not be stored at sufficient resolution today.
+
+**Deferred:** Needs a design conversation about animal membership history before coding.
+
+**Acceptance criteria:** AUD and DMI totals for an event reflect the actual animal membership window, not the current group composition at recalc time.
+
+---
+
+### OI-0022
+**Source:** In-app feedback — id:1774260409016
+**Area:** Animal Health Events / BCS Survey (`openAnimalEventSheet`, ~L6342)
+**Severity:** Enhancement
+**Status:** 🔵 Open
+**Found:** b20260322.2207 (feedback dated 2026-03-23, v1.1)
+**Closed:** —
+
+When recording a Body Condition Score (BCS) event on an animal, a "Likely cull" checkbox should be available. This flag would allow the farmer to mark animals of concern at survey time without immediately processing a cull. A filterable "Likely cull" list would then be useful in Reports for culling decision support.
+
+**Data model:** Add `likelyCull: bool` to the `bcs` health event type. Add a filter for `likelyCull: true` to the Animals screen and/or Reports animals tab.
+
+**Acceptance criteria:** BCS event sheet has a "Likely cull" checkbox. Animal rows or the Reports animals tab can be filtered to show only animals with a `likelyCull: true` BCS event in their history.
+
+---
+
+### OI-0023
+**Source:** In-app feedback — id:1774260536657
+**Area:** Pastures Screen (`renderPastures()`, ~L5104)
+**Severity:** Enhancement
+**Status:** 🔵 Open
+**Found:** b20260322.2207 (feedback dated 2026-03-23, v1.1)
+**Closed:** —
+
+No way to view the grazing history for a specific pasture/paddock — past events, dates, groups, AUDs, feed applied, survey ratings, and recovery periods. This is directly relevant to the fertility ledger concept: the per-paddock history is the record of fertility transactions for that location.
+
+**Fix:** Add a "View history" action on each pasture card that opens a sheet or navigates to a filtered view of all events (open and closed) for that paddock. Ideally includes: event dates, group(s), AUDs, feed entries, survey ratings pre/post, and recovery period.
+
+**Acceptance criteria:** Tapping "History" on a pasture card shows all historical grazing events for that location, oldest to newest, with key metrics per event.
+
+---
+
+### OI-0024
+**Source:** In-app feedback — id:1774260638046
+**Area:** Rotation Calendar (`renderRotationCalendar()`, ~L11782)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260322.2207 (feedback dated 2026-03-23, v1.1)
+**Closed:** b20260323.2336
+
+`eventAUDs()` inside `renderRotationCalendar()` returned 0 for open events where `ev.head`/`ev.wt` were not stamped on the event record (group-based events). Fixed: open events now fall back to live group totals via `evGroups(ev)` + `getGroupTotals()` when `ev.head` is missing. Season total AUDs in the right-hand sticky column now populate for open events.
+
+---
+
+### OI-0025
+**Source:** In-app feedback — id:1774260688519
+**Area:** Rotation Calendar (`renderRotationCalendar()`, ~L11782)
+**Severity:** Polish
+**Status:** ✅ Closed
+**Found:** b20260322.2207 (feedback dated 2026-03-23, v1.1)
+**Closed:** b20260323.2336
+
+Replaced group-color coding with semantic content-based colors: **green (#639922) for pasture grazing events**, **tan (#C4A882) for 100% stored-feed / confinement events**. `grpColor()` helper removed from within `renderRotationCalendar()` and replaced with `evCalColor(ev)`. Legend updated to show "Pasture grazing" / "Hay / stored feed" / "Sub-move" instead of group names.
+
+---
+
+### OI-0026
+**Source:** In-app feedback — id:1774260722747
+**Area:** Rotation Calendar (`renderRotationCalendar()`, ~L11782)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260322.2207 (feedback dated 2026-03-23, v1.1)
+**Closed:** b20260323.2336
+
+Sub-move locations were never included in `paddockNames` — only main event `ev.paddocks[]` were collected. Fixed in three places: (1) `subMovePaddockNames` now collects all `sm.locationName` values across all events and merges them into `paddockNames`. (2) The week-map builder now creates `windows[]` entries for both main-event paddock spans and sub-move spans, with the main paddock window clipped to end when the first sub-move departs. (3) Sub-move cells render with a dashed top border to visually distinguish them from main-event blocks. Hover tooltip includes `(sub-move)` label.
+
+---
+
+### OI-0027
+**Source:** In-app feedback — id:1774260870487
+**Area:** Sub-Move System (`saveSubMove`, ~L9257)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260322.2207 (feedback dated 2026-03-23, v1.1)
+**Closed:** b20260323.2336
+
+Removed the `'\nDuration not set — edit to add hours later.'` branch from the `saveSubMove` success alert. When `hrs === 0`, the alert now simply confirms the location without any warning. The pasture % line only appears when hours were entered, as before.
+
+---
+
+### OI-0028
+**Source:** In-app feedback — id:1774271115141
+**Area:** Home Screen / Header (`renderHome()` or header HTML, ~L2238)
+**Severity:** Polish
+**Status:** ✅ Closed
+**Found:** b20260322.2207 (feedback dated 2026-03-23, v1.2)
+**Closed:** b20260324.1030
+
+Mobile header restructured to two-row layout. `.hdr` now uses `flex-direction:column` on mobile — row 1 is full-width title ("Get The Hay Out") + operation name; row 2 is sync indicator, build tag, Field button, and avatar. Desktop overrides back to the original single-row `flex-direction:row` layout via `body.desktop .hdr`. Operation name in `updateHeader()` simplified to show the farm name only — head count and group count removed to reduce character width.
+
+---
+
+### OI-0029
+**Source:** In-app feedback — id:1774271246604
+**Area:** Events Log (`renderEventsLog()`, ~L5013)
+**Severity:** Polish
+**Status:** 🟡 Open
+**Found:** b20260322.2207 (feedback dated 2026-03-23, v1.2)
+**Closed:** —
+
+In the event log, the parent event and its sub-moves are displayed as separate entries with no visual connection. The request is to consolidate them visually — showing the parent event as a container with sub-moves nested or indented beneath it, making the full grazing journey of a group across multiple paddocks readable as a single flow.
+
+**Fix:** In `renderEventsLog()`, group events and their sub-moves. Render the parent event as a header row with sub-moves displayed as child rows beneath it (indented, lighter style). A timeline or chain connector between sub-moves would reinforce the sequential nature.
+
+**Acceptance criteria:** Parent event and all associated sub-moves render as a consolidated visual unit in the event log. The paddock sequence and date flow are easy to read at a glance.
+
+---
+
+### OI-0015
+**Source:** Claude observation — b20260322.2021
+**Area:** Calving Sheet / Animal Edit Sheet (~L8603 `openCalvingSheet`, ~L12382 sheet HTML)
+**Severity:** Polish
+**Status:** 🟡 Open
+**Found:** b20260322.2021
+**Closed:** —
+
+The calving sheet title ("Record calving"), date label ("Calving date"), and calf sex options ("Female (heifer calf)" / "Male (bull/steer calf)") are hardcoded to cattle terminology. The `birthTermForSpecies()` and `youngTermForSpecies()` helpers introduced in b20260322.2021 are already in place but not yet wired to the sheet.
+
+**Fix:** In `openCalvingSheet()`, derive the dam's species from her class, call `birthTermForSpecies()` and `youngTermForSpecies()`, then update the sheet title, date label, and calf sex option text before opening. No data model changes required.
+
+**Affected elements:**
+- Sheet title: `<div …>Record calving</div>` → e.g. "Record lambing"
+- Date label: `<label>Calving date</label>` → "Lambing date" / "Kidding date" etc.
+- Calf sex options: "Female (heifer calf)" → "Female (ewe lamb)" etc.
+- `#calving-dam-label` prefix is already dynamic — no change needed there
+
+**Acceptance criteria:** When opening the calving sheet for a sheep dam, the title reads "Record lambing", date field reads "Lambing date", and sex options use lamb terminology. Cattle dams unchanged. Falls back gracefully to "Birth" for unknown species.
+
+---
+
+### OI-0004
+**Source:** Claude observation — b20260322.1336
+**Area:** Events Screen / Code Organisation (~L3549, ~L5013)
+**Severity:** Debt
+**Status:** ⚪ Open
+**Found:** b20260322.1336
+**Closed:** —
+
+`renderEventsLog()` is physically located at ~L5013, roughly 1,400 lines past the `// ─── EVENTS ───` section header at ~L3549. The Batch Adjustment / Reconcile section (~L4796–5011) was inserted between `switchEventsView()` and `renderEventsLog()` at some point, displacing the render function far from its logical home. The JS TOC and ARCHITECTURE.md have been annotated to call this out, but the underlying organisation is confusing for navigation and future editing — a developer searching near the Events header will not find the render function.
+
+**Fix:** Move `renderEventsLog()` (and any helpers it calls that are currently orphaned in that area) up to sit directly after `switchEventsView()` at ~L3796. Verify with `grep -n "renderEventsLog"` before and after to confirm no dangling references.
+
+**Acceptance criteria:** `renderEventsLog()` is within ~50 lines of `switchEventsView()`. TOC and ARCHITECTURE.md line references updated to match. Syntax check passes.
+
+---
+
+
+### OI-0005
+**Source:** Claude observation — b20260322.1930
+**Area:** Event Edit / Paddock Feed Attribution
+**Severity:** Enhancement
+**Status:** 🔵 Open
+**Found:** b20260322.1930
+**Closed:** —
+
+Per-paddock feed and residual tracking. In multi-paddock events (e.g. bale grazing in G1 while also using G2/G3), all `feedEntries[]` currently live at the event level with no paddock attribution. Two sub-features were identified: (A) optional `paddockId` tag on feed entries for reporting which paddock consumed which feed; (B) per-paddock residual % settings for events where animal density differs per paddock. Both require changes to `recalcEventTotals()` and the feed entry UI.
+
+**Deferred:** Flagged during b20260322.1930 paddock lifecycle session. Agreed to leave feed at event level for now and revisit as a dedicated enhancement.
+
+**Acceptance criteria:** Feed entries can optionally be tagged to a paddock. Per-paddock residual % field appears on closed paddock chips. `recalcEventTotals()` apportions DMI by paddock window when tags are present.
+
+---
+
+---
+
+### OI-0006
+**Source:** Claude observation — b20260322.1353
+**Area:** Field Mode / Home Screen (~renderFieldHome)
+**Severity:** Enhancement
+**Status:** 🔵 Open
+**Found:** b20260322.1353
+**Closed:** —
+
+`renderFieldHome()` is currently a stub that shows a single "Log Feed" button and a placeholder message. The intended implementation is a large-icon tile grid with per-user configurable modules (feed, pasture survey, move, weight entry). Each tile launches its task handler sheet directly without navigating through the full app.
+
+Three sub-items deferred from the b20260322.1353 field-mode foundation session:
+
+**A — Tile grid UI:** Full-width, 2-column grid of large tappable tiles. Each tile has an icon, a label, and an `onclick` that calls the relevant sheet open function. Touch targets sized for gloved hands / outdoor use (min 80px height).
+
+**B — Per-user module selection:** "Configure field home" sheet accessible from the field home screen or user profile in Settings. User can toggle which modules appear. Config stored in `user.fieldModules[]` (array of module keys, e.g. `['feed','survey','move']`).
+
+**C — Individual task handler sheets:** Each field-mode module may need a simplified version of its sheet (full label text, larger tap targets, no secondary actions). Scope TBD per module — some existing sheets may be usable as-is.
+
+**Fix:** Dedicate a session to field home. Design the tile grid, implement module selection, wire at least Feed and Survey as the first two live tiles. Stub remaining tiles.
+
+**Acceptance criteria:** `renderFieldHome()` renders a configurable tile grid. At minimum Feed and Pasture Survey tiles are functional. Per-user module list persists across sessions. Entering field mode on mobile lands on this screen.
+
+---
+
+### OI-0014
+**Source:** In-app feedback — id:1774204169720 (note: "stage the feed prior to actually moving the group of animals to that location...")
+**Area:** Events / Move Wizard / Feed Screen — architectural
+**Severity:** Enhancement
+**Status:** 🔵 Open
+**Found:** b20260322.1421 (feedback dated 3/22/2026, v1.1)
+**Closed:** —
+
+Request for a "suspended" or "staged" event type. The use case: in bale grazing or 100% stored-feed situations, the farmer physically stages feed (places bales) before moving animals. They want to record the feed at staging time, not at move time. The full flow requested:
+
+1. User creates a "suspended" future event — records location and feed entries, but no animal group is attached yet
+2. Later, when animals actually move, the user either:
+   - Runs the Move Wizard and selects an existing suspended event to "activate" it (attaches the group and opens the event), or
+   - Opens the suspended event directly and initiates the Move Wizard from there
+3. Suspended events appear in a distinct state in the event list and on the pastures screen
+
+**Architectural note:** This introduces a new event lifecycle state (`suspended` → `open` → `closed`), which touches the event data model, the Move Wizard, the rotation calendar, and possibly the pastures screen. Needs a dedicated design session before any code.
+
+**Deferred:** Schedule a design conversation to spec the data model changes before tackling in code.
+
+**Acceptance criteria:** A suspended event can be created with location and feed data but no group. The Move Wizard can "claim" a suspended event when moving animals to its location. The event list and pastures screen visually distinguish suspended events.
+
+---
+
+### OI-0036
+**Source:** In-app feedback — id:1774289826984
+**Area:** Move Wizard / Event Model (`initWizFromGroups`, ~L3417)
+**Severity:** Enhancement
+**Status:** 🔵 Open
+**Found:** b20260324.0955
+**Closed:** —
+
+When a group is moved to a location that already has one or more groups with an open event, a new event is created rather than appending the group to the existing event. The expected behavior: if an open event already exists at the destination, the arriving group should be appended to it rather than starting a fresh event.
+
+**Architectural note:** `wizSaveNew` creates a new event at the destination. To append instead, it would need to detect an open event at the target location and call `applyEeGroupMoveActions` or equivalent to add the group to that event. Needs design around conflict cases (confinement vs pasture, different paddocks, etc.).
+
+**Deferred:** Design conversation needed before coding.
+
+---
+
+### OI-0037
+**Source:** In-app feedback — id:1774289880099
+**Area:** Move Wizard / Event Edit (`applyEeGroupMoveActions`, ~L10320)
+**Severity:** Polish
+**Status:** 🟡 Open
+**Found:** b20260324.0955
+**Closed:** —
+
+When adding a group to an existing event via the Event Edit sheet, no time field is offered. Farmers who catch up on record-keeping retroactively need to record the exact time a group joined an event, not just the date.
+
+**Fix:** Add a time input to the "add group to event" flow in the Event Edit sheet.
+
+---
+
+### OI-0038
+**Source:** In-app feedback — id:1774290012106 (Tim)
+**Area:** Event Model / Fertility Ledger — confinement vs pasture NPK capture
+**Severity:** Enhancement
+**Status:** 🔵 Open
+**Found:** b20260324.0955
+**Closed:** —
+
+Confinement locations with no manure capture should log NPK as **lost** (fertility leaves the system). Pasture locations should log NPK as **deposited** (fertility credited to that paddock). This distinction is fundamental to the fertility ledger concept. An upgrade migration should mark existing events accordingly.
+
+**Architectural note:** Touches the NPK calculation in `renderLocationCard`, `renderGroupCard`, and the fertility reporting layer. Closely related to OI-0005 (per-paddock feed attribution). Needs a design session on how "NPK lost" surfaces in the ledger.
+
+**Deferred:** Design conversation needed.
+
+---
+
+### OI-0039
+**Source:** In-app feedback — id:1774290049545 (Tim)
+**Area:** Home Screen — `renderLocationCard()` + `renderGroupCard()` (~L2696, ~L2800)
+**Severity:** Enhancement
+**Status:** 🔵 Open
+**Found:** b20260324.0955
+**Closed:** —
+
+Group/location view cards should display the DMI needs of the whole group — same data shown on the event (DMI target, stored feed consumed, estimated pasture %). Currently this data appears in the group card's `dmiLine` block when expanded, but is absent from location cards' per-group rows.
+
+**Fix:** Surface DMI summary (target lbs/day, % from pasture this event) on each group row in `renderLocationCard`, matching the display already present in `renderGroupCard`.
+
+---
+
+### OI-0042
+**Source:** In-app feedback — id:1774290232282 (Tim)
+**Area:** Home Screen architecture — group view vs location view
+**Severity:** Enhancement
+**Status:** 🔵 Open
+**Found:** b20260324.0955
+**Closed:** —
+
+Group view should be group-centric — showing the group's status, composition, and actions — rather than presenting the event as the primary entity. The partial fix in OI-0040 addressed buttons; the broader request is that the card layout itself should lead with the group, with event context secondary.
+
+**Deferred:** Design conversation needed — affects card layout, information hierarchy, and potentially the data shown.
+
+---
+
+### OI-0043
+**Source:** In-app feedback — id:1774290431038 (Tim)
+**Area:** Feed Screen / `addBatch()` (~L6233)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260324.0955
+**Closed:** b20260324.1100
+
+`addBatch()` called `parseInt(document.getElementById('b-type').value)` to get the feed type ID. Feed type IDs are strings formatted as `"FT-00001"` — `parseInt("FT-00001")` returns `NaN`. The subsequent `S.feedTypes.find(f=>f.id===typeId)` compared `"FT-00001" === NaN`, always failing, triggering the "Select a feed type" alert regardless of selection state.
+
+**Secondary bug fixed:** The Unarchive button in `renderFeedTypes()` rendered the onclick as `unarchive('feedType',${ft.id})` — embedding the string ID unquoted in JS, which would cause a `ReferenceError` at runtime. Fixed by quoting: `unarchive('feedType','${ft.id}')`.
+
+**Fix:** Removed `parseInt()` — `typeId` is now read directly as a string. Both `addBatch()` and the Unarchive onclick now handle string IDs correctly.
+
+**Data note:** Feed types lost prior to this session cannot be recovered from the b20260324.0621 backup — only "Alfalfa" was present. Root cause is likely a `setupUpdatedAt` sync merge where a device with a newer setup timestamp but stale feedTypes array won wholesale. Feed types will need to be re-entered manually.
+
+---
+
+### OI-0044
+**Source:** In-app feedback — id:1774310373305
+**Area:** Sub-Move System / Feed Model (`saveSubMove`, `calcEventTotalsWithSubMoves`, ~L9030)
+**Severity:** Enhancement
+**Status:** ✅ Closed
+**Found:** b20260324.0955
+**Closed:** b20260324.1800
+
+Sub-moves previously inherited the parent event's `noPasture` flag, making it impossible to record a grazing sub-move when the parent was a bale-grazing (noPasture=true) event.
+
+**Changes in b20260324.1800:**
+
+**A — Independent `sm.noPasture` flag:** Each sub-move now stores its own `noPasture: bool`. Confinement locations auto-set to `true`. Pasture locations show a "100% stored feed at this location" toggle checkbox in the UI. When checked, height/recovery fields are hidden for that sub-move.
+
+**B — `effectivelyNoPasture` guard:** `calcEventTotalsWithSubMoves` now checks `ae.noPasture && !hasGrazingSubMoves`. A bale-grazing parent event with at least one grazing sub-move unlocks pasture DMI inference via mass balance. This is the core fix for the mixed bale-graze + adjacent paddock scenario.
+
+**C — Bale feed checkpoint (`sm.parentFeedCheckpointPct`):** When closing a grazing sub-move on a parent event that has bale feed entries, a "Bales remaining right now (%)" slider appears in the Record Return form. This checkpoint enables per-paddock grass DMI attribution via `calcGrassDMIByWindow`.
+
+**D — `calcGrassDMIByWindow(ae, outDate, feedRes)`:** New attribution engine. Builds a timeline of bale-feed checkpoints from sub-move closes and final event close. For each window between checkpoints, computes bale DMI consumed (from feed entries × checkpoint pct) and infers grass DMI by mass balance (expected DMI − bale consumed). Credits each window's grass DMI to the paddock that just closed. Falls back to whole-event balance on primary paddock if no checkpoints recorded. Result stored as `ae.totals.grassDMIByPaddock`.
+
+**E — `calcSubMoveNPKByAcres(ae, outDate)`:** Replaces time-fraction NPK attribution for sub-move locations with acres-weighted, time-windowed calculation. Builds breakpoints from sub-move open/close dates; for each window where sub-moves are active, distributes NPK across primary paddock + active sub-move paddocks proportionally by acres (equal split fallback when acres = 0).
+
+**F — `feedDMIPutOutToDate(entries, cutoffDate)`:** Helper that date-filters feed entries to compute cumulative DMI put out up to a given date. Required by `calcGrassDMIByWindow`.
+
+**G — Sub-move edit capability (see also OI-0055):** `openSmEditForm(smId)` pre-fills the add form with existing sub-move data. `resetSmForm()` returns form to add mode. Save button text toggles between "Record sub-move" and "Save changes". Cancel-edit button appears in edit mode.
+
+**H — "⇢ Manage sub-moves" button in Event Edit sheet:** Calls `openSubMoveSheetFromEdit()` — closes Event Edit and opens the sub-move sheet for the same event. Enables sub-move editing on both open and closed (past) events.
+
+---
+
+### OI-0045
+**Source:** In-app feedback — id:1774310457328
+**Area:** Settings Screen (`loadSettings()`, ~L6030)
+**Severity:** Enhancement
+**Status:** 🔵 Open
+**Found:** b20260324.0955
+**Closed:** —
+
+All fertility calculation assumptions (N/P/K excretion rates, fertilizer prices, DMI rates, etc.) are currently scattered or use hardcoded defaults. A dedicated "Fertility assumptions" settings card should consolidate all of these into one editable form launched from Settings.
+
+**Directly serves the project vision** — making the fertility ledger's basis visible and user-configurable is high-value work.
+
+**Acceptance criteria:** Settings screen has a "Fertility assumptions" card. Tapping it opens a sheet where the user can view and edit all coefficients used in NPK and DMI calculations. Values persist in `S.settings`. Defaults remain unchanged if not edited.
+
+---
+
+### OI-0046
+**Source:** In-app feedback — id:1774347020494
+**Area:** Pastures / Settings — external data integration
+**Severity:** Enhancement
+**Status:** 🔵 Open
+**Found:** b20260324.1100
+**Closed:** —
+
+Integrate precipitation events from NWS API by zip code. Allow user to edit logged values with local actuals. Long-term feeds into grass growth curve prediction (see OI-0047).
+
+**Deferred:** Needs design session — API integration, data model for weather events, UI for editing actuals.
+
+---
+
+### OI-0047
+**Source:** In-app feedback — id:1774347131525
+**Area:** Reports / Pastures — pasture productivity engine
+**Severity:** Enhancement
+**Status:** 🔵 Open
+**Found:** b20260324.1100
+**Closed:** —
+
+Track grass growth curve via pasture survey rating intervals. Dashboard comparing all pastures over time. Use historical data to compute per-pasture growth coefficients and surface a predictive "Based on historical data, return date is likely to be…" suggestion.
+
+**Directly serves the project vision** — per-paddock productivity trend is one of the highest-value unbuilt features (see §13 Backlog).
+
+**Deferred:** Large feature — needs dedicated design session.
+
+---
+
+### OI-0048
+**Source:** In-app feedback — id:1774348833013
+**Area:** Quick Feed Sheet (`openQuickFeedSheet`, ~L3222) + Feed Screen flow
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260324.1100
+**Closed:** b20260324.1730
+
+Three issues fixed:
+
+**A — Dialog model:** `qfShowEventStep()` rebuilt to be location-centric. Event picker now shows location name + type badge (🌿 grazing / 🏚 confinement / stored feed) as primary, with group names + day count as secondary. Uses `evGroups()` and `allFeedEntries()` — no longer reads `ev.groupId` directly.
+
+**B — Cancel button on step 1:** `#qf-step1-cancel` div added below the event list. Shown when the picker step is displayed, hidden when the form step is shown. Calls `closeQuickFeedSheet()`. Previously there was no way to dismiss the sheet from step 1 without tapping the backdrop.
+
+**C — Form title consistency:** `qfSelectEvent()` now sets the form title to the location name and the subtitle to group names + day — matching the picker's hierarchy.
+
+---
+
+### OI-0049
+**Source:** In-app feedback — id:1774348949041
+**Area:** Home Screen cards — `renderLocationCard()` (~L2708)
+**Severity:** Enhancement
+**Status:** ✅ Closed
+**Found:** b20260324.1100
+**Closed:** b20260324.1730
+
+`renderLocationCard()` showed NPK but no DMI information. BW aggregation also used `ae2.head * ae2.wt` (event-level snapshot) which double-counts in multi-group events.
+
+**Fix:** Aggregation now iterates `activeEvGroups` and calls `getGroupTotals(g)` per group — summing `totalHead * avgWeight` for BW and `dmiTarget` for total event DMI. Added `dmiEventLine` block showing: total DMI target across all groups, stored-vs-pasture % split, progress bar (amber fill = stored feed %). Rendered between group rows and NPK line.
+
+---
+
+### OI-0050
+**Source:** In-app feedback — id:1774349047766
+**Area:** Home Screen — `renderGroupCard()` (~L2822)
+**Severity:** Polish
+**Status:** ✅ Closed
+**Found:** b20260324.1100
+**Closed:** b20260324.1730
+
+Group card NPK calculation used `(ae.head||0)*(ae.wt||0)` — the whole-event aggregate head/weight snapshot. In multi-group events this includes all groups' animals, producing inflated per-group NPK figures.
+
+**Fix:** Replaced `bw = ae.head * ae.wt` with `grpBW = t.totalHead * t.avgWeight` where `t = getGroupTotals(g)` — the live totals for this specific group only. DMI (`t.dmiTarget`) was already correct. NPK and NPK value now reflect this group's individual contribution.
+
+---
+
+### OI-0051
+**Source:** In-app feedback — id:1774349156596
+**Area:** Rotation Calendar (`renderRotationCalendar()`, ~L11971)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260324.1100
+**Closed:** b20260324.1730
+
+`eventAUDs()` inside `renderRotationCalendar()` only applied the group-totals fallback (for missing `ev.head`/`ev.wt`) when `ev.status==='open'`. Closed multi-group events created via `initWizFromGroups()` — where head/weight are stamped as aggregates and may be 0 — returned 0 AUDs and produced blank season totals.
+
+**Fix:** Removed the `ev.status==='open'` condition from the fallback. Group totals are now summed via `evGroups(ev)` + `getGroupTotals()` whenever `ev.head` or `ev.wt` is falsy, regardless of event status.
+
+---
+
+### OI-0052
+**Source:** In-app feedback — id:1774349252541
+**Area:** Sub-Move System (`openSubMoveSheet`, ~L9133)
+**Severity:** Enhancement
+**Status:** ✅ Closed
+**Found:** b20260324.1100
+**Closed:** b20260324.1730
+
+Sub-move paddock picker and event label fixed:
+
+**A — Event label:** Was using legacy `ev.groupId` (scalar, single-group only) and `ev.pasture`. Now uses `evGroups(ev)` for group names and `evDisplayName(ev)` for location — correct for multi-group multi-paddock events.
+
+**B — Location dropdown:** Was filtering with `p.name !== ev.pasture` — excluded only the legacy primary paddock, left all other event paddocks selectable. Now builds `eventPaddockNames` set from `evPaddocks(ev).map(p=>p.pastureName)` plus `ev.pasture` as fallback. Archived pastures also excluded.
+
+**Remaining design work (deferred to OI-0044):** Sub-moves inheriting the parent event's `noPasture` flag — independent stored-feed vs grazing toggle per sub-move — needs a dedicated design session.
+
+---
+
+### OI-0053
+**Source:** In-app feedback — id:1774349379893
+**Area:** Event Edit Sheet (`renderEeGroupChips()`, ~L5222) + `saveEventEdit()` (~L10681)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260324.1100
+**Closed:** b20260324.1130
+
+Event Edit sheet shows the first group (index 0) as "primary" — locked green pill with no Move Group button, labeled "primary". All groups should be peers — any group can be moved out independently, and the last group moving out should trigger event close.
+
+**Root cause:** `renderEeGroupChips()` applies special treatment to `i===0 && !g._isNew`. The `ev.groupId` legacy field is not structural — `evGroups()` is the authoritative source for all group membership. The "primary" concept is a display artifact from the single-group era.
+
+**Fix applied:**
+- `renderEeGroupChips()`: removed `i===0 && !g._isNew` special case. All committed groups now render identically with Move Group button. "primary" label removed.
+- `saveEventEdit()`: after `applyEeGroupMoveActions()`, checks `(ev.groups||[]).filter(g=>!g.dateRemoved).length===0`. If open event has zero remaining active groups, sets `ev.status='closed'`, `ev.dateOut=todayStr()`, calls `recalcEventTotals(ev)`. Covers both wizard and direct-move departure paths.
+- Paddock "primary" labels intentionally left — paddock hierarchy has different semantics (main location for event accounting).
+
+**Prerequisite for OI-0029** — event log consolidation display should not assume a primary group exists.
+
+---
+
+## Closed Items
+
+### OI-0054
+**Source:** User request — b20260324.1730
+**Area:** Feedback System (`openFeedbackSheet`, `CAT`, `generateBrief`, `renderFeedbackList`)
+**Severity:** Enhancement
+**Status:** ✅ Closed
+**Found:** b20260324.1730
+**Closed:** b20260324.1730
+
+New `roadblock` feedback category added for operational blockers that stop normal farm work and need immediate developer attention.
+
+**Changes:**
+- `CAT` object: `roadblock` entry added (`label:'🚧 Roadblock'`, `cls:'br'` red badge, `pillCls:'cp-roadblock'`)
+- CSS: `.cp-roadblock` bold weight + red selected state
+- Feedback sheet: `🚧 Roadblock` pill added as **first** option in category picker
+- Filter dropdown: `Roadblocks` option added
+- `renderFeedbackList()`: `roadblock` added to category filter list
+- `generateBrief()`: roadblocks listed first with `← HIGH PRIORITY — FIX BEFORE ANYTHING ELSE` flag; each item prefixed `🚧`; `catOrder` updated to `['roadblock','bug','calc','ux','feature','idea']`; footer hint updated
+
+---
+
+### OI-0055
+**Source:** In-app feedback — id:1774352024908
+**Area:** Sub-Move System (`openSubMoveSheet`, `renderSmExistingList`, ~L9030)
+**Severity:** Enhancement
+**Status:** ✅ Closed
+**Found:** b20260324.1800 (feedback exported 2026-03-24 v1.2)
+**Closed:** b20260324.1800
+
+"Edit open event needs to allow for editing sub-move events. Particularly to uncheck the stored feed flag on legacy events to be able to update grazing data for past events once the release that makes sub-move properties able to be different from the primary bale grazing event."
+
+**Fix:** Sub-move editing implemented as part of OI-0044 work:
+- Edit button added to each row in the existing sub-moves list within the sub-move sheet
+- `openSmEditForm(smId)` pre-fills all form fields (date, time, duration, location, noPasture flag, height, recovery, feed lines) from the selected sub-move record
+- `resetSmForm()` returns the form to add mode
+- Save button label toggles "Record sub-move" ↔ "Save changes"; amber "Cancel edit" button appears in edit mode
+- `saveSubMove()` edit path updates the existing sub-move record in place (no new record created)
+- "⇢ Manage sub-moves" button added to Event Edit sheet — calls `openSubMoveSheetFromEdit()` to bridge from Event Edit to sub-move sheet; works on both open and closed events, enabling retroactive correction of historical sub-move data
+
+---
+
+### OI-0007
+**Source:** In-app feedback — id:1774009850584 (note: "When moving to a confinement location the 100% stored feed flag should be set to yes.")
+**Area:** Move Wizard / Confinement Location Handling (~L3125)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260322.1421 (feedback dated 3/20/2026, v1.1)
+**Closed:** b20260322.1511
+
+When a user moves a group to a confinement location via the Move Wizard, the "100% stored feed" flag (`feedResidual` or equivalent) is not automatically set to `true`. Animals in confinement have no access to pasture forage, so leaving this flag unset causes incorrect pasture DMI inference — the system assumes some forage was consumed when none was. User must remember to set it manually, which is an error-prone habit.
+
+**Pair with OI-0008** — both affect confinement location handling in the wizard. Fix in the same session.
+
+**Fix applied:** In `onWizPaddockChange()`, when `isCon` is true, `#w-no-pasture` checkbox is auto-checked. User can still uncheck it manually.
+
+---
+
+### OI-0008
+**Source:** In-app feedback — id:1774012610674 (note: "Confinement locations should not show min max, and estimated recovery information.")
+**Area:** Move Wizard / Confinement Location Handling (~L3125)
+**Severity:** Enhancement
+**Status:** ✅ Closed
+**Found:** b20260322.1421 (feedback dated 3/20/2026, v1.1)
+**Closed:** b20260322.1511
+
+When a confinement location is selected in the Move Wizard, fields for min/max grazing days and estimated recovery are still displayed. These fields are meaningless for confinement (no forage is consumed, no recovery period applies). Showing them is confusing and suggests the app doesn't understand the distinction between pasture and confinement contexts.
+
+**Pair with OI-0007** — same screen, same session.
+
+**Fix applied:** Two changes: (1) In `initWizFromGroups()`, `#w-recovery-section` is hidden when the outgoing event is at a confinement location. (2) In `validateRecoveryFields()`, confinement events bypass the "recovery required" validation so move-out is never blocked.
+
+---
+
+### OI-0009
+**Source:** In-app feedback — id:1774195666830 (note: "Added feed to an open event. When I did it closed the event and I ended up on the main feed form.")
+**Area:** Feed Screen / Quick Feed Sheet / Event Interaction (~L2790)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260322.1421 (feedback dated 3/22/2026, v1.1)
+**Closed:** b20260322.1421 (this session)
+
+Three bugs found and fixed:
+
+**Bug A — `openQuickFeedSheet` used `e.groupId` directly instead of `evGroups()`.**
+For multi-group events (or any event using the `groups[]` array), `e.groupId` could be stale or null — the lookup returned `undefined`, so the sheet dropped to the event-picker step instead of auto-selecting the group's event. The rule at L10725 explicitly says "never read `ev.groupId` directly." Fixed: now uses `evGroups(e).some(g=>g.groupId===preselectGroupId&&!g.dateRemoved)`.
+
+**Bug B — After saving, user was left on Feed screen even when entry was via home screen group card.**
+`goFeedGroup()` navigates to the Feed screen to open the Quick Feed Sheet. After saving, `saveQuickFeed()` was calling `renderFeedOverview()` and leaving the user on the Feed screen. The user came from Home and expected to return there. "Ended up on the main feed form" = Feed screen. Fixed: added `qfFromHome` flag set in `goFeedGroup`. `saveQuickFeed` reads this flag and calls `nav('home',...)` after save when set.
+
+**Bug C — `saveQuickFeed` toast used `ev.groupId` directly (same `evGroups()` violation).**
+Fixed: now uses `evGroups(ev)` to get group name for the toast.
+
+**Additionally:** added a closed-event guard at the top of `saveQuickFeed` — if the event status is not `'open'` at save time (possible via Drive sync race), the function bails with a clear message instead of appending a feed entry to a closed event.
+
+---
+
+### OI-0010
+**Source:** In-app feedback — id:1773766618290 + id:1774203959375 (merged: Tim 3/17 + anonymous 3/22 — same request)
+**Area:** Pasture Survey Dialog (~L3855)
+**Severity:** Enhancement
+**Status:** ✅ Closed
+**Found:** b20260322.1421
+**Closed:** b20260322.1530
+
+Two separate feedback entries requested the same feature: expected graze dates shown on the pasture survey card during mass survey mode. Single-paddock mode already had a "Next window" block — mass survey was missing the same context on each rating card.
+
+**Fix applied:** In `renderSurveyPaddocks()` mass survey loop, added `getExpectedGrazeDates(p)` call per paddock. When a recovery window exists and the paddock is not currently active, a compact "↻ Ready: [date] – [date] · [status]" line renders below the rating bar. Status is color-coded: green (✓ ready), amber (⚠ window closing), or neutral text (Xd until ready). Paddocks with an active event skip the line (not relevant while being grazed).
+
+**b20260325.1918 improvement:** The static `gdHtml` label approach above was superseded. With the multi-pasture layout consolidation, each card's `rec-preview-` block is now live and reactive — it updates in real time as the user changes min/max recovery inputs. The graze window preview is now co-located with the inputs that drive it, directly in each paddock card.
+
+---
+
+### OI-0011
+**Source:** In-app feedback — id:1774201675357 (note: "Similar to pasture survey, implement an animal survey for a group as well as on the individual animal listing...")
+**Area:** Individual Animals (~L6342 openAnimalEventSheet, ~L10500 renderAnimalsScreen)
+**Severity:** Enhancement
+**Status:** ✅ Closed
+**Found:** b20260322.1421 (feedback dated 3/22/2026, v1.1)
+**Closed:** b20260322.1958
+
+BCS added as a new health event type (`type: 'bcs'`) stored in `animal.healthEvents[]`. Score range 1–10, chip-based selector, optional notes field. Implemented as:
+- `#ae-evt-bcs-section` in `animal-event-wrap` sheet with 10 chip buttons
+- `bcsChipToggle(el)` — single-select chip handler; `.bcs-chip` / `.bcs-chip.on` CSS
+- `📊 BCS` action button on every animal row in `renderAnimalsScreen()`
+- BCS events display as `📊 BCS: X/10` in health event history on the animal edit sheet
+- `showAnimalEventToast` handles `bcs` type
+
+---
+
+### OI-0012
+**Source:** In-app feedback — id:1774201874820 (note: "Create a setting for animals related to weaning target date...")
+**Area:** Animals / Settings / Reports — multi-area
+**Severity:** Enhancement
+**Status:** ✅ Closed
+**Found:** b20260322.1421 (feedback dated 3/22/2026, v1.1)
+**Closed:** b20260322.2021
+
+Multi-part weaning management feature. Implemented in b20260322.2021:
+
+**A — Species terminology:** `normalizeSpecies()` and `birthTermForSpecies()` helpers map class species strings to canonical terms (cattle/sheep/goat/pig/other) and birth event labels (Calving/Lambing/Kidding/Farrowing/Birth). Used by calving sheet and anywhere birth events are labelled.
+
+**B — Wean target setting:** `S.settings.weanTargets: { cattle, sheep, goat }` — per-species days from birth. Defaults: cattle 205, sheep 60, goat 60. Editable in Settings → "Weaning targets" card. Saved via `saveSettings()`, loaded via `loadSettings()`.
+
+**C — Weaned/unweaned flag:** `animal.weaned: bool | null` — `null` for pre-existing animals (no birth date assumed); `false` for newborns; `true` once marked weaned. `animal.weanedDate: ISO string | null`.
+
+**D — Wean target date computation:** `computeWeanTargetDate(birthDate, species)` computes `birthDate + weanTargetDays`. Set on new calves in `saveCalving()`, on new/edited animals in `saveAnimalEdit()`, and backfilled at init by `migrateWeaningFields()`.
+
+**E — Birth date field:** `animal.birthDate` added to data model. `ae-birthdate` date input in animal edit sheet. `migrateWeaningFields()` derives missing birth dates from dam's `calvingRecords[]` at init.
+
+**F — Weaning dashboard:** New "🍼 Weaning" tab in Reports screen. Filter chips (Overdue / Due ≤14d / Due ≤30d / Pending / Unknown / Weaned ≤14/30/60d). Default filter = all unweaned (Overdue + Due + Pending + Unknown). Multi-select checkboxes with bulk "Mark weaned" action bar + date picker. Unknown animals get "Set birth date" shortcut linking to their edit sheet.
+
+**G — Home screen nudge:** `renderWeaningNudge()` shows a card on the home screen when any animals are overdue or due within 14 days. Card links to the Reports Weaning tab.
+
+---
+
+### OI-0013
+**Source:** In-app feedback — id:1774204002068 (note: "On female animals add a confirmed bred flag, with date of confirmation")
+**Area:** Individual Animals (~L7334 openNewAnimalSheet, ~L7363 openAnimalEdit, ~L7486 saveAnimalEdit)
+**Severity:** Enhancement
+**Status:** ✅ Closed
+**Found:** b20260322.1421 (feedback dated 3/22/2026, v1.1)
+**Closed:** b20260322.1958
+
+`confirmedBred: bool` and `confirmedBredDate: ISO string | null` added to the animal data model. Implemented as:
+- `#ae-confirmed-bred-section` in `ae-sheet-wrap` (females only) — checkbox + conditional date field
+- `onConfirmedBredChange()` — shows/hides date field, pre-fills today on check
+- `✓ bred` badge shown on animal card row in `renderAnimalsScreen()` and in `ae-title` of the edit sheet
+- Saved in both new-animal and edit-animal paths of `saveAnimalEdit()`
+- `openNewAnimalSheet()` resets section to unchecked for new females
+
+---
+
+### OI-0001
+**Source:** Claude observation — b20260322.1143
+**Area:** Sub-Move System (~L8218)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260322.1143
+**Closed:** b20260322.1421
+
+`saveSmQuickLocation()` called `saveLocal()` instead of `save()`. Adding or editing a sub-move location saved to localStorage only and did not trigger Drive sync.
+
+**Fix applied:** Replaced `saveLocal()` with `stampSetup(); save();` in `saveSmQuickLocation()` at ~L8876.
+
+---
+
+### OI-0002
+**Source:** Claude observation — b20260322.1031
+**Area:** HTML Structure / Navigation
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260322.1031
+**Closed:** b20260322.1135
+
+The `</div>` closing `#s-feed` was missing before `#s-animals` opened in the HTML. This caused every screen div from `#s-animals` through `#s-settings` to be nested inside `#s-feed`. Because `.scr { display:none }` and only `.scr.active { display:block }`, when `#s-feed` was not the active screen it hid all its children — making every screen except home invisible regardless of `.active` state. Diagnosed by checking the depth at which each `.scr` div opened using a Python script on the raw HTML.
+
+**Closed:** Added one `</div><!-- /s-feed -->` between the last feed card and the `#s-animals` div. All 10 screens now open at depth 2. Verified with depth-counting script (all show depth=2, final depth=0).
+
+---
+
+### OI-0003
+**Source:** Claude observation — b20260322.1031
+**Area:** Google Drive Sync / Mobile PWA
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260322.1031
+**Closed:** b20260322.1143
+
+When the Google OAuth token expired on mobile (after ~1 hour), the scheduled silent refresh often failed silently in PWA standalone mode because the Google session cookie is not available in that browser context. Drive sync stopped entirely — the mobile device diverged from desktop and showed stale data until the user manually reconnected Drive in Settings. There was no automatic re-sync when the app resumed from background.
+
+**Closed:** Added `onAppResume()` function (~L1771) that checks token validity on call and either syncs immediately or attempts silent re-auth. Registered via `document.addEventListener('visibilitychange', ...)` in the init block (~L11161). This fires on every app resume — phone unlock, tab switch, PWA foreground.
+
+---
+
+## Import Log
+
+Tracks which `S.feedback` IDs have been imported to prevent duplicates across sessions.
+Upload `gthy-feedback-YYYY-MM-DD-HHMM.json` at session start for Claude to diff against this log.
+
+| Feedback ID | Imported in | OI number | Original note (truncated) |
+|---|---|---|---|
+| 1773704569336 | b20260322.1421 | — | "When saved to Home Screen data is not populating" — **closed at source, no OI** |
+| 1773766662491 | b20260322.1421 | — | "Pasture with open event is gone, and G-1..." — **closed at source, no OI** |
+| 1773766618290 | b20260322.1421 | OI-0010 | "Needs expected graze dates in survey dialogs..." (Tim 3/17 — merged with 3/22 duplicate) |
+| 1774009850584 | b20260322.1421 | OI-0007 | "When moving to a confinement location the 100% stored feed flag should be set to yes." |
+| 1774012610674 | b20260322.1421 | OI-0008 | "Confinement locations should not show min max, and estimated recovery information." |
+| 1774195666830 | b20260322.1421 | OI-0009 | "Added feed to an open event. When I did it closed the event..." |
+| 1774201675357 | b20260322.1421 | OI-0011 | "implement an animal survey for a group... Body Condition... choices 1 to 10" |
+| 1774201874820 | b20260322.1421 | OI-0012 | "Create a setting for animals related to weaning target date..." |
+| 1774203959375 | b20260322.1421 | OI-0010 | "Add expected graze dates on pasture survey card..." (3/22 duplicate — merged into OI-0010) |
+| 1774204002068 | b20260322.1421 | OI-0013 | "On female animals add a confirmed bred flag, with date of confirmation" |
+| 1774204169720 | b20260322.1421 | OI-0014 | "stage the feed prior to actually moving the group... suspended future event" |
+| 1774259652890 | b20260322.2207 | OI-0016 | "There should not be an X for deletion on the main animal list" |
+| 1774259757925 | b20260322.2207 | OI-0017 | "Treatments list dialog needs to be centered in display. Existing Treatments need to be editable..." |
+| 1774259962696 | b20260322.2207 | OI-0018 | "Refresh after editing animal not occurring upon close. Large delay on retag." |
+| 1774260052866 | b20260322.2207 | OI-0019 | "On animal form use smaller tiles to reduce space of groups..." |
+| 1774260146466 | b20260322.2207 | OI-0020 | "No way to unselect a group for filtering of animal list." |
+| 1774260349182 | b20260322.2207 | OI-0021 | "When moving animals in and out of a group... does the event recalculate..." |
+| 1774260409016 | b20260322.2207 | OI-0022 | "On animal body condition survey add a checkbox for 'Likely cull'" |
+| 1774260536657 | b20260322.2207 | OI-0023 | "View history for a given pasture" |
+| 1774260638046 | b20260322.2207 | OI-0024 | "Season totals not showing in the rotation calendar." |
+| 1774260688519 | b20260322.2207 | OI-0025 | "Rotation calendar should show green for pasture, tan for hay" |
+| 1774260722747 | b20260322.2207 | OI-0026 | "Rotation calendar not showing active event with sub move." |
+| 1774260870487 | b20260322.2207 | OI-0027 | "Sub-move error: Duration not set — Duration not required" |
+| 1774271115141 | b20260322.2207 | OI-0028 | "gTHO banner and operation name needs to sit above the version and drive status" |
+| 1774271246604 | b20260322.2207 | OI-0029 | "In event log the main event and sub moves should be consolidated" |
+| 1774289826984 | b20260324.0910 | OI-0036 | "If a group is placed into a location that already has one or more groups in it..." |
+| 1774289880099 | b20260324.0910 | OI-0037 | "Add group to an existing event should offer the time field" |
+| 1774290012106 | b20260324.0910 | OI-0038 | "Confinement locations with no capture should capture the NPK as lost." |
+| 1774290049545 | b20260324.0910 | OI-0039 | "Group view should include DMI needs of the whole group." |
+| 1774290092842 | b20260324.0910 | OI-0040 | "Feed button in location view should apply to all groups not each one." — resolved by OI-0040 (feed moved to card level) |
+| 1774290156334 | b20260324.0910 | OI-0041 | "When feeding from group view on Home Screen the dialog does not have a save or cancel" |
+| 1774352024908 | b20260324.1800 | OI-0055 | "Edit open event needs to allow for editing sub-move events..." |
+| 1774356724442 | b20260325.0013 | OI-0058 | "Sub moves that are pasture should be green on the rotation calendar." |
+| 1774356942281 | b20260325.0013 | OI-0059 | "Audit all calculation related functions for proper logic..." |
+| 1774361239173 | b20260325.0013 | OI-0060 | "In rotation calendar highlight currently active paddocks." |
+| 1774374875449 | b20260325.0013 | OI-0056 | "Need a quick to do on animal list by animal" — 🚧 Roadblock |
+| 1774375050876 | b20260325.0013 | OI-0061 | "In edit animal allow for treatment" (batched with 0067/0069 into OI-0061) |
+| 1774375067914 | b20260325.0013 | OI-0061 | "Allow multiple treatment selection at one time" (batched into OI-0061) |
+| 1774375315950 | b20260325.0013 | OI-0063 | "When selecting animal from list the add to group question jumps the list ahead." |
+| 1774376187163 | b20260325.0013 | OI-0061 | "Treatment type should populate other treatment fields when appropriate" (batched into OI-0061) |
+| 1774377202625 | b20260325.0013 | OI-0062 | "To do is defaulting to G2" |
+| 1774381838610 | b20260325.0013 | OI-0064 | "Add required DMI to feed dialog with progress bar" |
+| 1774385774185 | b20260325.0013 | OI-0065 | "Render pasture status on rotation view with green gradient..." |
+| 1774386058617 | b20260325.0013 | OI-0067 | "Feedback — add area field, allow editing of feedback" |
+| 1774386129481 | b20260325.0013 | OI-0066 | "Rotation View — vertical 'today' line" |
+| 1774396779567 | b20260325.0013 | OI-0057 | "Feedback is not syncing properly between desktop and mobile" — ✅ Closed this session |
+| 1774290232282 | b20260324.0910 | OI-0042 | "Group view should be group centric not event centric" |
+| 1774290431038 | b20260324.0910 | OI-0043 | "When adding batch of feed it keeps saying select feed type when I already selected" |
+| 1774310373305 | b20260324.0955 | OI-0044 | "Sub moves should not inherit stored feed settings from the primary pasture event..." |
+| 1774310457328 | b20260324.0955 | OI-0045 | "We need a form launched from settings where we consolidate all assumptions around fertility factors..." |
+| 1774347020494 | b20260324.1100 | OI-0046 | "Integrate precipitation events from NWS for zip code in question." |
+| 1774347131525 | b20260324.1100 | OI-0047 | "Track grass growth curve via pasture survey intervals..." |
+| 1774348833013 | b20260324.1100 | OI-0048 | "Feed animals dialog should list locations for feeding the entire event..." |
+| 1774348949041 | b20260324.1100 | OI-0049 | "All events should list the DMI required for all groups in that location..." |
+| 1774349047766 | b20260324.1100 | OI-0050 | "Group view on Home Screen should list the same information as animal group view..." |
+| 1774349156596 | b20260324.1100 | OI-0051 | "Rotation calendar season totals not calculating on all events." |
+| 1774349252541 | b20260324.1100 | OI-0052 | "Sub-move paddocks need to be allowed to be different from primary paddock." |
+| 1774349379893 | b20260324.1100 | OI-0053 | "In events there is not really a primary animal group..." |
+| 1774351616357 | b20260325.0013 | OI-0068 | "Look at feedback architecture to anticipate multiple instances..." |
