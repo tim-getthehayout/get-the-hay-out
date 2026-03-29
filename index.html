@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260329.1759" id="app-version-meta"/>
+<meta name="app-version" content="b20260329.1822" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -3260,7 +3260,10 @@ function renderHome(){
   }
 
   // My open tasks
-  const myTodos=S.todos.filter(t=>t.status!=='closed'&&(t.assignedTo||[]).includes(activeUserId));
+  // When no legacy activeUserId (Supabase world), show all open tasks.
+  const myTodos=activeUserId
+    ? S.todos.filter(t=>t.status!=='closed'&&(t.assignedTo||[]).includes(activeUserId))
+    : S.todos.filter(t=>t.status!=='closed');
   const homeTodos=document.getElementById('home-todos');
   if(!myTodos.length){
     homeTodos.innerHTML='<div style="font-size:13px;color:var(--text2);">No open tasks assigned to you</div>';
@@ -5058,7 +5061,7 @@ function openSurveySheet(pastureId){
   const recSection = document.getElementById('survey-recovery-section-hdr');
 
   if(surveyFocusPastureId){
-    const p = S.pastures.find(x=>x.id===pastureId);
+    const p = S.pastures.find(x=>String(x.id)===String(pastureId));
     if(titleEl) titleEl.textContent = 'Survey: ' + (p?p.name:'Paddock');
     if(subtitleEl) subtitleEl.textContent = 'Rate forage availability and set recovery window.';
     if(recSection) recSection.style.display = 'none'; // merged into single card
@@ -5079,7 +5082,7 @@ function renderSurveyPaddocks(){
   let pastures = sortedPastures(false).filter(p=>p.locationType!=='confinement');
   // Single-pasture mode: filter to just the focused paddock
   if(surveyFocusPastureId){
-    pastures = pastures.filter(p=>p.id===surveyFocusPastureId);
+    pastures = pastures.filter(p=>String(p.id)===String(surveyFocusPastureId));
   }
   const listEl   = document.getElementById('survey-paddock-list');
   const recEl    = document.getElementById('survey-recovery-list');
@@ -10792,10 +10795,16 @@ function saveSubMove(){
   }
 
   // ── Add mode: create new sub-move ────────────────────────────────────────
+  const timeInVal = document.getElementById('sm-time')?.value||'';
+  if(!timeInVal){
+    alert('Time moved in is required.\nEnter the time the animals moved to this location.');
+    document.getElementById('sm-time')?.focus();
+    return;
+  }
   const sm = {
     id: Date.now()+1,
     date: document.getElementById('sm-date').value,
-    time: document.getElementById('sm-time')?.value||null,
+    time: timeInVal||null,
     timeOut: document.getElementById('sm-time-out')?.value||null,
     durationHours: hrs,
     locationName: locName,
@@ -15583,11 +15592,11 @@ applyFieldMode(); // field-mode URL param + user preference — runs after detec
     <div id="sm-add-header" style="font-size:13px;font-weight:600;margin-bottom:10px;">Add sub-move</div>
     <div class="two">
       <div class="field"><label>Date</label><input type="date" id="sm-date"/></div>
-      <div class="field"><label>Moved in — time <span style="font-size:10px;color:var(--text2);">optional</span></label>
+      <div class="field"><label>Moved in — time</label>
         <input type="time" id="sm-time" oninput="calcSmDuration()"/></div>
     </div>
     <div class="two">
-      <div class="field"><label>Moved back — time <span style="font-size:10px;color:var(--text2);">optional</span></label>
+      <div class="field"><label>Moved back — time <span style="font-size:10px;color:var(--text2);">if returned</span></label>
         <input type="time" id="sm-time-out" oninput="calcSmDuration()"/></div>
       <div class="field"><label>Duration (hours) <span style="font-size:10px;color:var(--text2);">auto or enter</span></label>
         <input type="number" id="sm-hours" min="0.25" max="24" step="0.25" placeholder="e.g. 2.5"

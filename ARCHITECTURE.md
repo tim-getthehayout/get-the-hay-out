@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260329.1759`
+**Current build:** `b20260329.1822`
 **Last updated:** 2026-03-29
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -872,6 +872,19 @@ across reloads via `sb-*` localStorage — rate limit only affects new sign-in a
 - **Duration** is always derived by `_smCloseCalcHrs()` — never manually entered. Requires both time-in and time-out. No date-only fallback.
 - `calcSmCloseDuration()` reads `sm-close-time-in` (confirmed value) + `sm._correctedDate` for the proxy, then calls `_smCloseCalcHrs()`. Displays "⏱ Xd Yh" in teal or an error in red.
 - `saveSmClose()` requires `dateOut` + `timeOut`. Blocks save with a clear message if time-in is still missing after the correction prompt.
+
+### Sub-Move Time-In Required — OI-0072 (Fixed b20260329.1816)
+**Root cause:** `sm-time` field was optional (labelled "optional") and `saveSubMove()` add-mode had no validation guard. Sub-moves could be saved without a time-in, breaking the Record Return duration calculation — the only recovery path was the correction sub-dialog, a workaround.
+**Fix:** Label changed to required (no qualifier). `sm-time-out` label changed to "if returned" (it remains optional). `saveSubMove()` add-mode now validates `sm-time` before creating the `sm` object — alerts with message and focuses the field. Edit mode is exempt so existing records can be corrected.
+
+### Pasture Survey ID Type Mismatch — OI-0086 (Fixed b20260329.1816)
+**Root cause:** `renderPastures()` generates `onclick="openSurveySheet('${p.id}')"` — the template literal wraps `p.id` in single quotes, making it a string. Supabase returns `pastures.id` as `bigint` (JS number). Strict `===` in `renderSurveyPaddocks()` and the title lookup in `openSurveySheet()` always failed (string ≠ number) → empty pastures array → "No pasture Location Defined."
+**Fix:** Both comparisons use `String()` coercion on both sides: `String(p.id)===String(surveyFocusPastureId)`.
+
+### Home Todos Always Empty — OI-0087 (Fixed b20260329.1816)
+**Root cause:** `renderHome()` filters todos by `(t.assignedTo||[]).includes(activeUserId)`. In the Supabase-only world (M6 not yet landed) `activeUserId` is `null` — no legacy `gthy-user` key is set. No `assignedTo` array includes `null`, so the card always rendered "No open tasks assigned to you" even with open todos present.
+**Fix:** When `activeUserId` is null, `renderHome()` falls back to showing all open todos (`S.todos.filter(t=>t.status!=='closed')`).
+
 
 ## ⚠️ Dead Code — Removed (Do Not Re-Add)
 

@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260329.1751
-**Reconciled against build:** b20260329.1751
+**Last updated:** b20260329.1816
+**Reconciled against build:** b20260329.1816
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -19,11 +19,11 @@
 | Status | Count |
 |---|---|
 | 🔴 Open — Roadblock | 0 |
-| 🔴 Open — Bug | 4 |
+| 🔴 Open — Bug | 5 |
 | 🟡 Open — Polish | 0 |
 | 🔵 Open — Enhancement | 21 |
 | ⚪ Open — Debt | 5 |
-| ✅ Closed | 52 |
+| ✅ Closed | 53 |
 
 ---
 
@@ -33,13 +33,13 @@ Recommended work order as of b20260329.1708. Update after each session.
 
 | Priority | OI | Title | Notes |
 |---|---|---|---|
-| 1 | OI-0072 | Sub-move time required | 🔴 Bug — small, high value |
-| 2 | OI-0021 | Event AUD recalc on animal move/cull | 🔵 Enhancement — design first |
-| 3 | — | M5 — Offline Queue Polish | Migration next phase — design sub-tasks first |
+| 1 | OI-0021 | Event AUD recalc on animal move/cull | 🔵 Enhancement — design first |
+| 2 | — | M5 — Offline Queue Polish | Migration next phase — design sub-tasks first |
 
-> **OI-0029 closed** at b20260329.1751 — event log parent + sub-move consolidation (teal thread view).
-> **Next priority is OI-0072** — make sub-move time-in required (small fix, high correctness value).
-> **Last updated:** b20260329.1751
+> **OI-0072 closed** at b20260329.1816 — sub-move time-in required (add-mode validation guard).
+> **OI-0086 and OI-0087 closed** at b20260329.1816 — pasture survey ID type mismatch + home todos null-user fallback.
+> **Next priority is OI-0021** — event AUD recalc design.
+> **Last updated:** b20260329.1816
 
 ---
 
@@ -52,6 +52,30 @@ Recommended work order as of b20260329.1708. Update after each session.
 ---
 
 ## Open Items
+
+### OI-0087
+**Source:** User report — b20260329.1816
+**Area:** Home screen (`renderHome()`, ~L3262), To-do system
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260329.1816
+**Closed:** b20260329.1816
+
+Home "My open tasks" card was always empty even though the badge showed open todo count. Root cause: filter `(t.assignedTo||[]).includes(activeUserId)` fails silently when `activeUserId` is `null` (no legacy `gthy-user` key set in Supabase-only world — M6 not yet landed). Fix: when `activeUserId` is null, fall back to showing all open todos without user filtering.
+
+---
+
+### OI-0086
+**Source:** User report — b20260329.1816
+**Area:** Pastures screen (`renderPastures()` ~L6882, `openSurveySheet()` ~L5046, `renderSurveyPaddocks()` ~L5078)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260329.1816
+**Closed:** b20260329.1816
+
+Individual pasture "📋 Survey" button opened a dialog showing only the date field and "No pasture Location Defined." Root cause: `renderPastures()` passes `p.id` as a string in `onclick="openSurveySheet('${p.id}')"` (template literal with quotes), but Supabase returns `pastures.id` as a bigint (JavaScript number). Strict `===` comparison in `renderSurveyPaddocks()` (`p.id===surveyFocusPastureId`) and the title lookup in `openSurveySheet()` (`x.id===pastureId`) always evaluated false (string ≠ number). Fix: both comparisons now use `String()` coercion on both sides.
+
+---
 
 ### OI-0074
 **Source:** Claude observation — b20260328.1140
@@ -248,13 +272,11 @@ In practice the SW block is short and stable, but the gap in coverage is a laten
 **Source:** Claude observation — b20260326.0859
 **Area:** Sub-move sheet (`saveSubMove()` ~L9804, form HTML ~L14000)
 **Severity:** Bug
-**Status:** 🔴 Open
+**Status:** ✅ Closed
 **Found:** b20260326.0859
-**Closed:** —
+**Closed:** b20260329.1816
 
-The "Add sub-move" form's time-in field (`sm-time`) is currently optional — the label reads "Moved in — time (optional)". Tim has clarified that time of entry or exit must always be present on all moves. However the Record Return form now requires time-out and blocks save without time-in. If a sub-move is initially recorded without time-in, the only recovery path is the correction sub-dialog on Record Return — which is a workaround, not the right design.
-
-**Proposed fix:** Make `sm-time` required when saving a new sub-move. Remove the "(optional)" label. Add a validation guard in `saveSubMove()` that blocks save and focuses the time field if `sm-time` is empty. The duration calc and preview can then always derive from time-in + time-out when both are present.
+`sm-time` label changed from "optional" to required (no qualifier). `sm-time-out` label changed to "if returned". `saveSubMove()` add-mode now blocks save with alert + field focus if `sm-time` is empty. Edit mode exempt.
 
 ---
 
