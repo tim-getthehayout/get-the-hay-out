@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260329.1530" id="app-version-meta"/>
+<meta name="app-version" content="b20260329.1637" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -497,7 +497,7 @@ body:not(.field-mode) #field-mode-toggle{
       <div style="font-size:14px;font-weight:600;margin-bottom:2px;">New version available</div>
       <div style="font-size:12px;opacity:0.88;line-height:1.4;">
         Back up your data first, then tap Update to reload the latest version.
-        Drive-connected users are already synced.
+        Supabase-connected users are already synced.
       </div>
       <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
         <button onclick="exportDataJSON();this.textContent='✓ Backed up';this.style.opacity='0.6';"
@@ -578,7 +578,7 @@ body:not(.field-mode) #field-mode-toggle{
     </nav>
     <div class="dsk-sync-strip" onclick="nav('settings',document.getElementById('bn-settings'))">
       <span class="sync-dot sync-off" id="dsk-sync-dot"></span>
-      <span id="dsk-sync-label">Drive</span>
+      <span id="dsk-sync-label">Sync</span>
     </div>
   </aside>
 
@@ -591,7 +591,7 @@ body:not(.field-mode) #field-mode-toggle{
     <div class="hdr-right">
       <div id="sync-indicator" style="display:flex;align-items:center;font-size:11px;color:var(--text2);cursor:pointer;" onclick="nav('settings',document.getElementById('bn-settings'))">
         <span class="sync-dot sync-off" id="sync-dot"></span>
-        <span id="sync-label">Drive</span>
+        <span id="sync-label">Sync</span>
       </div>
       <span class="ver-tag" id="ver-tag">v1.0</span>
       <!-- Field mode toggle — label and action set by setFieldModeUI() -->
@@ -1187,7 +1187,7 @@ body:not(.field-mode) #field-mode-toggle{
             <select id="u-role"><option value="owner">Owner</option><option value="worker">Worker</option><option value="vet">Vet/Advisor</option></select>
           </div>
         </div>
-        <div class="field"><label>Email (for Drive sharing)</label><input type="email" id="u-email" placeholder="john@example.com"/></div>
+        <div class="field"><label>Email</label><input type="email" id="u-email" placeholder="john@example.com"/></div>
         <div class="field"><label>Avatar color</label>
           <div style="display:flex;gap:8px;margin-top:4px;" id="color-picker">
             <div onclick="selectColor(this,'#639922')" style="width:28px;height:28px;border-radius:50%;background:#639922;cursor:pointer;border:2px solid transparent;" data-color="#639922"></div>
@@ -2426,12 +2426,12 @@ function _pastureRow(p, opId){
 }
 
 // M3: append/replace one record in the offline write queue
-function queueWrite(table, record){
+function queueWrite(table, record, conflictKey='id'){
   try{
     const queue = JSON.parse(localStorage.getItem('gthy-sync-queue') || '[]');
-    const idx = queue.findIndex(q => q.table === table && q.record.id === record.id);
-    if(idx >= 0) queue[idx] = { table, record };
-    else queue.push({ table, record });
+    const idx = queue.findIndex(q => q.table === table && q.record[q.conflictKey||'id'] === record[conflictKey]);
+    if(idx >= 0) queue[idx] = { table, record, conflictKey };
+    else queue.push({ table, record, conflictKey });
     localStorage.setItem('gthy-sync-queue', JSON.stringify(queue));
   } catch(e){ logError('queue-write', e.message, ''); }
 }
@@ -2533,7 +2533,7 @@ async function flushToSupabase(){
   const failed = [];
   for(const op of queue){
     try{
-      const { error } = await _sbClient.from(op.table).upsert(op.record, { onConflict: 'id' });
+      const { error } = await _sbClient.from(op.table).upsert(op.record, { onConflict: op.conflictKey || 'id' });
       if(error) failed.push(op);
     } catch(e){
       failed.push(op);
@@ -2547,6 +2547,44 @@ async function flushToSupabase(){
     localStorage.removeItem('gthy-sync-queue');
     setSyncStatus('ok', 'Synced ' + new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}));
   }
+}
+
+// M4.5-C: re-push entire S state to Supabase (used by importDataJSON backup restore)
+// Iterates every known S array and queues each record, then flushes immediately.
+// Safe to run multiple times — all writes are upserts.
+async function pushAllToSupabase(){
+  if(!_sbClient || !_sbOperationId) return;
+  const opId = _sbOperationId;
+  // Settings
+  queueWrite('operations', { id: opId, herd_name: S.herd.name, updated_at: new Date().toISOString() });
+  queueWrite('operation_settings', { operation_id: opId, data: S.settings }, 'operation_id');
+  // Simple flat tables
+  const flatTables = [
+    ['feed_types',               S.feedTypes],
+    ['batches',                  S.batches],
+    ['animal_classes',           S.animalClasses],
+    ['animal_groups',            S.animalGroups],
+    ['animals',                  S.animals],
+    ['animal_group_memberships', S.animalGroupMemberships],
+    ['animal_weight_records',    S.animalWeightRecords],
+    ['input_products',           S.inputProducts],
+    ['input_applications',       S.inputApplications],
+    ['input_application_locations', S.inputApplicationLocations],
+    ['manure_batches',           S.manureBatches],
+    ['manure_batch_transactions', S.manureBatchTransactions],
+    ['paddock_observations',     S.paddockObservations],
+    ['todos',                    S.todos],
+    ['feedback',                 S.feedback],
+  ];
+  for(const [table, arr] of flatTables){
+    (arr||[]).forEach(r => queueWrite(table, _sbToSnake({...r, operationId: opId})));
+  }
+  // Pastures use a special shape function
+  (S.pastures||[]).forEach(p => queueWrite('pastures', _pastureRow(p, opId)));
+  // Events: use queueEventWrite which handles all 6 child tables
+  (S.events||[]).forEach(ev => queueEventWrite(ev));
+  // Flush immediately — this is an explicit full-replace, not incremental
+  await flushToSupabase();
 }
 
 // M3: debounced flush — replaces driveSyncDebounced
@@ -2838,7 +2876,7 @@ function triggerImport(){document.getElementById('import-file').click();}
 function importDataJSON(event){
   const file=event.target.files[0];if(!file)return;
   const reader=new FileReader();
-  reader.onload=(e)=>{
+  reader.onload=async(e)=>{
     try{
       const imported=JSON.parse(e.target.result);
       if(!imported.herd&&!imported.events&&!imported.pastures)throw new Error('Not a Get The Hay Out backup file');
@@ -2850,7 +2888,13 @@ function importDataJSON(event){
       saveLocal();
       const _importStatusEl=document.getElementById('import-status');
       _importStatusEl.style.display='block';
-      _importStatusEl.textContent='Restore successful. Sign in to sync to other devices.';
+      if(_sbSession && _sbOperationId){
+        _importStatusEl.textContent='Restoring to cloud…';
+        await pushAllToSupabase();
+        _importStatusEl.textContent='✓ Restored & synced to cloud.';
+      } else {
+        _importStatusEl.textContent='✓ Restored locally. Sign in to sync to other devices.';
+      }
       setTimeout(()=>{_importStatusEl.style.display='none';},5000);
       renderCurrentScreen();
     }catch(err){alert('Import failed: '+err.message);}
@@ -6879,6 +6923,11 @@ function saveSettings(){
     const sp=normalizeSpecies((S.animalClasses.find(c=>c.id===a.classId)||{}).species);
     a.weanTargetDate=computeWeanTargetDate(a.birthDate,sp);
   });
+  // M4.5-A: queue settings write to Supabase
+  if(_sbOperationId){
+    queueWrite('operations', { id: _sbOperationId, herd_name: S.herd.name, updated_at: new Date().toISOString() });
+    queueWrite('operation_settings', { operation_id: _sbOperationId, data: S.settings }, 'operation_id');
+  }
   save();updateHeader();
 }
 function loadSettings(){
@@ -9391,6 +9440,16 @@ function importSetupFile(event){
       // Back-fill system IDs on any new pastures/feedTypes
       migrateSystemIds();
       migrateToPaddocksField();
+      // M4.5-E: queue all imported records to Supabase (IDs now assigned above)
+      if(_sbOperationId){
+        const _opId=_sbOperationId;
+        (S.pastures||[]).forEach(p=>queueWrite('pastures',_pastureRow(p,_opId)));
+        (S.feedTypes||[]).forEach(ft=>queueWrite('feed_types',_sbToSnake({...ft,operationId:_opId})));
+        (S.batches||[]).forEach(b=>queueWrite('batches',_sbToSnake({...b,operationId:_opId})));
+        (S.animalClasses||[]).forEach(c=>queueWrite('animal_classes',_sbToSnake({...c,operationId:_opId})));
+        (S.animalGroups||[]).forEach(g=>queueWrite('animal_groups',_sbToSnake({...g,operationId:_opId})));
+        (S.animals||[]).forEach(a=>queueWrite('animals',_sbToSnake({...a,operationId:_opId})));
+      }
       save();
       renderGroupsList();renderClassesList();
       renderPastures();renderFeedTypes();renderBatchListS();
@@ -11377,6 +11436,7 @@ function openResetSheet(mode='all'){
   // Update warning text based on mode
   const warningEl=document.getElementById('reset-warning-content');
   if(warningEl){
+    const cloudNote=_sbOperationId?'<br><br><strong>⚠️ This will also erase your data from the cloud. This cannot be undone.</strong>':'';
     if(mode==='events'){
       warningEl.innerHTML=`<div style="font-size:13px;font-weight:600;color:var(--red-d);margin-bottom:4px;">This will erase all event data:</div>
         <div style="font-size:12px;color:var(--red-d);line-height:1.8;">
@@ -11385,7 +11445,7 @@ function openResetSheet(mode='all'){
           · All manure batches and inventory<br>
           · All input applications<br>
           · All tasks<br>
-          <strong>Preserved:</strong> Animals, groups, locations, feed types &amp; batches, settings, users, feedback
+          <strong>Preserved:</strong> Animals, groups, locations, feed types &amp; batches, settings, users, feedback${cloudNote}
         </div>`;
     } else {
       warningEl.innerHTML=`<div style="font-size:13px;font-weight:600;color:var(--red-d);margin-bottom:4px;">This will permanently erase everything:</div>
@@ -11395,7 +11455,7 @@ function openResetSheet(mode='all'){
           · All feed types, batches, and inventory<br>
           · All manure batches and input applications<br>
           · All tasks, users, and feedback<br>
-          · All settings and operation name
+          · All settings and operation name${cloudNote}
         </div>`;
     }
   }
@@ -11409,6 +11469,32 @@ async function executeReset(){
   if(document.getElementById('reset-confirm-input').value!=='YES')return;
   const mode=document.getElementById('reset-confirm-btn').dataset.mode||'all';
   const ver=S.version||'b20260322.0936';
+  // M4.5-B: delete from Supabase first (FK-safe order, children before parents)
+  if(_sbClient && _sbOperationId){
+    const eventTables=[
+      'event_npk_deposits','event_feed_residual_checks','event_feed_deliveries',
+      'event_sub_moves','event_paddock_windows','event_group_memberships','events',
+      'manure_batch_transactions','manure_batches','input_application_locations',
+      'input_applications','todos'
+    ];
+    const allTables=[
+      'event_npk_deposits','event_feed_residual_checks','event_feed_deliveries',
+      'event_sub_moves','event_paddock_windows','event_group_memberships','events',
+      'animal_health_events','animal_weight_records','animal_group_memberships',
+      'animal_group_class_compositions','animals','animal_groups','animal_classes',
+      'manure_batch_transactions','manure_batches','input_application_locations',
+      'input_applications','input_products','paddock_observations','pastures',
+      'batches','feed_types','treatment_types','ai_bulls','todos','feedback',
+      'operation_settings'
+    ];
+    const tables = mode==='events' ? eventTables : allTables;
+    for(const t of tables){
+      try{ await _sbClient.from(t).delete().eq('operation_id',_sbOperationId); }
+      catch(e){ logError('reset-sb-delete',t+': '+e.message,''); }
+    }
+    // Clear offline queue — any pending writes would re-populate just-deleted rows
+    localStorage.removeItem('gthy-sync-queue');
+  }
   if(mode==='events'){
     S.events=[];
     S.manureBatches=[];
@@ -11434,7 +11520,6 @@ async function executeReset(){
   };
   saveLocal();
   closeResetSheet();
-  // Full re-render
   updateHeader();
   renderHome();
   renderCurrentScreen();
@@ -13533,7 +13618,7 @@ function syncSidebarSync(state, label){
   const dot = document.getElementById('dsk-sync-dot');
   const lbl = document.getElementById('dsk-sync-label');
   if(dot) dot.className = 'sync-dot sync-'+state;
-  if(lbl) lbl.textContent = typeof label==='string' ? label : 'Drive';
+  if(lbl) lbl.textContent = typeof label==='string' ? label : 'Sync';
 }
 function syncSidebarOpName(){
   const name = (S.herd&&S.herd.name) ? S.herd.name : 'My Farm';
@@ -15765,7 +15850,7 @@ applyFieldMode(); // field-mode URL param + user preference — runs after detec
         · All settings and operation name
       </div>
     </div>
-    <div style="font-size:13px;color:var(--text2);margin-bottom:4px;">If Drive is connected, the remote file will also be overwritten with empty data on next sync.</div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:4px;">If signed in to Supabase, cloud data will also be erased.</div>
     <div style="font-size:13px;color:var(--text2);margin-bottom:14px;">Consider exporting a backup first.</div>
     <div class="field">
       <label style="font-size:13px;font-weight:600;">Type <span style="font-family:Menlo,monospace;background:var(--bg2);padding:2px 6px;border-radius:4px;">YES</span> to confirm</label>

@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260328.2241
-**Reconciled against build:** b20260328.2241
+**Last updated:** b20260329.1630
+**Reconciled against build:** b20260329.1630
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -22,14 +22,14 @@
 | 🔴 Open — Bug | 4 |
 | 🟡 Open — Polish | 2 |
 | 🔵 Open — Enhancement | 21 |
-| ⚪ Open — Debt | 3 |
+| ⚪ Open — Debt | 5 |
 | ✅ Closed | 50 |
 
 ---
 
 ## Session Queue
 
-Recommended work order as of b20260328.1623. Update after each session.
+Recommended work order as of b20260329.1630. Update after each session.
 
 | Priority | OI | Title | Notes |
 |---|---|---|---|
@@ -37,9 +37,10 @@ Recommended work order as of b20260328.1623. Update after each session.
 | 2 | OI-0029 | Event log: consolidate parent + sub-moves | 🟡 Polish |
 | 3 | OI-0021 | Event AUD recalc on animal move/cull | 🔵 Enhancement — design first |
 
-> **OI-0080–0083 closed** at b20260328.2324 — Supabase assembly audit: sub-move aliases, ev.pasture alias, pasture recovery aliases + write-path fix, ev.totals auto-rebuild.
+> **M4.5 closed** at b20260329.1630 — saveSettings queueWrite, reset Supabase deletes, importDataJSON pushAllToSupabase, XLSX bulk import queueWrite, stale Drive labels.
+> **OI-0084 and OI-0085 added** — two deferred M4.5 items (historical events import write path, NPK recalc bulk write).
 > **Next priority is OI-0060** — rotation calendar sub-move colour bug.
-> **Last updated:** b20260328.2324
+> **Last updated:** b20260329.1630
 
 ---
 
@@ -90,6 +91,37 @@ Display name input added to `#sb-signed-in` Settings block. `sbSaveDisplayName()
 **Closed:** b20260328.2241
 
 `alter table batches add column wt numeric` run in Supabase SQL Editor. Existing batches populated: Peanut Hay / Oak Field Barn / Tarped → 750 lbs; Alfalfa Small Squares → 50 lbs. Batch assembly updated to read `wt` directly (no alias needed — no underscore conversion). `saveBatchAdj` also fixed: was missing `queueWrite('batches', ...)` entirely — batch edits never synced to Supabase. Both fixed in b20260328.2241.
+
+---
+
+### OI-0085
+**Source:** Claude observation — b20260329.1630 (M4.5 audit)
+**Area:** Supabase write path — `recalcNpkValues()` bulk mutation
+**Severity:** Debt
+**Status:** ⚪ Open
+**Found:** b20260329.1630
+
+`recalcNpkValues()` (~Settings) iterates past events, updates `ev.npkValue`, then calls `save()` — no per-row `queueWrite`. Bulk NPK price recalculations only update localStorage; Supabase events retain stale `npk_value`. Low-frequency operation (triggered manually from Settings when NPK prices change).
+
+**Fix:** After updating each event in the loop, call `queueWrite('events', _sbToSnake({...ev, operationId: _sbOperationId}))`. Can be combined with any future Settings or event edit session.
+
+---
+
+### OI-0084
+**Source:** Claude observation — b20260329.1630 (M4.5 audit)
+**Area:** Supabase write path — `importEventsFile()` historical import
+**Severity:** Debt
+**Status:** ⚪ Open
+**Found:** b20260329.1630
+
+`importEventsFile()` pushes new pastures (no `id` field), new groups, and new events directly into `S` arrays then calls `save()`. No `queueWrite` calls anywhere in the function. Historical imports do not reach Supabase.
+
+**Three insertion points needed:**
+1. New pastures (L~11629): call `generatePastureId()` before push, then `queueWrite('pastures', _pastureRow(loc, _sbOperationId))` after push.
+2. New groups (L~11645): call `queueWrite('animal_groups', _sbToSnake({...grp, operationId: _sbOperationId}))` after push.
+3. Events loop (L~11698): call `queueEventWrite(ev)` after `S.events.push(...)`.
+
+Low priority — one-time import path. Fix alongside any historical import session.
 
 ---
 

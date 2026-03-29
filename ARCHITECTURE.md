@@ -1,8 +1,8 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260329.1530`
-**Last updated:** 2026-03-28
+**Current build:** `b20260329.1637`
+**Last updated:** 2026-03-29
 
 > This is the authoritative navigation guide for every AI coding session.
 > Update it at the end of every session using the SESSION_RULES.md protocol.
@@ -293,7 +293,9 @@ All sheets are always in the DOM. Toggle: add/remove `.open` on the `-wrap` div.
 | `exportFeedbackJSON()` | Exports `S.feedback` as `gthy-feedback-YYYY-MM-DD-HHMM.json` for Claude session import into OPEN_ITEMS.md. Distinct from the full backup — feedback only, structured for machine parsing. |
 | `exportFeedbackCSV()` | Human-readable CSV export of feedback. For record-keeping; Claude uses the JSON export. |
 | `exportDataJSON()` | Full data backup as `gthy-backup-YYYY-MM-DD-HHMM.json`. Full replacement restore — not merged. |
-| `flushToSupabase()` | Called on `visibilitychange` → visible. Drains `gthy-sync-queue` to Supabase. Also called by `supabaseSyncDebounced` 800ms after every `save()`. |
+| `flushToSupabase()` | Called on `visibilitychange` → visible. Drains `gthy-sync-queue` to Supabase. Also called by `supabaseSyncDebounced` 800ms after every `save()`. Uses `op.conflictKey \|\| 'id'` per entry — supports tables whose PK is not `id`. |
+| `pushAllToSupabase()` | **M4.5-C** Full re-push of entire S state to Supabase. Iterates all S arrays, queues every record using correct patterns (`_pastureRow` for pastures, `queueEventWrite` for events, `_sbToSnake` for flat tables), then calls `flushToSupabase()` immediately. Called by `importDataJSON()` after backup restore when signed in. Safe to call repeatedly — all writes are upserts. |
+| `queueWrite(table, record, conflictKey='id')` | **M4.5-A** Appends/replaces one record in the offline write queue. Third param `conflictKey` (default `'id'`) controls both dedup key and the `onConflict` hint passed to Supabase upsert. Required for tables whose PK is not `id` (e.g. `operation_settings` uses `conflictKey='operation_id'`). |
 | `maybeResumeTokenRefresh()` | Called at init. Schedules token refresh or triggers silent re-auth if already expired. |
 | `editTreatmentType(id)` | Populates manage-treatments form with existing values; sets `_editingTreatmentId`. Switches button label to "Save changes" and shows Cancel. |
 | `cancelEditTreatment()` | Clears `_editingTreatmentId`; calls `_mtResetForm()` to return form to add mode. |
@@ -303,6 +305,18 @@ All sheets are always in the DOM. Toggle: add/remove `.open` on the `-wrap` div.
 
 ## Critical Behavioral Notes
 
+
+### M4.5 — Settings, Reset, and Restore Write Paths (fixed b20260329.1630)
+
+Three categories of functions were silently bypassing Supabase post-M4:
+
+**`saveSettings()` — no queueWrite** (fixed): Settings saves called `save()` but never queued anything. The entire `S.settings` blob and `S.herd.name` (operation name) never reached Supabase. Fix: two `queueWrite` calls added at end of `saveSettings()` before `save()` — one to `operations` (herd name), one to `operation_settings` (full settings JSONB, `conflictKey='operation_id'`).
+
+**Reset functions — Supabase rows survived** (fixed): `executeReset()` cleared local state and called `saveLocal()` but left all Supabase rows intact. On next load, `loadFromSupabase()` flooded all "deleted" data back. Fix: `executeReset()` now deletes from Supabase in FK-safe order before clearing local state, then clears `gthy-sync-queue` to prevent re-population from pending queued writes.
+
+**`importDataJSON()` — backup restore never synced to cloud** (fixed): After restore, `saveLocal()` was called but nothing was pushed to Supabase. On next multi-device load, old Supabase data overwrote the just-restored state. Fix: `importDataJSON()` is now async; calls new `pushAllToSupabase()` after local restore when signed in.
+
+**`queueWrite` conflictKey param added**: `flushToSupabase` was hardcoding `onConflict: 'id'` which broke `operation_settings` (PK is `operation_id`, not `id`). `queueWrite` now accepts optional `conflictKey='id'`; queue entries store this value; `flushToSupabase` uses `op.conflictKey || 'id'` per entry.
 
 ### saveBatchAdj — Missing queueWrite (fixed b20260328.2241)
 
