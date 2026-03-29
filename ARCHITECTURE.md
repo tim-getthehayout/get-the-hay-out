@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260329.2120`
+**Current build:** `b20260329.2150`
 **Last updated:** 2026-03-29
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -60,7 +60,7 @@ build = 'b' + datetime.now().strftime('%Y%m%d') + '.' + datetime.now().strftime(
 | ~5598 | Batch Adjustment / Reconcile |
 | ~5805 | **`renderEventsLog()`** ← displaced here by Batch Adj insertion; logically part of Events section above. Now renders consolidated parent + sub-move thread (OI-0029, b20260329.1751) |
 | ~5954 | Pastures screen + recovery date helpers |
-| ~6030 | Settings screen |
+| ~6030 | Settings screen — includes Sync queue inspector card (`renderSyncQueueInspector`, `exportSyncQueue`) |
 | ~6222 | Feedback tab + Dev Brief + Export CSV |
 | ~6432 | Manure system |
 | ~6532 | Animal Classes & Groups + Add/Edit Group sheet + Animal Health Events |
@@ -914,6 +914,11 @@ across reloads via `sb-*` localStorage — rate limit only affects new sign-in a
 **Root cause (data loss):** `onAuthStateChange` fired `loadFromSupabase()` immediately on `SIGNED_IN`, overwriting `S.*` from Supabase before the pending write queue was flushed. Data entered while signed out was queued with valid operation IDs but never reached Supabase before the load erased it from memory.
 **Fix:** `save()` now calls `setSyncStatus('off', 'Not signed in — saved locally')` when no session. `onAuthStateChange` for `SIGNED_IN` now calls `flushToSupabase()` first, then chains `loadFromSupabase()` in `.then()`. `INITIAL_SESSION` path is unchanged.
 **Pattern:** On any reconnect (`SIGNED_IN`), always flush the write queue before loading from the remote — local state takes precedence over remote state during the reconnect window.
+
+### `paddock_observations` `source_id` type mismatch — OI-0099 (Fixed b20260329.2134)
+**Root cause:** `_paddockObservationRow()` sent `source_id: String(obs.sourceId)` — Supabase column is bigint; PostgREST rejected the string type.
+**Fix:** `source_id: obs.sourceId ?? null` — pass the number directly.
+**Pattern:** When building shape functions, never convert numeric IDs to strings unless the Supabase column is explicitly `text`. Check the migration script for the canonical type.
 
 ### `feedback` 400 — extra columns not in schema (Fixed b20260329.2116)
 **Root cause:** `_feedbackRow()` sent `resolved_at`, `confirmed_by`, `confirmed_at` — not in the Supabase `feedback` table. PostgREST rejected every write.

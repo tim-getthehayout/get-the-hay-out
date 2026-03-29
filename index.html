@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260329.2120" id="app-version-meta"/>
+<meta name="app-version" content="b20260329.2150" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -1164,6 +1164,20 @@ body:not(.field-mode) #field-mode-toggle{
         </div>
       </div>
 
+      <!-- Sync queue inspector (dev tool) -->
+      <div class="card" id="sb-queue-card">
+        <div class="sec">Sync queue</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:10px;line-height:1.6;">
+          Items waiting to be written to Supabase. Use this to diagnose sync issues.
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+          <button class="btn btn-outline btn-sm" onclick="renderSyncQueueInspector()">Refresh</button>
+          <button class="btn btn-outline btn-sm" onclick="exportSyncQueue()">Export queue JSON</button>
+          <button class="btn btn-outline btn-sm" style="color:var(--red);" onclick="if(confirm('Clear the entire sync queue? Unsynced changes will be lost.')){{localStorage.removeItem('gthy-sync-queue');renderSyncQueueInspector();}}">Clear queue</button>
+        </div>
+        <div id="sb-queue-inspector" style="font-size:12px;"></div>
+      </div>
+
       <!-- Manual backup -->
       <div class="card">
         <div class="sec">Manual backup</div>
@@ -1986,6 +2000,43 @@ function sbResetToStep1(){
 function sbSignIn(){ sbSendCode(); }
 
 // Sign out of Supabase
+// ── Sync Queue Inspector ─────────────────────────────────────────────────────
+function renderSyncQueueInspector(){
+  const el = document.getElementById('sb-queue-inspector');
+  if(!el) return;
+  const queue = JSON.parse(localStorage.getItem('gthy-sync-queue') || '[]');
+  if(!queue.length){
+    el.innerHTML = '<div style="color:var(--green-d);font-weight:500;">✓ Queue empty — all changes synced</div>';
+    return;
+  }
+  // Group by table
+  const byTable = {};
+  queue.forEach(op => {
+    if(!byTable[op.table]) byTable[op.table] = [];
+    byTable[op.table].push(op);
+  });
+  const rows = Object.entries(byTable).map(([table, ops]) =>
+    `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:0.5px solid var(--border);">
+      <span style="font-weight:500;font-family:var(--font-mono);">${table}</span>
+      <span style="color:var(--amber-d);font-weight:600;">${ops.length} item${ops.length!==1?'s':''}</span>
+    </div>`
+  ).join('');
+  el.innerHTML =
+    `<div style="margin-bottom:8px;font-weight:600;color:var(--red);">${queue.length} item${queue.length!==1?'s':''} pending</div>` +
+    `<div style="border:0.5px solid var(--border);border-radius:6px;padding:4px 8px;margin-bottom:8px;">${rows}</div>` +
+    `<div style="color:var(--text2);font-size:11px;">Signed in: ${_sbSession?'yes — flush will retry automatically':'no — items will sync on next sign-in'}</div>`;
+}
+
+function exportSyncQueue(){
+  const queue = JSON.parse(localStorage.getItem('gthy-sync-queue') || '[]');
+  const blob = new Blob([JSON.stringify(queue, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'gthy-sync-queue-' + new Date().toISOString().slice(0,16).replace('T','-').replace(':','') + '.json';
+  a.click();
+}
+// ── END Sync Queue Inspector ──────────────────────────────────────────────────
+
 async function sbSignOut(){
   if(!_sbClient) return;
   await _sbClient.auth.signOut();
@@ -2721,7 +2772,7 @@ function _paddockObservationRow(obs, opId){
     pasture_id:        obs.pastureId ?? null,
     observed_at:       obs.observedAt ?? null,
     source:            obs.source ?? null,
-    source_id:         obs.sourceId != null ? String(obs.sourceId) : null,
+    source_id:         obs.sourceId ?? null,
     confidence_rank:   obs.confidenceRank ?? null,
     veg_height:        obs.vegHeight ?? null,
     forage_cover_pct:  obs.forageCoverPct ?? null,
@@ -3267,7 +3318,7 @@ function renderCurrentScreen(){
   else if(curScreen==='pastures')renderPastures();
   else if(curScreen==='feedback')renderFeedbackTab();
   else if(curScreen==='reports'){renderReportsScreen();}
-  else if(curScreen==='settings'){loadSettings();renderUsersList();renderClassesList();renderGroupsList();renderGrpAnimalPicker();sbUpdateAuthUI();}
+  else if(curScreen==='settings'){loadSettings();renderUsersList();renderClassesList();renderGroupsList();renderGrpAnimalPicker();sbUpdateAuthUI();renderSyncQueueInspector();}
 }
 
 // ─── USER SYSTEM ──────────────────────────────────────────────────────────────

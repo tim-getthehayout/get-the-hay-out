@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260329.2116
-**Reconciled against build:** b20260329.2116
+**Last updated:** b20260329.2139
+**Reconciled against build:** b20260329.2139
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -36,11 +36,12 @@ Recommended work order as of b20260329.2010. Update after each session.
 | 1 | OI-0021 | Event AUD recalc on animal move/cull | 🔵 Enhancement — design first |
 | 2 | — | M5 — Offline Queue Polish | Migration next phase — design sub-tasks first |
 
-> **OI-0098 added and closed** at b20260329.2116 — `feedback` 400 fixed (`resolved_at`/`confirmed_by`/`confirmed_at` not in schema).
-> **OI-0097 added and closed** at b20260329.2112 — `activeSmGC` crash + `paddock_observations` 400 fixed; password sign-in added.
+> **Queue inspector added** at b20260329.2139 — full type audit clean; `renderSyncQueueInspector` + `exportSyncQueue` in Settings.
+> **OI-0099 added and closed** at b20260329.2134 — `paddock_observations` 400: `source_id` type mismatch fixed.
+> **OI-0097/0098 added and closed** at b20260329.2112 — `activeSmGC` crash + `paddock_observations` 400 fixed; password sign-in added.
 > **OI-0096 added and closed** at b20260329.2010 — stale green sync indicator + data loss on reconnect both fixed.
 > **Next priority is OI-0021** — event AUD recalc design.
-> **Last updated:** b20260329.2116
+> **Last updated:** b20260329.2139
 
 ---
 
@@ -53,22 +54,6 @@ Recommended work order as of b20260329.2010. Update after each session.
 ---
 
 ## Open Items
-
-### OI-0098
-**Source:** User report — b20260329.2116
-**Area:** `_feedbackRow()` (~L7453)
-**Severity:** Bug
-**Status:** ✅ Closed
-**Found:** b20260329.2116
-**Closed:** b20260329.2116
-
-`feedback` table returned 400 on every write. `_feedbackRow()` was sending three columns not present in the Supabase `feedback` schema: `resolved_at`, `confirmed_by`, `confirmed_at`. These exist on the JS object for local use but were never added to the database table (migration script omits them). PostgREST rejects any upsert containing unknown columns, so every feedback save failed.
-
-**Fix:** Removed the three extra fields from `_feedbackRow()`. JS objects retain them; they are simply not synced to Supabase.
-
-**Note:** If `resolved_at`, `confirmed_by`, `confirmed_at` are needed in Supabase in future, add the columns via `ALTER TABLE feedback ADD COLUMN ...` first, then restore them to `_feedbackRow`.
-
----
 
 ### OI-0097
 **Source:** User report — b20260329.2112
