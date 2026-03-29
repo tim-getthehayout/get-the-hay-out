@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260329.2010
-**Reconciled against build:** b20260329.2010
+**Last updated:** b20260329.2116
+**Reconciled against build:** b20260329.2116
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -23,7 +23,7 @@
 | 🟡 Open — Polish | 1 |
 | 🔵 Open — Enhancement | 21 |
 | ⚪ Open — Debt | 5 |
-| ✅ Closed | 61 |
+| ✅ Closed | 63 |
 
 ---
 
@@ -36,9 +36,11 @@ Recommended work order as of b20260329.2010. Update after each session.
 | 1 | OI-0021 | Event AUD recalc on animal move/cull | 🔵 Enhancement — design first |
 | 2 | — | M5 — Offline Queue Polish | Migration next phase — design sub-tasks first |
 
+> **OI-0098 added and closed** at b20260329.2116 — `feedback` 400 fixed (`resolved_at`/`confirmed_by`/`confirmed_at` not in schema).
+> **OI-0097 added and closed** at b20260329.2112 — `activeSmGC` crash + `paddock_observations` 400 fixed; password sign-in added.
 > **OI-0096 added and closed** at b20260329.2010 — stale green sync indicator + data loss on reconnect both fixed.
 > **Next priority is OI-0021** — event AUD recalc design.
-> **Last updated:** b20260329.2010
+> **Last updated:** b20260329.2116
 
 ---
 
@@ -51,6 +53,38 @@ Recommended work order as of b20260329.2010. Update after each session.
 ---
 
 ## Open Items
+
+### OI-0098
+**Source:** User report — b20260329.2116
+**Area:** `_feedbackRow()` (~L7453)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260329.2116
+**Closed:** b20260329.2116
+
+`feedback` table returned 400 on every write. `_feedbackRow()` was sending three columns not present in the Supabase `feedback` schema: `resolved_at`, `confirmed_by`, `confirmed_at`. These exist on the JS object for local use but were never added to the database table (migration script omits them). PostgREST rejects any upsert containing unknown columns, so every feedback save failed.
+
+**Fix:** Removed the three extra fields from `_feedbackRow()`. JS objects retain them; they are simply not synced to Supabase.
+
+**Note:** If `resolved_at`, `confirmed_by`, `confirmed_at` are needed in Supabase in future, add the columns via `ALTER TABLE feedback ADD COLUMN ...` first, then restore them to `_feedbackRow`.
+
+---
+
+### OI-0097
+**Source:** User report — b20260329.2112
+**Area:** `renderGroupCard` (~L3762), `_writePaddockObservation` (~L11240)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260329.2112
+**Closed:** b20260329.2112
+
+**Bug A — `activeSmGC` ReferenceError:** `const activeSmGC` declared inside `if(ae){...}` block but referenced in `return` template outside that block. `const` is block-scoped. Crashed `renderGroupCard` → `renderHome` on every home screen render when a group had an active event with sub-moves.
+**Fix:** Hoisted to `let activeSmGC = null` before the `if(ae)` block; assignment changed from `const` to bare assignment inside the block.
+
+**Bug B — `paddock_observations` 400:** JS `pastureName` field → `_sbToSnake` → `pasture_name` — no such Supabase column. PostgREST rejected every write. Missed by OI-0095 audit (manual JS_FIELDS dict was incomplete).
+**Fix:** `_paddockObservationRow(obs, opId)` shape function added. `_writePaddockObservation` and `pushAllToSupabase` updated.
+
+---
 
 ### OI-0096
 **Source:** User report + Claude observation — b20260329.2010

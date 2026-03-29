@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260329.2059`
+**Current build:** `b20260329.2120`
 **Last updated:** 2026-03-29
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -914,6 +914,21 @@ across reloads via `sb-*` localStorage — rate limit only affects new sign-in a
 **Root cause (data loss):** `onAuthStateChange` fired `loadFromSupabase()` immediately on `SIGNED_IN`, overwriting `S.*` from Supabase before the pending write queue was flushed. Data entered while signed out was queued with valid operation IDs but never reached Supabase before the load erased it from memory.
 **Fix:** `save()` now calls `setSyncStatus('off', 'Not signed in — saved locally')` when no session. `onAuthStateChange` for `SIGNED_IN` now calls `flushToSupabase()` first, then chains `loadFromSupabase()` in `.then()`. `INITIAL_SESSION` path is unchanged.
 **Pattern:** On any reconnect (`SIGNED_IN`), always flush the write queue before loading from the remote — local state takes precedence over remote state during the reconnect window.
+
+### `feedback` 400 — extra columns not in schema (Fixed b20260329.2116)
+**Root cause:** `_feedbackRow()` sent `resolved_at`, `confirmed_by`, `confirmed_at` — not in the Supabase `feedback` table. PostgREST rejected every write.
+**Fix:** Three fields removed from `_feedbackRow()`. JS objects keep them for local use.
+**If columns needed later:** `ALTER TABLE feedback ADD COLUMN resolved_at timestamptz; ADD COLUMN confirmed_by text; ADD COLUMN confirmed_at timestamptz;` then restore to `_feedbackRow`.
+
+### `activeSmGC` ReferenceError in `renderGroupCard` — OI-0097 (Fixed b20260329.2112)
+**Root cause:** `const activeSmGC` declared inside `if(ae){...}` block but referenced in `return` template outside that block. `const` is block-scoped.
+**Fix:** Hoist to `let activeSmGC = null` before the `if(ae)` block; assign (not re-declare) inside.
+**Pattern:** Variables used in a function's `return` template must be declared at function scope, not inside conditional blocks. Watch for this in any `renderXxx` function with conditional display logic.
+
+### `paddock_observations` 400 — missed by OI-0095 audit (Fixed b20260329.2112)
+**Root cause:** JS `pastureName` field → `_sbToSnake` → `pasture_name` — no column in `paddock_observations` schema. PostgREST rejected every write.
+**Fix:** `_paddockObservationRow(obs, opId)` shape function added at ~L2512 with other shape functions.
+**Audit lesson:** The OI-0095 audit built JS_FIELDS from memory, not from source. Always read the actual object construction code to get the canonical field list.
 
 ### Supabase Write-Path Schema Mismatch — OI-0095 (Fixed b20260329.1950)
 **Root cause:** `_sbToSnake` is a generic camelCase→snake_case converter with no schema awareness. When JS object field names differ from Supabase column names (e.g. `tagNum`→`tag`, `dm`→`dm_pct`, `cpu`→`cost_per_unit`, `active`→`status`), PostgREST rejects the entire upsert on encountering the first unknown column. The write fails silently, the item stays in `gthy-sync-queue` forever, and Realtime reloads from Supabase erase locally-entered data that never reached the cloud.

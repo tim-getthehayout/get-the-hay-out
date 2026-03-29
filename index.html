@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260329.2059" id="app-version-meta"/>
+<meta name="app-version" content="b20260329.2120" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -1105,15 +1105,21 @@ body:not(.field-mode) #field-mode-toggle{
           <!-- Step 1: Email entry -->
           <div id="sb-step1">
             <div style="font-size:13px;color:var(--text2);margin-bottom:14px;line-height:1.6;">
-              Sign in to sync your farm data across devices. Enter your email and we&#39;ll send a 6-digit code — no password required.
+              Sign in to sync your farm data across devices.
             </div>
             <div class="field">
               <label>Email address</label>
               <input type="email" id="sb-email-input" placeholder="you@example.com"
                 style="max-width:280px;"
-                onkeydown="if(event.key==='Enter')sbSendCode()"/>
+                onkeydown="if(event.key==='Enter')document.getElementById('sb-password-input').focus()"/>
             </div>
-            <button class="btn btn-green btn-sm" id="sb-sendcode-btn" onclick="sbSendCode()">Send code</button>
+            <div class="field">
+              <label>Password <span style="font-weight:400;color:var(--text2);font-size:11px;">— leave blank to use email code instead</span></label>
+              <input type="password" id="sb-password-input" placeholder="••••••••"
+                style="max-width:280px;"
+                onkeydown="if(event.key==='Enter')sbSignInStep1()"/>
+            </div>
+            <button class="btn btn-green btn-sm" id="sb-sendcode-btn" onclick="sbSignInStep1()">Sign in</button>
             <div id="sb-step1-status" style="display:none;margin-top:10px;font-size:13px;color:var(--red);font-weight:500;"></div>
           </div>
 
@@ -1861,6 +1867,37 @@ function sbInitClient(){
 // No emailRedirectTo — avoids the PWA/Safari cross-context storage problem.
 // Supabase emails the code; user types it into the app directly (step 2).
 // Requires the Supabase "Magic Link" email template to include {{ .Token }}.
+// Step 1 dispatcher — routes to password or OTP flow based on whether password field is filled
+async function sbSignInStep1(){
+  const password = document.getElementById('sb-password-input')?.value;
+  if(password && password.length >= 6){
+    await sbSignInWithPassword();
+  } else {
+    await sbSendCode();
+  }
+}
+
+// Password sign-in — instant, no email roundtrip
+async function sbSignInWithPassword(){
+  if(!_sbClient){ sbInitClient(); if(!_sbClient){ if(confirm('Sync service failed to load. Reload?'))location.reload(); return; } }
+  const email = document.getElementById('sb-email-input')?.value?.trim();
+  const password = document.getElementById('sb-password-input')?.value;
+  if(!email){ _sbStep1Status('Enter your email address', true); return; }
+  if(!password){ _sbStep1Status('Enter your password', true); return; }
+  const btn = document.getElementById('sb-sendcode-btn');
+  if(btn){ btn.disabled = true; btn.textContent = 'Signing in…'; }
+  _sbStep1Status('', false);
+  try{
+    const { error } = await _sbClient.auth.signInWithPassword({ email, password });
+    if(error){ _sbStep1Status(error.message, true); if(btn){ btn.disabled=false; btn.textContent='Sign in'; } return; }
+    // onAuthStateChange fires SIGNED_IN — load chain runs automatically
+    document.getElementById('sb-password-input').value = '';
+  } catch(e){
+    _sbStep1Status('Sign-in failed: ' + e.message, true);
+    if(btn){ btn.disabled=false; btn.textContent='Sign in'; }
+  }
+}
+
 async function sbSendCode(){
   if(!_sbClient){
     sbInitClient();
@@ -2676,6 +2713,26 @@ function _animalWeightRecordRow(rec, opId){
   };
 }
 
+function _paddockObservationRow(obs, opId){
+  // pastureName is a JS-only convenience field — not a Supabase column
+  return {
+    id:                obs.id,
+    operation_id:      opId,
+    pasture_id:        obs.pastureId ?? null,
+    observed_at:       obs.observedAt ?? null,
+    source:            obs.source ?? null,
+    source_id:         obs.sourceId != null ? String(obs.sourceId) : null,
+    confidence_rank:   obs.confidenceRank ?? null,
+    veg_height:        obs.vegHeight ?? null,
+    forage_cover_pct:  obs.forageCoverPct ?? null,
+    forage_quality:    obs.forageQuality ?? null,
+    recovery_min_days: obs.recoveryMinDays ?? null,
+    recovery_max_days: obs.recoveryMaxDays ?? null,
+    notes:             obs.notes ?? null,
+    recorded_at:       obs.recordedAt ?? null,
+  };
+}
+
 function _manureBatchTransactionRow(mbt, opId){
   return {
     id:              mbt.id,
@@ -2843,7 +2900,7 @@ async function pushAllToSupabase(){
     ['input_applications',       S.inputApplications,      r => _sbToSnake({...r, operationId: opId})],
     ['input_application_locations', S.inputApplicationLocations, r => _sbToSnake({...r, operationId: opId})],
     ['manure_batch_transactions', S.manureBatchTransactions, r => _manureBatchTransactionRow(r, opId)],
-    ['paddock_observations',     S.paddockObservations,    r => _sbToSnake({...r, operationId: opId})],
+    ['paddock_observations',     S.paddockObservations,    r => _paddockObservationRow(r, opId)],
     ['todos',                    S.todos,                  r => _todoRow(r, opId)],
     ['feedback',                 S.feedback,               r => _feedbackRow(r, opId)],
   ];
@@ -3760,6 +3817,8 @@ function renderGroupCard(g){
     (g.classes?g.classes.map(c=>{const cls=S.animalClasses.find(x=>x.id===c.classId);return c.count+' '+(cls?cls.name:'?');}).join(', '):'');
 
   // Location status bar
+  // activeSmGC hoisted — referenced in return template below, outside the if(ae) block
+  let activeSmGC = null;
   let locBar='';
   if(ae){
     const days=daysBetween(ae.dateIn,todayStr());
@@ -3774,7 +3833,7 @@ function renderGroupCard(g){
     const allEntries2 = allFeedEntries(ae);
     const costAll = calcEntryCost(ae.feedEntries||[]) + subMoves.reduce((s,sm)=>s+calcEntryCost(sm.feedEntries||[]),0);
     // Active sub-move — where the animals physically are right now
-    const activeSmGC = subMoves.find(sm=>!sm.durationHours);
+    activeSmGC = subMoves.find(sm=>!sm.durationHours)||null;
     const currentAtLineGC = activeSmGC
       ? `<div style="font-size:11px;font-weight:600;color:var(--teal-d);margin-top:3px;">
           📍 Currently at: ${escHtml(activeSmGC.locationName)}
@@ -7392,13 +7451,23 @@ const SCREEN_AREA={home:'home',feed:'feed',animals:'animals',events:'events',tod
 // Builds a Supabase-safe feedback row. Only writes known columns — excludes the
 // JS-only nested ctx object which has no Supabase column and would cause a 400 error.
 function _feedbackRow(f,opId){
+  // Schema: id, operation_id, cat, status, note, tester, version, ts, screen,
+  //         area, resolved_in_version, resolution_note, linked_to
+  // resolved_at, confirmed_by, confirmed_at are JS-only fields not in Supabase schema
   return {
-    id:f.id,operation_id:opId,cat:f.cat||'idea',status:f.status||'open',
-    note:f.note||null,tester:f.tester||null,version:f.version||null,
-    ts:f.ts||null,screen:f.ctx?.screen||f.screen||null,area:f.area||null,
-    resolved_in_version:f.resolvedInVersion||null,resolution_note:f.resolutionNote||null,
-    resolved_at:f.resolvedAt||null,confirmed_by:f.confirmedBy||null,
-    confirmed_at:f.confirmedAt||null,linked_to:f.linkedTo||null,
+    id:                   f.id,
+    operation_id:         opId,
+    cat:                  f.cat||'idea',
+    status:               f.status||'open',
+    note:                 f.note||null,
+    tester:               f.tester||null,
+    version:              f.version||null,
+    ts:                   f.ts||null,
+    screen:               f.ctx?.screen||f.screen||null,
+    area:                 f.area||null,
+    resolved_in_version:  f.resolvedInVersion||null,
+    resolution_note:      f.resolutionNote||null,
+    linked_to:            f.linkedTo||null,
   };
 }
 let selCatVal='';
@@ -11233,7 +11302,7 @@ function _writePaddockObservation(obs){
     // Guard: _sbOperationId may be null during startup migration (runs before sbInitClient).
     // Skip queueWrite if not signed in — loadFromSupabase will supply canonical rows.
     if(_sbOperationId){
-      queueWrite('paddock_observations',_sbToSnake({...obs,operationId:_sbOperationId}));
+      queueWrite('paddock_observations',_paddockObservationRow(obs,_sbOperationId));
     }
   }
 }
