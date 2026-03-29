@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260329.1929`
+**Current build:** `b20260329.1957`
 **Last updated:** 2026-03-29
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -38,7 +38,7 @@ build = 'b' + datetime.now().strftime('%Y%m%d') + '.' + datetime.now().strftime(
 | 1453 | `<script>` tag + JS Section TOC comment block |
 | ~1533 | App Update Banner |
 | ~1594 | Data init (`S` object), localStorage keys, save helpers |
-| ~1682 | **Supabase M3 write path:** `_sbToSnake`, `queueWrite`, `queueEventWrite`, `flushToSupabase`, `supabaseSyncDebounced`, `setSyncStatus` |
+| ~1682 | **Supabase M3 write path:** `_sbToSnake`, `_pastureRow`, shape functions (`_animalRow`, `_batchRow`, `_feedTypeRow`, `_animalClassRow`, `_animalGroupRow`, `_aiBullRow`, `_inputProductRow`, `_todoRow`, `_treatmentTypeRow`, `_animalGroupMembershipRow`, `_animalWeightRecordRow`, `_manureBatchTransactionRow`), `queueWrite`, `queueEventWrite`, `flushToSupabase`, `supabaseSyncDebounced`, `setSyncStatus` |
 | ~1745 | **Supabase auth (M1):** `SUPABASE_URL`, `SUPABASE_KEY` constants; `_sbClient`, `_sbSession` module vars; `sbInitClient()`, `sbSignIn()`, `sbSignOut()`, `sbUpdateAuthUI()` |
 | ~1984 | Export / Import JSON (including `importDataJSON` full-replace + Drive force-write) |
 | ~2138 | Nav routing |
@@ -907,6 +907,14 @@ across reloads via `sb-*` localStorage — rate limit only affects new sign-in a
 ### Supabase SDK Not Initialised on Sign-In — OI-0090 (Fixed b20260329.1838)
 **Root cause:** Supabase SDK CDN script can fail to load on first load after a SW cache update. The SW `fetch` handler returns early for cross-origin requests (`if (!req.url.startsWith(self.location.origin)) return`) without calling `event.respondWith()`. `sbInitClient()` silently returns when `typeof supabase === 'undefined'`. Both `sbSendCode()` and `sbVerifyOtp()` hit their `if(!_sbClient)` guard and showed a bare "Supabase not initialised" alert.
 **Fix:** Both functions now call `sbInitClient()` on the spot — if the global became available since startup this recovers silently. If still unavailable, a `confirm()` offers a page reload. This covers the common case where a reload resolves the CDN load failure.
+
+
+### Supabase Write-Path Schema Mismatch — OI-0095 (Fixed b20260329.1950)
+**Root cause:** `_sbToSnake` is a generic camelCase→snake_case converter with no schema awareness. When JS object field names differ from Supabase column names (e.g. `tagNum`→`tag`, `dm`→`dm_pct`, `cpu`→`cost_per_unit`, `active`→`status`), PostgREST rejects the entire upsert on encountering the first unknown column. The write fails silently, the item stays in `gthy-sync-queue` forever, and Realtime reloads from Supabase erase locally-entered data that never reached the cloud.
+**Fix:** 12 shape functions (one per affected table) map JS fields to exact Supabase column names and exclude JS-only fields (`animalIds`, `weightHistory`, `calvingRecords`, etc.). All `queueWrite` call sites for these tables updated.
+**Pattern:** Every table that has any field name divergence between JS and Supabase MUST use a shape function — never `_sbToSnake` directly. `_pastureRow()` is the reference implementation. When adding a new table to the write path, always cross-reference field names against the migration script (`migrate-to-supabase.js`) which is the ground truth for Supabase column names.
+**Safe tables** (schema matches JS exactly, `_sbToSnake` still fine): `manure_batches`, `paddock_observations`, `input_application_locations`.
+**Shape functions:** `_animalRow`, `_batchRow`, `_feedTypeRow`, `_animalClassRow`, `_animalGroupRow`, `_aiBullRow`, `_inputProductRow`, `_todoRow`, `_treatmentTypeRow`, `_animalGroupMembershipRow`, `_animalWeightRecordRow`, `_manureBatchTransactionRow` — all at ~L2512 alongside `_pastureRow`.
 
 
 ### Todos `assignedTo` String Crash — OI-0091 (Fixed b20260329.1855)

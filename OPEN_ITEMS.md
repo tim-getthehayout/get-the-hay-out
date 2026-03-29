@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260329.1917
-**Reconciled against build:** b20260329.1917
+**Last updated:** b20260329.1950
+**Reconciled against build:** b20260329.1950
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -23,23 +23,22 @@
 | 🟡 Open — Polish | 1 |
 | 🔵 Open — Enhancement | 21 |
 | ⚪ Open — Debt | 5 |
-| ✅ Closed | 59 |
+| ✅ Closed | 60 |
 
 ---
 
 ## Session Queue
 
-Recommended work order as of b20260329.1917. Update after each session.
+Recommended work order as of b20260329.1950. Update after each session.
 
 | Priority | OI | Title | Notes |
 |---|---|---|---|
 | 1 | OI-0021 | Event AUD recalc on animal move/cull | 🔵 Enhancement — design first |
 | 2 | — | M5 — Offline Queue Polish | Migration next phase — design sub-tasks first |
 
-> **OI-0092 added** at b20260329.1917 — migrated feedback rows have `area: null`; one-time backfill needed.
-> **OI-0092 and OI-0093 closed** at b20260329.1917 — feedback ctx crash + write 400 error both fixed.
+> **OI-0095 added and closed** at b20260329.1950 — full write-path schema audit; 8 critical tables and 4 missing-field tables fixed with 12 shape functions.
 > **Next priority is OI-0021** — event AUD recalc design.
-> **Last updated:** b20260329.1917
+> **Last updated:** b20260329.1950
 
 ---
 
@@ -52,6 +51,28 @@ Recommended work order as of b20260329.1917. Update after each session.
 ---
 
 ## Open Items
+
+### OI-0095
+**Source:** Claude observation — b20260329.1950
+**Area:** Supabase write path — all `queueWrite` call sites
+**Severity:** Bug (Critical)
+**Status:** ✅ Closed
+**Found:** b20260329.1950
+**Closed:** b20260329.1950
+
+Full write-path schema audit revealed 8 tables where `_sbToSnake` was producing records with invalid column names, causing PostgREST to reject entire upserts silently. All failed writes accumulated in `gthy-sync-queue` indefinitely (explains the "72 items pending" symptom). Additionally, on any successful write to a Realtime-watched table, `loadFromSupabase()` fires and overwrites `S.*` from Supabase — which doesn't contain the newly added records — so data appeared to vanish.
+
+**Critical tables** (upsert rejected entirely): `animals`, `batches`, `animal_classes`, `animal_groups`, `ai_bulls`, `feed_types`, `input_products`, `todos`.
+
+**Missing-field tables** (upsert succeeded but columns were null): `treatment_types`, `animal_group_memberships`, `animal_weight_records`, `manure_batch_transactions`.
+
+**Fix:** 12 shape functions (`_animalRow`, `_batchRow`, `_feedTypeRow`, `_animalClassRow`, `_animalGroupRow`, `_aiBullRow`, `_inputProductRow`, `_todoRow`, `_treatmentTypeRow`, `_animalGroupMembershipRow`, `_animalWeightRecordRow`, `_manureBatchTransactionRow`) replace all `_sbToSnake` usage for these tables. 38 call sites updated. `pushAllToSupabase()` and `importSetupFile()` bulk-import block also fixed. `loadFromSupabase()` input_products assembly updated with read aliases.
+
+**Tables confirmed clean** (no action needed): `pastures` (uses `_pastureRow`), `feedback` (uses `_feedbackRow`), `events`+children (uses `queueEventWrite`), `manure_batches`, `paddock_observations`, `input_application_locations`.
+
+**Console command to clear stale queue:** `localStorage.removeItem('gthy-sync-queue')`
+
+---
 
 ### OI-0094
 **Source:** Claude observation — b20260329.1917

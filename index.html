@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260329.1929" id="app-version-meta"/>
+<meta name="app-version" content="b20260329.1957" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -2357,7 +2357,17 @@ async function loadFromSupabase(operationId){
       return b;
     });
     S.animalClasses             = (classRows           || []).map(_sbToCamel);
-    S.inputProducts             = (inputProductRows    || []).map(_sbToCamel);
+    S.inputProducts             = (inputProductRows    || []).map(r => {
+      const p = _sbToCamel(r);
+      // Supabase uses npk_n/npk_p/npk_k + type + cost_per_unit;
+      // JS render code reads nPct/pPct/kPct + cat + cpu — add aliases.
+      if (p.nPct  == null && p.npkN       != null) p.nPct  = p.npkN;
+      if (p.pPct  == null && p.npkP       != null) p.pPct  = p.npkP;
+      if (p.kPct  == null && p.npkK       != null) p.kPct  = p.npkK;
+      if (!p.cat  && p.type)                        p.cat   = p.type;
+      if (p.cpu   == null && p.costPerUnit != null) p.cpu   = p.costPerUnit;
+      return p;
+    });
     S.treatmentTypes            = (treatmentTypeRows   || []).map(_sbToCamel);
     S.aiBulls                   = (aiBullRows          || []).map(_sbToCamel);
     S.todos = (todoRows || []).map(r => {
@@ -2492,6 +2502,189 @@ function _pastureRow(p, opId){
     setup_updated_at: p.setupUpdatedAt || null,
   };
 }
+
+// ── Shape functions: JS object → Supabase column mapping ─────────────────────
+// Each function maps the live JS object to the exact columns in the Supabase
+// schema. Extra JS-only fields (animalIds, weightHistory, etc.) are excluded
+// to prevent PostgREST "column not found" rejections.
+// Reference: _pastureRow() is the original implementation; all follow the same pattern.
+
+function _animalRow(a, opId){
+  return {
+    id:               a.id,
+    operation_id:     opId,
+    tag:              a.tagNum ?? a.tag ?? null,
+    name:             a.name ?? null,
+    sex:              a.sex ?? null,
+    class_id:         a.classId ?? null,
+    birth_date:       a.birthDate ?? null,
+    weaned:           a.weaned ?? null,
+    weaned_date:      a.weanedDate ?? null,
+    wean_target_date: a.weanTargetDate ?? null,
+    dam_id:           a.damId ?? null,
+    status:           (a.active === false || a.cullRecord) ? 'culled' : 'active',
+    cull_date:        a.cullRecord?.date ?? null,
+    cull_reason:      a.cullRecord?.reason ?? null,
+    notes:            a.notes ?? null,
+    updated_at:       a.updatedAt ?? a.createdAt ?? new Date().toISOString(),
+  };
+}
+
+function _batchRow(b, opId){
+  return {
+    id:            b.id,
+    operation_id:  opId,
+    feed_type_id:  b.typeId ?? b.feedTypeId ?? null,
+    name:          b.label ?? b.name ?? null,
+    quantity:      b.qty ?? b.quantity ?? null,
+    unit:          b.unit ?? null,
+    dm_pct:        b.dm ?? b.dmPct ?? null,
+    cost_per_unit: b.cpu ?? b.costPerUnit ?? null,
+    purchase_date: b.date ?? b.purchaseDate ?? null,
+    notes:         b.notes ?? null,
+    updated_at:    b.updatedAt ?? new Date().toISOString(),
+  };
+}
+
+function _feedTypeRow(ft, opId){
+  return {
+    id:               ft.id,
+    operation_id:     opId,
+    name:             ft.name ?? null,
+    dm_pct:           ft.dm ?? ft.dmPct ?? null,
+    unit:             ft.unit ?? null,
+    n_pct:            ft.nPct ?? null,
+    p_pct:            ft.pPct ?? null,
+    k_pct:            ft.kPct ?? null,
+    archived:         ft.archived ?? false,
+    setup_updated_at: ft.setupUpdatedAt ?? null,
+  };
+}
+
+function _animalClassRow(c, opId){
+  // defaultWeightLbs and dmiPct are JS-only operational config — not in Supabase schema
+  return {
+    id:           c.id,
+    operation_id: opId,
+    name:         c.name ?? null,
+    species:      c.species ?? null,
+    archived:     c.archived ?? false,
+  };
+}
+
+function _animalGroupRow(g, opId){
+  // animalIds is derived from memberships at load time — not a Supabase column
+  return {
+    id:               g.id,
+    operation_id:     opId,
+    name:             g.name ?? null,
+    color:            g.color ?? null,
+    archived:         g.archived ?? false,
+    setup_updated_at: g.setupUpdatedAt ?? null,
+  };
+}
+
+function _aiBullRow(b, opId){
+  // epds and notes are JS-only fields not in Supabase schema
+  // regNum maps to tag (closest available column)
+  return {
+    id:           b.id,
+    operation_id: opId,
+    name:         b.name ?? null,
+    breed:        b.breed ?? null,
+    tag:          b.regNum ?? b.tag ?? null,
+    archived:     b.archived ?? false,
+  };
+}
+
+function _inputProductRow(p, opId){
+  // JS uses nPct/pPct/kPct + cat + cpu; Supabase uses npk_n/npk_p/npk_k + type + cost_per_unit
+  return {
+    id:           p.id,
+    operation_id: opId,
+    name:         p.name ?? null,
+    type:         p.cat ?? p.type ?? null,
+    npk_n:        p.nPct ?? p.npkN ?? null,
+    npk_p:        p.pPct ?? p.npkP ?? null,
+    npk_k:        p.kPct ?? p.npkK ?? null,
+    cost_per_unit: p.cpu ?? p.costPerUnit ?? null,
+    unit:         p.unit ?? null,
+    archived:     p.archived ?? false,
+  };
+}
+
+function _todoRow(t, opId){
+  // dueDate is not in the Supabase schema — excluded
+  return {
+    id:           t.id,
+    operation_id: opId,
+    title:        t.title ?? null,
+    status:       t.status ?? 'open',
+    note:         t.note ?? null,
+    paddock:      t.paddock ?? null,
+    animal_id:    t.animalId ?? null,
+    assigned_to:  Array.isArray(t.assignedTo) ? t.assignedTo : [],
+    created_by:   null,
+    created_at:   t.createdAt ?? null,
+    updated_at:   t.updatedAt ?? new Date().toISOString(),
+  };
+}
+
+function _treatmentTypeRow(t, opId){
+  return {
+    id:           t.id,
+    operation_id: opId,
+    name:         t.name ?? null,
+    category:     t.category ?? null,
+    archived:     t.archived ?? false,
+  };
+}
+
+function _animalGroupMembershipRow(row, opId){
+  return {
+    id:           row.id,
+    operation_id: opId,
+    group_id:     row.groupId ?? null,
+    animal_id:    row.animalId ?? null,
+    date_joined:  row.dateJoined ?? null,
+    date_left:    row.dateLeft ?? null,
+    reason:       row.reason ?? null,
+  };
+}
+
+function _animalWeightRecordRow(rec, opId){
+  return {
+    id:           rec.id,
+    operation_id: opId,
+    animal_id:    rec.animalId ?? null,
+    recorded_at:  rec.recordedAt ?? null,
+    weight_lbs:   rec.weightLbs ?? null,
+    note:         rec.note ?? null,
+    source:       rec.source ?? 'manual',
+    created_at:   rec.createdAt ?? null,
+  };
+}
+
+function _manureBatchTransactionRow(mbt, opId){
+  return {
+    id:              mbt.id,
+    operation_id:    opId,
+    batch_id:        mbt.batchId ?? null,
+    type:            mbt.type ?? null,
+    date:            mbt.date ?? null,
+    volume_lbs:      mbt.volumeLbs ?? null,
+    n_lbs:           mbt.nLbs ?? null,
+    p_lbs:           mbt.pLbs ?? null,
+    k_lbs:           mbt.kLbs ?? null,
+    source_event_id: mbt.sourceEventId ?? null,
+    application_id:  mbt.applicationId ?? null,
+    pasture_names:   mbt.pastureNames ?? null,
+    notes:           mbt.notes ?? null,
+    recorded_at:     mbt.recordedAt ?? null,
+  };
+}
+
+// ── END shape functions ───────────────────────────────────────────────────────
 
 // M3: append/replace one record in the offline write queue
 function queueWrite(table, record, conflictKey='id'){
@@ -2634,25 +2827,27 @@ async function pushAllToSupabase(){
   queueWrite('operation_settings', { operation_id: opId, data: S.settings }, 'operation_id');
   // Simple flat tables
   const flatTables = [
-    ['feed_types',               S.feedTypes],
-    ['batches',                  S.batches],
-    ['animal_classes',           S.animalClasses],
-    ['animal_groups',            S.animalGroups],
-    ['animals',                  S.animals],
-    ['animal_group_memberships', S.animalGroupMemberships],
-    ['animal_weight_records',    S.animalWeightRecords],
-    ['input_products',           S.inputProducts],
-    ['input_applications',       S.inputApplications],
-    ['input_application_locations', S.inputApplicationLocations],
-    ['manure_batches',           S.manureBatches],
-    ['manure_batch_transactions', S.manureBatchTransactions],
-    ['paddock_observations',     S.paddockObservations],
-    ['todos',                    S.todos],
-    ['feedback',                 S.feedback],
+    ['animal_group_memberships', S.animalGroupMemberships, r => _animalGroupMembershipRow(r, opId)],
+    ['animal_weight_records',    S.animalWeightRecords,    r => _animalWeightRecordRow(r, opId)],
+    ['input_applications',       S.inputApplications,      r => _sbToSnake({...r, operationId: opId})],
+    ['input_application_locations', S.inputApplicationLocations, r => _sbToSnake({...r, operationId: opId})],
+    ['manure_batch_transactions', S.manureBatchTransactions, r => _manureBatchTransactionRow(r, opId)],
+    ['paddock_observations',     S.paddockObservations,    r => _sbToSnake({...r, operationId: opId})],
+    ['todos',                    S.todos,                  r => _todoRow(r, opId)],
+    ['feedback',                 S.feedback,               r => _feedbackRow(r, opId)],
   ];
-  for(const [table, arr] of flatTables){
-    (arr||[]).forEach(r => queueWrite(table, _sbToSnake({...r, operationId: opId})));
+  for(const [table, arr, rowFn] of flatTables){
+    (arr||[]).forEach(r => queueWrite(table, rowFn(r)));
   }
+  // Tables with dedicated shape functions
+  (S.feedTypes||[]).forEach(ft => queueWrite('feed_types', _feedTypeRow(ft, opId)));
+  (S.batches||[]).forEach(b => queueWrite('batches', _batchRow(b, opId)));
+  (S.animalClasses||[]).forEach(c => queueWrite('animal_classes', _animalClassRow(c, opId)));
+  (S.animalGroups||[]).forEach(g => queueWrite('animal_groups', _animalGroupRow(g, opId)));
+  (S.animals||[]).forEach(a => queueWrite('animals', _animalRow(a, opId)));
+  (S.treatmentTypes||[]).forEach(t => queueWrite('treatment_types', _treatmentTypeRow(t, opId)));
+  (S.aiBulls||[]).forEach(b => queueWrite('ai_bulls', _aiBullRow(b, opId)));
+  (S.inputProducts||[]).forEach(p => queueWrite('input_products', _inputProductRow(p, opId)));
   // Pastures use a special shape function
   (S.pastures||[]).forEach(p => queueWrite('pastures', _pastureRow(p, opId)));
   // Events: use queueEventWrite which handles all 6 child tables
@@ -3828,10 +4023,10 @@ function saveTodo(){
   };
   if(id){
     const idx=S.todos.findIndex(t=>t.id===id);
-    if(idx>=0){S.todos[idx]={...S.todos[idx],...data};queueWrite('todos',_sbToSnake({...S.todos[idx],operationId:_sbOperationId}));}
+    if(idx>=0){S.todos[idx]={...S.todos[idx],...data};queueWrite('todos',_todoRow(S.todos[idx],_sbOperationId));}
   } else {
     S.todos.push({id:Date.now(),createdBy:activeUserId,createdAt:new Date().toISOString(),...data});
-    const _nt=S.todos[S.todos.length-1];queueWrite('todos',_sbToSnake({..._nt,operationId:_sbOperationId}));
+    const _nt=S.todos[S.todos.length-1];queueWrite('todos',_todoRow(_nt,_sbOperationId));
   }
   save();closeTodoSheet();updateTodoBadge();
   if(curScreen==='todos')renderTodos();
@@ -6255,7 +6450,7 @@ function addTreatmentType(){
   }
   S.treatmentTypes.push({id:'TT-'+Date.now(), name, archived:false});
   const _tt=S.treatmentTypes[S.treatmentTypes.length-1];
-  queueWrite('treatment_types',_sbToSnake({..._tt,operationId:_sbOperationId}));
+  queueWrite('treatment_types',_treatmentTypeRow(_tt,_sbOperationId));
   save(); renderTreatmentTypesList();
   document.getElementById('tt-name').value='';
 }
@@ -6280,11 +6475,11 @@ function renderTreatmentTypesList(){
 
 function archiveTreatmentType(id){
   const t = (S.treatmentTypes||[]).find(x=>x.id===id);
-  if(t){ t.archived=true; queueWrite('treatment_types',_sbToSnake({...t,operationId:_sbOperationId})); save(); renderTreatmentTypesList(); renderMtTypesList(); }
+  if(t){ t.archived=true; queueWrite('treatment_types',_treatmentTypeRow(t,_sbOperationId)); save(); renderTreatmentTypesList(); renderMtTypesList(); }
 }
 function unarchiveTreatmentType(id){
   const t = (S.treatmentTypes||[]).find(x=>x.id===id);
-  if(t){ t.archived=false; queueWrite('treatment_types',_sbToSnake({...t,operationId:_sbOperationId})); save(); renderTreatmentTypesList(); renderMtTypesList(); }
+  if(t){ t.archived=false; queueWrite('treatment_types',_treatmentTypeRow(t,_sbOperationId)); save(); renderTreatmentTypesList(); renderMtTypesList(); }
 }
 
 // ─── AI BULLS ─────────────────────────────────────────────────────────────────
@@ -6302,7 +6497,7 @@ function addAIBull(){
     archived:false,
   });
   const _nb=S.aiBulls[S.aiBulls.length-1];
-  queueWrite('ai_bulls',_sbToSnake({..._nb,operationId:_sbOperationId}));
+  queueWrite('ai_bulls',_aiBullRow(_nb,_sbOperationId));
   save(); renderAIBullsList();
   ['ab-name','ab-reg','ab-breed','ab-epds','ab-notes'].forEach(id=>document.getElementById(id).value='');
 }
@@ -6330,11 +6525,11 @@ function renderAIBullsList(){
 
 function archiveAIBull(id){
   const b = (S.aiBulls||[]).find(x=>x.id===id);
-  if(b){ b.archived=true; queueWrite('ai_bulls',_sbToSnake({...b,operationId:_sbOperationId})); save(); renderAIBullsList(); }
+  if(b){ b.archived=true; queueWrite('ai_bulls',_aiBullRow(b,_sbOperationId)); save(); renderAIBullsList(); }
 }
 function unarchiveAIBull(id){
   const b = (S.aiBulls||[]).find(x=>x.id===id);
-  if(b){ b.archived=false; queueWrite('ai_bulls',_sbToSnake({...b,operationId:_sbOperationId})); save(); renderAIBullsList(); }
+  if(b){ b.archived=false; queueWrite('ai_bulls',_aiBullRow(b,_sbOperationId)); save(); renderAIBullsList(); }
 }
 // ─── END TREATMENT TYPES / AI BULLS ──────────────────────────────────────────
 
@@ -6367,7 +6562,7 @@ function addClassFromSheet(){
     dmiPct:parseFloat(document.getElementById('mc-cls-dmi').value)||2.5,
   });
   const _nc=S.animalClasses[S.animalClasses.length-1];
-  stampSetup();queueWrite('animal_classes',_sbToSnake({..._nc,operationId:_sbOperationId}));save();renderMcClassesList();renderClassesList();
+  stampSetup();queueWrite('animal_classes',_animalClassRow(_nc,_sbOperationId));save();renderMcClassesList();renderClassesList();
   document.getElementById('mc-cls-name').value='';
   document.getElementById('mc-cls-wt').value='';
   document.getElementById('mc-cls-dmi').value='';
@@ -6450,13 +6645,13 @@ function addTreatmentTypeFromSheet(){
     if(dupe){alert('Another treatment type already has that name');return;}
     t.name=name;
     t.category=category||null;
-    queueWrite('treatment_types',_sbToSnake({...t,operationId:_sbOperationId}));
+    queueWrite('treatment_types',_treatmentTypeRow(t,_sbOperationId));
     _editingTreatmentId=null;
   } else {
     if(S.treatmentTypes.find(t=>t.name.toLowerCase()===name.toLowerCase())){alert('Treatment type already exists');return;}
     S.treatmentTypes.push({id:'TT-'+Date.now(),name,category:category||null,archived:false});
     const _tt=S.treatmentTypes[S.treatmentTypes.length-1];
-    queueWrite('treatment_types',_sbToSnake({..._tt,operationId:_sbOperationId}));
+    queueWrite('treatment_types',_treatmentTypeRow(_tt,_sbOperationId));
   }
   save();renderMtTypesList();renderTreatmentTypesList();
   _mtResetForm();
@@ -6491,7 +6686,7 @@ function addAIBullFromSheet(){
     notes:document.getElementById('mab-notes').value.trim()||null,
   });
   const _mab=S.aiBulls[S.aiBulls.length-1];
-  queueWrite('ai_bulls',_sbToSnake({..._mab,operationId:_sbOperationId}));
+  queueWrite('ai_bulls',_aiBullRow(_mab,_sbOperationId));
   save();renderMabBullsList();renderAIBullsList();
   ['mab-name','mab-reg','mab-breed','mab-epds','mab-notes'].forEach(id=>document.getElementById(id).value='');
 }
@@ -6691,7 +6886,7 @@ function saveBatchAdj(){
   // Apply the qty change
   b.remaining = parseFloat(adjQty.toFixed(2));
 
-  queueWrite('batches', _sbToSnake({...b, operationId: _sbOperationId}));
+  queueWrite('batches', _batchRow(b, _sbOperationId));
   save();
   closeBatchAdjSheet();
   renderBatchListS();
@@ -7105,7 +7300,7 @@ function addFeedType(){
   const kPct=parseFloat(document.getElementById('ft-kpct').value)||null;
   S.feedTypes.push({id:generateFeedTypeId(),archived:false,name,unit:document.getElementById('ft-unit').value,dm:parseFloat(document.getElementById('ft-dm').value)||85,cat:document.getElementById('ft-cat').value,nPct,pPct,kPct});
   const _ft=S.feedTypes[S.feedTypes.length-1];
-  stampSetup();queueWrite('feed_types',_sbToSnake({..._ft,operationId:_sbOperationId}));save();renderFeedTypes();populateBatchTypeSelect();document.getElementById('ft-name').value='';
+  stampSetup();queueWrite('feed_types',_feedTypeRow(_ft,_sbOperationId));save();renderFeedTypes();populateBatchTypeSelect();document.getElementById('ft-name').value='';
   document.getElementById('ft-npct').value='';document.getElementById('ft-ppct').value='';document.getElementById('ft-kpct').value='';
 }
 function renderFeedTypes(){
@@ -7127,7 +7322,7 @@ function addBatch(){
   const label=document.getElementById('b-label').value.trim()||(ft.name+' '+new Date().toLocaleDateString('en-US',{month:'short',year:'numeric'}));
   S.batches.push({id:Date.now(),archived:false,typeId,typeName:ft.name,unit:ft.unit,dm:ft.dm,qty,remaining:qty,wt:parseFloat(document.getElementById('b-wt').value)||null,cpu:parseFloat(document.getElementById('b-cpu').value)||0,label,date:todayStr()});
   const _nb=S.batches[S.batches.length-1];
-  queueWrite('batches',_sbToSnake({..._nb,operationId:_sbOperationId}));
+  queueWrite('batches',_batchRow(_nb,_sbOperationId));
   save();renderBatchListS();renderFeedOverview();['b-qty','b-wt','b-cpu','b-tcost','b-label'].forEach(id=>document.getElementById(id).value='');
 }
 function renderBatchListS(){
@@ -7363,7 +7558,7 @@ function addToManureBatch(loc,event,nLbs,pLbs,kLbs,volLbs,date){
       nLbs,pLbs,kLbs,sourceEventId:event.id,
       applicationId:null,pastureNames:null,notes:null};
     S.manureBatchTransactions.push(_mbt);
-    queueWrite('manure_batch_transactions',_sbToSnake({..._mbt,operationId:_sbOperationId}));
+    queueWrite('manure_batch_transactions',_manureBatchTransactionRow(_mbt,_sbOperationId));
     const _mb=S.manureBatches.find(x=>x.id===batchId);
     if(_mb) queueWrite('manure_batches',_sbToSnake({..._mb,operationId:_sbOperationId}));
   }
@@ -7511,7 +7706,7 @@ function saveSpreadEvent(){
   S.events.push({id:Date.now(),type:'amend',pasture:paddock,date,amendType:'manure',product:b.label+' (manure)',source:'manure-batch',sourceBatchId:id,totalCost:0,lifeDays:365,lifeDisplay:'1 year',nPct:0,pPct:0,kPct:0,manureNLbs:calc.nApp,manurePLbs:calc.pApp,manureKLbs:calc.kApp,notes:document.getElementById('sp-notes').value});
   const _mbt=S.manureBatchTransactions[S.manureBatchTransactions.length-1];
   queueWrite('manure_batches',_sbToSnake({...b,operationId:_sbOperationId}));
-  queueWrite('manure_batch_transactions',_sbToSnake({..._mbt,operationId:_sbOperationId}));
+  queueWrite('manure_batch_transactions',_manureBatchTransactionRow(_mbt,_sbOperationId));
   save();closeSpreadSheet();
   if(curScreen==='pastures')renderPastures();
   alert('Manure application recorded. '+calc.nApp.toFixed(1)+' lbs N · '+calc.pApp.toFixed(1)+' lbs P · '+calc.kApp.toFixed(1)+' lbs K credited to '+paddock+'.');
@@ -7859,14 +8054,14 @@ function _openGroupMembership(animalId, groupId, dateJoined){
   if(existing) return;
   const row={id:Date.now(),animalId,groupId,dateJoined:dateJoined||null,dateLeft:null};
   S.animalGroupMemberships.push(row);
-  queueWrite('animal_group_memberships',_sbToSnake({...row,operationId:_sbOperationId}));
+  queueWrite('animal_group_memberships',_animalGroupMembershipRow(row,_sbOperationId));
 }
 function _closeGroupMembership(animalId, groupId, dateLeft){
   if(!Array.isArray(S.animalGroupMemberships)) return;
   const row=S.animalGroupMemberships.find(m=>m.animalId===animalId&&m.groupId===groupId&&!m.dateLeft);
   if(row){
     row.dateLeft=dateLeft||new Date().toISOString().slice(0,10);
-    queueWrite('animal_group_memberships',_sbToSnake({...row,operationId:_sbOperationId}));
+    queueWrite('animal_group_memberships',_animalGroupMembershipRow(row,_sbOperationId));
   }
 }
 
@@ -7879,7 +8074,7 @@ function _recordAnimalWeight(a, date, wt, note, source){
   const rec={id:Date.now(),animalId:a.id,recordedAt:date,
     weightLbs:wt,note:note||null,source:source||'manual'};
   S.animalWeightRecords.push(rec);
-  queueWrite('animal_weight_records',_sbToSnake({...rec,operationId:_sbOperationId}));
+  queueWrite('animal_weight_records',_animalWeightRecordRow(rec,_sbOperationId));
 }
 
 function saveAnimalWeight(){
@@ -7893,7 +8088,7 @@ function saveAnimalWeight(){
   a.weightLbs = wt;
   _recordAnimalWeight(a, date, wt, note||'Weight update', 'manual');
   a.updatedAt=new Date().toISOString();
-  queueWrite('animals',_sbToSnake({...a,operationId:_sbOperationId}));
+  queueWrite('animals',_animalRow(a,_sbOperationId));
   save(); closeAnimalWeightSheet();  renderGroupsList();
 }
 
@@ -7910,7 +8105,7 @@ function addAnimalClass(){
     dmiPct:parseFloat(document.getElementById('cls-dmi').value)||2.5,
   });
   const _ac=S.animalClasses[S.animalClasses.length-1];
-  stampSetup();queueWrite('animal_classes',_sbToSnake({..._ac,operationId:_sbOperationId}));save();renderClassesList();
+  stampSetup();queueWrite('animal_classes',_animalClassRow(_ac,_sbOperationId));save();renderClassesList();
   document.getElementById('cls-name').value='';
   document.getElementById('cls-wt').value='';
   document.getElementById('cls-dmi').value='';
@@ -8832,7 +9027,7 @@ function saveAnimalEdit(){
     S.animals.push(newA);
     const newGrpId=parseInt(document.getElementById('ae-group').value)||null;
     if(newGrpId){const g=S.animalGroups.find(x=>x.id===newGrpId);if(g){if(!g.animalIds)g.animalIds=[];g.animalIds.push(newId);}}
-    queueWrite('animals',_sbToSnake({...newA,operationId:_sbOperationId})); save();closeAnimalEdit();renderAnimalsScreen();renderGroupsList();
+    queueWrite('animals',_animalRow(newA,_sbOperationId)); save();closeAnimalEdit();renderAnimalsScreen();renderGroupsList();
     return;
   }
   // ── Edit existing animal path ────────────────────────────────────────────────
@@ -8901,7 +9096,7 @@ function saveAnimalEdit(){
       _openGroupMembership(id,newGrpId,new Date().toISOString().slice(0,10));}
   }
   a.updatedAt=new Date().toISOString();
-  queueWrite('animals',_sbToSnake({...a,operationId:_sbOperationId})); save();closeAnimalEdit();renderGroupsList();
+  queueWrite('animals',_animalRow(a,_sbOperationId)); save();closeAnimalEdit();renderGroupsList();
 }
 
 function deleteAnimal(){
@@ -9110,7 +9305,7 @@ function saveGroupFromSheet(){
     oldIds.forEach(id=>{ if(!newIds.has(id)) _closeGroupMembership(id,g.id,today); });
     newIds.forEach(id=>{ if(!oldIds.has(id)) _openGroupMembership(id,g.id,today); });
     g.animalIds = animalIds;
-    stampSetup(); queueWrite('animal_groups',_sbToSnake({...g,operationId:_sbOperationId})); save();
+    stampSetup(); queueWrite('animal_groups',_animalGroupRow(g,_sbOperationId)); save();
   } else {
     // New group
     const newGrpId = Date.now();
@@ -9118,7 +9313,7 @@ function saveGroupFromSheet(){
     S.animalGroups.push({ id: newGrpId, archived: false, name, color, animalIds });
     animalIds.forEach(id=>_openGroupMembership(id,newGrpId,today));
     const _ng=S.animalGroups[S.animalGroups.length-1];
-    stampSetup(); queueWrite('animal_groups',_sbToSnake({..._ng,operationId:_sbOperationId})); save();
+    stampSetup(); queueWrite('animal_groups',_animalGroupRow(_ng,_sbOperationId)); save();
   }
   renderGroupsList();
   renderAnimalsScreen();
@@ -9575,11 +9770,11 @@ function importSetupFile(event){
       if(_sbOperationId){
         const _opId=_sbOperationId;
         (S.pastures||[]).forEach(p=>queueWrite('pastures',_pastureRow(p,_opId)));
-        (S.feedTypes||[]).forEach(ft=>queueWrite('feed_types',_sbToSnake({...ft,operationId:_opId})));
-        (S.batches||[]).forEach(b=>queueWrite('batches',_sbToSnake({...b,operationId:_opId})));
-        (S.animalClasses||[]).forEach(c=>queueWrite('animal_classes',_sbToSnake({...c,operationId:_opId})));
-        (S.animalGroups||[]).forEach(g=>queueWrite('animal_groups',_sbToSnake({...g,operationId:_opId})));
-        (S.animals||[]).forEach(a=>queueWrite('animals',_sbToSnake({...a,operationId:_opId})));
+        (S.feedTypes||[]).forEach(ft=>queueWrite('feed_types',_feedTypeRow(ft,_opId)));
+        (S.batches||[]).forEach(b=>queueWrite('batches',_batchRow(b,_opId)));
+        (S.animalClasses||[]).forEach(c=>queueWrite('animal_classes',_animalClassRow(c,_opId)));
+        (S.animalGroups||[]).forEach(g=>queueWrite('animal_groups',_animalGroupRow(g,_opId)));
+        (S.animals||[]).forEach(a=>queueWrite('animals',_animalRow(a,_opId)));
       }
       save();
       renderGroupsList();renderClassesList();
@@ -11195,7 +11390,7 @@ function addInputProduct(){
     notes:document.getElementById('ip-notes').value.trim(),
   });
   const _ip=S.inputProducts[S.inputProducts.length-1];
-  stampSetup();queueWrite('input_products',_sbToSnake({..._ip,operationId:_sbOperationId}));save();renderInputProductsList();
+  stampSetup();queueWrite('input_products',_inputProductRow(_ip,_sbOperationId));save();renderInputProductsList();
   ['ip-name','ip-cpu','ip-n','ip-p','ip-k','ip-notes'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('ip-cat').value='fertilizer';
   document.getElementById('ip-unit').value='ton';
@@ -11483,7 +11678,7 @@ function saveApplyInput(){
   if(sourceType==='manure'){
     const _lastMbt=S.manureBatchTransactions?.[S.manureBatchTransactions.length-1];
     if(_lastMbt&&_lastMbt.applicationId===appId)
-      queueWrite('manure_batch_transactions',_sbToSnake({..._lastMbt,operationId:_sbOperationId}));
+      queueWrite('manure_batch_transactions',_manureBatchTransactionRow(_lastMbt,_sbOperationId));
   }
 
   // Create per-paddock amend events (NPK ledger)
@@ -11545,7 +11740,7 @@ function saveCull(){
       g.animalIds=g.animalIds.filter(x=>x!==id);
     }
   });
-  queueWrite('animals',_sbToSnake({...a,operationId:_sbOperationId})); // M3
+  queueWrite('animals',_animalRow(a,_sbOperationId)); // M3
   save();
   closeCullSheet();
   closeAnimalEdit();
@@ -11559,7 +11754,7 @@ function reactivateAnimal(animalId){
   if(!confirm('Reactivate '+a.systemId+(a.tagNum?' ('+a.tagNum+')':'')+'? You can reassign them to a group after reactivation.'))return;
   a.active=true;
   a.cullRecord=null;
-  queueWrite('animals',_sbToSnake({...a,operationId:_sbOperationId})); // M3
+  queueWrite('animals',_animalRow(a,_sbOperationId)); // M3
   save();
   closeAnimalEdit();
   renderGroupsList();
@@ -13626,7 +13821,7 @@ function tryDeleteFeedType(idx){
   const {batches,inUse}=getFeedTypeRefs(ft.id);
   if(batches.length&&inUse){
     const choice=confirm(`"${ft.name}" has feed batches with inventory remaining. Archive it instead?\n\nOK = Archive  |  Cancel = Delete permanently`);
-    if(choice){ft.archived=true;stampSetup();queueWrite('feed_types',_sbToSnake({...ft,operationId:_sbOperationId}));save();renderFeedTypes();return;}
+    if(choice){ft.archived=true;stampSetup();queueWrite('feed_types',_feedTypeRow(ft,_sbOperationId));save();renderFeedTypes();return;}
     if(!confirm('Delete permanently? This cannot be undone.'))return;
   } else if(batches.length){
     if(!confirm(`Delete "${ft.name}"? It has ${batches.length} batch${batches.length!==1?'es':''} (all depleted).`))return;
@@ -13646,7 +13841,7 @@ function tryDeleteAnimalClass(idx){
   const archived=S.animals.filter(a=>a.classId===c.id&&a.active===false);
   if(archived.length){
     const choice=confirm(`"${c.name}" is used by ${archived.length} culled animal record${archived.length!==1?'s':''}. Archive the class instead?\n\nOK = Archive  |  Cancel = Delete permanently`);
-    if(choice){c.archived=true;stampSetup();queueWrite('animal_classes',_sbToSnake({...c,operationId:_sbOperationId}));save();renderClassesList();return;}
+    if(choice){c.archived=true;stampSetup();queueWrite('animal_classes',_animalClassRow(c,_sbOperationId));save();renderClassesList();return;}
     if(!confirm('Delete permanently?'))return;
   } else {
     if(!confirm(`Delete class "${c.name}"?`))return;
@@ -13661,7 +13856,7 @@ function tryDeleteAnimalGroup(idx){
   const refs=getAnimalGroupRefs(g.id);
   if(refs.closed.length){
     const choice=confirm(`"${g.name}" has ${refs.closed.length} past event${refs.closed.length!==1?'s':''}. Archive it instead of deleting?\n\nOK = Archive  |  Cancel = Delete permanently`);
-    if(choice){g.archived=true;stampSetup();queueWrite('animal_groups',_sbToSnake({...g,operationId:_sbOperationId}));save();renderGroupsList();renderHome();return;}
+    if(choice){g.archived=true;stampSetup();queueWrite('animal_groups',_animalGroupRow(g,_sbOperationId));save();renderGroupsList();renderHome();return;}
     if(!confirm('Delete permanently?'))return;
   } else {
     if(!confirm(`Delete group "${g.name}"? Animals will become unassigned.`))return;
@@ -13674,7 +13869,7 @@ function tryDeleteInputProduct(idx){
   const refs=getInputProductRefs(p.id);
   if(refs.length){
     const choice=confirm(`"${p.name}" has been used in ${refs.length} application${refs.length!==1?'s':''}. Archive it instead?\n\nOK = Archive  |  Cancel = Delete permanently`);
-    if(choice){p.archived=true;stampSetup();queueWrite('input_products',_sbToSnake({...p,operationId:_sbOperationId}));save();renderInputProductsList();return;}
+    if(choice){p.archived=true;stampSetup();queueWrite('input_products',_inputProductRow(p,_sbOperationId));save();renderInputProductsList();return;}
     if(!confirm('Delete permanently?'))return;
   } else {
     if(!confirm(`Delete "${p.name}"?`))return;
@@ -13688,7 +13883,7 @@ function tryDeleteBatch(idx){
   const used=S.events.some(e=>allFeedEntries(e).some(fe=>fe.lines.some(l=>l.batchId===b.id)));
   if(b.remaining<b.qty||used){
     const choice=confirm(`"${b.label}" has been used in feed entries. Archive it instead?\n\nOK = Archive  |  Cancel = Delete permanently`);
-    if(choice){b.archived=true;stampSetup();queueWrite('batches',_sbToSnake({...b,operationId:_sbOperationId}));save();renderBatchListS();return;}
+    if(choice){b.archived=true;stampSetup();queueWrite('batches',_batchRow(b,_sbOperationId));save();renderBatchListS();return;}
     if(!confirm('Delete permanently?'))return;
   } else {
     if(!confirm(`Delete batch "${b.label}"?`))return;
