@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260329.1957" id="app-version-meta"/>
+<meta name="app-version" content="b20260329.2059" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -1831,7 +1831,18 @@ function sbInitClient(){
       if(session){
         logError('supabase-auth', event + ': ' + (session?.user?.email||'?'), '');
         sbGetOperationId().then(opId => {
-          if(opId){ loadFromSupabase(opId); subscribeRealtime(opId); }
+          if(opId){
+            if(event === 'SIGNED_IN'){
+              // Flush any locally-queued writes BEFORE loading from Supabase.
+              // Items queued while signed out carry the cached _sbOperationId and are valid.
+              // Without this pre-flush, loadFromSupabase overwrites S.* before the queue
+              // is flushed — data entered while offline appears lost on reconnect.
+              setSyncStatus('pending', 'Saving local changes…');
+              flushToSupabase().then(() => { loadFromSupabase(opId); subscribeRealtime(opId); });
+            } else {
+              loadFromSupabase(opId); subscribeRealtime(opId);
+            }
+          }
           else { updateHeaderAvatar(); renderCurrentScreen(); }
         });
       }
@@ -2877,7 +2888,11 @@ function setSyncStatus(state, label){
 
 function saveLocal(){localStorage.setItem('gthy',JSON.stringify(S));}
 function setActiveUser(id){activeUserId=id;localStorage.setItem('gthy-user',String(id));}
-function save(){saveLocal();if(_sbSession)supabaseSyncDebounced();}
+function save(){
+  saveLocal();
+  if(_sbSession) supabaseSyncDebounced();
+  else setSyncStatus('off', 'Not signed in — saved locally');
+}
 function todayStr(){return new Date().toISOString().slice(0,10);}
 function dLabel(d){return d?new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}):'--';}
 function daysBetween(a,b){return Math.max(1,Math.round((new Date(b+'T12:00:00')-new Date(a+'T12:00:00'))/86400000)+1);}

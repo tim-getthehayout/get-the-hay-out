@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260329.1950
-**Reconciled against build:** b20260329.1950
+**Last updated:** b20260329.2010
+**Reconciled against build:** b20260329.2010
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -23,22 +23,22 @@
 | 🟡 Open — Polish | 1 |
 | 🔵 Open — Enhancement | 21 |
 | ⚪ Open — Debt | 5 |
-| ✅ Closed | 60 |
+| ✅ Closed | 61 |
 
 ---
 
 ## Session Queue
 
-Recommended work order as of b20260329.1950. Update after each session.
+Recommended work order as of b20260329.2010. Update after each session.
 
 | Priority | OI | Title | Notes |
 |---|---|---|---|
 | 1 | OI-0021 | Event AUD recalc on animal move/cull | 🔵 Enhancement — design first |
 | 2 | — | M5 — Offline Queue Polish | Migration next phase — design sub-tasks first |
 
-> **OI-0095 added and closed** at b20260329.1950 — full write-path schema audit; 8 critical tables and 4 missing-field tables fixed with 12 shape functions.
+> **OI-0096 added and closed** at b20260329.2010 — stale green sync indicator + data loss on reconnect both fixed.
 > **Next priority is OI-0021** — event AUD recalc design.
-> **Last updated:** b20260329.1950
+> **Last updated:** b20260329.2010
 
 ---
 
@@ -51,6 +51,26 @@ Recommended work order as of b20260329.1950. Update after each session.
 ---
 
 ## Open Items
+
+### OI-0096
+**Source:** User report + Claude observation — b20260329.2010
+**Area:** `save()` (~L2880), `onAuthStateChange` (~L1826)
+**Severity:** Bug (Critical — data loss)
+**Status:** ✅ Closed
+**Found:** b20260329.2010
+**Closed:** b20260329.2010
+
+Two bugs working together to cause data loss when the Supabase session expires mid-use.
+
+**Bug A — Stale green sync indicator:** `save()` branched on `_sbSession`: if truthy, debounced a Supabase flush; if falsy, called only `saveLocal()` with no call to `setSyncStatus`. The dot stayed whatever color it was from the last successful sync — permanently green even though every save after session expiry was going to localStorage only. User had no way to know the connection was gone.
+
+**Fix A:** `save()` now calls `setSyncStatus('off', 'Not signed in — saved locally')` in the else branch.
+
+**Bug B — Load overwrites unsynced data on reconnect:** `queueWrite` uses the cached `_sbOperationId` (persisted independently in localStorage) regardless of session state, so data entered while signed out IS queued with valid operation IDs. But `save()` never called `supabaseSyncDebounced()` while signed out, so nothing flushed. On `SIGNED_IN`, `onAuthStateChange` called `loadFromSupabase()` immediately — overwriting `S.*` from Supabase before the queue was flushed. The new records vanished from memory. `saveLocal()` at the end of `loadFromSupabase` then wrote the stale Supabase state back to localStorage, closing the window permanently.
+
+**Fix B:** `onAuthStateChange` for `SIGNED_IN` now calls `flushToSupabase()` first (showing "Saving local changes…" status), then chains `.then(() => { loadFromSupabase(opId); subscribeRealtime(opId); })`. `INITIAL_SESSION` (normal page load with valid session) is unchanged — flush-first is only needed when re-authenticating after a signed-out period.
+
+---
 
 ### OI-0095
 **Source:** Claude observation — b20260329.1950

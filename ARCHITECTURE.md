@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260329.1957`
+**Current build:** `b20260329.2059`
 **Last updated:** 2026-03-29
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -908,6 +908,12 @@ across reloads via `sb-*` localStorage — rate limit only affects new sign-in a
 **Root cause:** Supabase SDK CDN script can fail to load on first load after a SW cache update. The SW `fetch` handler returns early for cross-origin requests (`if (!req.url.startsWith(self.location.origin)) return`) without calling `event.respondWith()`. `sbInitClient()` silently returns when `typeof supabase === 'undefined'`. Both `sbSendCode()` and `sbVerifyOtp()` hit their `if(!_sbClient)` guard and showed a bare "Supabase not initialised" alert.
 **Fix:** Both functions now call `sbInitClient()` on the spot — if the global became available since startup this recovers silently. If still unavailable, a `confirm()` offers a page reload. This covers the common case where a reload resolves the CDN load failure.
 
+
+### Stale Sync Indicator + Data Loss on Reconnect — OI-0096 (Fixed b20260329.2010)
+**Root cause (indicator):** `save()` never called `setSyncStatus` when `_sbSession` was null — dot stayed green from last successful sync indefinitely.
+**Root cause (data loss):** `onAuthStateChange` fired `loadFromSupabase()` immediately on `SIGNED_IN`, overwriting `S.*` from Supabase before the pending write queue was flushed. Data entered while signed out was queued with valid operation IDs but never reached Supabase before the load erased it from memory.
+**Fix:** `save()` now calls `setSyncStatus('off', 'Not signed in — saved locally')` when no session. `onAuthStateChange` for `SIGNED_IN` now calls `flushToSupabase()` first, then chains `loadFromSupabase()` in `.then()`. `INITIAL_SESSION` path is unchanged.
+**Pattern:** On any reconnect (`SIGNED_IN`), always flush the write queue before loading from the remote — local state takes precedence over remote state during the reconnect window.
 
 ### Supabase Write-Path Schema Mismatch — OI-0095 (Fixed b20260329.1950)
 **Root cause:** `_sbToSnake` is a generic camelCase→snake_case converter with no schema awareness. When JS object field names differ from Supabase column names (e.g. `tagNum`→`tag`, `dm`→`dm_pct`, `cpu`→`cost_per_unit`, `active`→`status`), PostgREST rejects the entire upsert on encountering the first unknown column. The write fails silently, the item stays in `gthy-sync-queue` forever, and Realtime reloads from Supabase erase locally-entered data that never reached the cloud.
