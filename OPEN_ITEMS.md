@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260329.1630
-**Reconciled against build:** b20260329.1630
+**Last updated:** b20260329.1708
+**Reconciled against build:** b20260329.1708
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -20,27 +20,26 @@
 |---|---|
 | 🔴 Open — Roadblock | 0 |
 | 🔴 Open — Bug | 4 |
-| 🟡 Open — Polish | 2 |
+| 🟡 Open — Polish | 1 |
 | 🔵 Open — Enhancement | 21 |
 | ⚪ Open — Debt | 5 |
-| ✅ Closed | 50 |
+| ✅ Closed | 51 |
 
 ---
 
 ## Session Queue
 
-Recommended work order as of b20260329.1630. Update after each session.
+Recommended work order as of b20260329.1708. Update after each session.
 
 | Priority | OI | Title | Notes |
 |---|---|---|---|
-| 1 | OI-0060 | Rotation calendar: sub-move pasture = green | Bug — parked during migration |
-| 2 | OI-0029 | Event log: consolidate parent + sub-moves | 🟡 Polish |
-| 3 | OI-0021 | Event AUD recalc on animal move/cull | 🔵 Enhancement — design first |
+| 1 | OI-0029 | Event log: consolidate parent + sub-moves | 🟡 Polish |
+| 2 | OI-0021 | Event AUD recalc on animal move/cull | 🔵 Enhancement — design first |
+| 3 | — | M5 — Offline Queue Polish | Migration next phase |
 
-> **M4.5 closed** at b20260329.1630 — saveSettings queueWrite, reset Supabase deletes, importDataJSON pushAllToSupabase, XLSX bulk import queueWrite, stale Drive labels.
-> **OI-0084 and OI-0085 added** — two deferred M4.5 items (historical events import write path, NPK recalc bulk write).
-> **Next priority is OI-0060** — rotation calendar sub-move colour bug.
-> **Last updated:** b20260329.1630
+> **OI-0060 closed** at b20260329.1708 — rotation calendar active-event highlighting (white ring + pulse animation + NOW badge).
+> **Next priority is OI-0029** — event log parent + sub-move consolidation.
+> **Last updated:** b20260329.1708
 
 ---
 
@@ -387,13 +386,13 @@ Three drive sync robustness fixes applied together:
 
 ### OI-0060
 **Source:** In-app feedback — id:1774361239173 (Tim)
-**Area:** Rotation Calendar (`renderRotationCalendar()`, ~L11971)
+**Area:** Rotation Calendar (`renderRotationCalendar()`, ~L14205)
 **Severity:** Polish
-**Status:** 🟡 Open
+**Status:** ✅ Closed
 **Found:** b20260325.0013 (feedback dated 2026-03-24, v1.2)
-**Closed:** —
+**Closed:** b20260329.1708
 
-"In rotation calendar highlight currently active paddocks." Open events (status `'open'`) should be visually distinct from closed events in the calendar grid — e.g. a pulsing border, brighter fill, or "ACTIVE" label on the current bar — so the farmer can immediately see which paddocks are occupied right now.
+Active-event cells now render with a white ring (`box-shadow: 0 0 0 2px white, 0 0 0 3.5px ${color}`), a 2s opacity pulse animation (`cal-active` keyframes in CSS), and a `NOW` badge when the cell spans ≥ 3 weeks. Correctly uses `isCurrentlyActive` (window reaches today) rather than `isOpen` so clipped prior-paddock windows on sub-move events are excluded. "Active now" swatch added to legend. Hover tooltip appends "· ACTIVE NOW". Root cause: previous `outline: 2px solid ${color}` was same colour as cell background — invisible.
 
 ---
 

@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260329.1710" id="app-version-meta"/>
+<meta name="app-version" content="b20260329.1716" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -470,6 +470,12 @@ body:not(.field-mode) #field-mode-toggle{
 }
 
 /* ── END FIELD MODE ──────────────────────────────────────────────────── */
+
+/* ── Rotation calendar: active event pulse ─────────────────────────── */
+@keyframes cal-active {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.8; }
+}
 
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -14397,6 +14403,10 @@ function renderRotationCalendar(containerId){
       const name     = grpName(ev.groupId);
       const auds     = eventAUDs(ev);
       const isOpen   = ev.status==='open';
+      // isCurrentlyActive: window actually reaches today — distinguishes the live
+      // occupancy window from a clipped prior-paddock window on the same open event.
+      const _calToday = todayStr();
+      const isCurrentlyActive = isOpen && c.win.start <= _calToday && c.win.end >= _calToday;
       const days     = daysBetween(c.win.start, c.win.end);
 
       // Only show text if enough space (≥2 weeks wide)
@@ -14407,18 +14417,21 @@ function renderRotationCalendar(containerId){
 
       return `<td colspan="${c.span}" style="min-width:${28*c.span}px;height:30px;padding:0;
           position:relative;vertical-align:top;"
-          title="${subMoveLbl}${name} on ${pasture} · ${days} days${isSubMove?' (sub-move)':''}${isHayFeed?' · 100% stored feed — 0 pasture AUDs':(auds>=0.1?' · '+auds.toFixed(1)+' pasture AUDs':' · no AUD data — set head+weight on event')}${ev.recoveryMinDays||ev.recoveryMaxDays?' · Recovery: '+(ev.recoveryMinDays||'?')+'–'+(ev.recoveryMaxDays||'?')+'d':''}">
+          title="${subMoveLbl}${name} on ${pasture} · ${days} days${isSubMove?' (sub-move)':''}${isCurrentlyActive?' · ACTIVE NOW':''}${isHayFeed?' · 100% stored feed — 0 pasture AUDs':(auds>=0.1?' · '+auds.toFixed(1)+' pasture AUDs':' · no AUD data — set head+weight on event')}${ev.recoveryMinDays||ev.recoveryMaxDays?' · Recovery: '+(ev.recoveryMinDays||'?')+'–'+(ev.recoveryMaxDays||'?')+'d':''}">
         <div style="height:28px;margin:1px 1px 0;border-radius:3px;
           background:${color};opacity:${isOpen?1:0.75};
           display:flex;align-items:center;justify-content:center;gap:3px;
-          overflow:hidden;
-          outline:${isOpen?'2px solid '+color:'none'};outline-offset:1px;
+          overflow:hidden;position:relative;
+          box-shadow:${isCurrentlyActive ? '0 0 0 2px white,0 0 0 3.5px '+color : 'none'};
+          ${isCurrentlyActive ? 'animation:cal-active 2s ease-in-out infinite;' : ''}
           ${isSubMove?'border-top:2px dashed rgba(255,255,255,0.5);':''}">
           ${showText ? `
             <span style="font-size:9px;font-weight:700;color:white;white-space:nowrap;
               text-shadow:0 1px 2px rgba(0,0,0,0.4);overflow:hidden;text-overflow:ellipsis;padding:0 2px;">
               ${isHayFeed ? 'HAY · '+daysStr : (audsStr ? audsStr+' · ' : '')+daysStr}
             </span>` : ''}
+          ${isCurrentlyActive && c.span >= 3 ? `<span style="font-size:8px;font-weight:800;color:white;
+            text-shadow:0 1px 3px rgba(0,0,0,0.5);letter-spacing:0.04em;flex-shrink:0;">NOW</span>` : ''}
         </div>
       </td>`;
     }).join('');
@@ -14492,12 +14505,19 @@ function renderRotationCalendar(containerId){
     `<span style="display:inline-flex;align-items:center;gap:5px;margin-right:12px;font-size:12px;">
       <span style="width:12px;height:12px;border-radius:3px;background:#639922;border-top:2px dashed rgba(255,255,255,0.5);display:inline-block;"></span>
       Sub-move
-    </span>`;
+    </span>` +
+    (openEvs.length ?
+    `<span style="display:inline-flex;align-items:center;gap:5px;margin-right:12px;font-size:12px;">
+      <span style="width:12px;height:12px;border-radius:3px;background:#639922;
+        box-shadow:0 0 0 2px white,0 0 0 3.5px #639922;display:inline-block;
+        animation:cal-active 2s ease-in-out infinite;"></span>
+      Active now
+    </span>` : '');
 
   el.innerHTML = `
     <div style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
       <div>${legend}</div>
-      <div style="font-size:11px;color:var(--text2);">Cells show AUDs·days. Hover for detail. Outlined = active event.</div>
+      <div style="font-size:11px;color:var(--text2);">Cells show AUDs·days. Hover for detail. White ring = actively occupied now.</div>
     </div>
     <div style="overflow-x:auto;overflow-y:auto;max-height:65vh;border:0.5px solid var(--border);border-radius:var(--radius);position:relative;">
       <table style="border-collapse:collapse;min-width:100%;">

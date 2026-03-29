@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260329.1710`
+**Current build:** `b20260329.1716`
 **Last updated:** 2026-03-29
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -79,7 +79,7 @@ build = 'b' + datetime.now().strftime('%Y%m%d') + '.' + datetime.now().strftime(
 | ~10830 | Animals screen + Animal move sheet + DMI Variance |
 | ~11203 | Multi-paddock helpers, Archive/ID system, Sort helpers, Responsive mode (`detectMode`), **Field mode** (`applyFieldMode`, `toggleFieldMode`, `setFieldModeUI`) |
 | ~11653 | **Weaning system** (`normalizeSpecies`, `birthTermForSpecies`, `computeWeanTargetDate`, `daysUntilDate`, `migrateWeaningFields`, `renderWeaningDashboard`, `renderWeaningNudge`, `weanToggleFilter`, `weanToggleCheck`, `markAnimalsWeanedFromDashboard`) |
-| ~11924 | Reports screen + **`renderRotationCalendar()`** (shared — also called by Events screen; **actual location ~L11971** as of b20260324.0054) |
+| ~14205 | Reports screen + **`renderRotationCalendar()`** (shared — also called by Events screen; **actual location ~L14205** as of b20260329.1708) |
 | ~12796 | App init (top-level bootstrap, not DOMContentLoaded) |
 | ~12840 | All sheet HTML (spread manure → batch adj; last sheet ~L14300) |
 | ~13778 | Service Worker registration |
@@ -93,7 +93,7 @@ build = 'b' + datetime.now().strftime('%Y%m%d') + '.' + datetime.now().strftime(
 | `home` | `#s-home` | `renderHome()` → branches on `S.settings.homeViewMode` (`groups` or `locations`) | `#bn-home` `#dbn-home` |
 | `feed` | `#s-feed` | `renderFeedScreen()` → `renderFeedOverview()` | `#bn-feed` `#dbn-feed` |
 | `animals` | `#s-animals` | **`renderAnimalsScreen()`** ◄ AUTHORITATIVE | `#bn-animals` `#dbn-animals` |
-| `events` | `#s-events` | `renderEventsLog()` (~L5805) or `renderRotationCalendar()` (~L11971) | `#bn-events` `#dbn-events` |
+| `events` | `#s-events` | `renderEventsLog()` (~L5805) or `renderRotationCalendar()` (~L14205) | `#bn-events` `#dbn-events` |
 | `todos` | `#s-todos` | `renderTodos()` | `#bn-todos` `#dbn-todos` |
 | `pastures` | `#s-pastures` | `renderPastures()` | `#bn-pastures` `#dbn-pastures` |
 | `feedback` | `#s-feedback` | `renderFeedbackTab()` | `#bn-feedback` `#dbn-feedback` |
@@ -101,7 +101,7 @@ build = 'b' + datetime.now().strftime('%Y%m%d') + '.' + datetime.now().strftime(
 
 **Reports tabs (RPT_TABS):** `rotation` · `npk` · `feed` · `animals` · `summary` · `survey` · `weaning`
 
-**⚠️ renderRotationCalendar is a shared function:** It lives at ~L11971 (in the Reports section) but is called by both the Events screen (`switchEventsView`) and the Reports screen (`renderReportsScreen`). It takes a `containerId` argument — `'rotation-calendar'` for the events tab, container IDs for reports. If you're working on the calendar render, edit the function at L11971 — not a non-existent copy near the Events section header.
+**⚠️ renderRotationCalendar is a shared function:** It lives at ~L14205 (in the Reports section) but is called by both the Events screen (`switchEventsView`) and the Reports screen (`renderReportsScreen`). It takes a `containerId` argument — `'rotation-calendar'` for the events tab, container IDs for reports. If you're working on the calendar render, edit the function at L14205 — not a non-existent copy near the Events section header.
 
 **Weaning system data model** (as of b20260322.2021):
 - `animal.birthDate: ISO string | null` — set by `saveCalving()`, `saveAnimalEdit()`, or migrated from dam's `calvingRecords`
