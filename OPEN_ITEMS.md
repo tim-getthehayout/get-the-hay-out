@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260329.2156
-**Reconciled against build:** b20260329.2156
+**Last updated:** b20260329.2220
+**Reconciled against build:** b20260329.2220
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -23,7 +23,7 @@
 | 🟡 Open — Polish | 1 |
 | 🔵 Open — Enhancement | 23 |
 | ⚪ Open — Debt | 5 |
-| ✅ Closed | 64 |
+| ✅ Closed | 65 |
 
 ---
 
@@ -36,6 +36,7 @@ Recommended work order as of b20260329.2010. Update after each session.
 | 1 | OI-0021 | Event AUD recalc on animal move/cull | 🔵 Enhancement — design first |
 | 2 | — | M5 — Offline Queue Polish | Migration next phase — design sub-tasks first |
 
+> **OI-0103 closed** at b20260329.2220 — operations/operation_settings 403 fixed.
 > **OI-0101 and OI-0102 added** at b20260329.2156 — delete to-do + edit feedback items.
 > **OI-0100 closed** at b20260329.2156 — queue self-heal via `_sanitizeQueueRecord` in `flushToSupabase`.
 > **Queue inspector added** at b20260329.2139 — full type audit clean; `renderSyncQueueInspector` + `exportSyncQueue` in Settings.
@@ -43,7 +44,7 @@ Recommended work order as of b20260329.2010. Update after each session.
 > **OI-0097/0098 added and closed** at b20260329.2112 — `activeSmGC` crash + `paddock_observations` 400 fixed; password sign-in added.
 > **OI-0096 added and closed** at b20260329.2010 — stale green sync indicator + data loss on reconnect both fixed.
 > **Next priority is OI-0021** — event AUD recalc design.
-> **Last updated:** b20260329.2156
+> **Last updated:** b20260329.2220
 
 ---
 
@@ -56,6 +57,48 @@ Recommended work order as of b20260329.2010. Update after each session.
 ---
 
 ## Open Items
+
+### OI-0103
+**Source:** User report — b20260329.2220
+**Area:** `loadFromSupabase()` (~L2503)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260329.2220
+**Closed:** b20260329.2220
+
+`operations` and `operation_settings` returning 403 access control errors while all other tables loaded successfully. Root cause: these two fetches ran sequentially after the 19-table `Promise.all` batch. If the JWT auto-refreshed during that batch, the follow-on sequential queries ran with a stale token. RLS rejected the request.
+
+**Fix:** Wrapped both in their own `Promise.all` so they execute concurrently and share the same token. The `operations` query uses `.eq('id', operationId)` (not `operation_id`) which is correct for the `operations` table PK — no change needed there.
+
+**Note:** `current_uid` returning null in the Supabase SQL editor is expected — the editor runs as the postgres superuser, not as an authenticated JWT user. Not indicative of a problem.
+
+---
+
+### OI-0102
+**Source:** In-app feedback (id: 1774818620446) — b20260329.2156
+**Area:** Feedback tab — `renderFeedbackTab()`, `openFeedbackSheet()` (~L7230)
+**Severity:** Enhancement
+**Status:** 🔵 Open
+**Found:** b20260329.2156
+
+No way to edit a feedback item after submission. Typos, wrong category, or incorrect area can't be corrected. The resolve/reopen flow works but editing note/area/cat is not available.
+
+**Proposed:** Edit button on open items re-opens the feedback sheet pre-populated with existing values. Save upserts the existing record.
+
+---
+
+### OI-0101
+**Source:** In-app feedback (id: 1774818588197) — b20260329.2156
+**Area:** To-do system — `renderTodos()`, `todoCardHtml()` (~L3650)
+**Severity:** Enhancement
+**Status:** 🔵 Open
+**Found:** b20260329.2156
+
+No delete action on individual to-do items. Only state change available is open → closed. Users need to remove to-dos entered in error or no longer relevant.
+
+**Proposed:** Delete (×) button on each to-do card with confirmation. Hard-delete with confirm dialog is simplest given current data model.
+
+---
 
 ### OI-0097
 **Source:** User report — b20260329.2112

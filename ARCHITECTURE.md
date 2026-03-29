@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260329.2206`
+**Current build:** `b20260329.2229`
 **Last updated:** 2026-03-29
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -914,6 +914,11 @@ across reloads via `sb-*` localStorage — rate limit only affects new sign-in a
 **Root cause (data loss):** `onAuthStateChange` fired `loadFromSupabase()` immediately on `SIGNED_IN`, overwriting `S.*` from Supabase before the pending write queue was flushed. Data entered while signed out was queued with valid operation IDs but never reached Supabase before the load erased it from memory.
 **Fix:** `save()` now calls `setSyncStatus('off', 'Not signed in — saved locally')` when no session. `onAuthStateChange` for `SIGNED_IN` now calls `flushToSupabase()` first, then chains `loadFromSupabase()` in `.then()`. `INITIAL_SESSION` path is unchanged.
 **Pattern:** On any reconnect (`SIGNED_IN`), always flush the write queue before loading from the remote — local state takes precedence over remote state during the reconnect window.
+
+### `operations`/`operation_settings` 403 after main load batch — OI-0103 (Fixed b20260329.2220)
+**Root cause:** Sequential fetch after 19-table `Promise.all` — JWT could refresh between execution points, leaving follow-on queries with a stale token that RLS rejected.
+**Fix:** Wrapped in their own `Promise.all` in `loadFromSupabase()`.
+**Pattern:** Never run sequential Supabase queries after a large parallel batch in the same function. Group all fetches into one `Promise.all` or use separate parallel mini-batches.
 
 ### Stale queue items survive schema fixes — OI-0100 (Fixed b20260329.2156)
 **Root cause:** `flushToSupabase()` sent raw queued records with no schema enforcement. Pre-fix queue items with extra columns caused permanent 400s on every retry.
