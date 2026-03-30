@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260330.1913" id="app-version-meta"/>
+<meta name="app-version" content="b20260330.1942" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -8360,7 +8360,9 @@ function _openGroupMembership(animalId, groupId, dateJoined){
   if(!Array.isArray(S.animalGroupMemberships)) S.animalGroupMemberships=[];
   const existing=S.animalGroupMemberships.find(m=>m.animalId===animalId&&m.groupId===groupId&&!m.dateLeft);
   if(existing) return;
-  const row={id:Date.now(),animalId,groupId,dateJoined:dateJoined||null,dateLeft:null};
+  // Use length as a disambiguator so rapid forEach calls (e.g. 10 cows added at once)
+  // don't all get the same Date.now() ms value and collide in queueWrite deduplication.
+  const row={id:Date.now()+S.animalGroupMemberships.length,animalId,groupId,dateJoined:dateJoined||null,dateLeft:null};
   S.animalGroupMemberships.push(row);
   queueWrite('animal_group_memberships',_animalGroupMembershipRow(row,_sbOperationId));
 }

@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260330.1903
-**Reconciled against build:** b20260330.1903
+**Last updated:** b20260330.1939
+**Reconciled against build:** b20260330.1939
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -23,7 +23,7 @@
 | 🟡 Open — Polish | 1 |
 | 🔵 Open — Enhancement | 23 |
 | ⚪ Open — Debt | 5 |
-| ✅ Closed | 71 |
+| ✅ Closed | 72 |
 
 ---
 
@@ -36,6 +36,7 @@ Recommended work order as of b20260330.1903. Update after each session.
 | 1 | OI-0069 | Rotation calendar — sub-move blocks green for pasture, tan for hay | Small, self-contained fix in renderRotationCalendar() |
 | 2 | OI-0105 | Membership-weighted NPK for multi-group events | Design first — future enhancement |
 
+> **Membership ID collision fix** at b20260330.1939 — OI-0111 closed. `_openGroupMembership` was using `Date.now()` for all IDs; synchronous forEach loop produced duplicate timestamps; `queueWrite` deduplication collapsed 10 rows to 1. Fixed with `Date.now() + S.animalGroupMemberships.length`.
 > **Offline sync data-loss fixes complete** at b20260330.1903 — OI-0109/0110 both closed. `ensureQueueFlushed()` helper added; `INITIAL_SESSION` and `SIGNED_IN` now both flush before load; realtime callback pre-flushes; new-group queue ordering fixed (group before memberships). Confirmed against error log showing INITIAL_SESSION data-loss and `animal_group_memberships_group_id_fkey` FK violations.
 > **Schema gap fixes complete** at b20260330.1056 — OI-0106/0107/0108 all closed. `_animalRow`, `_batchRow`, `_feedTypeRow` shape functions corrected. `_SB_ALLOWED_COLS` updated to match. SQL script `supabase-schema-fixes.sql` produced to add `wt`/`archived` to `batches` and `confirmed_bred`/`confirmed_bred_date` to `animals` in live Supabase. Run SQL script before deploying build.
 > **M6 complete** at b20260330.0020.
@@ -52,6 +53,18 @@ Recommended work order as of b20260330.1903. Update after each session.
 ---
 
 ## Open Items
+
+### OI-0111
+**Source:** User report — b20260330.1939
+**Area:** `_openGroupMembership` (~L8359)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260330.1939
+**Closed:** b20260330.1939
+
+Adding multiple animals to a group in one save produced only 1 membership row in Supabase. Root cause: `_openGroupMembership` used `id: Date.now()` — synchronous `forEach` loop assigns the same millisecond timestamp to all membership rows. `queueWrite` deduplication matches on `id`, so each row overwrites the previous one in the queue. 10 cows added → 1 queue entry → 1 row in Supabase → after `loadFromSupabase` the group shows 1 cow. **Fix:** Changed to `id: Date.now() + S.animalGroupMemberships.length`. Since the array grows with each push, every call in the loop gets a unique value regardless of clock resolution.
+
+---
 
 ### OI-0110
 **Source:** User report + error log analysis — b20260330.1903
