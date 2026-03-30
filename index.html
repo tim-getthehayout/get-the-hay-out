@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260329.2340" id="app-version-meta"/>
+<meta name="app-version" content="b20260330.0029" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -1215,32 +1215,27 @@ body:not(.field-mode) #field-mode-toggle{
         <div id="import-status" style="font-size:12px;color:var(--teal-d);margin-top:8px;display:none;"></div>
       </div>
 
-      <!-- Users -->
+      <!-- Farm users (M6) -->
       <div class="card">
         <div class="sec">Farm users</div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.6;"><strong>M2:</strong> Identity is now Supabase auth — sign in via the Cloud sync card above to activate cloud sync and set your display name. This local user list is legacy and will be retired after data migration (M4).</div>
-        <div id="users-list"></div>
-        <div class="div"></div>
-        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Add user</div>
-        <div class="two">
-          <div class="field"><label>Name</label><input type="text" id="u-name" placeholder="John"/></div>
-          <div class="field"><label>Role</label>
-            <select id="u-role"><option value="owner">Owner</option><option value="worker">Worker</option><option value="vet">Vet/Advisor</option></select>
+        <div id="members-list" style="margin-bottom:12px;"></div>
+        <!-- Invite form — shown only to admins via renderOperationMembersList() -->
+        <div id="member-invite-form" style="display:none;">
+          <div class="div"></div>
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Invite a member</div>
+          <div class="two">
+            <div class="field"><label>Email</label><input type="email" id="invite-email" placeholder="jane@example.com"/></div>
+            <div class="field"><label>Role</label>
+              <select id="invite-role">
+                <option value="member">Member</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
           </div>
+          <button class="btn btn-green btn-sm" onclick="sbInviteMember(document.getElementById('invite-email').value, document.getElementById('invite-role').value); document.getElementById('invite-email').value='';">Send invite</button>
         </div>
-        <div class="field"><label>Email</label><input type="email" id="u-email" placeholder="john@example.com"/></div>
-        <div class="field"><label>Avatar color</label>
-          <div style="display:flex;gap:8px;margin-top:4px;" id="color-picker">
-            <div onclick="selectColor(this,'#639922')" style="width:28px;height:28px;border-radius:50%;background:#639922;cursor:pointer;border:2px solid transparent;" data-color="#639922"></div>
-            <div onclick="selectColor(this,'#1D9E75')" style="width:28px;height:28px;border-radius:50%;background:#1D9E75;cursor:pointer;border:2px solid transparent;" data-color="#1D9E75"></div>
-            <div onclick="selectColor(this,'#185FA5')" style="width:28px;height:28px;border-radius:50%;background:#185FA5;cursor:pointer;border:2px solid transparent;" data-color="#185FA5"></div>
-            <div onclick="selectColor(this,'#BA7517')" style="width:28px;height:28px;border-radius:50%;background:#BA7517;cursor:pointer;border:2px solid transparent;" data-color="#BA7517"></div>
-            <div onclick="selectColor(this,'#534AB7')" style="width:28px;height:28px;border-radius:50%;background:#534AB7;cursor:pointer;border:2px solid transparent;" data-color="#534AB7"></div>
-            <div onclick="selectColor(this,'#E24B4A')" style="width:28px;height:28px;border-radius:50%;background:#E24B4A;cursor:pointer;border:2px solid transparent;" data-color="#E24B4A"></div>
-          </div>
-        </div>
-        <input type="hidden" id="u-color" value="#639922"/>
-        <button class="btn btn-green btn-sm" onclick="addUser()">Add user</button>
+        <!-- Legacy users-list kept as hidden stub so any stale renderUsersList() calls don't throw -->
+        <div id="users-list" style="display:none;"></div>
       </div>
 
       <!-- Setup Import / Export -->
@@ -1833,6 +1828,7 @@ const SUPABASE_KEY = 'sb_publishable_2lBfbjhN_ZIvmB-9-dM8hw_04S6adT0';
 let _sbClient = null;   // initialised by sbInitClient() at app start
 let _sbSession = null;  // current auth session; updated by auth state listener
 let _sbOperationId = localStorage.getItem('gthy-operation-id') || null;  // M2: cached operation UUID
+let _sbProfile = null;  // M6: current user's operation_members row {role, display_name, field_mode}
 let _sbRealtimeChannel = null;  // M2: active realtime subscription
 
 function sbInitClient(){
@@ -1871,6 +1867,7 @@ function sbInitClient(){
     if(event === 'SIGNED_OUT'){
       setSyncStatus('off', 'Not signed in');
       _sbOperationId = null;
+      _sbProfile = null;
       localStorage.removeItem('gthy-operation-id');
       updateHeaderAvatar();
       renderCurrentScreen(); // re-render to show nudge banner
@@ -1959,9 +1956,11 @@ async function sbVerifyOtp(){
   const btn = document.getElementById('sb-verify-btn');
   if(btn){ btn.disabled = true; btn.textContent = 'Verifying…'; }
   try{
-    const { error } = await _sbClient.auth.verifyOtp({ email, token, type: 'email' });
+    const { data: otpData, error } = await _sbClient.auth.verifyOtp({ email, token, type: 'email' });
     if(error) throw error;
-    // onAuthStateChange fires SIGNED_IN -> sbGetOperationId -> loadFromSupabase
+    // M6: run post-sign-in check (claim pending invite if any, then load farm)
+    // onAuthStateChange also fires SIGNED_IN but sbPostSignInCheck is more explicit
+    if(otpData?.user) await sbPostSignInCheck(otpData.user);
     // sbUpdateAuthUI will hide #sb-signed-out and show #sb-signed-in
     _sbStep2Status('✓ Signed in! Loading your data…', false);
   } catch(e){
@@ -2121,13 +2120,14 @@ async function sbGetOperationId(){
   try{
     const {data, error} = await _sbClient
       .from('operation_members')
-      .select('operation_id')
+      .select('operation_id, role, display_name, field_mode')
       .eq('user_id', _sbSession.user.id)
       .maybeSingle();
     if(data?.operation_id){
       _sbOperationId = data.operation_id;
+      _sbProfile = data;  // M6: store full profile for isAdmin() checks
       localStorage.setItem('gthy-operation-id', _sbOperationId);
-      sbCacheIdentity(null, _sbOperationId);
+      sbCacheIdentity(data.display_name, _sbOperationId);
       return _sbOperationId;
     }
     // No operation found — bootstrap
@@ -2173,6 +2173,78 @@ async function sbBootstrapOperation(){
     setSyncStatus('error', 'Bootstrap failed — check console');
     return null;
   }
+}
+
+// M6: Invite + post-sign-in check ───────────────────────────────
+
+// Send an invite to a new farm member. Inserts a pending operation_members row
+// (user_id = null) and sends them an OTP email via Supabase auth.
+// Admin-only. Does not affect the calling admin's session.
+async function sbInviteMember(email, role){
+  if(!isAdmin()){ alert('Admin access required to invite members.'); return; }
+  email = email.trim().toLowerCase();
+  if(!email){ alert('Please enter an email address.'); return; }
+  if(!_sbClient || !_sbOperationId){ alert('Not connected to Supabase.'); return; }
+  try{
+    // Insert pending row (user_id intentionally null — claimed on first sign-in)
+    const { error: insertErr } = await _sbClient.from('operation_members').insert({
+      operation_id: _sbOperationId,
+      email,
+      role,
+      invited_at: new Date().toISOString(),
+    });
+    if(insertErr) throw insertErr;
+    // Send OTP to invitee — does not affect admin session
+    const { error: otpErr } = await _sbClient.auth.signInWithOtp({ email });
+    if(otpErr) throw otpErr;
+    renderOperationMembersList();
+    alert('Invite sent to ' + email);
+  } catch(e){
+    alert('Invite failed: ' + e.message);
+    logError('sb-invite', e.message, '');
+  }
+}
+
+// Called after OTP verification succeeds. Checks for a pending invite for
+// this email, claims it (sets user_id + accepted_at via SECURITY DEFINER fn),
+// then loads the farm. If no pending invite, falls through to normal
+// sbGetOperationId bootstrap flow.
+async function sbPostSignInCheck(user){
+  if(!_sbClient || !user) return;
+  try{
+    // Attempt to claim any pending invite for this email
+    await _sbClient.rpc('claim_pending_invite', {
+      p_email: user.email,
+      p_user_id: user.id,
+    });
+    // Now load the member row (may have just been claimed, or already existed)
+    const { data: member } = await _sbClient
+      .from('operation_members')
+      .select('operation_id, role, display_name, field_mode')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if(member){
+      _sbOperationId = member.operation_id;
+      _sbProfile = member;
+      localStorage.setItem('gthy-operation-id', _sbOperationId);
+      sbCacheIdentity(member.display_name, _sbOperationId);
+      loadFromSupabase(_sbOperationId);
+      subscribeRealtime(_sbOperationId);
+    }
+    // If no member row found, sbGetOperationId will bootstrap on next call
+  } catch(e){
+    logError('sb-post-signin', e.message, '');
+  }
+}
+
+// M6: Role helpers ────────────────────────────────────────────────
+
+// Returns true if the current signed-in user is owner or admin.
+// Used as a gate before any destructive or privileged action.
+// Falls back to true when not signed in (single-user / offline mode).
+function isAdmin(){
+  if(!_sbSession) return true;  // offline / not signed in — no restriction
+  return _sbProfile?.role === 'owner' || _sbProfile?.role === 'admin';
 }
 
 // Data assembly helpers ────────────────────────────────────────────────────────
@@ -3085,9 +3157,12 @@ function getUser(id){return S.users.find(u=>u.id===id)||null;} // Legacy — S.u
 function getActiveUser(){
   if(_sbSession?.user){
     const c=_sbLoadCachedIdentity();
-    return {id:_sbSession.user.id, name:c?.displayName||_sbSession.user.email?.split('@')[0]||'Farmer',
+    // M6: prefer _sbProfile.role (live from operation_members) over cached value
+    const role = _sbProfile?.role || c?.role || 'owner';
+    const fieldMode = _sbProfile?.field_mode ?? c?.fieldMode ?? false;
+    return {id:_sbSession.user.id, name:_sbProfile?.display_name||c?.displayName||_sbSession.user.email?.split('@')[0]||'Farmer',
       email:_sbSession.user.email||'', color:c?.color||'#639922',
-      role:c?.role||'owner', fieldMode:c?.fieldMode||false, _fromSupabase:true};
+      role, fieldMode, _fromSupabase:true};
   }
   const c=_sbLoadCachedIdentity();
   if(c) return {id:c.id, name:c.displayName||'Farmer', email:c.email||'', color:c.color||'#639922',
@@ -3308,6 +3383,7 @@ function exportDataJSON(){
 }
 function triggerImport(){document.getElementById('import-file').click();}
 function importDataJSON(event){
+  if(!isAdmin()){ alert('Admin access required to restore from backup.'); event.target.value=''; return; }
   const file=event.target.files[0];if(!file)return;
   const reader=new FileReader();
   reader.onload=async(e)=>{
@@ -3360,7 +3436,7 @@ function renderCurrentScreen(){
   else if(curScreen==='pastures')renderPastures();
   else if(curScreen==='feedback')renderFeedbackTab();
   else if(curScreen==='reports'){renderReportsScreen();}
-  else if(curScreen==='settings'){loadSettings();renderUsersList();renderClassesList();renderGroupsList();renderGrpAnimalPicker();sbUpdateAuthUI();renderSyncQueueInspector();}
+  else if(curScreen==='settings'){loadSettings();renderOperationMembersList();renderClassesList();renderGroupsList();renderGrpAnimalPicker();sbUpdateAuthUI();renderSyncQueueInspector();}
 }
 
 // ─── USER SYSTEM ──────────────────────────────────────────────────────────────
@@ -3373,53 +3449,91 @@ function selectColor(el,color){
   el.style.border='2px solid var(--text)';
 }
 
-function addUser(){
-  const name=document.getElementById('u-name').value.trim();
-  if(!name){alert('Enter a name');return;}
-  S.users.push({
-    id:Date.now(),name,
-    role:document.getElementById('u-role').value,
-    email:document.getElementById('u-email').value.trim(),
-    color:document.getElementById('u-color').value||'#639922',
-    fieldMode:false,   // true = auto-enter field mode on mobile
-  });
-  save();renderUsersList();populateTodoAssign();
-  document.getElementById('u-name').value='';document.getElementById('u-email').value='';
+// M6: addUser() retired — use sbInviteMember() from the Farm users card.
+function addUser(){ nav('settings', document.getElementById('bn-settings')); }
+
+// M6: renderUsersList() retired — DOM target #users-list is hidden; renderOperationMembersList() is authoritative.
+function renderUsersList(){ /* no-op — replaced by renderOperationMembersList() */ }
+
+// M6: Render the Supabase-backed operation members list in the Settings Farm users card.
+// Shows accepted members (display_name + role) and pending rows (email + pending badge).
+// Remove button shown for non-owner members when isAdmin(). Cancel for pending rows.
+async function renderOperationMembersList(){
+  const el = document.getElementById('members-list');
+  if(!el) return;
+  if(!_sbClient || !_sbOperationId){
+    el.innerHTML = '<div style="font-size:13px;color:var(--text2);">Sign in to manage farm members.</div>';
+    const inviteForm = document.getElementById('member-invite-form');
+    if(inviteForm) inviteForm.style.display = 'none';
+    return;
+  }
+  el.innerHTML = '<div style="font-size:13px;color:var(--text2);">Loading members\u2026</div>';
+  try{
+    const { data: members, error } = await _sbClient
+      .from('operation_members')
+      .select('id, user_id, display_name, email, role, invited_at, accepted_at')
+      .eq('operation_id', _sbOperationId)
+      .order('invited_at', { ascending: true });
+    if(error) throw error;
+    const myUserId = _sbSession?.user?.id;
+    const admin = isAdmin();
+    el.innerHTML = (members||[]).map(m => {
+      const isPending = !m.user_id;
+      const isMe = m.user_id === myUserId;
+      const isOwner = m.role === 'owner';
+      const roleBadge = { owner:'bg', admin:'bt', member:'bb' }[m.role] || 'bb';
+      const name = isPending ? (m.email || 'Unknown') : (m.display_name || m.email || 'Member');
+      const youBadge = isMe ? ' <span class="badge bg">you</span>' : '';
+      const pendingBadge = isPending ? ' <span class="badge ba">\u23f3 pending</span>' : '';
+      const removeBtn = (admin && !isMe && !isOwner && !isPending)
+        ? `<button class="btn btn-outline btn-xs" onclick="sbRemoveMember('${m.id}')">Remove</button>`
+        : '';
+      const cancelBtn = (admin && isPending)
+        ? `<button class="btn btn-outline btn-xs" onclick="sbCancelInvite('${m.id}')">Cancel</button>`
+        : '';
+      return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:0.5px solid var(--border);">
+        <div style="flex:1;">
+          <div style="font-size:14px;font-weight:600;">${name}${youBadge}${pendingBadge}</div>
+          <div style="font-size:12px;color:var(--text2);"><span class="badge ${roleBadge}" style="font-size:10px;">${m.role}</span></div>
+        </div>
+        ${removeBtn}${cancelBtn}
+      </div>`;
+    }).join('') || '<div style="font-size:13px;color:var(--text2);">No members yet.</div>';
+    const inviteForm = document.getElementById('member-invite-form');
+    if(inviteForm) inviteForm.style.display = admin ? '' : 'none';
+  } catch(e){
+    el.innerHTML = '<div style="font-size:13px;color:var(--red);">Failed to load members.</div>';
+    logError('sb-members-list', e.message, '');
+  }
 }
 
-function renderUsersList(){
-  const el=document.getElementById('users-list');
-  if(!S.users.length){el.innerHTML='<div style="font-size:13px;color:var(--text2);margin-bottom:8px;">No users yet — add yourself first</div>';return;}
-  el.innerHTML=S.users.map((u,i)=>{
-    const roleBadge={owner:'bg',worker:'bt',vet:'bp'}[u.role]||'bb';
-    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--border);">
-      ${avatarHtml(u)}
-      <div style="flex:1;">
-        <div style="font-size:14px;font-weight:600;">${u.name} <span class="badge ${roleBadge}">${u.role}</span>${activeUserId===u.id?' <span class="badge bg">you</span>':''}</div>
-        ${u.email?`<div style="font-size:11px;color:var(--text2);">${u.email}</div>`:''}
-      </div>
-      <button class="btn btn-outline btn-xs" onclick="switchToUser(${u.id})">Select</button>
-      <button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:18px;padding:2px 6px;" onclick="S.users.splice(${i},1);save();renderUsersList();">×</button>
-    </div>`;
-  }).join('');
+// Remove an accepted member (admin only; owner cannot be removed).
+async function sbRemoveMember(memberId){
+  if(!isAdmin()){ alert('Admin access required.'); return; }
+  if(!confirm('Remove this member? They will lose access to the farm.')) return;
+  try{
+    const { error } = await _sbClient.from('operation_members').delete().eq('id', memberId);
+    if(error) throw error;
+    renderOperationMembersList();
+  } catch(e){ alert('Remove failed: ' + e.message); }
+}
+
+// Cancel a pending invite (admin only).
+async function sbCancelInvite(memberId){
+  if(!isAdmin()){ alert('Admin access required.'); return; }
+  if(!confirm('Cancel this invite?')) return;
+  try{
+    const { error } = await _sbClient.from('operation_members').delete().eq('id', memberId);
+    if(error) throw error;
+    renderOperationMembersList();
+  } catch(e){ alert('Cancel failed: ' + e.message); }
 }
 
 function switchToUser(id){setActiveUser(id);updateHeaderAvatar();renderCurrentScreen();}
 
+// M6: openUserPicker() — redirect to Settings Farm users card (Supabase identity world).
 function openUserPicker(){
-  if(!S.users.length){nav('settings',document.getElementById('bn-settings'));return;}
-  const el=document.getElementById('user-picker-list');
-  el.innerHTML=S.users.map(u=>`
-    <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:0.5px solid var(--border);cursor:pointer;" onclick="switchToUser(${u.id});closeUserPicker();">
-      ${avatarHtml(u,true)}
-      <div>
-        <div style="font-size:15px;font-weight:600;">${u.name}</div>
-        <div style="font-size:12px;color:var(--text2);">${u.role}${u.email?' · '+u.email:''}</div>
-      </div>
-      ${activeUserId===u.id?'<span class="badge bg" style="margin-left:auto;">active</span>':''}
-    </div>
-  `).join('');
-  document.getElementById('user-picker-wrap').classList.add('open');
+  nav('settings', document.getElementById('bn-settings'));
 }
 function closeUserPicker(){document.getElementById('user-picker-wrap').classList.remove('open');}
 
@@ -3687,10 +3801,10 @@ function renderHome(){
     }
   }
 
-  // My open tasks
-  // When no legacy activeUserId (Supabase world), show all open tasks.
-  const myTodos=activeUserId
-    ? S.todos.filter(t=>t.status!=='closed'&&(t.assignedTo||[]).includes(activeUserId))
+  // My open tasks — in Supabase world filter by Supabase user.id; fall back to all open tasks.
+  const _myUid = _sbSession?.user?.id || activeUserId;
+  const myTodos=_myUid
+    ? S.todos.filter(t=>t.status!=='closed'&&(t.assignedTo||[]).includes(_myUid))
     : S.todos.filter(t=>t.status!=='closed');
   const homeTodos=document.getElementById('home-todos');
   if(!myTodos.length){
@@ -4192,7 +4306,7 @@ function saveTodo(){
     const idx=S.todos.findIndex(t=>t.id===id);
     if(idx>=0){S.todos[idx]={...S.todos[idx],...data};queueWrite('todos',_todoRow(S.todos[idx],_sbOperationId));}
   } else {
-    S.todos.push({id:Date.now(),createdBy:activeUserId,createdAt:new Date().toISOString(),...data});
+    S.todos.push({id:Date.now(),createdBy:_sbSession?.user?.id||activeUserId,createdAt:new Date().toISOString(),...data});
     const _nt=S.todos[S.todos.length-1];queueWrite('todos',_todoRow(_nt,_sbOperationId));
   }
   save();closeTodoSheet();updateTodoBadge();
@@ -7652,7 +7766,7 @@ function generateBrief(){
   if(open.length){b+=`\nOPEN ITEMS (${open.length})\n${'─'.repeat(52)}\n`;catOrder.forEach(cat=>{const items=open.filter(f=>f.cat===cat);if(!items.length)return;const catLabel=(CAT[cat]||CAT.idea).label.toUpperCase();const isRoadblock=cat==='roadblock';b+=`\n[${catLabel}]${isRoadblock?' ← HIGH PRIORITY — FIX BEFORE ANYTHING ELSE':''}\n`;items.forEach((f,i)=>{const d=new Date(f.ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});const fCtx=f.ctx||{screen:f.screen||'?',activeEvent:null};const ctx=fCtx.activeEvent?`screen:${fCtx.screen} event:${fCtx.activeEvent.pasture} day${fCtx.activeEvent.day}`:`screen:${fCtx.screen}`;const areaTag=f.area&&AREA[f.area]?` area:${AREA[f.area]}`:'';b+=`${i+1}. ${isRoadblock?'🚧 ':''}${f.note}\n   [${ctx}${areaTag}] — ${f.tester}, ${f.version||'?'}, ${d}${f.linkedTo?' ⚠ regression':''}\n`;});});}
   if(resolved.length){b+=`\n${'═'.repeat(52)}\nAWAITING CONFIRMATION (${resolved.length})\n${'─'.repeat(52)}\n`;resolved.forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fix in ${f.resolvedInVersion}: ${f.resolutionNote}\n`;});}
   if(closed.length){b+=`\n${'═'.repeat(52)}\nCLOSED (last 10)\n${'─'.repeat(52)}\n`;closed.slice(-10).forEach((f,i)=>{b+=`${i+1}. ${f.note}\n   Fixed in ${f.resolvedInVersion||'?'}: ${f.resolutionNote||'—'}. Confirmed: ${f.confirmedBy||'?'}\n`;});}
-  b+=`\n${'═'.repeat(52)}\nCONTEXT\nOperation: ${S.herd.name||'not set'}, ${S.herd.count||0} head ${S.herd.type||''}\nUsers: ${S.users.length} · Paddocks: ${S.pastures.length} · Feed types: ${S.feedTypes.length}\nEvents: ${S.events.length} total · Open todos: ${S.todos.filter(t=>t.status!=='closed').length}\n\nPlease review open items first (roadblocks first, then bugs, then calculations, then UX). Note which version testers need to load to confirm each fix.
+  b+=`\n${'═'.repeat(52)}\nCONTEXT\nOperation: ${S.herd.name||'not set'}, ${S.herd.count||0} head ${S.herd.type||''}\nUsers: ${S.users.length} (legacy) · Paddocks: ${S.pastures.length} · Feed types: ${S.feedTypes.length}\nEvents: ${S.events.length} total · Open todos: ${S.todos.filter(t=>t.status!=='closed').length}\n\nPlease review open items first (roadblocks first, then bugs, then calculations, then UX). Note which version testers need to load to confirm each fix.
 
 App: Get The Hay Out · getthehayout.com`;
   document.getElementById('brief-text').textContent=b;document.getElementById('brief-out').style.display='block';document.getElementById('copy-btn').style.display='';
@@ -9277,6 +9391,7 @@ function saveAnimalEdit(){
 }
 
 function deleteAnimal(){
+  if(!isAdmin()){ alert('Admin access required to delete animals.'); return; }
   const id=parseInt(document.getElementById('ae-id').value);
   const a=getAnimalById(id);
   if(!a)return;
@@ -12029,6 +12144,7 @@ function closeResetSheet(){
   document.getElementById('reset-sheet-wrap').classList.remove('open');
 }
 async function executeReset(){
+  if(!isAdmin()){ alert('Admin access required to reset data.'); return; }
   if(document.getElementById('reset-confirm-input').value!=='YES')return;
   const mode=document.getElementById('reset-confirm-btn').dataset.mode||'all';
   const ver=S.version||'b20260322.0936';
@@ -14030,6 +14146,7 @@ function getInputProductRefs(productId){
 
 // Smart delete/archive handler — shows the right option based on references
 function tryDeletePasture(idx){
+  if(!isAdmin()){ alert('Admin access required to delete or archive locations.'); return; }
   const p=S.pastures[idx];if(!p)return;
   const refs=getPastureRefs(p.id);
   if(refs.open.length){
@@ -14048,6 +14165,7 @@ function tryDeletePasture(idx){
 }
 
 function tryDeleteFeedType(idx){
+  if(!isAdmin()){ alert('Admin access required to delete feed types.'); return; }
   const ft=S.feedTypes[idx];if(!ft)return;
   const {batches,inUse}=getFeedTypeRefs(ft.id);
   if(batches.length&&inUse){

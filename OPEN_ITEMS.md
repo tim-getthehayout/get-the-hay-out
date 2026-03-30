@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260329.2336
-**Reconciled against build:** b20260329.2336
+**Last updated:** b20260330.0020
+**Reconciled against build:** b20260330.0020
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -29,17 +29,18 @@
 
 ## Session Queue
 
-Recommended work order as of b20260329.2336. Update after each session.
+Recommended work order as of b20260330.0020. Update after each session.
 
 | Priority | OI | Title | Notes |
 |---|---|---|---|
-| 1 | — | M6 — User system + multi-farmer | Pre-session: run SQL ALTERs in Supabase SQL Editor |
+| 1 | OI-0069 | Rotation calendar — sub-move blocks green for pasture, tan for hay | Small, self-contained fix in renderRotationCalendar() |
 | 2 | OI-0105 | Membership-weighted NPK for multi-group events | Design first — future enhancement |
 
-> **OI-0021 closed** at b20260329.2336 — membership-weighted AUD for NPK. `_memberWeightedDays` helper in both close and recalc paths.
-> **OI-0105 added** at b20260329.2336 — multi-group membership-weighted NPK (deferred from OI-0021).
+> **M6 complete** at b20260330.0020 — isAdmin() helper, _sbProfile loading, sbInviteMember, sbPostSignInCheck, renderOperationMembersList, Farm users card HTML replaced, isAdmin() gates on all destructive actions, legacy S.users[] system retired.
+> **OI-0021 closed** at b20260329.2336 — membership-weighted AUD for NPK.
 > **M5 complete** at b20260329.2319 — online/offline listeners, Flush now button, >24h stuck warning.
-> **Last updated:** b20260329.2336
+> **Last updated:** b20260330.0020
+> **Last updated:** b20260330.0020
 
 ---
 

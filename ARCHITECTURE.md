@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260329.2340`
+**Current build:** `b20260330.0029`
 **Last updated:** 2026-03-29
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -170,7 +170,7 @@ All sheets are always in the DOM. Toggle: add/remove `.open` on the `-wrap` div.
 | `S.animalClasses` | Array | Species/class definitions (default weight, DMI%) |
 | `S.animalGroups` | Array | Named herd compositions. Fields: `id`, `name`, `color`, `animalIds[]`, `classes[]`, `archived` |
 | `S.animals` | Array | Individual animal records |
-| `S.users` | Array | Farm users (name, color, avatar) |
+| `S.users` | Array | Farm users (legacy shim — identity is now Supabase `operation_members`; retained for todo assignment compat) |
 | `S.todos` | Array | Farm task records |
 | `S.feedback` | Array | In-app feedback items |
 | `S.surveys` | Array | Pasture survey ratings |
@@ -716,21 +716,29 @@ Critical ordering constraint for the app init block at bottom of `<script>`:
 2. `loadFromSupabase(opId)` — parallel-fetches all tables; assembles S from Supabase rows; calls all migrate guards; `saveLocal()`; re-renders
 3. `subscribeRealtime(opId)` — opens a Supabase channel; one `postgres_changes` listener per watched table; any change triggers a full `loadFromSupabase()` reload
 
-**Identity system (M2 — Option B, clean break):**
-- `getActiveUser()` reads: Supabase session → `gthy-identity` localStorage cache → guest fallback
+**Identity system (M2 + M6):**
+- `getActiveUser()` reads: `_sbProfile` (live operation_members row) → Supabase session → `gthy-identity` localStorage cache → guest fallback
 - Always returns non-null `{id, name, email, color, role, fieldMode}` — render functions never need null guards
 - `sbCacheIdentity(displayName, operationId)` — writes/refreshes the `gthy-identity` cache
-- `S.users[]` retained as inert storage for todo assignment compat; no longer the identity source
-- User picker (`openUserPicker`, `maybePromptUserSelect`) retired — `maybePromptUserSelect` is a no-op
+- `_sbProfile` — module var holding the current user's `operation_members` row `{role, display_name, field_mode}`; set by `sbGetOperationId()` and `sbPostSignInCheck()`; cleared on `SIGNED_OUT`
+- `isAdmin()` — returns `true` if `_sbProfile.role === 'owner'` or `'admin'`; falls back to `true` when not signed in (offline / single-user mode)
+- `S.users[]` retained as inert shim for todo assignment compat; no longer the identity source
+- `openUserPicker()` redirects to Settings (no local user picker in Supabase world)
 
 **Key functions (M2):**
 
 | Function | Location | Purpose |
 |---|---|---|
-| `sbGetOperationId()` | ~L1895 | Query `operation_members`; cache result; bootstrap if none |
+| `sbGetOperationId()` | ~L1895 | Query `operation_members` (role, display_name, field_mode); populate `_sbProfile`; cache op_id; bootstrap if none |
 | `sbBootstrapOperation()` | ~L1920 | Create `operations` + `operation_members` on first sign-in |
 | `sbCacheIdentity(name, opId)` | ~L1877 | Write/refresh `gthy-identity` localStorage cache |
-| `getActiveUser()` | ~L2239 | M2 identity: session → cache → guest |
+| `getActiveUser()` | ~L2239 | M6 identity: `_sbProfile` → session → cache → guest |
+| `isAdmin()` | ~L2180 | `_sbProfile.role === 'owner'\|\|'admin'`; true when offline |
+| `sbInviteMember(email, role)` | ~L2185 | Insert pending `operation_members` row + send OTP to invitee |
+| `sbPostSignInCheck(user)` | ~L2215 | Claim pending invite via RPC; load member row; set `_sbProfile`; load farm |
+| `renderOperationMembersList()` | ~L3490 | Async render of members card — accepted + pending rows; admin gates |
+| `sbRemoveMember(id)` | ~L3540 | Delete accepted member row (admin only) |
+| `sbCancelInvite(id)` | ~L3550 | Delete pending invite row (admin only) |
 | `_sbLoadCachedIdentity()` | ~L1872 | Read `gthy-identity` cache safely |
 | `_sbToCamel(obj)` | ~L1958 | snake_case → camelCase converter for Supabase rows |
 | `_sbFetch(table, opId)` | ~L1970 | Safe per-table fetch; returns `[]` on error |
@@ -762,7 +770,8 @@ create policy "owner insert"    on operations for insert with check (owner_id = 
 ```
 
 The member-based SELECT policy on `operations` (workers reading another owner's farm)
-is an M6 addition. Do not add it until M6 — it is not needed for single-farmer use.
+was added in M6. The `operation_members` RLS policy was also updated to allow pending
+rows (user_id IS NULL) to be claimed via the `claim_pending_invite` SECURITY DEFINER function.
 
 All other tables retain the template `operation_members` subquery policy — the recursion
 only occurs when `operation_members` queries itself.
@@ -892,7 +901,7 @@ across reloads via `sb-*` localStorage — rate limit only affects new sign-in a
 **Fix:** Both comparisons use `String()` coercion on both sides: `String(p.id)===String(surveyFocusPastureId)`.
 
 ### Home Todos Always Empty — OI-0087 (Fixed b20260329.1816)
-**Root cause:** `renderHome()` filters todos by `(t.assignedTo||[]).includes(activeUserId)`. In the Supabase-only world (M6 not yet landed) `activeUserId` is `null` — no legacy `gthy-user` key is set. No `assignedTo` array includes `null`, so the card always rendered "No open tasks assigned to you" even with open todos present.
+**Root cause:** `renderHome()` filters todos by `(t.assignedTo||[]).includes(activeUserId)`. In the Supabase-only world `activeUserId` is `null` — no legacy `gthy-user` key is set. **Fix (M6):** home todos filter now uses `_sbSession?.user?.id || activeUserId` so it prefers the Supabase user id. Falls back to showing all open todos when neither is set.
 **Fix:** When `activeUserId` is null, `renderHome()` falls back to showing all open todos (`S.todos.filter(t=>t.status!=='closed')`).
 
 
