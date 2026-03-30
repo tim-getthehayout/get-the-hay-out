@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260330.1106`
+**Current build:** `b20260330.1913`
 **Last updated:** 2026-03-29
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -39,7 +39,7 @@ build = 'b' + datetime.now().strftime('%Y%m%d') + '.' + datetime.now().strftime(
 | ~1650 | Main app `<script>` tag + JS Section TOC comment block |
 | ~1533 | App Update Banner |
 | ~1594 | Data init (`S` object), localStorage keys, save helpers |
-| ~1682 | **Supabase M3 write path:** `_sbToSnake`, `_pastureRow`, shape functions (`_animalRow`, `_batchRow`, `_feedTypeRow`, `_animalClassRow`, `_animalGroupRow`, `_aiBullRow`, `_inputProductRow`, `_todoRow`, `_treatmentTypeRow`, `_animalGroupMembershipRow`, `_animalWeightRecordRow`, `_manureBatchTransactionRow`), `queueWrite`, `queueEventWrite`, `flushToSupabase`, `supabaseSyncDebounced`, `setSyncStatus` |
+| ~1682 | **Supabase M3 write path:** `_sbToSnake`, `_pastureRow`, shape functions (`_animalRow`, `_batchRow`, `_feedTypeRow`, `_animalClassRow`, `_animalGroupRow`, `_aiBullRow`, `_inputProductRow`, `_todoRow`, `_treatmentTypeRow`, `_animalGroupMembershipRow`, `_animalWeightRecordRow`, `_manureBatchTransactionRow`), `queueWrite`, `queueEventWrite`, `ensureQueueFlushed`, `flushToSupabase`, `supabaseSyncDebounced`, `setSyncStatus` |
 | ~1745 | **Supabase auth (M1):** `SUPABASE_URL`, `SUPABASE_KEY` constants; `_sbClient`, `_sbSession` module vars; `sbInitClient()`, `sbSignIn()`, `sbSignOut()`, `sbUpdateAuthUI()` |
 | ~1984 | Export / Import JSON (including `importDataJSON` full-replace + Drive force-write) |
 | ~2138 | Nav routing |

@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260330.0020
-**Reconciled against build:** b20260330.0020
+**Last updated:** b20260330.1903
+**Reconciled against build:** b20260330.1903
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -23,22 +23,23 @@
 | 🟡 Open — Polish | 1 |
 | 🔵 Open — Enhancement | 23 |
 | ⚪ Open — Debt | 5 |
-| ✅ Closed | 69 |
+| ✅ Closed | 71 |
 
 ---
 
 ## Session Queue
 
-Recommended work order as of b20260330.1056. Update after each session.
+Recommended work order as of b20260330.1903. Update after each session.
 
 | Priority | OI | Title | Notes |
 |---|---|---|---|
 | 1 | OI-0069 | Rotation calendar — sub-move blocks green for pasture, tan for hay | Small, self-contained fix in renderRotationCalendar() |
 | 2 | OI-0105 | Membership-weighted NPK for multi-group events | Design first — future enhancement |
 
+> **Offline sync data-loss fixes complete** at b20260330.1903 — OI-0109/0110 both closed. `ensureQueueFlushed()` helper added; `INITIAL_SESSION` and `SIGNED_IN` now both flush before load; realtime callback pre-flushes; new-group queue ordering fixed (group before memberships). Confirmed against error log showing INITIAL_SESSION data-loss and `animal_group_memberships_group_id_fkey` FK violations.
 > **Schema gap fixes complete** at b20260330.1056 — OI-0106/0107/0108 all closed. `_animalRow`, `_batchRow`, `_feedTypeRow` shape functions corrected. `_SB_ALLOWED_COLS` updated to match. SQL script `supabase-schema-fixes.sql` produced to add `wt`/`archived` to `batches` and `confirmed_bred`/`confirmed_bred_date` to `animals` in live Supabase. Run SQL script before deploying build.
 > **M6 complete** at b20260330.0020.
-> **Last updated:** b20260330.1056
+> **Last updated:** b20260330.1903
 
 ---
 
@@ -51,6 +52,30 @@ Recommended work order as of b20260330.1056. Update after each session.
 ---
 
 ## Open Items
+
+### OI-0110
+**Source:** User report + error log analysis — b20260330.1903
+**Area:** New group save (~L9620), `_openGroupMembership` (~L8353)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260330.1903
+**Closed:** b20260330.1903
+
+When creating a new animal group, `_openGroupMembership()` (which calls `queueWrite('animal_group_memberships', ...)`) was called for each animal **before** `queueWrite('animal_groups', ...)` queued the parent group record. On flush, Supabase rejected the membership rows with `animal_group_memberships_group_id_fkey` FK violation because the parent group row hadn't been written yet. Confirmed in error log entries [1] and [2] at 18:54:39. **Fix:** Group record queued via `queueWrite('animal_groups', ...)` before the `animalIds.forEach` loop in the new-group branch of `saveGroupFromSheet()`.
+
+---
+
+### OI-0109
+**Source:** User report + error log analysis — b20260330.1903
+**Area:** `onAuthStateChange` (~L1843), `subscribeRealtime` (~L2635), `flushToSupabase` (~L3026)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260330.1903
+**Closed:** b20260330.1903
+
+Mobile data entered offline was lost on reconnect. Root cause: `onAuthStateChange` only flushed the pending write queue on `SIGNED_IN`, not on `INITIAL_SESSION`. On a normal mobile PWA resume — where the Supabase session token is still valid — the event fired is `INITIAL_SESSION`, so `loadFromSupabase` ran immediately without flushing, overwriting `S.*` with stale server data before local changes reached Supabase. The realtime callback had the same gap — a change from another device would trigger `loadFromSupabase` with no pre-flush. Confirmed in error log entry [4] at 18:51:48 (`INITIAL_SESSION` with no preceding flush). **Fix:** Added `ensureQueueFlushed()` helper; collapsed `SIGNED_IN`/`INITIAL_SESSION` branch so both await `ensureQueueFlushed()` before `loadFromSupabase`; realtime callback updated to `async () => { await ensureQueueFlushed(); loadFromSupabase(...) }`.
+
+---
 
 ### OI-0108
 **Source:** Claude observation — b20260330.1056

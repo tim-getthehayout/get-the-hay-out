@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260330.1106" id="app-version-meta"/>
+<meta name="app-version" content="b20260330.1913" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -1847,18 +1847,16 @@ function sbInitClient(){
     if(event === 'SIGNED_IN' || event === 'INITIAL_SESSION'){
       if(session){
         logError('supabase-auth', event + ': ' + (session?.user?.email||'?'), '');
-        sbGetOperationId().then(opId => {
+        sbGetOperationId().then(async opId => {
           if(opId){
-            if(event === 'SIGNED_IN'){
-              // Flush any locally-queued writes BEFORE loading from Supabase.
-              // Items queued while signed out carry the cached _sbOperationId and are valid.
-              // Without this pre-flush, loadFromSupabase overwrites S.* before the queue
-              // is flushed — data entered while offline appears lost on reconnect.
-              setSyncStatus('pending', 'Saving local changes…');
-              flushToSupabase().then(() => { loadFromSupabase(opId); subscribeRealtime(opId); });
-            } else {
-              loadFromSupabase(opId); subscribeRealtime(opId);
-            }
+            // Always flush pending offline writes BEFORE loading from Supabase,
+            // regardless of whether this is a fresh sign-in or a session restore
+            // (INITIAL_SESSION). Without this, a page reload or PWA resume after
+            // offline use loads stale server data and overwrites local changes.
+            setSyncStatus('pending', 'Reconnecting…');
+            await ensureQueueFlushed();
+            loadFromSupabase(opId);
+            subscribeRealtime(opId);
           }
           else { updateHeaderAvatar(); renderCurrentScreen(); }
         });
@@ -2642,7 +2640,7 @@ function subscribeRealtime(operationId){
   WATCHED.forEach(table => {
     ch.on('postgres_changes',
       {event:'*', schema:'public', table, filter:`operation_id=eq.${operationId}`},
-      () => { loadFromSupabase(operationId); }
+      async () => { await ensureQueueFlushed(); loadFromSupabase(operationId); }
     );
   });
   _sbRealtimeChannel = ch.subscribe(status => {
@@ -3021,6 +3019,20 @@ function _sanitizeQueueRecord(table, record){
     if(allowed.has(k)) clean[k] = v;
   }
   return clean;
+}
+
+// Flush any pending offline queue before loading from Supabase.
+// Guards prevent doing anything when offline or not authenticated.
+// Called before every loadFromSupabase() invocation to ensure local
+// writes always take precedence over server data on reconnect.
+async function ensureQueueFlushed(){
+  if(!navigator.onLine || !_sbSession) return;
+  const queue = JSON.parse(localStorage.getItem('gthy-sync-queue') || '[]');
+  if(queue.length > 0){
+    console.log(`[SYNC] Pending queue detected (${queue.length} items) — flushing before load`);
+    setSyncStatus('pending', `Saving ${queue.length} local change${queue.length!==1?'s':''}…`);
+    await flushToSupabase();
+  }
 }
 
 async function flushToSupabase(){
@@ -9608,9 +9620,13 @@ function saveGroupFromSheet(){
     const newGrpId = Date.now();
     const today = new Date().toISOString().slice(0,10);
     S.animalGroups.push({ id: newGrpId, archived: false, name, color, animalIds });
-    animalIds.forEach(id=>_openGroupMembership(id,newGrpId,today));
     const _ng=S.animalGroups[S.animalGroups.length-1];
-    stampSetup(); queueWrite('animal_groups',_animalGroupRow(_ng,_sbOperationId)); save();
+    // Queue the group record FIRST so the parent row exists in Supabase before
+    // membership rows are flushed. Reversing this order causes FK constraint
+    // violations on animal_group_memberships_group_id_fkey (seen in error log).
+    stampSetup(); queueWrite('animal_groups',_animalGroupRow(_ng,_sbOperationId));
+    animalIds.forEach(id=>_openGroupMembership(id,newGrpId,today));
+    save();
   }
   renderGroupsList();
   renderAnimalsScreen();
