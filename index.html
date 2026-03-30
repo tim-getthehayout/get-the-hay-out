@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260330.2048" id="app-version-meta"/>
+<meta name="app-version" content="b20260330.2122" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -997,6 +997,14 @@ body:not(.field-mode) #field-mode-toggle{
 
     <!-- PASTURES -->
     <div id="s-pastures" class="scr">
+      <!-- Tab toggle: Locations | Surveys -->
+      <div style="display:flex;gap:6px;margin-bottom:14px;">
+        <button id="psv-tab-list" class="btn btn-sm btn-green" onclick="setPasturesView('list')">Locations</button>
+        <button id="psv-tab-surveys" class="btn btn-sm btn-outline" onclick="setPasturesView('surveys')">Surveys</button>
+      </div>
+
+      <!-- LOCATIONS PANE -->
+      <div id="pastures-list-pane">
       <!-- Manure inventory section -->
       <div id="manure-inventory-section" style="display:none;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
@@ -1017,7 +1025,7 @@ body:not(.field-mode) #field-mode-toggle{
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
         <div style="font-size:15px;font-weight:600;">Locations</div>
         <button class="btn btn-green btn-sm" onclick="openAddLocation()" style="flex-shrink:0;">+ Add</button>
-        <button class="btn btn-outline btn-sm" onclick="openSurveySheet()" style="flex-shrink:0;">📋 Survey</button>
+        <button class="btn btn-outline btn-sm" onclick="openBulkSurveySheet()" style="flex-shrink:0;">📋 Survey</button>
         <div style="flex:1;position:relative;">
           <input type="search" id="pasture-search" placeholder="Filter locations…"
             oninput="renderPastures()"
@@ -1027,6 +1035,13 @@ body:not(.field-mode) #field-mode-toggle{
         </div>
       </div>
       <div id="pasture-list"></div>
+      </div><!-- end pastures-list-pane -->
+
+      <!-- SURVEYS PANE -->
+      <div id="surveys-tab-content-wrap" style="display:none;">
+        <div id="surveys-tab-content"></div>
+      </div>
+
     </div>
 
 
@@ -2469,7 +2484,7 @@ async function loadFromSupabase(operationId){
       pastureRows, feedTypeRows, batchRows, classRows, inputProductRows,
       treatmentTypeRows, aiBullRows, todoRows, feedbackRows,
       paddockObsRows, weightRecordRows, groupMemberRows,
-      inputAppLocRows, manureTxRows,
+      inputAppLocRows, manureTxRows, surveyRows,
     ] = await Promise.all([
       // Hierarchical — nested select handles sub-table FKs automatically
       _sbClient.from('events').select(
@@ -2502,7 +2517,7 @@ async function loadFromSupabase(operationId){
       _sbFetch('animal_group_memberships', operationId),       // M0 top-level array
       _sbFetch('input_application_locations', operationId),   // M0 top-level array
       _sbFetch('manure_batch_transactions', operationId),      // M0 top-level array
-      // S.surveys: no Supabase table (surveys → paddock_observations at M4); keep from localStorage
+      _sbFetch('surveys',                  operationId),       // OI-0115: survey parent rows
     ]);
 
     // Log any errors on primary hierarchical fetches
@@ -2569,7 +2584,14 @@ async function loadFromSupabase(operationId){
     S.animalGroupMemberships    = (groupMemberRows     || []).map(_sbToCamel);
     S.inputApplicationLocations = (inputAppLocRows     || []).map(_sbToCamel);
     S.manureBatchTransactions   = (manureTxRows        || []).map(_sbToCamel);
-    // S.surveys kept from localStorage — no Supabase surveys table
+    // OI-0115: assemble surveys from Supabase — parse draftRatings JSONB back to object
+    S.surveys = (surveyRows || []).map(r => {
+      const sv = _sbToCamel(r);
+      if(sv.draftRatings && typeof sv.draftRatings === 'string'){
+        try { sv.draftRatings = JSON.parse(sv.draftRatings); } catch(e){ sv.draftRatings = {}; }
+      }
+      return sv;
+    });
 
     // ── Assemble nested structures ──────────────────────────────────────────
     S.events            = assembleEvents(evRes.data            || []);
@@ -2635,7 +2657,7 @@ function subscribeRealtime(operationId){
   if(!_sbClient || !operationId) return;
   const WATCHED = ['events','todos','animals','pastures','animal_groups','batches',
                    'feed_types','manure_batches','input_applications','feedback',
-                   'paddock_observations','animal_weight_records'];
+                   'paddock_observations','animal_weight_records','surveys'];
   const ch = _sbClient.channel('gthy-' + operationId);
   WATCHED.forEach(table => {
     ch.on('postgres_changes',
@@ -2890,6 +2912,19 @@ function _manureBatchTransactionRow(mbt, opId){
   };
 }
 
+// Shape function for surveys table (OI-0115)
+// draftRatings is a JSONB object: { pastureId: { rating, vegHeight, forageCover, notes, recoveryMin, recoveryMax } }
+function _surveyRow(sv, opId){
+  return {
+    id:            sv.id,
+    operation_id:  opId,
+    date:          sv.date ?? null,
+    status:        sv.status ?? 'committed',
+    draft_ratings: sv.draftRatings ? JSON.stringify(sv.draftRatings) : null,
+    notes:         sv.notes ?? null,
+  };
+}
+
 // ── END shape functions ───────────────────────────────────────────────────────
 
 // M3: append/replace one record in the offline write queue
@@ -2996,6 +3031,7 @@ function queueEventWrite(ev){
 // Allowed columns per table — any extra fields in a queued record are stripped before upsert.
 // Keeps stale pre-fix queue items from failing permanently due to schema changes.
 const _SB_ALLOWED_COLS = {
+  surveys:              new Set(['id','operation_id','date','status','draft_ratings','notes','created_at']),
   paddock_observations: new Set(['id','operation_id','pasture_id','observed_at','source','source_id','confidence_rank','veg_height','forage_cover_pct','forage_quality','recovery_min_days','recovery_max_days','notes','recorded_at']),
   feedback:             new Set(['id','operation_id','cat','status','note','tester','version','ts','screen','area','resolved_in_version','resolution_note','linked_to']),
   animals:              new Set(['id','operation_id','tag','name','sex','class_id','birth_date','weaned','weaned_date','wean_target_date','confirmed_bred','confirmed_bred_date','dam_id','status','cull_date','cull_reason','notes','updated_at']),
@@ -3087,6 +3123,7 @@ async function pushAllToSupabase(){
     ['paddock_observations',     S.paddockObservations,    r => _paddockObservationRow(r, opId)],
     ['todos',                    S.todos,                  r => _todoRow(r, opId)],
     ['feedback',                 S.feedback,               r => _feedbackRow(r, opId)],
+    ['surveys',                  (S.surveys||[]).filter(s=>s.status==='committed'), r => _surveyRow(r, opId)],
   ];
   for(const [table, arr, rowFn] of flatTables){
     (arr||[]).forEach(r => queueWrite(table, rowFn(r)));
@@ -5529,13 +5566,15 @@ function surveyRatingBg(r){
 
 // Get the latest survey rating for a pasture
 function latestSurveyRating(pastureId, pastureName){
-  if(!S.surveys||!S.surveys.length) return null;
-  const sorted = [...S.surveys].sort((a,b)=>b.date.localeCompare(a.date));
-  for(const sv of sorted){
-    const r = (sv.ratings||[]).find(r=>r.pastureId===pastureId||r.pastureName===pastureName);
-    if(r) return {rating:r.rating, date:sv.date, notes:r.notes||''};
-  }
-  return null;
+  // OI-0115: read from S.paddockObservations (the authoritative store)
+  // S.surveys[].ratings[] is now legacy — ratings live as paddock_observations rows
+  const obs = (S.paddockObservations||[]).filter(o=>
+    o.source === 'survey' &&
+    (String(o.pastureId)===String(pastureId) || o.pastureName===pastureName) &&
+    o.forageQuality != null
+  ).sort((a,b)=>(b.observedAt||'').localeCompare(a.observedAt||''));
+  if(!obs.length) return null;
+  return { rating: obs[0].forageQuality, date: obs[0].observedAt, notes: obs[0].notes||'' };
 }
 
 // Get the last closed event for a pasture (for recovery window editing)
@@ -5606,40 +5645,462 @@ let surveyNotes      = {}; // pastureId -> notes
 let surveyRecovery   = {}; // pastureId -> {min, max}
 let surveyVegHeight  = {}; // pastureId -> avg vegetative height (inches)
 let surveyForageCover= {}; // pastureId -> avg forage cover (%)
-
 let surveyFocusPastureId = null; // null = all pastures, string = single pasture mode
+let _surveyEditId    = null;     // surveyId being edited (null = new)
+let _surveyDraftTimer = null;    // debounce timer for auto-save
 
-function openSurveySheet(pastureId){
-  surveyRatings    = {};
-  surveyNotes      = {};
-  surveyRecovery   = {};
-  surveyVegHeight  = {};
-  surveyForageCover= {};
-  surveyFocusPastureId = pastureId || null;
-  document.getElementById('survey-date').value = todayStr();
+// Pastures screen view: 'list' | 'surveys'
+let pasturesView = 'list';
 
-  // Update sheet title for single vs mass mode
-  const titleEl = document.getElementById('survey-sheet-title');
-  const subtitleEl = document.getElementById('survey-sheet-subtitle');
-  const recSection = document.getElementById('survey-recovery-section-hdr');
+// ── Survey draft auto-save (debounced 1s) ────────────────────────────────────
+function _triggerSurveyDraftSave(){
+  if(_surveyEditId === null) return; // single-pasture immediate commit — no draft
+  const sv = (S.surveys||[]).find(s=>String(s.id)===String(_surveyEditId)&&s.status==='draft');
+  if(!sv) return;
+  if(_surveyDraftTimer) clearTimeout(_surveyDraftTimer);
+  _surveyDraftTimer = setTimeout(()=>saveSurveyDraft(sv.id), 1000);
+}
 
-  if(surveyFocusPastureId){
-    const p = S.pastures.find(x=>String(x.id)===String(pastureId));
-    if(titleEl) titleEl.textContent = 'Survey: ' + (p?p.name:'Paddock');
-    if(subtitleEl) subtitleEl.textContent = 'Rate forage availability and set recovery window.';
-    if(recSection) recSection.style.display = 'none'; // merged into single card
+function saveSurveyDraft(surveyId){
+  const sv = (S.surveys||[]).find(s=>String(s.id)===String(surveyId));
+  if(!sv || sv.status!=='draft') return;
+  // Persist current UI state into draftRatings
+  sv.draftRatings = {};
+  Object.keys(surveyRatings).forEach(pid=>{
+    sv.draftRatings[pid] = {
+      rating:       surveyRatings[pid]??null,
+      vegHeight:    surveyVegHeight[pid]??null,
+      forageCover:  surveyForageCover[pid]??null,
+      notes:        surveyNotes[pid]??null,
+      recoveryMin:  surveyRecovery[pid]?.min??null,
+      recoveryMax:  surveyRecovery[pid]?.max??null,
+    };
+  });
+  sv.date = document.getElementById('survey-date')?.value || sv.date;
+  queueWrite('surveys', _surveyRow(sv, _sbOperationId));
+  saveLocal();
+}
+
+// ── Open bulk survey (from Pastures screen or Surveys tab "+ New Survey") ────
+function openBulkSurveySheet(){
+  const draft = (S.surveys||[]).find(s=>s.status==='draft');
+  if(draft){
+    // Resume existing draft
+    _surveyEditId = draft.id;
+    surveyRatings    = {};
+    surveyNotes      = {};
+    surveyRecovery   = {};
+    surveyVegHeight  = {};
+    surveyForageCover= {};
+    // Re-hydrate state from draftRatings
+    Object.entries(draft.draftRatings||{}).forEach(([pid,v])=>{
+      if(v.rating   != null) surveyRatings[pid]     = v.rating;
+      if(v.notes    != null) surveyNotes[pid]        = v.notes;
+      if(v.vegHeight!= null) surveyVegHeight[pid]    = v.vegHeight;
+      if(v.forageCover!=null) surveyForageCover[pid] = v.forageCover;
+      if(v.recoveryMin!=null||v.recoveryMax!=null) surveyRecovery[pid]={min:v.recoveryMin,max:v.recoveryMax};
+    });
+    surveyFocusPastureId = null;
+    document.getElementById('survey-date').value = draft.date || todayStr();
+    _setSurveySheetMode('bulk', draft.date);
   } else {
-    if(titleEl) titleEl.textContent = 'Pasture survey';
-    if(subtitleEl) subtitleEl.textContent = 'Rate each paddock 1–10 for forage availability. Tap a number to select.';
-    if(recSection) recSection.style.display = '';
+    // Create new draft
+    const newId = Date.now() + (S.surveys||[]).length;
+    const today = todayStr();
+    if(!Array.isArray(S.surveys)) S.surveys=[];
+    S.surveys.push({id:newId, date:today, status:'draft', draftRatings:{}, notes:null});
+    queueWrite('surveys', _surveyRow(S.surveys[S.surveys.length-1], _sbOperationId));
+    saveLocal();
+    _surveyEditId = newId;
+    surveyRatings={}; surveyNotes={}; surveyRecovery={}; surveyVegHeight={}; surveyForageCover={};
+    surveyFocusPastureId = null;
+    document.getElementById('survey-date').value = today;
+    _setSurveySheetMode('bulk', today);
   }
-
   renderSurveyPaddocks();
   document.getElementById('survey-sheet-wrap').classList.add('open');
 }
+
+// ── Open single-pasture survey (from pasture edit history "Edit" button) ─────
+// pastureId = the paddock to filter to
+// surveyId = existing survey to pre-populate (for editing a committed reading)
+function openSurveySheet(pastureId, surveyId){
+  surveyRatings={}; surveyNotes={}; surveyRecovery={}; surveyVegHeight={}; surveyForageCover={};
+  surveyFocusPastureId = pastureId || null;
+  _surveyEditId = surveyId || null;
+
+  // If editing an existing committed survey reading, pre-populate from paddockObservations
+  if(surveyId && pastureId){
+    const obs = (S.paddockObservations||[]).find(o=>
+      o.source==='survey' &&
+      String(o.sourceId)===String(surveyId) &&
+      String(o.pastureId)===String(pastureId)
+    );
+    if(obs){
+      const pid = String(pastureId);
+      if(obs.forageQuality  != null) surveyRatings[pid]     = obs.forageQuality;
+      if(obs.vegHeight      != null) surveyVegHeight[pid]    = obs.vegHeight;
+      if(obs.forageCoverPct != null) surveyForageCover[pid]  = obs.forageCoverPct;
+      if(obs.notes          != null) surveyNotes[pid]        = obs.notes;
+      // Pre-populate recovery from existing survey date
+      const sv = (S.surveys||[]).find(s=>String(s.id)===String(surveyId));
+      document.getElementById('survey-date').value = sv?.date || obs.observedAt || todayStr();
+    }
+  } else {
+    document.getElementById('survey-date').value = todayStr();
+  }
+
+  const p = S.pastures.find(x=>String(x.id)===String(pastureId));
+  _setSurveySheetMode('single', null, p?.name);
+  renderSurveyPaddocks();
+  document.getElementById('survey-sheet-wrap').classList.add('open');
+}
+
+
 function closeSurveySheet(){
+  // Auto-save draft state when closing bulk survey
+  if(_surveyEditId !== null){
+    const sv = (S.surveys||[]).find(s=>String(s.id)===String(_surveyEditId)&&s.status==='draft');
+    if(sv) saveSurveyDraft(sv.id);
+  }
+  _surveyEditId = null;
   document.getElementById('survey-sheet-wrap').classList.remove('open');
 }
+
+// ── Complete bulk survey — commit all rated paddocks ─────────────────────────
+function completeBulkSurvey(){
+  if(_surveyEditId === null) return;
+  const sv = (S.surveys||[]).find(s=>String(s.id)===String(_surveyEditId));
+  if(!sv) return;
+  const date = document.getElementById('survey-date')?.value || todayStr();
+  const pastures = sortedPastures(false).filter(p=>p.locationType!=='confinement');
+  const rated = pastures.filter(p=>surveyRatings[String(p.id)]!=null);
+  if(!rated.length){ alert('Rate at least one paddock before completing the survey.'); return; }
+
+  sv.date   = date;
+  sv.status = 'committed';
+  sv.draftRatings = null;
+  queueWrite('surveys', _surveyRow(sv, _sbOperationId));
+
+  // Write paddock_observations for each rated pasture
+  let _obsTs = Date.now();
+  rated.forEach(p=>{
+    const pid = String(p.id);
+    _writePaddockObservation({
+      id: _obsTs++, pastureId: p.id, pastureName: p.name,
+      observedAt: date, source: 'survey', sourceId: sv.id,
+      confidenceRank: 3,
+      vegHeight:       surveyVegHeight[pid]??null,
+      forageCoverPct:  surveyForageCover[pid]??null,
+      forageQuality:   surveyRatings[pid]??null,
+      recoveryMinDays: surveyRecovery[pid]?.min??null,
+      recoveryMaxDays: surveyRecovery[pid]?.max??null,
+      notes:           surveyNotes[pid]||null,
+    });
+  });
+
+  // Apply recovery window edits
+  Object.entries(surveyRecovery).forEach(([pastureId,rec])=>{
+    if(rec.min==null && rec.max==null) return;
+    const p  = S.pastures.find(x=>String(x.id)===String(pastureId));
+    if(!p) return;
+    const ev = lastClosedEventForPasture(pastureId, p.name);
+    if(ev){
+      const daysAlreadyRested = ev.dateOut
+        ? Math.max(0, Math.round((new Date(date+'T12:00:00')-new Date(ev.dateOut+'T12:00:00'))/86400000))
+        : 0;
+      if(rec.min!=null) ev.recoveryMinDays = rec.min + daysAlreadyRested;
+      if(rec.max!=null) ev.recoveryMaxDays = rec.max + daysAlreadyRested;
+    } else {
+      if(rec.min!=null && p) p.recoveryMinDays=rec.min;
+      if(rec.max!=null && p) p.recoveryMaxDays=rec.max;
+    }
+  });
+
+  save();
+  _surveyEditId = null;
+  document.getElementById('survey-sheet-wrap').classList.remove('open');
+  if(curScreen==='pastures') renderPastures();
+  showSurveyToast(`Survey saved: ${rated.length} paddock${rated.length!==1?'s':''} rated.`);
+}
+
+// ── Discard draft survey ──────────────────────────────────────────────────────
+function discardSurvey(){
+  if(_surveyEditId === null) return;
+  if(!confirm('Discard this survey? All unsaved ratings will be lost.')) return;
+  const idx = (S.surveys||[]).findIndex(s=>String(s.id)===String(_surveyEditId));
+  if(idx >= 0){
+    // Delete from Supabase
+    if(_sbClient && _sbOperationId){
+      _sbClient.from('surveys').delete().eq('id', S.surveys[idx].id).then(({error})=>{
+        if(error) logError('supabase-survey-delete', error.message, '');
+      });
+    }
+    S.surveys.splice(idx, 1);
+    saveLocal();
+  }
+  _surveyEditId = null;
+  document.getElementById('survey-sheet-wrap').classList.remove('open');
+  if(curScreen==='pastures') renderPastures();
+}
+
+// ── Update a single committed survey reading (from pasture edit history) ──────
+function updateSurveyReading(surveyId, pastureId){
+  const sv = (S.surveys||[]).find(s=>String(s.id)===String(surveyId));
+  if(!sv) return;
+  const date = document.getElementById('survey-date')?.value || sv.date || todayStr();
+  const pid = String(pastureId);
+  const p = S.pastures.find(x=>String(x.id)===pid);
+  if(!p) return;
+
+  sv.date = date;
+  queueWrite('surveys', _surveyRow(sv, _sbOperationId));
+
+  // Update paddock_observation in place
+  _writePaddockObservation({
+    id: Date.now(), pastureId: p.id, pastureName: p.name,
+    observedAt: date, source: 'survey', sourceId: sv.id,
+    confidenceRank: 3,
+    vegHeight:       surveyVegHeight[pid]??null,
+    forageCoverPct:  surveyForageCover[pid]??null,
+    forageQuality:   surveyRatings[pid]??null,
+    recoveryMinDays: surveyRecovery[pid]?.min??null,
+    recoveryMaxDays: surveyRecovery[pid]?.max??null,
+    notes:           surveyNotes[pid]||null,
+  });
+  save();
+  document.getElementById('survey-sheet-wrap').classList.remove('open');
+  // Re-render history in loc-edit if still open
+  const locIdx = parseInt(document.getElementById('loc-edit-idx')?.value);
+  if(!isNaN(locIdx)) renderPastureEditHistory(pid);
+  if(curScreen==='pastures') renderPastures();
+  showSurveyToast('Survey reading updated.');
+}
+
+// ── Delete a single survey reading (from pasture edit history edit dialog) ───
+function deleteSurveyReading(surveyId, pastureId){
+  if(!confirm('Delete this survey reading for this paddock?')) return;
+  const pid = String(pastureId);
+  // Remove from S.paddockObservations
+  const idx = (S.paddockObservations||[]).findIndex(o=>
+    o.source==='survey' && String(o.sourceId)===String(surveyId) && String(o.pastureId)===pid
+  );
+  if(idx >= 0){
+    const obsId = S.paddockObservations[idx].id;
+    S.paddockObservations.splice(idx, 1);
+    // Delete from Supabase
+    if(_sbClient && _sbOperationId){
+      _sbClient.from('paddock_observations').delete().eq('id', obsId).then(({error})=>{
+        if(error) logError('supabase-obs-delete', error.message, '');
+      });
+    }
+  }
+  // If this was the last reading for the survey, delete the parent survey too
+  const remaining = (S.paddockObservations||[]).filter(o=>
+    o.source==='survey' && String(o.sourceId)===String(surveyId)
+  );
+  if(!remaining.length){
+    const svIdx = (S.surveys||[]).findIndex(s=>String(s.id)===String(surveyId));
+    if(svIdx >= 0){
+      const svId = S.surveys[svIdx].id;
+      S.surveys.splice(svIdx, 1);
+      if(_sbClient && _sbOperationId){
+        _sbClient.from('surveys').delete().eq('id', svId).then(({error})=>{
+          if(error) logError('supabase-survey-delete', error.message, '');
+        });
+      }
+    }
+  }
+  saveLocal();
+  renderPastureEditHistory(pid);
+}
+
+// ── Render survey history in pasture edit dialog ──────────────────────────────
+function renderPastureEditHistory(pastureId){
+  const el = document.getElementById('le-survey-history');
+  if(!el) return;
+  const pid = String(pastureId);
+  const obs = (S.paddockObservations||[])
+    .filter(o=>o.source==='survey' && String(o.pastureId)===pid && o.forageQuality!=null)
+    .sort((a,b)=>(b.observedAt||'').localeCompare(a.observedAt||''))
+    .slice(0, 10);
+
+  if(!obs.length){
+    el.innerHTML = '<div style="font-size:12px;color:var(--text2);padding:8px 0;">No survey history for this paddock.</div>';
+    return;
+  }
+  el.innerHTML = obs.map(o=>{
+    const r = o.forageQuality;
+    const details = [
+      o.vegHeight    != null ? `${o.vegHeight}" ht`    : null,
+      o.forageCoverPct != null ? `${o.forageCoverPct}% cov` : null,
+    ].filter(Boolean).join(' · ');
+    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:0.5px solid var(--border);">
+      <div style="display:inline-flex;width:28px;height:28px;border-radius:6px;align-items:center;justify-content:center;
+        font-size:11px;font-weight:700;background:${surveyRatingBg(r)};color:${surveyRatingColor(r)};flex-shrink:0;">${r}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:500;">${dLabel(o.observedAt)}</div>
+        ${details?`<div style="font-size:11px;color:var(--text2);">${details}</div>`:''}
+        ${o.notes?`<div style="font-size:11px;color:var(--text2);font-style:italic;">${escHtml(o.notes)}</div>`:''}
+      </div>
+      <button class="btn btn-outline btn-xs" onclick="openSurveySheet('${pastureId}','${o.sourceId}')">Edit</button>
+    </div>`;
+  }).join('');
+}
+
+// ── Surveys ATC tab on Pastures screen ───────────────────────────────────────
+function renderSurveysTab(){
+  const el = document.getElementById('surveys-tab-content');
+  if(!el) return;
+
+  const draft = (S.surveys||[]).find(s=>s.status==='draft');
+  const committed = [...(S.surveys||[]).filter(s=>s.status==='committed')]
+    .sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+
+  let html = '';
+
+  // Pending draft banner
+  if(draft){
+    const ratedCount = Object.keys(draft.draftRatings||{}).filter(k=>(draft.draftRatings[k]?.rating??null)!=null).length;
+    html += `<div class="card" style="background:var(--amber-l,#fffbeb);border:1px solid var(--amber,#f59e0b);margin-bottom:12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <div>
+          <div style="font-size:13px;font-weight:600;">📋 Survey in progress</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px;">${dLabel(draft.date)} · ${ratedCount} paddock${ratedCount!==1?'s':''} rated</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0;">
+          <button class="btn btn-green btn-xs" onclick="openBulkSurveySheet()">Resume</button>
+          <button class="btn btn-outline btn-xs" style="color:var(--red);" onclick="discardSurvey._fromTab()">Discard</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  // New survey button
+  html += `<div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+    <button class="btn btn-green btn-sm" onclick="openBulkSurveySheet()">+ New Survey</button>
+  </div>`;
+
+  if(!committed.length && !draft){
+    html += '<div class="empty">No surveys yet. Tap + New Survey to start.</div>';
+  } else if(committed.length){
+    html += committed.map(sv=>{
+      const obsForSv = (S.paddockObservations||[]).filter(o=>o.source==='survey'&&String(o.sourceId)===String(sv.id)&&o.forageQuality!=null);
+      const paddockCount = obsForSv.length;
+      const ratings = obsForSv.map(o=>o.forageQuality).filter(r=>r!=null);
+      const minR = ratings.length ? Math.min(...ratings) : null;
+      const maxR = ratings.length ? Math.max(...ratings) : null;
+      const rangeStr = minR!=null ? (minR===maxR?`${minR}/100`:`${minR}–${maxR}/100`) : '—';
+      return `<div class="chip" style="margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div style="font-size:14px;font-weight:600;">${dLabel(sv.date)}</div>
+            <div style="font-size:12px;color:var(--text2);margin-top:2px;">${paddockCount} paddock${paddockCount!==1?'s':''} rated · Quality ${rangeStr}</div>
+          </div>
+          <button class="btn btn-outline btn-xs" onclick="openBulkSurveyEdit('${sv.id}')">Edit</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  el.innerHTML = html;
+}
+
+// Discard from tab (without sheet being open, _surveyEditId may be null)
+discardSurvey._fromTab = function(){
+  const draft = (S.surveys||[]).find(s=>s.status==='draft');
+  if(!draft) return;
+  if(!confirm('Discard this survey? All unsaved ratings will be lost.')) return;
+  const idx = S.surveys.findIndex(s=>String(s.id)===String(draft.id));
+  if(idx >= 0){
+    if(_sbClient && _sbOperationId){
+      _sbClient.from('surveys').delete().eq('id', draft.id).then(({error})=>{
+        if(error) logError('supabase-survey-delete', error.message, '');
+      });
+    }
+    S.surveys.splice(idx, 1);
+    saveLocal();
+  }
+  renderSurveysTab();
+};
+
+// Open a committed survey for editing (from ATC tab) — re-opens bulk sheet pre-populated
+function openBulkSurveyEdit(surveyId){
+  const sv = (S.surveys||[]).find(s=>String(s.id)===String(surveyId));
+  if(!sv || sv.status!=='committed') return;
+  // Temporarily mark as draft so the sheet knows to show Complete/Discard
+  // We don't actually change status — just load it for editing
+  _surveyEditId = sv.id;
+  surveyRatings={}; surveyNotes={}; surveyRecovery={}; surveyVegHeight={}; surveyForageCover={};
+  // Pre-populate from existing paddock_observations
+  const obsForSv = (S.paddockObservations||[]).filter(o=>
+    o.source==='survey' && String(o.sourceId)===String(surveyId)
+  );
+  obsForSv.forEach(o=>{
+    const pid = String(o.pastureId);
+    if(o.forageQuality  != null) surveyRatings[pid]    = o.forageQuality;
+    if(o.vegHeight      != null) surveyVegHeight[pid]   = o.vegHeight;
+    if(o.forageCoverPct != null) surveyForageCover[pid] = o.forageCoverPct;
+    if(o.notes          != null) surveyNotes[pid]       = o.notes;
+  });
+  surveyFocusPastureId = null;
+  document.getElementById('survey-date').value = sv.date || todayStr();
+  // Show in "edit committed" mode — Save replaces observations, no Discard
+  _setSurveySheetMode('bulk-edit', sv.date);
+  renderSurveyPaddocks();
+  document.getElementById('survey-sheet-wrap').classList.add('open');
+}
+
+function _setSurveySheetMode(mode, draftDate, pastureName){
+  const titleEl    = document.getElementById('survey-sheet-title');
+  const subtitleEl = document.getElementById('survey-sheet-subtitle');
+  const recSection = document.getElementById('survey-recovery-section-hdr');
+  const saveBtn    = document.getElementById('survey-save-btn');
+  const completeBtn= document.getElementById('survey-complete-btn');
+  const discardBtn = document.getElementById('survey-discard-btn');
+  const draftTag   = document.getElementById('survey-draft-tag');
+  if(mode==='bulk'){
+    if(titleEl) titleEl.textContent = 'Pasture survey';
+    if(subtitleEl) subtitleEl.textContent = 'Rate each paddock. Changes auto-save as you go.';
+    if(recSection) recSection.style.display = '';
+    if(saveBtn)    saveBtn.style.display    = 'none';
+    if(completeBtn)completeBtn.style.display= '';
+    if(discardBtn) discardBtn.style.display = '';
+    if(draftTag)   draftTag.style.display   = '';
+  } else if(mode==='bulk-edit'){
+    if(titleEl) titleEl.textContent = 'Edit survey';
+    if(subtitleEl) subtitleEl.textContent = 'Edit ratings and tap Save Survey to update.';
+    if(recSection) recSection.style.display = '';
+    if(saveBtn)    saveBtn.style.display    = '';
+    if(completeBtn)completeBtn.style.display= 'none';
+    if(discardBtn) discardBtn.style.display = 'none';
+    if(draftTag)   draftTag.style.display   = 'none';
+  } else {
+    if(titleEl) titleEl.textContent = pastureName ? 'Survey: '+pastureName : 'Paddock survey';
+    if(subtitleEl) subtitleEl.textContent = 'Rate forage availability and set recovery window.';
+    if(recSection) recSection.style.display = 'none';
+    if(saveBtn)    saveBtn.style.display    = '';
+    if(completeBtn)completeBtn.style.display= 'none';
+    if(discardBtn) discardBtn.style.display = 'none';
+    if(draftTag)   draftTag.style.display   = 'none';
+  }
+}
+
+// ── Tab toggle for Pastures screen ────────────────────────────────────────────
+function setPasturesView(view){
+  pasturesView = view;
+  const listBtn    = document.getElementById('psv-tab-list');
+  const surveysBtn = document.getElementById('psv-tab-surveys');
+  const listPane   = document.getElementById('pastures-list-pane');
+  const surveysPane= document.getElementById('surveys-tab-content-wrap');
+  if(listBtn)     listBtn.className    = 'btn btn-sm'+(view==='list'?' btn-green':' btn-outline');
+  if(surveysBtn)  surveysBtn.className = 'btn btn-sm'+(view==='surveys'?' btn-green':' btn-outline');
+  if(listPane)    listPane.style.display    = view==='list'?'':'none';
+  if(surveysPane) surveysPane.style.display = view==='surveys'?'':'none';
+  if(view==='surveys') renderSurveysTab();
+}
+
+
 
 function renderSurveyPaddocks(){
   let pastures = sortedPastures(false).filter(p=>p.locationType!=='confinement');
@@ -6000,82 +6461,93 @@ function setSurveyRating(pastureId, pastureName, rating){
   }
 }
 
+// saveSurvey: routes to correct handler based on mode
+// - Single pasture mode (surveyFocusPastureId set): immediate commit via updateSurveyReading
+//   or new single-pasture survey commit
+// - Bulk edit committed (from ATC tab): re-commits all rated paddocks
 function saveSurvey(){
-  const date = document.getElementById('survey-date').value || todayStr();
-  const pastures = sortedPastures(false).filter(p=>p.locationType!=='confinement');
-  const ratings = pastures
-    .filter(p=>surveyRatings[p.id]!=null)
-    .map(p=>({
-      pastureId:   p.id,
-      pastureName: p.name,
-      rating:      surveyRatings[p.id],
-      notes:       surveyNotes[p.id]||'',
-      vegHeight:   surveyVegHeight[p.id]??null,
-      forageCover: surveyForageCover[p.id]??null,
-    }));
-
-  if(!ratings.length){
-    alert('Rate at least one paddock before saving.');
-    return;
-  }
-
-  // Upsert: if a survey for this date already exists, update it
-  const existing = S.surveys.find(sv=>sv.date===date);
-  if(existing){
-    // Merge ratings: overwrite any paddocks that were re-rated
-    ratings.forEach(r=>{
-      const idx = existing.ratings.findIndex(x=>x.pastureId===r.pastureId);
-      if(idx>=0) existing.ratings[idx]=r;
-      else existing.ratings.push(r);
-    });
-  } else {
-    S.surveys.push({id:Date.now(), date, ratings});
-  }
-
-  // Apply recovery window edits: values entered are "days from survey date".
-  // Convert back to event-date-relative before storing (stored values = days from lastEv.dateOut).
-  let recoveryUpdated = 0;
-  Object.entries(surveyRecovery).forEach(([pastureId,rec])=>{
-    if(rec.min==null && rec.max==null) return;
-    const p  = S.pastures.find(x=>x.id===pastureId);
+  if(surveyFocusPastureId){
+    // Single-pasture mode
+    const date = document.getElementById('survey-date')?.value || todayStr();
+    const pid  = String(surveyFocusPastureId);
+    const p    = S.pastures.find(x=>String(x.id)===pid);
     if(!p) return;
-    const ev = lastClosedEventForPasture(pastureId, p.name);
-    if(ev){
-      // Add back the days already rested since the event closed so stored value is from event date
-      const daysAlreadyRested = ev.dateOut
-        ? Math.max(0, Math.round((new Date(date+'T12:00:00') - new Date(ev.dateOut+'T12:00:00'))/86400000))
-        : 0;
-      if(rec.min!=null) ev.recoveryMinDays = rec.min + daysAlreadyRested;
-      if(rec.max!=null) ev.recoveryMaxDays = rec.max + daysAlreadyRested;
+    if(surveyRatings[pid] == null){ alert('Please set a forage rating before saving.'); return; }
+
+    if(_surveyEditId){
+      // Editing existing committed reading
+      updateSurveyReading(_surveyEditId, pid);
     } else {
-      // No event yet — store directly on pasture (survey date IS the reference, no adjustment)
-      if(rec.min!=null) p.recoveryMinDays=rec.min;
-      if(rec.max!=null) p.recoveryMaxDays=rec.max;
+      // New single-pasture survey — create a committed survey parent + one observation
+      if(!Array.isArray(S.surveys)) S.surveys=[];
+      const newId = Date.now() + S.surveys.length;
+      S.surveys.push({id:newId, date, status:'committed', draftRatings:null, notes:null});
+      queueWrite('surveys', _surveyRow(S.surveys[S.surveys.length-1], _sbOperationId));
+      _writePaddockObservation({
+        id: Date.now()+1, pastureId: p.id, pastureName: p.name,
+        observedAt: date, source: 'survey', sourceId: newId,
+        confidenceRank: 3,
+        vegHeight:       surveyVegHeight[pid]??null,
+        forageCoverPct:  surveyForageCover[pid]??null,
+        forageQuality:   surveyRatings[pid],
+        recoveryMinDays: surveyRecovery[pid]?.min??null,
+        recoveryMaxDays: surveyRecovery[pid]?.max??null,
+        notes:           surveyNotes[pid]||null,
+      });
+      // Apply recovery window
+      if(surveyRecovery[pid]?.min!=null || surveyRecovery[pid]?.max!=null){
+        const rec = surveyRecovery[pid];
+        const ev = lastClosedEventForPasture(pid, p.name);
+        if(ev){
+          const daysRested = ev.dateOut
+            ? Math.max(0, Math.round((new Date(date+'T12:00:00')-new Date(ev.dateOut+'T12:00:00'))/86400000)) : 0;
+          if(rec.min!=null) ev.recoveryMinDays = rec.min + daysRested;
+          if(rec.max!=null) ev.recoveryMaxDays = rec.max + daysRested;
+        } else {
+          if(rec.min!=null) p.recoveryMinDays = rec.min;
+          if(rec.max!=null) p.recoveryMaxDays = rec.max;
+        }
+      }
+      save();
+      _surveyEditId = null;
+      document.getElementById('survey-sheet-wrap').classList.remove('open');
+      const locIdx = parseInt(document.getElementById('loc-edit-idx')?.value);
+      if(!isNaN(locIdx)) renderPastureEditHistory(pid);
+      if(curScreen==='pastures') renderPastures();
+      showSurveyToast('Survey reading saved.');
     }
-    recoveryUpdated++;
-  });
-
-  save();
-  // M0a-C: write survey paddock observations
-  {const _svId = existing ? existing.id : S.surveys[S.surveys.length-1].id;
-  let _obsTs = Date.now();
-  ratings.forEach(r=>{
-    _writePaddockObservation({id:_obsTs++,pastureId:r.pastureId||null,
-      pastureName:r.pastureName||'',observedAt:date,source:'survey',
-      sourceId:_svId,confidenceRank:3,vegHeight:r.vegHeight||null,
-      forageCoverPct:r.forageCover||null,forageQuality:r.rating||null,
-      recoveryMinDays:surveyRecovery[r.pastureId]?.min||null,
-      recoveryMaxDays:surveyRecovery[r.pastureId]?.max||null,
-      notes:r.notes||null});
-  });
-  saveLocal();} // flush observation rows without triggering a second full save cycle
-  closeSurveySheet();
-  if(curScreen==='pastures') renderPastures();
-
-  const msg = `Survey saved: ${ratings.length} paddock${ratings.length!==1?'s':''} rated.`
-    + (recoveryUpdated ? ` ${recoveryUpdated} recovery window${recoveryUpdated!==1?'s':''} updated.` : '');
-  // Show brief toast-style confirmation
-  showSurveyToast(msg);
+  } else {
+    // Bulk edit of committed survey — re-commit all rated paddocks
+    if(_surveyEditId === null) { completeBulkSurvey(); return; }
+    const sv = (S.surveys||[]).find(s=>String(s.id)===String(_surveyEditId));
+    if(!sv) return;
+    const date = document.getElementById('survey-date')?.value || todayStr();
+    sv.date = date;
+    queueWrite('surveys', _surveyRow(sv, _sbOperationId));
+    // Re-write all rated paddocks
+    let _obsTs = Date.now();
+    const pastures = sortedPastures(false).filter(p=>p.locationType!=='confinement');
+    pastures.forEach(p=>{
+      const pid = String(p.id);
+      if(surveyRatings[pid] == null) return;
+      _writePaddockObservation({
+        id: _obsTs++, pastureId: p.id, pastureName: p.name,
+        observedAt: date, source: 'survey', sourceId: sv.id,
+        confidenceRank: 3,
+        vegHeight:       surveyVegHeight[pid]??null,
+        forageCoverPct:  surveyForageCover[pid]??null,
+        forageQuality:   surveyRatings[pid],
+        recoveryMinDays: surveyRecovery[pid]?.min??null,
+        recoveryMaxDays: surveyRecovery[pid]?.max??null,
+        notes:           surveyNotes[pid]||null,
+      });
+    });
+    save();
+    _surveyEditId = null;
+    document.getElementById('survey-sheet-wrap').classList.remove('open');
+    if(curScreen==='pastures') renderPastures();
+    showSurveyToast('Survey updated.');
+  }
 }
 
 function showSurveyToast(msg){
@@ -8879,6 +9351,10 @@ function openLocEdit(idx){
     document.getElementById('le-capture-fields').style.display=p.captureManure?'block':'none';
   }
   document.getElementById('le-delete-wrap').style.display='block';
+  // Survey history — only for pasture/paddock locations
+  const histWrap = document.getElementById('le-survey-history-wrap');
+  if(histWrap) histWrap.style.display = isCon ? 'none' : 'block';
+  if(!isCon) renderPastureEditHistory(String(p.id));
   document.getElementById('loc-edit-wrap').classList.add('open');
 }
 function closeLocEdit(){document.getElementById('loc-edit-wrap').classList.remove('open');}
@@ -14554,8 +15030,9 @@ function migrateM0aData(){
     });
   });
 
-  // Backfill survey observations from S.surveys[]
-  (S.surveys||[]).forEach(sv=>{
+  // Backfill survey observations from S.surveys[] (legacy format with ratings[] array)
+  // New surveys (OI-0115) have status/draftRatings and no ratings[] — skip those
+  (S.surveys||[]).filter(sv=>Array.isArray(sv.ratings)&&sv.ratings.length).forEach(sv=>{
     (sv.ratings||[]).forEach(r=>{
       _writePaddockObservation({id:_id++,pastureId:r.pastureId||null,
         pastureName:r.pastureName||'',observedAt:sv.date,source:'survey',
@@ -15514,30 +15991,35 @@ function renderSurveyReport(){
   if(!el) return;
 
   const pastures = sortedPastures(true).filter(p=>p.locationType!=='confinement');
-  const surveys  = [...(S.surveys||[])].sort((a,b)=>b.date.localeCompare(a.date));
 
-  if(!surveys.length){
+  // OI-0115: read from paddockObservations (authoritative) — filter to survey source only
+  const surveyObs = (S.paddockObservations||[]).filter(o=>o.source==='survey'&&o.forageQuality!=null);
+
+  if(!surveyObs.length){
     el.innerHTML = rptSectionHead('Pasture surveys','No surveys recorded yet. Use the 📋 Survey button on the Pastures tab to start.') +
       '<div class="card"><div class="empty">No survey data yet.</div></div>';
     return;
   }
 
-  // Build a lookup: pastureId -> [{date, rating, notes}] sorted newest first
+  // Build lookup: pastureId -> [{date, rating, notes, vegHeight, forageCoverPct}] sorted newest first
   const byPasture = {};
-  surveys.forEach(sv=>{
-    (sv.ratings||[]).forEach(r=>{
-      const key = r.pastureId || r.pastureName;
-      if(!byPasture[key]) byPasture[key] = [];
-      byPasture[key].push({date:sv.date, rating:r.rating, notes:r.notes||''});
-    });
+  surveyObs.forEach(o=>{
+    const key = String(o.pastureId || o.pastureName || '');
+    if(!byPasture[key]) byPasture[key] = [];
+    byPasture[key].push({date:o.observedAt, rating:o.forageQuality, notes:o.notes||'',
+      vegHeight:o.vegHeight, forageCoverPct:o.forageCoverPct});
   });
+  Object.values(byPasture).forEach(arr=>arr.sort((a,b)=>b.date.localeCompare(a.date)));
 
-  // Timeline header: unique dates across all surveys (newest first, max 20)
-  const allDates = [...new Set(surveys.map(s=>s.date))].slice(0,20);
+  // Unique survey dates newest first (max 20)
+  const allDates = [...new Set(surveyObs.map(o=>o.observedAt).filter(Boolean))]
+    .sort((a,b)=>b.localeCompare(a)).slice(0,20);
+
+  const surveysCount = [...new Set(surveyObs.map(o=>String(o.sourceId||o.observedAt)))].length;
 
   // Per-paddock table rows
   const rows = pastures.map(p=>{
-    const key = p.id || p.name;
+    const key = String(p.id || p.name);
     const hist = byPasture[key] || byPasture[p.name] || [];
     if(!hist.length) return '';
 
@@ -15547,7 +16029,7 @@ function renderSurveyReport(){
         <span style="color:var(--border2);">—</span></td>`;
       const r = entry.rating;
       return `<td style="min-width:52px;text-align:center;padding:3px 2px;"
-        title="${dLabel(date)}: ${r}/10${entry.notes?' — '+entry.notes:''}">
+        title="${dLabel(date)}: ${r}/100${entry.notes?' — '+entry.notes:''}">
         <div style="display:inline-block;width:32px;height:32px;border-radius:6px;line-height:32px;
           text-align:center;font-size:12px;font-weight:700;
           background:${surveyRatingBg(r)};color:${surveyRatingColor(r)};">${r}</div>
@@ -15588,7 +16070,7 @@ function renderSurveyReport(){
     ${dLabel(d)}</th>`).join('');
 
   el.innerHTML = rptSectionHead('Pasture surveys',
-    `${surveys.length} survey${surveys.length!==1?'s':''} recorded · Showing latest ${allDates.length} dates`) + `
+    `${surveysCount} survey${surveysCount!==1?'s':''} recorded · Showing latest ${allDates.length} dates`) + `
   <div class="card" style="padding:0;overflow:hidden;">
     <div style="overflow-x:auto;max-height:70vh;overflow-y:auto;">
       <table style="border-collapse:collapse;min-width:100%;">
@@ -15992,6 +16474,14 @@ window.addEventListener('offline', ()=>{
           </div>
         </div>
       </div>
+    </div>
+    <!-- Survey history — shown for pasture/paddock locations only -->
+    <div id="le-survey-history-wrap" style="margin-top:16px;display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="font-size:13px;font-weight:600;">Survey history</div>
+        <button class="btn btn-outline btn-xs" onclick="openSurveySheet(S.pastures[parseInt(document.getElementById('loc-edit-idx').value)]?.id)">+ Add reading</button>
+      </div>
+      <div id="le-survey-history"></div>
     </div>
     <div class="btn-row" style="margin-top:14px;">
       <button class="btn btn-green" id="le-save-btn" onclick="saveLocEdit()">Save changes</button>
@@ -16869,7 +17359,7 @@ window.addEventListener('offline', ()=>{
     <div class="sheet-handle"></div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
       <div style="font-size:16px;font-weight:600;" id="survey-sheet-title">Pasture survey</div>
-      <div style="font-size:12px;color:var(--text2);" id="survey-date-label"></div>
+      <span id="survey-draft-tag" style="display:none;font-size:10px;font-weight:600;color:var(--amber-d,#92400e);background:var(--amber-l,#fffbeb);border:1px solid var(--amber,#f59e0b);padding:2px 8px;border-radius:10px;">DRAFT</span>
     </div>
     <div style="font-size:13px;color:var(--text2);margin-bottom:14px;" id="survey-sheet-subtitle">
       Rate each paddock 1–10 for forage availability. Tap a number to select.
@@ -16883,8 +17373,12 @@ window.addEventListener('offline', ()=>{
     <div id="survey-recovery-section-hdr" style="font-size:13px;font-weight:600;margin-bottom:8px;">Recovery window edits <span style="font-size:11px;font-weight:400;color:var(--text2);">(optional — updates the last closed event per paddock)</span></div>
     <div id="survey-recovery-list"></div>
     <div class="btn-row" style="margin-top:16px;">
-      <button class="btn btn-green" onclick="saveSurvey()">Save survey</button>
-      <button class="btn btn-outline" onclick="closeSurveySheet()">Cancel</button>
+      <button class="btn btn-green" id="survey-save-btn" onclick="saveSurvey()">Save survey</button>
+      <button class="btn btn-green" id="survey-complete-btn" style="display:none;" onclick="completeBulkSurvey()">Survey Complete</button>
+      <button class="btn btn-outline" onclick="closeSurveySheet()">Close</button>
+    </div>
+    <div style="margin-top:10px;text-align:center;" id="survey-discard-wrap">
+      <button id="survey-discard-btn" style="display:none;background:none;border:none;color:var(--red);font-size:13px;cursor:pointer;text-decoration:underline;" onclick="discardSurvey()">Discard survey</button>
     </div>
   </div>
 </div>

@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260330.2039
-**Reconciled against build:** b20260330.2039
+**Last updated:** b20260330.2116
+**Reconciled against build:** b20260330.2116
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -19,32 +19,27 @@
 | Status | Count |
 |---|---|
 | 🔴 Open — Roadblock | 0 |
-| 🔴 Open — Bug | 2 |
+| 🔴 Open — Bug | 0 |
 | 🟡 Open — Polish | 1 |
-| 🔵 Open — Enhancement | 24 |
+| 🔵 Open — Enhancement | 22 |
 | ⚪ Open — Debt | 7 |
-| ✅ Closed | 73 |
+| ✅ Closed | 75 |
 
 ---
 
 ## Session Queue
 
-Recommended work order as of b20260330.2039. Update after each session.
+Recommended work order as of b20260330.2116. Update after each session.
 
 | Priority | OI | Title | Notes |
 |---|---|---|---|
-| 1 | OI-0116 | `pastures.id` bigint cascade fix | SQL-only — prerequisite for OI-0115; audit all child tables, one coordinated script |
-| 2 | OI-0115 | Surveys Supabase table + full management UI | Implement immediately after OI-0116 SQL confirms clean; design spec complete |
-| 3 | OI-0114 | Flush error storm — no suppression for repeated identical failures | Debt — circuit breaker / dedup to error log |
-| 4 | OI-0069 | Rotation calendar — sub-move blocks green for pasture, tan for hay | Small, self-contained fix in renderRotationCalendar() |
-| 5 | OI-0105 | Membership-weighted NPK for multi-group events | Design first — future enhancement |
+| 1 | OI-0114 | Flush error storm — no suppression for repeated identical failures | Debt — circuit breaker / dedup to error log |
+| 2 | OI-0069 | Rotation calendar — sub-move blocks green for pasture, tan for hay | Small, self-contained fix in renderRotationCalendar() |
+| 3 | OI-0105 | Membership-weighted NPK for multi-group events | Design first — future enhancement |
 
-> **OI-0116 is a prerequisite for OI-0115** — `surveys` table needs `pasture_id text` from creation; cannot implement correctly while `pastures.id` is still `bigint`. Both OI items belong in the same next session: SQL cascade fix first, then full survey feature implementation.
-> **OI-0113 closed** — SQL v3 confirmed working (b20260330.2039). paddock_observations.pasture_id now text.
-> **OI-0116 logged** at b20260330.2039 — `pastures.id` is `bigint` in Supabase; all pasture writes have been failing silently since M4. Full cascade FK audit required before fix.
-> **OI-0112 logged + partial fix** at b20260330.1952 — null-operation-id silent strip now logs a warning.
-> **Offline sync data-loss fixes complete** at b20260330.1903 — OI-0109/0110 both closed.
-> **Last updated:** b20260330.2039
+> **OI-0115 + OI-0116 complete** at b20260330.2116 — cascade SQL fix for `pastures.id` bigint + full surveys feature: Supabase `surveys` table, draft/commit flow, Surveys ATC tab, pasture edit history panel.
+> **OI-0113 closed** — paddock_observations.pasture_id now text.
+> **Last updated:** b20260330.2116
 
 ---
 
@@ -446,19 +441,11 @@ Display name input added to `#sb-signed-in` Settings block. `sbSaveDisplayName()
 **Source:** Claude observation — b20260330.2039 (discovered during OI-0113 SQL fix)
 **Area:** Supabase `pastures` table schema, all tables with `pasture_id bigint references pastures`
 **Severity:** Bug
-**Status:** 🔴 Open — Requires cascade FK audit before fixing
+**Status:** ✅ Closed
 **Found:** b20260330.2039
+**Closed:** b20260330.2116
 
-The `pastures` table was created with `id bigint` per the migration plan DDL. The app generates string IDs (`PSTR-00001` format) via `generatePastureId()`. Every `queueWrite('pastures', ...)` call has been failing silently since the M4 migration — the app functions from localStorage so the failure was invisible until we tried to fix `paddock_observations.pasture_id`.
-
-**Tables with `pasture_id bigint references pastures` that also need fixing:**
-- `paddock_observations` (OI-0113 — fixing now)
-- `event_paddock_windows`
-- `input_application_locations`
-- `manure_batch_transactions` (possibly)
-- Any other table with `pasture_id bigint references pastures` per the DDL
-
-**Fix approach (design-first):** This is a cascade change — `pastures.id` cannot be altered to `text` without first dropping all FK constraints from child tables that reference it, altering all those columns to `text`, then altering `pastures.id`, then optionally recreating FKs as text→text. Needs a full audit of all dependent tables and a single coordinated SQL script. Do not attempt piecemeal. Session required.
+SQL script `supabase-fix-pastures-id-cascade.sql` — dropped all FK constraints on `events`, `event_paddock_windows`, `event_sub_moves`, `event_npk_deposits`, `input_application_locations`, altered `pastures.id` and all child `pasture_id` columns to `text`, recreated `paddock_current_condition` view. Run before deploying b20260330.2116.
 
 ---
 
@@ -466,8 +453,9 @@ The `pastures` table was created with `id bigint` per the migration plan DDL. Th
 **Source:** User report + Architecture gap — b20260330.2005
 **Area:** `S.surveys[]`, `saveSurvey`, `paddock_observations`, pasture edit sheet
 **Severity:** Enhancement
-**Status:** 🔵 Open
+**Status:** ✅ Closed
 **Found:** b20260330.2005
+**Closed:** b20260330.2116
 
 **Architecture gap:** `S.surveys[]` is localStorage-only — no Supabase `surveys` table exists. The migration plan deferred this: "Will map to paddock_observations during M4 migration script." That mapping was never completed. As a result, surveys entered on one device never appear on another, and surveys are permanently lost if localStorage is cleared. The `paddock_observations` rows (source=`survey`) are correctly structured to be children of a `surveys` parent — the parent table is simply missing.
 

@@ -3,7 +3,11 @@
 
 | Build | File | Change |
 |---|---|---|
-| b20260330.2039 | SQL | Bug fix (OI-0113 v3): SQL script updated — drops FK constraint `paddock_observations_pasture_id_fkey` before ALTER (previous v2 was blocked by FK from pasture_id to pastures.id bigint). All steps use IF EXISTS — safe to re-run. FK not recreated. Discovery: pastures.id is also bigint in Supabase — all pasture writes have been failing silently (OI-0116 logged). |
+| b20260330.2116 | SQL | OI-0116: `supabase-fix-pastures-id-cascade.sql` — full cascade fix for `pastures.id bigint`. Drops FKs on `events`, `event_paddock_windows`, `event_sub_moves`, `event_npk_deposits`, `input_application_locations`. Alters `pastures.id` to text, alters all child `pasture_id` columns to text. Drops and recreates `paddock_current_condition` view. Run before deploying this build. |
+| b20260330.2116 | HTML | OI-0115: Full surveys feature implementation. `surveys` Supabase table added to `loadFromSupabase` (fetch + assembly with JSONB parse), `WATCHED` realtime array, `_SB_ALLOWED_COLS`, and `pushAllToSupabase`. `_surveyRow` shape function added. New functions: `openBulkSurveySheet` (draft/resume flow), `saveSurveyDraft` (1s debounced auto-save), `completeBulkSurvey`, `discardSurvey`, `updateSurveyReading`, `deleteSurveyReading`, `renderPastureEditHistory`, `renderSurveysTab`, `setPasturesView`, `openBulkSurveyEdit`, `_setSurveySheetMode`. `saveSurvey` rewritten to route single-pasture vs bulk-edit paths. `latestSurveyRating` rewritten to read `S.paddockObservations` (not `S.surveys[].ratings[]`). `renderSurveyReport` rewritten same. `migrateM0aData` survey backfill guarded to legacy-only (surveys with `ratings[]`). Pastures screen: tab toggle (Locations | Surveys), pane structure. Survey sheet HTML: DRAFT tag, Complete Survey / Discard buttons. Loc-edit sheet HTML: survey history panel with Edit per row. `openLocEdit` hooked to call `renderPastureEditHistory`. |
+| b20260330.2116 | OPEN_ITEMS | OI-0115 and OI-0116 closed. Bug count 0, Enhancement count 22, Closed 75. Session queue updated. |
+
+ SQL script updated — drops FK constraint `paddock_observations_pasture_id_fkey` before ALTER (previous v2 was blocked by FK from pasture_id to pastures.id bigint). All steps use IF EXISTS — safe to re-run. FK not recreated. Discovery: pastures.id is also bigint in Supabase — all pasture writes have been failing silently (OI-0116 logged). |
 | b20260330.2039 | OPEN_ITEMS | OI-0113 closed (SQL confirmed working). Bug count down to 2. OI-0116 noted as prerequisite for OI-0115 in session queue. |
 
 
