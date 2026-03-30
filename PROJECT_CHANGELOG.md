@@ -3,7 +3,21 @@
 
 | Build | File | Change |
 |---|---|---|
-| b20260330.1939 | HTML | Bug fix (OI-0111): Adding multiple animals to a group produced only 1 membership row in Supabase. `_openGroupMembership` used `id: Date.now()` — synchronous forEach loop assigns the same ms timestamp to all 10 rows; `queueWrite` deduplication by `id` collapses them to 1 entry. Fixed: `id: Date.now() + S.animalGroupMemberships.length` — array length increments each iteration, guaranteeing unique IDs. |
+| b20260330.2039 | SQL | Bug fix (OI-0113 v3): SQL script updated — drops FK constraint `paddock_observations_pasture_id_fkey` before ALTER (previous v2 was blocked by FK from pasture_id to pastures.id bigint). All steps use IF EXISTS — safe to re-run. FK not recreated. Discovery: pastures.id is also bigint in Supabase — all pasture writes have been failing silently (OI-0116 logged). |
+| b20260330.2039 | OPEN_ITEMS | OI-0113 closed (SQL confirmed working). Bug count down to 2. OI-0116 noted as prerequisite for OI-0115 in session queue. |
+
+
+ for `paddock_observations.pasture_id` bigint→text type change. Original one-liner failed: `paddock_current_condition` view depends on `pasture_id` — PostgreSQL blocks ALTER on columns used by views. Fix: DROP VIEW, ALTER COLUMN, recreate VIEW identically. Deploy sequence: clear queue on phone → run SQL → deploy b20260330.2039. Note: b20260330.2005 was never deployed (SQL error discovered before release). |
+| b20260330.2039 | OPEN_ITEMS | OI-0113 updated with corrected SQL approach and view dependency explanation. Build reference updated to 2039. |
+
+ `_writePaddockObservation` changed from append-only to upsert — on re-save of same source/sourceId/pastureId, existing row updated in place with stable ID preserved, preventing queue deduplication bypass and accumulation of duplicate rows. SQL fix still required (ALTER TABLE paddock_observations ALTER COLUMN pasture_id TYPE text) and queue must be cleared on phone before deploying. |
+| b20260330.2005 | OPEN_ITEMS | OI-0113 (paddock_observations pasture_id bigint bug), OI-0114 (flush error storm debt), OI-0115 (surveys Supabase table + management UI, architecture gap) logged. Bug count updated to 2, Enhancement count to 24, Debt count to 7. Session queue updated. |
+| b20260330.2005 | ARCHITECTURE | S.surveys architecture gap documented. OI-0115 cross-referenced. M4 note corrected. Build stamp updated. |
+
+ `flushToSupabase` silently discarded queue items with null `operation_id` — records queued before `sbGetOperationId` resolved were permanently lost with no trace. Added `logError` warning so the event now appears in the error log. Full requeue-on-resolve solution deferred to future session. |
+| b20260330.1952 | OPEN_ITEMS | OI-0112 logged (debt — null opId silent strip). Debt count updated to 6. |
+
+ Adding multiple animals to a group produced only 1 membership row in Supabase. `_openGroupMembership` used `id: Date.now()` — synchronous forEach loop assigns the same ms timestamp to all 10 rows; `queueWrite` deduplication by `id` collapses them to 1 entry. Fixed: `id: Date.now() + S.animalGroupMemberships.length` — array length increments each iteration, guaranteeing unique IDs. |
 | b20260330.1939 | OPEN_ITEMS | OI-0111 closed. Status counts updated. |
 
  Offline data entered on mobile was lost on reconnect. `onAuthStateChange` only flushed the pending write queue on `SIGNED_IN`, not `INITIAL_SESSION`. On a normal PWA resume (still-valid session token), the event is always `INITIAL_SESSION` — `loadFromSupabase` ran immediately with no flush, overwriting `S.*` before local changes reached Supabase. Fixed: added `ensureQueueFlushed()` helper (flushes queue if online and authenticated); collapsed the `SIGNED_IN`/`INITIAL_SESSION` if/else — both now `await ensureQueueFlushed()` before `loadFromSupabase`. Realtime callback also updated to pre-flush. Confirmed against error log entry [4] at 18:51:48. |

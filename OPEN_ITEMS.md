@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260330.1939
-**Reconciled against build:** b20260330.1939
+**Last updated:** b20260330.2039
+**Reconciled against build:** b20260330.2039
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -19,28 +19,32 @@
 | Status | Count |
 |---|---|
 | 🔴 Open — Roadblock | 0 |
-| 🔴 Open — Bug | 0 |
+| 🔴 Open — Bug | 2 |
 | 🟡 Open — Polish | 1 |
-| 🔵 Open — Enhancement | 23 |
-| ⚪ Open — Debt | 5 |
-| ✅ Closed | 72 |
+| 🔵 Open — Enhancement | 24 |
+| ⚪ Open — Debt | 7 |
+| ✅ Closed | 73 |
 
 ---
 
 ## Session Queue
 
-Recommended work order as of b20260330.1903. Update after each session.
+Recommended work order as of b20260330.2039. Update after each session.
 
 | Priority | OI | Title | Notes |
 |---|---|---|---|
-| 1 | OI-0069 | Rotation calendar — sub-move blocks green for pasture, tan for hay | Small, self-contained fix in renderRotationCalendar() |
-| 2 | OI-0105 | Membership-weighted NPK for multi-group events | Design first — future enhancement |
+| 1 | OI-0116 | `pastures.id` bigint cascade fix | SQL-only — prerequisite for OI-0115; audit all child tables, one coordinated script |
+| 2 | OI-0115 | Surveys Supabase table + full management UI | Implement immediately after OI-0116 SQL confirms clean; design spec complete |
+| 3 | OI-0114 | Flush error storm — no suppression for repeated identical failures | Debt — circuit breaker / dedup to error log |
+| 4 | OI-0069 | Rotation calendar — sub-move blocks green for pasture, tan for hay | Small, self-contained fix in renderRotationCalendar() |
+| 5 | OI-0105 | Membership-weighted NPK for multi-group events | Design first — future enhancement |
 
-> **Membership ID collision fix** at b20260330.1939 — OI-0111 closed. `_openGroupMembership` was using `Date.now()` for all IDs; synchronous forEach loop produced duplicate timestamps; `queueWrite` deduplication collapsed 10 rows to 1. Fixed with `Date.now() + S.animalGroupMemberships.length`.
-> **Offline sync data-loss fixes complete** at b20260330.1903 — OI-0109/0110 both closed. `ensureQueueFlushed()` helper added; `INITIAL_SESSION` and `SIGNED_IN` now both flush before load; realtime callback pre-flushes; new-group queue ordering fixed (group before memberships). Confirmed against error log showing INITIAL_SESSION data-loss and `animal_group_memberships_group_id_fkey` FK violations.
-> **Schema gap fixes complete** at b20260330.1056 — OI-0106/0107/0108 all closed. `_animalRow`, `_batchRow`, `_feedTypeRow` shape functions corrected. `_SB_ALLOWED_COLS` updated to match. SQL script `supabase-schema-fixes.sql` produced to add `wt`/`archived` to `batches` and `confirmed_bred`/`confirmed_bred_date` to `animals` in live Supabase. Run SQL script before deploying build.
-> **M6 complete** at b20260330.0020.
-> **Last updated:** b20260330.1903
+> **OI-0116 is a prerequisite for OI-0115** — `surveys` table needs `pasture_id text` from creation; cannot implement correctly while `pastures.id` is still `bigint`. Both OI items belong in the same next session: SQL cascade fix first, then full survey feature implementation.
+> **OI-0113 closed** — SQL v3 confirmed working (b20260330.2039). paddock_observations.pasture_id now text.
+> **OI-0116 logged** at b20260330.2039 — `pastures.id` is `bigint` in Supabase; all pasture writes have been failing silently since M4. Full cascade FK audit required before fix.
+> **OI-0112 logged + partial fix** at b20260330.1952 — null-operation-id silent strip now logs a warning.
+> **Offline sync data-loss fixes complete** at b20260330.1903 — OI-0109/0110 both closed.
+> **Last updated:** b20260330.2039
 
 ---
 
@@ -435,6 +439,115 @@ Display name input added to `#sb-signed-in` Settings block. `sbSaveDisplayName()
 **Closed:** b20260328.2241
 
 `alter table batches add column wt numeric` run in Supabase SQL Editor. Existing batches populated: Peanut Hay / Oak Field Barn / Tarped → 750 lbs; Alfalfa Small Squares → 50 lbs. Batch assembly updated to read `wt` directly (no alias needed — no underscore conversion). `saveBatchAdj` also fixed: was missing `queueWrite('batches', ...)` entirely — batch edits never synced to Supabase. Both fixed in b20260328.2241.
+
+---
+
+### OI-0116
+**Source:** Claude observation — b20260330.2039 (discovered during OI-0113 SQL fix)
+**Area:** Supabase `pastures` table schema, all tables with `pasture_id bigint references pastures`
+**Severity:** Bug
+**Status:** 🔴 Open — Requires cascade FK audit before fixing
+**Found:** b20260330.2039
+
+The `pastures` table was created with `id bigint` per the migration plan DDL. The app generates string IDs (`PSTR-00001` format) via `generatePastureId()`. Every `queueWrite('pastures', ...)` call has been failing silently since the M4 migration — the app functions from localStorage so the failure was invisible until we tried to fix `paddock_observations.pasture_id`.
+
+**Tables with `pasture_id bigint references pastures` that also need fixing:**
+- `paddock_observations` (OI-0113 — fixing now)
+- `event_paddock_windows`
+- `input_application_locations`
+- `manure_batch_transactions` (possibly)
+- Any other table with `pasture_id bigint references pastures` per the DDL
+
+**Fix approach (design-first):** This is a cascade change — `pastures.id` cannot be altered to `text` without first dropping all FK constraints from child tables that reference it, altering all those columns to `text`, then altering `pastures.id`, then optionally recreating FKs as text→text. Needs a full audit of all dependent tables and a single coordinated SQL script. Do not attempt piecemeal. Session required.
+
+---
+
+### OI-0115
+**Source:** User report + Architecture gap — b20260330.2005
+**Area:** `S.surveys[]`, `saveSurvey`, `paddock_observations`, pasture edit sheet
+**Severity:** Enhancement
+**Status:** 🔵 Open
+**Found:** b20260330.2005
+
+**Architecture gap:** `S.surveys[]` is localStorage-only — no Supabase `surveys` table exists. The migration plan deferred this: "Will map to paddock_observations during M4 migration script." That mapping was never completed. As a result, surveys entered on one device never appear on another, and surveys are permanently lost if localStorage is cleared. The `paddock_observations` rows (source=`survey`) are correctly structured to be children of a `surveys` parent — the parent table is simply missing.
+
+**What is needed (design-first before coding):**
+1. **`surveys` Supabase table** — `id bigint, operation_id uuid, date date, notes text, created_at timestamptz`. Mirrors the survey container in `S.surveys[]`.
+2. **Write path** — `saveSurvey()` queues a `surveys` row first (parent), then queues each `paddock_observations` row (children). `_surveyRow(sv, opId)` shape function. `loadFromSupabase` fetches and assembles `S.surveys`.
+3. **Edit UI** — Re-open survey sheet pre-populated with existing ratings. Re-save updates the `surveys` row and replaces derived `paddock_observations` (delete old observations for this `source_id`, write new ones).
+4. **Delete UI** — Remove `surveys` row + cascade-delete matching `paddock_observations` rows (where `source='survey' AND source_id=sv.id`).
+5. **Pasture edit sheet history panel** — At the bottom of the pasture edit dialog, show a chronological list of all `paddock_observations` for this pasture with `source='survey'`: date, forage quality, veg height, forage cover, recovery windows.
+
+**No existing data loss risk** — existing survey observations in `paddock_observations` keep their `source_id` pointing to the survey ID. Adding the `surveys` table just provides the missing parent.
+
+---
+
+### OI-0114
+**Source:** Claude observation — b20260330.2005
+**Area:** `flushToSupabase` (~L3039), error log (~L10262)
+**Severity:** Debt
+**Status:** ⚪ Open
+**Found:** b20260330.2005
+
+When `flushToSupabase` runs against a queue containing N permanently-stuck items (schema error or network dropout), every flush attempt logs N individual error entries. With `ensureQueueFlushed` now firing on every auth event and realtime callback, a single stuck queue generates hundreds of log entries in seconds — filling the 200-entry cap and burying useful earlier entries. Confirmed: 20 stuck queue items × ~8 reconnect cycles = 160 identical error entries at 19:51:46, pushing all earlier entries out of the log.
+
+**Fix options:**
+1. Dedup `logError` — if the last entry for the same source+message already exists, increment a counter instead of appending a new row
+2. Circuit breaker in `flushToSupabase` — if all items fail with `TypeError: Load failed` (network down), suspend retries until the next `online` event
+3. Schema-error detection — if a queue item fails with a Supabase schema error (400/422), move it to a permanent `failed` list rather than leaving it in the retry queue
+
+Option 3 would have prevented the entire error storm today — the `bigint` errors were known-unflushable but kept retrying indefinitely.
+
+---
+
+### OI-0113
+**Source:** Error log analysis — b20260330.2005
+**Area:** Supabase `paddock_observations` schema, `_paddockObservationRow` (~L2854)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260330.2005
+**Closed:** b20260330.2039
+
+The `pasture_id` column in the Supabase `paddock_observations` table was created as `bigint`. The app sends string pasture IDs like `"PSTR-00017"`. Every `paddock_observations` upsert fails with `invalid input syntax for type bigint: "PSTR-00017"`. All 20 items in the phone's sync queue are permanently stuck and cannot flush.
+
+**Immediate actions required:**
+1. Go to Settings → Sync Queue → **Clear queue** on your phone (items cannot be recovered — they are duplicates anyway)
+2. Run the corrected SQL script `supabase-fix-paddock-obs-pasture-id.sql` in the Supabase dashboard (see below — must drop and recreate the `paddock_current_condition` view)
+3. Deploy build b20260330.2039 (not 2005 — never deployed)
+
+**Why the second attempt failed:** After `DROP VIEW` succeeded, `ALTER COLUMN pasture_id TYPE text` was blocked by FK constraint `paddock_observations_pasture_id_fkey` — `pasture_id` references `pastures.id` which is `bigint`. Cannot create FK between text and bigint.
+
+**Why the FK exists at all:** The migration plan DDL defined `pastures.id` as `bigint`. The app later moved to string PSTR IDs. The `paddock_observations.pasture_id` FK to `pastures.id bigint` is now a type mismatch that has silently blocked all `paddock_observations` writes since migration.
+
+**⚠️ Side discovery:** If `pastures.id` is `bigint` in the live DB, pasture writes with PSTR string IDs have also been failing silently. The app functions from localStorage so this was invisible. This needs a separate SQL fix — see note below.
+
+**Fix (v3 script — final):** DROP VIEW IF EXISTS → DROP CONSTRAINT IF EXISTS `paddock_observations_pasture_id_fkey` → ALTER COLUMN TYPE text → recreate view. Safe to run multiple times. FK is not recreated — app manages referential integrity at JS level.
+
+**Additional SQL needed (OI-0113b — separate fix):**
+```sql
+ALTER TABLE pastures ALTER COLUMN id TYPE text;
+```
+This will likely also have FK dependencies from other tables (`event_paddock_windows`, `input_application_locations`, etc.) — investigate in a future session. Log as OI-0116.
+
+---
+
+### OI-0112
+**Source:** Claude observation — b20260330.1939
+**Area:** `flushToSupabase` (~L3039), `queueWrite` (~L2897), all write paths
+**Severity:** Debt
+**Status:** ⚪ Open
+**Found:** b20260330.1939
+
+If `_sbOperationId` is null at the moment a record is queued (edge case: queue write fires before `sbGetOperationId` has resolved on a fresh device, or on first sign-in before the operation row exists), the queued record has `operation_id: null`. `flushToSupabase` silently discards it: `const queue = rawQueue.filter(op => op.record && op.record.operation_id != null)`. The item is permanently removed from the queue with no error logged and no retry path.
+
+Most likely to affect feedback, todos, and quick-feed entries made immediately after OTP sign-in on a new device before the operation row has been fetched.
+
+**Fix options:**
+1. Log a warning when stripping null-opId items (cheap — at minimum we should know when this happens).
+2. Re-queue null-opId items after `_sbOperationId` is resolved rather than discarding them (correct but more complex — requires a "pending requeue" list and a trigger after `sbGetOperationId` sets `_sbOperationId`).
+3. Guard `queueWrite` itself: if `_sbOperationId` is null, hold in a separate "pre-auth queue" that is replayed once `_sbOperationId` is set.
+
+Option 1 is a 2-line fix that should be done immediately. Options 2/3 are design-first.
 
 ---
 

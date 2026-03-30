@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260330.1942`
+**Current build:** `b20260330.2048`
 **Last updated:** 2026-03-29
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -784,7 +784,7 @@ across reloads via `sb-*` localStorage — rate limit only affects new sign-in a
 
 **`_SB_ALLOWED_COLS`** (~L3000) — per-table allowlist used by `_sanitizeQueueRecord` to strip unknown columns at flush time. Must be kept in sync with shape functions. **b20260330.1056:** `animals` set updated with `confirmed_bred`/`confirmed_bred_date`; `batches` set updated with `wt`/`archived`; `feed_types` set updated with `cost_per_unit`. Without these additions the shape function fixes would be silently reversed at flush time.
 
-**`S.surveys` note:** No Supabase surveys table. `S.surveys[]` stays from localStorage. Survey data was already folded into `S.paddockObservations[]` during M0 migration — the Supabase `paddock_observations` table captures this path.
+**`S.surveys` note — ⚠️ Architecture gap (OI-0115):** No Supabase `surveys` table exists. `S.surveys[]` is localStorage-only. The migration plan said surveys would be folded into `paddock_observations` during M4 — the child rows (source=`survey`) were implemented correctly, but the parent `surveys` table was never created. Result: surveys do not sync across devices and are lost if localStorage is cleared. **Fix planned:** Add `surveys` Supabase table + write path + edit/delete UI + pasture history panel (OI-0115, design-first).
 
 **Settings UI (b20260328.1623 — M3):**
 - `#sb-step1` — email input + "Send code" button + error status line
@@ -809,7 +809,7 @@ across reloads via `sb-*` localStorage — rate limit only affects new sign-in a
 - 457 rows migrated from `gthy-backup-2026-03-28-1327.json` to Supabase (see MIGRATION_PLAN §7 for full counts)
 - Assembly functions (`assembleEvents`, `assembleAnimals`, etc.) are now live code — no longer dead code behind the guard
 - Orphan group remap: event group membership referencing old "Cow-Calf Herd" id `1773607143162` remapped to current id `1773829317829` during migration
-- `S.surveys[]` kept from localStorage — no Supabase surveys table; surveys already folded into `S.paddockObservations[]` via M0 migration
+- `S.surveys[]` kept from localStorage — **no Supabase surveys table; this is an architecture gap (OI-0115)** — child `paddock_observations` rows exist but parent `surveys` table was never created
 
 ---
 
