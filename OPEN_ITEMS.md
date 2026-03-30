@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260330.2134
-**Reconciled against build:** b20260330.2134
+**Last updated:** b20260330.2156
+**Reconciled against build:** b20260330.2156
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -23,7 +23,7 @@
 | 🟡 Open — Polish | 1 |
 | 🔵 Open — Enhancement | 22 |
 | ⚪ Open — Debt | 7 |
-| ✅ Closed | 75 |
+| ✅ Closed | 76 |
 
 ---
 

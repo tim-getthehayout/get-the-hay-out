@@ -553,3 +553,5 @@ No schema changes required — `area` and `screen` columns already exist in the 
 - Outer wrapper uses `margin-bottom:8px` to separate consolidated event blocks from one another.
 
 **No data model changes.** Reads from `e.subMoves[]` (already assembled). All existing field aliases (`sm.date`, `sm.locationName`, `sm.durationHours`, `sm.dateOut`, `sm.feedEntries`) used directly.
+| b20260330.2156 | HTML | Bug fix (OI-0117): `_writePaddockObservation` was re-queuing every observation on every `migrateM0aData()` call even when no data changed — causing 6 recurring queue items after each reconnect. Fixed: change-detection guard compares all data fields before calling `queueWrite`; only queues when something actually changed. |
+| b20260330.2156 | SQL | Cleanup: `supabase-cleanup-paddock-obs-duplicates.sql` — removes 36 duplicate rows in paddock_observations (44 rows → 8 unique logical observations). All duplicates are null-data rows from pre-fix accumulation bug. |

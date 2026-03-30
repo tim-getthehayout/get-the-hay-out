@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260330.2138`
+**Current build:** `b20260330.2208`
 **Last updated:** 2026-03-29
 
 > This is the authoritative navigation guide for every AI coding session.
