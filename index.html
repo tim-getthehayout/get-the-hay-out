@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260330.2122" id="app-version-meta"/>
+<meta name="app-version" content="b20260330.2138" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -1189,6 +1189,10 @@ body:not(.field-mode) #field-mode-toggle{
           <button class="btn btn-outline btn-sm" onclick="flushToSupabase().then(()=>renderSyncQueueInspector())">Flush now</button>
           <button class="btn btn-outline btn-sm" onclick="exportSyncQueue()">Export queue JSON</button>
           <button class="btn btn-outline btn-sm" style="color:var(--red);" onclick="if(confirm('Clear the entire sync queue? Unsynced changes will be lost.')){{localStorage.removeItem('gthy-sync-queue');renderSyncQueueInspector();}}">Clear queue</button>
+        </div>
+        <div style="margin-bottom:10px;">
+          <button class="btn btn-outline btn-sm" onclick="if(confirm('Re-push all local data to Supabase? This will overwrite any conflicting server records with your local version.')){pushAllToSupabase().then(()=>renderSyncQueueInspector());}">Push all to Supabase</button>
+          <div style="font-size:11px;color:var(--text2);margin-top:4px;">Use if data is missing from Supabase. Writes your entire local state — overrides server. Use with care.</div>
         </div>
         <div id="sb-queue-inspector" style="font-size:12px;"></div>
       </div>
