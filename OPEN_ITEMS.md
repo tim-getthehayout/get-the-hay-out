@@ -19,28 +19,26 @@
 | Status | Count |
 |---|---|
 | 🔴 Open — Roadblock | 0 |
-| 🔴 Open — Bug | 3 |
+| 🔴 Open — Bug | 0 |
 | 🟡 Open — Polish | 1 |
 | 🔵 Open — Enhancement | 23 |
 | ⚪ Open — Debt | 5 |
-| ✅ Closed | 66 |
+| ✅ Closed | 69 |
 
 ---
 
 ## Session Queue
 
-Recommended work order as of b20260330.0020. Update after each session.
+Recommended work order as of b20260330.1056. Update after each session.
 
 | Priority | OI | Title | Notes |
 |---|---|---|---|
 | 1 | OI-0069 | Rotation calendar — sub-move blocks green for pasture, tan for hay | Small, self-contained fix in renderRotationCalendar() |
 | 2 | OI-0105 | Membership-weighted NPK for multi-group events | Design first — future enhancement |
 
-> **M6 complete** at b20260330.0020 — isAdmin() helper, _sbProfile loading, sbInviteMember, sbPostSignInCheck, renderOperationMembersList, Farm users card HTML replaced, isAdmin() gates on all destructive actions, legacy S.users[] system retired.
-> **OI-0021 closed** at b20260329.2336 — membership-weighted AUD for NPK.
-> **M5 complete** at b20260329.2319 — online/offline listeners, Flush now button, >24h stuck warning.
-> **Last updated:** b20260330.0020
-> **Last updated:** b20260330.0020
+> **Schema gap fixes complete** at b20260330.1056 — OI-0106/0107/0108 all closed. `_animalRow`, `_batchRow`, `_feedTypeRow` shape functions corrected. `_SB_ALLOWED_COLS` updated to match. SQL script `supabase-schema-fixes.sql` produced to add `wt`/`archived` to `batches` and `confirmed_bred`/`confirmed_bred_date` to `animals` in live Supabase. Run SQL script before deploying build.
+> **M6 complete** at b20260330.0020.
+> **Last updated:** b20260330.1056
 
 ---
 
@@ -53,6 +51,42 @@ Recommended work order as of b20260330.0020. Update after each session.
 ---
 
 ## Open Items
+
+### OI-0108
+**Source:** Claude observation — b20260330.1056
+**Area:** `_feedTypeRow()` (~L2732), `_SB_ALLOWED_COLS`
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260330.1056
+**Closed:** b20260330.1056
+
+`_feedTypeRow()` was missing `cost_per_unit`. The column exists in the Supabase `feed_types` schema and is returned by `loadFromSupabase`, but was never written when a feed type was saved. Also missing from `_SB_ALLOWED_COLS['feed_types']`. **Fix:** Both added in b20260330.1056.
+
+---
+
+### OI-0107
+**Source:** Claude observation — b20260330.1056
+**Area:** `_batchRow()` (~L2716), `_SB_ALLOWED_COLS`, Supabase `batches` table schema
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260330.1056
+**Closed:** b20260330.1056
+
+`_batchRow()` was missing `wt` (unit weight in lbs) and `archived`. Editing batch unit weight or archiving a batch never persisted to Supabase — data was local-only, overwritten on next reload. `wt` and `archived` also missing from `_SB_ALLOWED_COLS['batches']`. **Fix:** Both added to shape function and allowlist. **Requires SQL:** `supabase-schema-fixes.sql` adds `wt` and `archived` columns to the live `batches` table — run before deploying this build.
+
+---
+
+### OI-0106
+**Source:** Claude observation — b20260330.1056
+**Area:** `_animalRow()` (~L2695), `_SB_ALLOWED_COLS`, Supabase `animals` table schema
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260330.1056
+**Closed:** b20260330.1056
+
+`_animalRow()` was missing `confirmed_bred` and `confirmed_bred_date`. These columns exist in the `animals` schema DDL (added as part of OI-0013) but were never included in the write path. Any animal marked confirmed-bred in the UI had the flag saved to localStorage only — on the next `loadFromSupabase()` the confirmed-bred status was silently overwritten with `false`. Also missing from `_SB_ALLOWED_COLS['animals']` meaning even a corrected shape function would have had the fields stripped at flush time. **Fix:** Both fields added to `_animalRow` and `_SB_ALLOWED_COLS['animals']`. **Requires SQL:** `supabase-schema-fixes.sql` adds `confirmed_bred` and `confirmed_bred_date` columns to the live `animals` table.
+
+---
 
 ### OI-0105
 **Source:** Claude observation — b20260329.2336

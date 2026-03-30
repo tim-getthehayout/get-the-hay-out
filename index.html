@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260330.0029" id="app-version-meta"/>
+<meta name="app-version" content="b20260330.1106" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -2694,22 +2694,24 @@ function _pastureRow(p, opId){
 
 function _animalRow(a, opId){
   return {
-    id:               a.id,
-    operation_id:     opId,
-    tag:              a.tagNum ?? a.tag ?? null,
-    name:             a.name ?? null,
-    sex:              a.sex ?? null,
-    class_id:         a.classId ?? null,
-    birth_date:       a.birthDate ?? null,
-    weaned:           a.weaned ?? null,
-    weaned_date:      a.weanedDate ?? null,
-    wean_target_date: a.weanTargetDate ?? null,
-    dam_id:           a.damId ?? null,
-    status:           (a.active === false || a.cullRecord) ? 'culled' : 'active',
-    cull_date:        a.cullRecord?.date ?? null,
-    cull_reason:      a.cullRecord?.reason ?? null,
-    notes:            a.notes ?? null,
-    updated_at:       a.updatedAt ?? a.createdAt ?? new Date().toISOString(),
+    id:                  a.id,
+    operation_id:        opId,
+    tag:                 a.tagNum ?? a.tag ?? null,
+    name:                a.name ?? null,
+    sex:                 a.sex ?? null,
+    class_id:            a.classId ?? null,
+    birth_date:          a.birthDate ?? null,
+    weaned:              a.weaned ?? null,
+    weaned_date:         a.weanedDate ?? null,
+    wean_target_date:    a.weanTargetDate ?? null,
+    confirmed_bred:      a.confirmedBred ?? false,
+    confirmed_bred_date: a.confirmedBredDate ?? null,
+    dam_id:              a.damId ?? null,
+    status:              (a.active === false || a.cullRecord) ? 'culled' : 'active',
+    cull_date:           a.cullRecord?.date ?? null,
+    cull_reason:         a.cullRecord?.reason ?? null,
+    notes:               a.notes ?? null,
+    updated_at:          a.updatedAt ?? a.createdAt ?? new Date().toISOString(),
   };
 }
 
@@ -2721,9 +2723,11 @@ function _batchRow(b, opId){
     name:          b.label ?? b.name ?? null,
     quantity:      b.qty ?? b.quantity ?? null,
     unit:          b.unit ?? null,
+    wt:            b.wt ?? null,
     dm_pct:        b.dm ?? b.dmPct ?? null,
     cost_per_unit: b.cpu ?? b.costPerUnit ?? null,
     purchase_date: b.date ?? b.purchaseDate ?? null,
+    archived:      b.archived ?? false,
     notes:         b.notes ?? null,
     updated_at:    b.updatedAt ?? new Date().toISOString(),
   };
@@ -2736,6 +2740,7 @@ function _feedTypeRow(ft, opId){
     name:             ft.name ?? null,
     dm_pct:           ft.dm ?? ft.dmPct ?? null,
     unit:             ft.unit ?? null,
+    cost_per_unit:    ft.costPerUnit ?? ft.cpu ?? null,
     n_pct:            ft.nPct ?? null,
     p_pct:            ft.pPct ?? null,
     k_pct:            ft.kPct ?? null,
@@ -2995,14 +3000,14 @@ function queueEventWrite(ev){
 const _SB_ALLOWED_COLS = {
   paddock_observations: new Set(['id','operation_id','pasture_id','observed_at','source','source_id','confidence_rank','veg_height','forage_cover_pct','forage_quality','recovery_min_days','recovery_max_days','notes','recorded_at']),
   feedback:             new Set(['id','operation_id','cat','status','note','tester','version','ts','screen','area','resolved_in_version','resolution_note','linked_to']),
-  animals:              new Set(['id','operation_id','tag','name','sex','class_id','birth_date','weaned','weaned_date','wean_target_date','dam_id','status','cull_date','cull_reason','notes','updated_at']),
-  batches:              new Set(['id','operation_id','feed_type_id','name','quantity','unit','dm_pct','cost_per_unit','purchase_date','notes','updated_at']),
+  animals:              new Set(['id','operation_id','tag','name','sex','class_id','birth_date','weaned','weaned_date','wean_target_date','confirmed_bred','confirmed_bred_date','dam_id','status','cull_date','cull_reason','notes','updated_at']),
+  batches:              new Set(['id','operation_id','feed_type_id','name','quantity','unit','wt','dm_pct','cost_per_unit','purchase_date','archived','notes','updated_at']),
   animal_groups:        new Set(['id','operation_id','name','color','archived','setup_updated_at']),
   animal_classes:       new Set(['id','operation_id','name','species','archived']),
   ai_bulls:             new Set(['id','operation_id','name','breed','tag','archived']),
   input_products:       new Set(['id','operation_id','name','type','npk_n','npk_p','npk_k','cost_per_unit','unit','archived']),
   todos:                new Set(['id','operation_id','title','status','note','paddock','animal_id','assigned_to','created_by','created_at','updated_at']),
-  feed_types:           new Set(['id','operation_id','name','dm_pct','unit','n_pct','p_pct','k_pct','archived','setup_updated_at']),
+  feed_types:           new Set(['id','operation_id','name','dm_pct','unit','cost_per_unit','n_pct','p_pct','k_pct','archived','setup_updated_at']),
   treatment_types:      new Set(['id','operation_id','name','category','archived']),
   animal_group_memberships: new Set(['id','operation_id','group_id','animal_id','date_joined','date_left','reason']),
   animal_weight_records: new Set(['id','operation_id','animal_id','recorded_at','weight_lbs','note','source','created_at']),

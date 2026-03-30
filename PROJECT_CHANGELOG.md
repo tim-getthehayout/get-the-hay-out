@@ -3,6 +3,11 @@
 
 | Build | File | Change |
 |---|---|---|
+| b20260330.1056 | HTML | Bug fix (OI-0106): `_animalRow()` shape function missing `confirmed_bred` and `confirmed_bred_date` columns. Any animal marked confirmed-bred in the app never had that flag reach Supabase — data was written to localStorage only, overwritten on next `loadFromSupabase`. Fixed: both fields added to `_animalRow` and to `_SB_ALLOWED_COLS['animals']`. |
+| b20260330.1056 | HTML | Bug fix (OI-0107): `_batchRow()` shape function missing `wt` (unit weight) and `archived` columns. Batch unit-weight edits and archiving actions never persisted to Supabase. Fixed: both fields added to `_batchRow` and to `_SB_ALLOWED_COLS['batches']`. Requires `supabase-schema-fixes.sql` to be run first to add the two columns to the live table. |
+| b20260330.1056 | HTML | Bug fix (OI-0108): `_feedTypeRow()` shape function missing `cost_per_unit` column. Column exists in schema DDL and is returned by `loadFromSupabase`, but was never written on update. Fixed: added to `_feedTypeRow` and `_SB_ALLOWED_COLS['feed_types']`. |
+| b20260330.1056 | HTML | Correctness: `_SB_ALLOWED_COLS` updated for all three tables above. Without this second fix, the shape function additions would be silently stripped by `_sanitizeQueueRecord` at flush time — the allowlist is the final gate before every Supabase upsert. |
+
 | b20260330.0020 | HTML | M6-B: `_sbProfile` module var added (`let _sbProfile = null`). `sbGetOperationId()` select expanded to `operation_id, role, display_name, field_mode` — populates `_sbProfile` on sign-in. `_sbProfile` cleared to null on `SIGNED_OUT`. `getActiveUser()` updated to prefer `_sbProfile.role` and `_sbProfile.display_name` over localStorage cache when signed in. |
 | b20260330.0020 | HTML | M6-B: `isAdmin()` helper added. Returns `true` if `_sbProfile.role === 'owner'` or `'admin'`. Falls back to `true` when no Supabase session (offline / single-user mode — no regression). Used as gate before all privileged actions. |
 | b20260330.0020 | HTML | M6-C: `sbInviteMember(email, role)` added. Inserts pending `operation_members` row (`user_id` null, `invited_at` set) then calls `supabase.auth.signInWithOtp` to send OTP to invitee. Does not affect admin session. Admin-only gate via `isAdmin()`. |

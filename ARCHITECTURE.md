@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260330.0029`
+**Current build:** `b20260330.1106`
 **Last updated:** 2026-03-29
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -742,7 +742,9 @@ Critical ordering constraint for the app init block at bottom of `<script>`:
 | `_sbLoadCachedIdentity()` | ~L1872 | Read `gthy-identity` cache safely |
 | `_sbToCamel(obj)` | ~L1958 | snake_case → camelCase converter for Supabase rows |
 | `_sbFetch(table, opId)` | ~L1970 | Safe per-table fetch; returns `[]` on error |
-| `_pastureRow(p, opId)` | ~L2398 | Build Supabase-safe pastures row. Maps `locationType`→`type`, `recoveryMinDays`→`min_days`, `recoveryMaxDays`→`max_days`. Used by all three `queueWrite('pastures',...)` call sites. |
+| `_animalRow` | ~L2695 | Maps JS animal → `animals` table. Fields: id, tag (tagNum→tag), name, sex, class_id, birth/wean fields, **confirmed_bred, confirmed_bred_date** (added b20260330.1056 — were missing, silent data loss on bred flag), dam_id, status, cull_date/reason, notes, updated_at |
+| `_batchRow` | ~L2716 | Maps JS batch → `batches` table. Fields: id, feed_type_id, name, quantity, unit, **wt, archived** (added b20260330.1056 — were missing, batch edits and archiving never synced), dm_pct, cost_per_unit, purchase_date, notes, updated_at |
+| `_feedTypeRow` | ~L2732 | Maps JS feedType → `feed_types` table. Fields: id, name, dm_pct, unit, **cost_per_unit** (added b20260330.1056 — column in schema, never written), n/p/k_pct, archived, setup_updated_at |
 | `assembleEvents(rows)` | ~L1984 | Re-nest event sub-tables. Reconstructs `feedEntries[].lines[]` from flat `event_feed_deliveries` rows (grouped by date). Reconstructs `subMoves[].feedEntries[]` per sub-move. Derives `ev.locationType` from `S.pastures` lookup. Adds `locationType` fallback to paddock entries. |
 | `assembleAnimals(rows)` | ~L2001 | Re-nest `animal_health_events` (via FK hint `!animal_health_events_animal_id_fkey` — required because `calving_calf_id` also references `animals`, creating an ambiguous join). Reconstructs `calvingRecords[]` from health events with `type='calving'`. Field aliases: `tag`→`tagNum`, `status`→`active` (bool), `cullDate/cullReason`→`cullRecord{}`. Derives `weightLbs` from latest `S.animalWeightRecords` entry. |
 | `assembleGroups(rows)` | ~L2011 | Re-nest `animal_group_class_compositions`. Derives `animalIds[]` from `S.animalGroupMemberships` (open rows, `dateLeft` null) — not stored as an empty array. |
@@ -780,7 +782,7 @@ only occurs when `operation_members` queries itself.
 Exceeded limit returns "email rate limit exceeded" from `sbSendCode`. Sessions persist
 across reloads via `sb-*` localStorage — rate limit only affects new sign-in attempts.
 
-**Pre-M4 guard:** Removed at M4. `loadFromSupabase` now always assembles S from Supabase rows regardless of whether localStorage has data.
+**`_SB_ALLOWED_COLS`** (~L3000) — per-table allowlist used by `_sanitizeQueueRecord` to strip unknown columns at flush time. Must be kept in sync with shape functions. **b20260330.1056:** `animals` set updated with `confirmed_bred`/`confirmed_bred_date`; `batches` set updated with `wt`/`archived`; `feed_types` set updated with `cost_per_unit`. Without these additions the shape function fixes would be silently reversed at flush time.
 
 **`S.surveys` note:** No Supabase surveys table. `S.surveys[]` stays from localStorage. Survey data was already folded into `S.paddockObservations[]` during M0 migration — the Supabase `paddock_observations` table captures this path.
 
