@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260331.1131`
+**Current build:** `b20260331.1139`
 **Last updated:** 2026-03-31
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -689,7 +689,7 @@ Critical ordering constraint for the app init block at bottom of `<script>`:
 
 | Item | Value |
 |---|---|
-| Project URL | `https://eufknjkbgknowlcxmjfp.supabase.co` |
+| Project URL | `https://oihivpwftpngbhwpjsqt.supabase.co` |
 | SDK | `@supabase/supabase-js@2` — UMD bundle via jsDelivr CDN |
 | Auth method | Native email OTP (`signInWithOtp` + `verifyOtp`) |
 | Session persistence | Supabase stores session in `localStorage['sb-*']` automatically |
@@ -712,9 +712,13 @@ Critical ordering constraint for the app init block at bottom of `<script>`:
 **Requires Supabase Dashboard change:** Authentication → Email Templates → Magic Link → replace `{{ .ConfirmationURL }}` with `{{ .Token }}` in email body.
 
 **M2 load chain (triggered by `SIGNED_IN` or `INITIAL_SESSION`):**
-1. `sbGetOperationId()` — queries `operation_members` for the user's `operation_id`; calls `sbBootstrapOperation()` on first sign-in (no row found)
+1. `sbGetOperationId()` — queries `operation_members` for the user's `operation_id`; calls `sbBootstrapOperation()` ONLY on genuine first sign-in (no row found AND no cached ID). On error or null result with cached ID, returns cached ID — never bootstraps a returning user.
 2. `loadFromSupabase(opId)` — parallel-fetches all tables; assembles S from Supabase rows; calls all migrate guards; `saveLocal()`; re-renders
-3. `subscribeRealtime(opId)` — opens a Supabase channel; one `postgres_changes` listener per watched table; any change triggers a full `loadFromSupabase()` reload
+3. `subscribeRealtime(opId)` — opens a Supabase channel; one `postgres_changes` listener per watched table; changes are debounced 2s and respect `_sbLoadInProgress` guard
+
+**Load concurrency guard (`_sbLoadInProgress`):** Supabase SDK fires `SIGNED_IN` on every JWT token refresh (~hourly), not just genuine sign-ins. Without this flag, token refresh during an active load would launch a concurrent second load. Auth handler sets `_sbLoadInProgress = true` before the load chain and clears it in a `finally` block. Realtime callback also checks this flag before scheduling a debounced reload. Reset on `SIGNED_OUT`.
+
+**Farms fetch-ok flag (`_sbFarmsFetchOk`):** Set `true` only when the `farms` table fetch succeeds (returns data or confirmed empty). Used by `migrateHomeFarm()` to distinguish "no farms in Supabase" from "network/RLS failure returned empty". Reset on `SIGNED_OUT`.
 
 **Identity system (M2 + M6):**
 - `getActiveUser()` reads: `_sbProfile` (live operation_members row) → Supabase session → `gthy-identity` localStorage cache → guest fallback
@@ -981,6 +985,44 @@ across reloads via `sb-*` localStorage — rate limit only affects new sign-in a
 
 ---
 
+---
+
+## Supabase Schema Reference (verified b20260331)
+
+### `operations` table — actual column names
+**Critical:** The column is `herd_name`, NOT `name`. Early code used `name` causing persistent 400 errors.
+```
+id, owner_id, herd_name, herd_type, herd_count, herd_weight, herd_dmi,
+schema_version, created_at, updated_at
+```
+App queries: `.select('herd_name,herd_type,herd_count,herd_weight,herd_dmi')` and assembles as `op.herd_name`.
+Bootstrap INSERT uses `herd_name:` not `name:`.
+
+### RLS Policy Pattern — `get_my_operation_id()` helper function
+All app tables use a `SECURITY DEFINER` helper function to avoid RLS recursion. Direct subqueries against `operation_members` inside RLS policies cause infinite recursion (operation_members policy calls itself).
+
+```sql
+CREATE OR REPLACE FUNCTION get_my_operation_id()
+RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT operation_id FROM public.operation_members
+  WHERE user_id = auth.uid() LIMIT 1;
+$$;
+```
+
+All table policies use: `USING (operation_id = get_my_operation_id())`
+
+**Note:** `get_my_operation_id()` returns NULL when called from the Supabase SQL Editor dashboard (no JWT → `auth.uid()` is null). This is expected — the function works correctly when called from the app with a valid session.
+
+### RLS policies — current state (b20260331)
+All 20+ app tables use `operation_member_access` policy with `get_my_operation_id()`. The old `"operation members"` policies (recursive subquery) have been replaced. `operation_members` itself has `own rows` (SELECT by user_id) + `operation_member_access` (SELECT by op_id via helper).
+
+### Realtime subscription — debounce pattern
+`subscribeRealtime()` debounces all postgres_changes events with a 2s window. Previously each DB change triggered an immediate reload — when the queue flushed 35 rows, 35 concurrent reloads fired. The debounce collapses rapid changes into one reload. Also respects `_sbLoadInProgress` guard.
+
+---
+
 ## M7 — Land, Farms & Harvest (b20260331.0008)
 
 ### S.farms[]
@@ -991,7 +1033,7 @@ across reloads via `sb-*` localStorage — rate limit only affects new sign-in a
 - Supabase table: `farms` — RLS via `operation_members`
 - Shape function: `_farmRow(f, opId)`
 - UI: Settings → Farms card — add/edit/delete. Delete blocked if farm has fields assigned.
-- Migration guard: `migrateHomeFarm()` — auto-creates "Home Farm" if no farms exist but pastures do. Defaults `farmId` on all existing pastures. Runs on every `loadFromSupabase`.
+- Migration guard: `migrateHomeFarm()` — creates "Home Farm" only when genuinely needed. Guard chain: (1) **Fetch-ok gate** — if `_sbFarmsFetchOk=false` and `S.farms` empty, return immediately (don't create phantom farm on network failure). (2) **Pasture-derivation** — if `S.farms` empty but all pastures share one `farmId`, that farm exists in Supabase (FK-proven); reconstruct locally, only re-queue if fetch failed. (3) **Queue-check** — before creating, look for existing farms write in sync queue. (4) **Create** — only if all above fail. (5) **Reassign** — unconditionally set all pastures to canonical farmId.
 
 ### S.pastures[] additions (M7-B)
 Two new fields added additively — no existing fields removed:

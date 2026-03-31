@@ -1682,7 +1682,63 @@ Event Edit sheet shows the first group (index 0) as "primary" — locked green p
 
 ## Closed Items
 
-### OI-0054
+### OI-0115 — Supabase cascade failure: operations.name column does not exist (42703)
+**Source:** Session b20260331
+**Area:** Supabase load chain
+**Severity:** P0 — blocked all Supabase fetches
+**Status:** ✅ Closed b20260331.0304
+
+The `operations` table column is `herd_name`, not `name`. The app was selecting `name,herd_type,...` causing a 42703 error. PostgREST aborts the entire request when a column doesn't exist, which caused every other table in the `Promise.all` batch to also fail with `TypeError: Load failed`. This was misdiagnosed as network outages for hours. Three fixes: (1) SELECT changed to `herd_name,...`, (2) assembly changed to `op.herd_name`, (3) bootstrap INSERT changed to `herd_name:`.
+
+### OI-0116 — RLS recursion: all table policies used self-referential operation_members subquery
+**Source:** Session b20260331
+**Area:** Supabase RLS
+**Severity:** P0 — blocked all authenticated reads/writes
+**Status:** ✅ Closed b20260331 (SQL)
+
+All 20+ app table RLS policies used `operation_id IN (SELECT operation_id FROM operation_members WHERE user_id = auth.uid())`. When `operation_members` itself has an RLS policy using the same subquery, Postgres enters infinite recursion and returns a 400. Fixed by creating a `SECURITY DEFINER` helper function `get_my_operation_id()` with `SET search_path = public` that bypasses RLS. All policies replaced to use `operation_id = get_my_operation_id()`.
+
+### OI-0117 — Duplicate Home Farm creation on every failed load
+**Source:** Session b20260331
+**Area:** `migrateHomeFarm()`
+**Severity:** P1 — data corruption
+**Status:** ✅ Closed b20260331.1137
+
+`migrateHomeFarm()` created a new Home Farm every time `S.farms` was empty, without checking: (a) whether the farms fetch itself had failed (network/RLS), (b) whether a farm was already pending in the sync queue, (c) whether pastures already had a consistent `farmId` proving a farm exists in Supabase. Combined with the operations 400 cascade causing all loads to fail, this produced 10+ duplicate Home Farm rows. Fixed with a 5-stage guard chain. Also fixed the realtime subscription firing 35 concurrent reloads (one per pasture upsert) — now debounced 2s.
+
+### OI-0118 — Sync queue refills with farm entry after every clear
+**Source:** Session b20260331
+**Area:** `migrateHomeFarm()` pasture-derivation path
+**Severity:** P1
+**Status:** ✅ Closed b20260331.1137
+
+The pasture-derivation path in `migrateHomeFarm()` unconditionally re-queued the farm write after reconstructing it from pasture farmIds — even when `_sbFarmsFetchOk=true` (meaning Supabase was reachable and the farm exists there, proven by FK constraint). Fix: only re-queue when `_sbFarmsFetchOk=false`.
+
+### OI-0119 — `_sbLoadInProgress` guard missing from realtime callback
+**Source:** Session b20260331
+**Area:** `subscribeRealtime()`
+**Severity:** P1
+**Status:** ✅ Closed b20260331.0150
+
+The realtime callback called `loadFromSupabase()` immediately on every DB change with no guard and no debounce. When the queue flushed 35 pasture rows, 35 realtime events fired → 35 concurrent loads. Fixed with 2s debounce and `_sbLoadInProgress` guard.
+
+### OI-0120 — `sbGetOperationId()` bootstrapping returning users on Supabase error
+**Source:** Session b20260331
+**Area:** `sbGetOperationId()`
+**Severity:** P1 — created duplicate operations
+**Status:** ✅ Closed b20260331.0201
+
+When `operation_members` query returned an error (e.g. RLS recursion 400), `maybeSingle()` returned `{data: null, error}`. The old code only checked `data?.operation_id` — if null, it called `sbBootstrapOperation()` regardless of whether an error occurred or whether a cached ID existed. Fix: check for error first (log and return cached ID), then check `_sbOperationId` cache before bootstrapping. Only bootstrap on genuine first sign-in where no cached ID exists at all.
+
+### OI-0121 — `Can't find variable: pFarm` crash in migrateHomeFarm
+**Source:** Session b20260331
+**Area:** `migrateHomeFarm()`
+**Severity:** P0 — crashed every load
+**Status:** ✅ Closed b20260331.0250
+
+The `migrateHomeFarm` rewrite dropped `const pFarm = p.farmId ? String(p.farmId) : null` from inside the forEach loop body but left the `if(pFarm !== defaultFarmId)` reference. Fixed by restoring the declaration.
+
+
 **Source:** User request — b20260324.1730
 **Area:** Feedback System (`openFeedbackSheet`, `CAT`, `generateBrief`, `renderFeedbackList`)
 **Severity:** Enhancement
