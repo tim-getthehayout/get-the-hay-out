@@ -1702,7 +1702,7 @@ All 20+ app table RLS policies used `operation_id IN (SELECT operation_id FROM o
 **Source:** Session b20260331
 **Area:** `migrateHomeFarm()`
 **Severity:** P1 — data corruption
-**Status:** ✅ Closed b20260331.1137
+**Status:** ✅ Closed b20260331.1359
 
 `migrateHomeFarm()` created a new Home Farm every time `S.farms` was empty, without checking: (a) whether the farms fetch itself had failed (network/RLS), (b) whether a farm was already pending in the sync queue, (c) whether pastures already had a consistent `farmId` proving a farm exists in Supabase. Combined with the operations 400 cascade causing all loads to fail, this produced 10+ duplicate Home Farm rows. Fixed with a 5-stage guard chain. Also fixed the realtime subscription firing 35 concurrent reloads (one per pasture upsert) — now debounced 2s.
 
@@ -1710,7 +1710,7 @@ All 20+ app table RLS policies used `operation_id IN (SELECT operation_id FROM o
 **Source:** Session b20260331
 **Area:** `migrateHomeFarm()` pasture-derivation path
 **Severity:** P1
-**Status:** ✅ Closed b20260331.1137
+**Status:** ✅ Closed b20260331.1359
 
 The pasture-derivation path in `migrateHomeFarm()` unconditionally re-queued the farm write after reconstructing it from pasture farmIds — even when `_sbFarmsFetchOk=true` (meaning Supabase was reachable and the farm exists there, proven by FK constraint). Fix: only re-queue when `_sbFarmsFetchOk=false`.
 

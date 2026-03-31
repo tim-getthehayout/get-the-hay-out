@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260331.1139" id="app-version-meta"/>
+<meta name="app-version" content="b20260331.2129" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -1993,6 +1993,17 @@ function sbInitClient(){
     if(event === 'SIGNED_IN' || event === 'INITIAL_SESSION'){
       if(session){
         logError('supabase-auth', event + ': ' + (session?.user?.email||'?'), '');
+        // User-switch guard: if a different user signs in on this device, the cached
+        // operation ID belongs to the previous user and must not be used for writes.
+        // Compare incoming user ID against the gthy-identity cache.
+        const cachedIdentity = _sbLoadCachedIdentity();
+        if(cachedIdentity?.id && session.user?.id && cachedIdentity.id !== session.user.id){
+          // Different user — clear both the memory and localStorage operation ID.
+          // Their writes must not be attributed to the previous user's operation.
+          _sbOperationId = null;
+          localStorage.removeItem('gthy-operation-id');
+          logError('supabase-auth', 'User switch detected — cleared cached operation ID', '');
+        }
         // Guard against concurrent loads — Supabase fires SIGNED_IN on every
         // token refresh (~hourly), not just genuine sign-ins. Without this guard,
         // each token refresh triggers a full reload; if one is already running
@@ -2013,11 +2024,15 @@ function sbInitClient(){
     }
     if(event === 'SIGNED_OUT'){
       setSyncStatus('off', 'Not signed in');
-      _sbOperationId = null;
+      _sbOperationId = null;  // clear from memory — re-fetched on next SIGNED_IN
       _sbProfile = null;
       _sbFarmsFetchOk = false;
       _sbForageTypesFetchOk = false;
-      localStorage.removeItem('gthy-operation-id');
+      // NOTE: deliberately NOT removing 'gthy-operation-id' from localStorage.
+      // The operation ID is not session-sensitive — a returning user always gets
+      // the same UUID. Keeping it cached means queueWrite() can self-heal null
+      // operation_id writes that happen in the reconnect window, and _sbOperationId
+      // is restored from cache immediately on the next module init without a network call.
       updateHeaderAvatar();
       renderCurrentScreen(); // re-render to show nudge banner
     }
@@ -3238,6 +3253,14 @@ function _surveyRow(sv, opId){
 // M3: append/replace one record in the offline write queue
 function queueWrite(table, record, conflictKey='id'){
   try{
+    // Self-heal null operation_id: use the in-memory ID first, then fall back to
+    // the localStorage cache. The cache is never cleared on sign-out (operation ID
+    // is not session-sensitive), so returning users always have it available even
+    // during the reconnect window after a token expiry.
+    const opId = _sbOperationId || localStorage.getItem('gthy-operation-id') || null;
+    if(record && record.operation_id == null && opId){
+      record = {...record, operation_id: opId};
+    }
     const queue = JSON.parse(localStorage.getItem('gthy-sync-queue') || '[]');
     const idx = queue.findIndex(q => q.table === table && q.record[q.conflictKey||'id'] === record[conflictKey]);
     if(idx >= 0) queue[idx] = { table, record, conflictKey };
@@ -3382,12 +3405,19 @@ async function ensureQueueFlushed(){
 async function flushToSupabase(){
   if(!_sbClient || !_sbOperationId) return;
   const rawQueue = JSON.parse(localStorage.getItem('gthy-sync-queue') || '[]');
-  // Strip any items that were queued before sign-in (operation_id null) — they
-  // will be rejected by Supabase NOT NULL constraints and can never succeed.
-  const queue = rawQueue.filter(op => op.record && op.record.operation_id != null);
-  if(rawQueue.length !== queue.length){
-    const dropped = rawQueue.length - queue.length;
-    logError('supabase-flush', `Dropped ${dropped} queue item(s) with null operation_id — data was queued before sign-in resolved`, '');
+  // Patch any items queued before sign-in resolved (operation_id was null at write time).
+  // Now that we have _sbOperationId, fill it in so the item can flush successfully.
+  // Items that still have no resolvable operation_id after patching are dropped.
+  let patched = 0;
+  const queue = rawQueue.map(op => {
+    if(op.record && op.record.operation_id == null){
+      patched++;
+      return {...op, record: {...op.record, operation_id: _sbOperationId}};
+    }
+    return op;
+  });
+  if(patched > 0){
+    logError('supabase-flush', `Patched ${patched} queue item(s) with null operation_id — sign-in resolved`, '');
     localStorage.setItem('gthy-sync-queue', JSON.stringify(queue));
   }
   if(!queue.length) return;
