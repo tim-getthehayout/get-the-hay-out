@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260331.0108" id="app-version-meta"/>
+<meta name="app-version" content="b20260331.0123" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -8146,7 +8146,7 @@ function renderPastures(){
   if(!S.pastures.length){el.innerHTML='<div class="empty">No fields yet</div>';return;}
   // M7-F: show Harvest button for admins; show events section when harvests exist
   const harvestBtn=document.getElementById('harvest-btn');
-  if(harvestBtn) harvestBtn.style.display=isAdmin()?'':'none';
+  if(harvestBtn) harvestBtn.style.display='';
   const harvestSec=document.getElementById('harvest-events-section');
   if(harvestSec){
     const hasHarvests=(S.harvestEvents||[]).length>0;
@@ -8158,21 +8158,39 @@ function renderPastures(){
   const chipEl=document.getElementById('field-filter-chips');
   if(chipEl){
     const activeLU=window._fieldLandUseFilter||'all';
-    const chipData=[
+    const activeFarm=window._fieldFarmFilter||'all';
+    const luChips=[
       {k:'all',label:'All'},
       {k:'pasture',label:'Pasture'},
       {k:'mixed-use',label:'Mixed-Use'},
       {k:'crop',label:'Crop'},
       {k:'confinement',label:'Confinement'},
-    ];
-    chipEl.innerHTML=chipData.map(c=>{
+    ].map(c=>{
       const active=activeLU===c.k;
       return `<button onclick="window._fieldLandUseFilter='${c.k}';renderPastures()"
         style="padding:3px 10px;border-radius:12px;font-size:11px;font-weight:${active?'700':'400'};
         border:1px solid ${active?'var(--green)':'var(--border2)'};
         background:${active?'var(--green)':'var(--bg2)'};
         color:${active?'white':'var(--text2)'};cursor:pointer;">${c.label}</button>`;
-    }).join('');
+    });
+
+    // Farm filter chips — only when multiple farms exist
+    const farms=S.farms||[];
+    const farmChips=farms.length>1?[
+      {k:'all',label:'All farms'},
+      ...farms.map(f=>({k:f.id,label:f.name})),
+    ].map(c=>{
+      const active=activeFarm===c.k;
+      return `<button onclick="window._fieldFarmFilter='${c.k}';renderPastures()"
+        style="padding:3px 10px;border-radius:12px;font-size:11px;font-weight:${active?'700':'400'};
+        border:1px solid ${active?'var(--amber-d)':'var(--border2)'};
+        background:${active?'var(--amber-d)':'var(--bg2)'};
+        color:${active?'white':'var(--text2)'};cursor:pointer;">${c.label}</button>`;
+    }):[];
+
+    chipEl.innerHTML=
+      `<div style="display:flex;gap:6px;flex-wrap:wrap;">${luChips.join('')}</div>`+
+      (farmChips.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:5px;">${farmChips.join('')}</div>`:'');
   }
 
   // Pasture search filter
@@ -8188,10 +8206,20 @@ function renderPastures(){
       onclick="pastureSortCol='${col}';pastureSortDir=${active?-1:1}*pastureSortDir;renderPastures()">${label}${arrow}</span>`;
   }
 
-  // ── M7-C: land use filter ───────────────────────────────────────────────
+  // ── M7-C: land use + farm filter ───────────────────────────────────────────
   const activeLU=window._fieldLandUseFilter||'all';
+  const activeFarm=window._fieldFarmFilter||'all';
+  // Build a set of known farmIds for normalization
+  const knownFarmIds=new Set((S.farms||[]).map(f=>String(f.id)));
+  const defaultFarmId=(S.farms||[]).length>0?String(S.farms[0].id):null;
+
   let filteredPastures=[...S.pastures].filter(p=>{
     if(activeLU!=='all' && (p.landUse||'pasture')!==activeLU) return false;
+    if(activeFarm!=='all'){
+      // Normalize: if pasture farmId isn't a known farm, treat as defaultFarm
+      const pFarm=p.farmId&&knownFarmIds.has(String(p.farmId))?String(p.farmId):defaultFarmId;
+      if(pFarm!==activeFarm) return false;
+    }
     if(!pastureQ) return true;
     return p.name.toLowerCase().includes(pastureQ)
       || (p.soil||'').toLowerCase().includes(pastureQ)
@@ -8237,16 +8265,20 @@ function renderPastures(){
   // ── M7-C: group by farm ─────────────────────────────────────────────────
   const multipleF=(S.farms||[]).length>1;
   const farmMap={};
-  (S.farms||[]).forEach(f=>{ farmMap[f.id]=f.name; });
-  // Group pastures by farmId; unassigned under '' key
+  (S.farms||[]).forEach(f=>{ farmMap[String(f.id)]=f.name; });
+  // Group pastures by farmId — normalize unknown/stale farmIds to the default farm.
+  // migrateHomeFarm() may have run multiple times (each load when farms fetch failed),
+  // producing multiple Home Farm IDs. Pastures with an unrecognised farmId are
+  // folded into the first known farm so they don't appear as phantom duplicate groups.
   const byFarm={};
   sortedPastureList.forEach(p=>{
-    const key=p.farmId||'';
+    const rawKey=p.farmId?String(p.farmId):null;
+    const key=(rawKey && knownFarmIds.has(rawKey)) ? rawKey : (defaultFarmId||'');
     if(!byFarm[key]) byFarm[key]=[];
     byFarm[key].push(p);
   });
-  // Ordered: farms in S.farms order, then unassigned
-  const farmKeys=[...(S.farms||[]).map(f=>f.id),''].filter(k=>byFarm[k]);
+  // Ordered: farms in S.farms order, then any truly unassigned (no default farm exists)
+  const farmKeys=[...(S.farms||[]).map(f=>String(f.id)),''].filter(k=>byFarm[k]);
 
   const sortHdrRow=`<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0 6px;border-bottom:0.5px solid var(--border);font-size:11px;margin-bottom:6px;">
     <div>${pastureSortHdr('name','Name')} · ${pastureSortHdr('acres','Acres')}</div>
@@ -8490,7 +8522,6 @@ function latestSoilTest(landId){
 let _harvestRows = [];
 
 function openHarvestSheet(){
-  if(!isAdmin()){ alert('Admin access required to record harvest events.'); return; }
   _harvestRows = [];
   document.getElementById('harvest-sheet-date').value = todayStr();
   document.getElementById('harvest-sheet-notes').value = '';
