@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
+<link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]},{"name": "Log Harvest","short_name": "Harvest","description": "Open Harvest sheet in field mode","url": "/?field=harvest","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🚜%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260331.2129" id="app-version-meta"/>
+<meta name="app-version" content="b20260331.2205" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -1613,16 +1613,17 @@ body:not(.field-mode) #field-mode-toggle{
   <div class="sheet-backdrop" onclick="closeHarvestSheet()"></div>
   <div class="sheet" style="max-height:92vh;overflow-y:auto;">
     <div class="sheet-handle"></div>
-    <div style="font-size:16px;font-weight:600;margin-bottom:4px;">Record Harvest</div>
-    <div style="font-size:12px;color:var(--text2);margin-bottom:14px;">Each field creates a feed batch automatically.</div>
-    <div class="two">
-      <div class="field"><label>Harvest date *</label><input type="date" id="harvest-sheet-date"/></div>
-      <div class="field"><label>Event notes (optional)</label><input type="text" id="harvest-sheet-notes" placeholder="e.g. 1st cut"/></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+      <div style="font-size:16px;font-weight:600;">🌾 Harvest</div>
+      <button style="border:none;background:transparent;font-size:22px;cursor:pointer;color:var(--text2);padding:0;" onclick="closeHarvestSheet()">✕</button>
     </div>
-    <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Fields harvested</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:14px;">Each field record creates a feed batch automatically.</div>
+    <div class="two">
+      <div class="field"><label>Harvest date *</label><input type="date" id="harvest-sheet-date" onchange="_renderHarvestTileGrid()"/></div>
+      <div class="field"><label>Event notes (optional)</label><input type="text" id="harvest-sheet-notes" placeholder="e.g. Good yield"/></div>
+    </div>
     <div id="harvest-row-list"></div>
-    <button class="btn btn-outline btn-sm" onclick="_addHarvestRow()" style="margin-bottom:14px;">+ Add field</button>
-    <div class="btn-row">
+    <div class="btn-row" style="margin-top:4px;">
       <button class="btn btn-green" onclick="saveHarvestEvent()">Save harvest</button>
       <button class="btn btn-outline" onclick="closeHarvestSheet()">Cancel</button>
     </div>
@@ -2711,6 +2712,7 @@ async function loadFromSupabase(operationId){
       // but add explicit defaults so downstream code can always read them safely)
       if (p.farmId == null)  p.farmId  = null;
       if (p.landUse == null) p.landUse = p.locationType === 'confinement' ? 'confinement' : 'pasture';
+      if (p.fieldCode === undefined) p.fieldCode = null; // OI-0122
       return p;
     });
     // M7-A: assemble farms
@@ -2759,7 +2761,12 @@ async function loadFromSupabase(operationId){
       });
       return ev;
     });
-    S.feedTypes                 = (feedTypeRows        || []).map(_sbToCamel);
+    S.feedTypes = (feedTypeRows || []).map(r => {
+      const ft = _sbToCamel(r);
+      if (ft.cuttingNum  === undefined) ft.cuttingNum  = null;  // OI-0122
+      if (ft.harvestActive === undefined) ft.harvestActive = false; // OI-0122
+      return ft;
+    });
     S.batches = (batchRows || []).map(r => {
       const b = _sbToCamel(r);
       if (!b.label    && b.name)           b.label    = b.name;        // name → label
@@ -2945,6 +2952,7 @@ function _pastureRow(p, opId){
     setup_updated_at: p.setupUpdatedAt || null,
     farm_id:          p.farmId ?? null,        // M7-B
     land_use:         p.landUse ?? null,       // M7-B
+    field_code:       p.fieldCode ?? null,     // OI-0122
   };
 }
 
@@ -3089,6 +3097,8 @@ function _feedTypeRow(ft, opId){
     archived:         ft.archived ?? false,
     setup_updated_at: ft.setupUpdatedAt ?? null,
     forage_type_id:   ft.forageTypeId ?? null,  // M7-E
+    cutting_num:      ft.cuttingNum    ?? null,  // OI-0122
+    harvest_active:   ft.harvestActive ?? false, // OI-0122
   };
 }
 
@@ -3372,7 +3382,7 @@ const _SB_ALLOWED_COLS = {
   ai_bulls:             new Set(['id','operation_id','name','breed','tag','archived']),
   input_products:       new Set(['id','operation_id','name','type','npk_n','npk_p','npk_k','cost_per_unit','unit','archived']),
   todos:                new Set(['id','operation_id','title','status','note','paddock','animal_id','assigned_to','created_by','created_at','updated_at']),
-  feed_types:           new Set(['id','operation_id','name','dm_pct','unit','cost_per_unit','n_pct','p_pct','k_pct','archived','setup_updated_at']),
+  feed_types:           new Set(['id','operation_id','name','dm_pct','unit','cost_per_unit','n_pct','p_pct','k_pct','archived','setup_updated_at','forage_type_id','cutting_num','harvest_active']),
   treatment_types:      new Set(['id','operation_id','name','category','archived']),
   animal_group_memberships: new Set(['id','operation_id','group_id','animal_id','date_joined','date_left','reason']),
   animal_weight_records: new Set(['id','operation_id','animal_id','recorded_at','weight_lbs','note','source','created_at']),
@@ -3780,6 +3790,14 @@ function ensureDataArrays(){
   if(S._herdMigrated===undefined)S._herdMigrated=S.animalGroups&&S.animalGroups.length>0;
   if(!Array.isArray(S.errorLog))S.errorLog=[];
   if(!S.settings)S.settings={};
+  // OI-0122: migrate existing feedTypes and pastures to new fields
+  (S.feedTypes||[]).forEach(ft=>{
+    if(ft.cuttingNum   === undefined) ft.cuttingNum   = null;
+    if(ft.harvestActive === undefined) ft.harvestActive = false;
+  });
+  (S.pastures||[]).forEach(p=>{
+    if(p.fieldCode === undefined) p.fieldCode = null;
+  });
 }
 
 function exportDataJSON(){
@@ -8380,7 +8398,66 @@ function renderPastures(){
     const ae=getActive();const isActive=ae&&evMatchesPasture(ae,p.name,p.id);
     const openTasks=S.todos.filter(t=>t.paddock===p.name&&t.status!=='closed').length;
     const typeBadge=isCon?`<span class="badge bb">${p.captureManure?Math.round(p.capturePercent||80)+'% cap':'no cap'}</span>`:'';
+    const fieldCodeBadge=p.fieldCode?`<span style="font-size:10px;font-weight:600;color:var(--text2);background:var(--bg2);border:1px solid var(--border2);border-radius:6px;padding:1px 5px;margin-left:4px;">[${p.fieldCode}]</span>`:`<span style="font-size:10px;color:var(--text3);margin-left:4px;opacity:0.5;">no code</span>`;
     const detail=isCon?(p.description||'Confinement'):`${p.acres} ac · ${p.soil||''}${p.species?' · '+p.species:''}`;
+
+    // OI-0124: per-field harvest log
+    function fieldHarvestSection(pId){
+      // Collect all harvest event field records for this pasture
+      const records=[];
+      (S.harvestEvents||[]).forEach(ev=>{
+        (ev.fields||[]).forEach(f=>{
+          if(String(f.landId)===String(pId)) records.push({...f, evDate:ev.date, evId:ev.id});
+        });
+      });
+      if(!records.length) return '';
+      records.sort((a,b)=>b.evDate.localeCompare(a.evDate));
+
+      // Compact rows: [BatchID] C1 · 47 bales · Jun 1
+      const compactRows=records.map(f=>{
+        const ft=(S.feedTypes||[]).find(t=>t.id===f.feedTypeId);
+        const cutBadge=ft&&ft.cuttingNum!=null
+          ?`<span style="font-size:10px;font-weight:700;color:var(--amber-d);background:var(--bg2);border:1px solid var(--amber-d);border-radius:5px;padding:0 4px;">C${ft.cuttingNum}</span> `
+          :'';
+        const batchLabel=f.batchId?`<span style="font-family:monospace;font-size:11px;font-weight:600;color:var(--teal-d);">${f.batchId}</span>`:'<span style="font-size:11px;color:var(--text3);">no batch ID</span>';
+        const wtNote=f.weightPerUnitKg?` · ${f.weightPerUnitKg}kg/bale`:'';
+        return `<div style="font-size:11px;padding:3px 0;border-bottom:0.5px solid var(--border);display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+          ${cutBadge}${batchLabel}
+          <span style="color:var(--text2);">${f.quantity??'?'} ${f.batchUnit||'bales'} · ${dLabel(f.evDate)}${wtNote}</span>
+        </div>`;
+      }).join('');
+
+      // Reconcile summary: cuttings by year grouped
+      const byYear={};
+      records.forEach(f=>{
+        const yr=f.evDate?f.evDate.substring(0,4):'?';
+        if(!byYear[yr]) byYear[yr]={cuts:{}};
+        const ft=(S.feedTypes||[]).find(t=>t.id===f.feedTypeId);
+        const cut=ft&&ft.cuttingNum!=null?`C${ft.cuttingNum}`:'?';
+        if(!byYear[yr].cuts[cut]) byYear[yr].cuts[cut]={qty:0,batchIds:[]};
+        byYear[yr].cuts[cut].qty+=(f.quantity||0);
+        if(f.batchId) byYear[yr].cuts[cut].batchIds.push(f.batchId);
+      });
+      const reconRows=Object.keys(byYear).sort((a,b)=>b.localeCompare(a)).map(yr=>{
+        const cutSummary=Object.entries(byYear[yr].cuts).sort((a,b)=>a[0].localeCompare(b[0])).map(([cut,d])=>{
+          const batchList=d.batchIds.length?`<div style="font-size:10px;font-family:monospace;color:var(--teal-d);padding-left:8px;margin-top:1px;">${d.batchIds.join(' · ')}</div>`:'';
+          return `<div style="font-size:11px;color:var(--text2);">${cut}: ${d.qty} bales${batchList}</div>`;
+        }).join('');
+        return `<div style="margin-bottom:4px;"><div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:2px;">${yr}</div>${cutSummary}</div>`;
+      }).join('');
+
+      return `<details style="margin-top:6px;">
+        <summary style="font-size:11px;font-weight:600;color:var(--teal-d);cursor:pointer;list-style:none;display:flex;align-items:center;gap:4px;">
+          <span>🌾</span><span>${records.length} harvest record${records.length!==1?'s':''}</span>
+        </summary>
+        <div style="margin-top:4px;">${compactRows}</div>
+        <details style="margin-top:8px;">
+          <summary style="font-size:10px;font-weight:600;color:var(--text3);cursor:pointer;list-style:none;">▸ Reconcile by year</summary>
+          <div style="margin-top:6px;padding:8px;background:var(--bg2);border-radius:var(--radius);">${reconRows}</div>
+        </details>
+      </details>`;
+    }
+    const harvestLog=!isCon?fieldHarvestSection(p.id):'';
     // M7-D: soil test last-tested line
     const lst=!isCon?latestSoilTest(p.id):null;
     const soilLine=lst?`<div style="font-size:11px;color:var(--teal-d);margin-top:2px;">🧪 Soil test: ${dLabel(lst.date)} · N${lst.n??'?'} P${lst.p??'?'} K${lst.k??'?'} ${lst.unit||'lbs/acre'}</div>`:
@@ -8407,7 +8484,7 @@ function renderPastures(){
       const remLbs=batches.reduce((s,b)=>s+getBatchRemaining(b),0);
       if(remLbs>0){const vol=volLbsToDisplay(remLbs);manureLine=`<div style="font-size:11px;color:var(--amber-d);margin-top:3px;">~${vol.val} ${vol.unit} in storage</div>`;}
     }
-    return `<div class="chip"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><div style="font-size:14px;font-weight:600;">${p.name}${landUseBadge(p)} ${isActive?'<span class="badge bt">active</span>':''} ${isCon?'<span class="badge bb">confinement</span>':''}</div><div style="font-size:12px;color:var(--text2);margin-top:2px;">${detail}</div>${soilLine}${npkLine}${manureLine}${(()=>{return !isCon?recoveryDateLine(p,true):'';})()}</div><div style="display:flex;gap:6px;align-items:center;">${typeBadge}${avg!==null?`<span class="badge ${avg>=60?'bg':'ba'}">${avg}% avg</span>`:''} ${openTasks?`<span class="badge ba">${openTasks} task${openTasks!==1?'s':''}</span>`:''}${(()=>{const lr=latestSurveyRating(p.id,p.name);return lr?`<span style="font-size:11px;font-weight:700;color:${surveyRatingColor(lr.rating)};background:${surveyRatingBg(lr.rating)};padding:2px 7px;border-radius:10px;" title="Survey ${dLabel(lr.date)}">${lr.rating}</span>`:'';})()}<button class="btn btn-outline btn-xs" onclick="openLocEdit(${i})">Edit</button><button class="btn btn-outline btn-xs" onclick="openSurveySheet('${p.id}')">📋 Survey</button>${!isCon?`<button class="btn btn-outline btn-xs" onclick="openSoilTestSheet('${p.id}')">🧪 Soil</button>`:''}<button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:20px;padding:2px 6px;" onclick="tryDeletePasture(${i})">×</button></div></div></div>`;
+    return `<div class="chip"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><div style="font-size:14px;font-weight:600;">${p.name}${landUseBadge(p)}${fieldCodeBadge} ${isActive?'<span class="badge bt">active</span>':''} ${isCon?'<span class="badge bb">confinement</span>':''}</div><div style="font-size:12px;color:var(--text2);margin-top:2px;">${detail}</div>${soilLine}${npkLine}${manureLine}${(()=>{return !isCon?recoveryDateLine(p,true):'';})()}${harvestLog}</div><div style="display:flex;gap:6px;align-items:center;">${typeBadge}${avg!==null?`<span class="badge ${avg>=60?'bg':'ba'}">${avg}% avg</span>`:''} ${openTasks?`<span class="badge ba">${openTasks} task${openTasks!==1?'s':''}</span>`:''}${(()=>{const lr=latestSurveyRating(p.id,p.name);return lr?`<span style="font-size:11px;font-weight:700;color:${surveyRatingColor(lr.rating)};background:${surveyRatingBg(lr.rating)};padding:2px 7px;border-radius:10px;" title="Survey ${dLabel(lr.date)}">${lr.rating}</span>`:'';})()}<button class="btn btn-outline btn-xs" onclick="openLocEdit(${i})">Edit</button><button class="btn btn-outline btn-xs" onclick="openSurveySheet('${p.id}')">📋 Survey</button>${!isCon?`<button class="btn btn-outline btn-xs" onclick="openSoilTestSheet('${p.id}')">🧪 Soil</button>`:''}<button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:20px;padding:2px 6px;" onclick="tryDeletePasture(${i})">×</button></div></div></div>`;
   }
 
   if(multipleF){
@@ -8539,18 +8616,23 @@ function addFeedType(){
   const pPct=parseFloat(document.getElementById('ft-ppct').value)||null;
   const kPct=parseFloat(document.getElementById('ft-kpct').value)||null;
   const forageTypeId=document.getElementById('ft-forage-type')?.value||null;
-  S.feedTypes.push({id:generateFeedTypeId(),archived:false,name,unit:document.getElementById('ft-unit').value,dm:parseFloat(document.getElementById('ft-dm').value)||85,cat:document.getElementById('ft-cat').value,nPct,pPct,kPct,forageTypeId:forageTypeId||null});
+  const cuttingNumRaw=document.getElementById('ft-cutting-num')?.value||'';
+  const cuttingNum=cuttingNumRaw?parseInt(cuttingNumRaw):null;
+  const harvestActive=!!(document.getElementById('ft-harvest-active')?.checked);
+  S.feedTypes.push({id:generateFeedTypeId(),archived:false,name,unit:document.getElementById('ft-unit').value,dm:parseFloat(document.getElementById('ft-dm').value)||85,cat:document.getElementById('ft-cat').value,nPct,pPct,kPct,forageTypeId:forageTypeId||null,cuttingNum,harvestActive});
   const _ft=S.feedTypes[S.feedTypes.length-1];
   stampSetup();queueWrite('feed_types',_feedTypeRow(_ft,_sbOperationId));save();renderFeedTypes();populateBatchTypeSelect();document.getElementById('ft-name').value='';
   document.getElementById('ft-npct').value='';document.getElementById('ft-ppct').value='';document.getElementById('ft-kpct').value='';
   const ftSel=document.getElementById('ft-forage-type');if(ftSel)ftSel.value='';
+  const ftCut=document.getElementById('ft-cutting-num');if(ftCut)ftCut.value='';
+  const ftHa=document.getElementById('ft-harvest-active');if(ftHa)ftHa.checked=false;
 }
 function renderFeedTypes(){
   const el=document.getElementById('ft-list');
   if(!S.feedTypes.length){el.innerHTML='<div style="font-size:13px;color:var(--text2);margin-bottom:8px;">None yet</div>';populateBatchTypeSelect();return;}
   el.innerHTML=S.feedTypes.map((ft,i)=>ft.archived
     ?`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);opacity:0.45;"><span style="font-size:13px;">${ft.name} <span class="badge bb">archived</span></span><button class="btn btn-outline btn-xs" onclick="unarchive('feedType','${ft.id}')">Unarchive</button></div>`
-    :`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);font-size:13px;"><span>${ft.name} <span class="badge bb">${ft.unit}</span> <span class="badge bg">${ft.dm}% DM</span>${(ft.nPct||ft.pPct||ft.kPct)?` <span class="badge bt">N${ft.nPct??'?'} P${ft.pPct??'?'} K${ft.kPct??'?'}</span>`:''}</span><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;" onclick="tryDeleteFeedType(${i})">×</button></div>`
+    :`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);font-size:13px;"><span>${ft.name} <span class="badge bb">${ft.unit}</span> <span class="badge bg">${ft.dm}% DM</span>${(ft.nPct||ft.pPct||ft.kPct)?` <span class="badge bt">N${ft.nPct??'?'} P${ft.pPct??'?'} K${ft.kPct??'?'}</span>`:''}${ft.cuttingNum!=null?` <span class="badge ba">C${ft.cuttingNum}</span>`:''}${ft.harvestActive?` <span class="badge bg">🌾 ACTIVE</span>`:''}</span><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;" onclick="tryDeleteFeedType(${i})">×</button></div>`
   ).join('');
   populateBatchTypeSelect();
 }
@@ -8600,190 +8682,241 @@ function latestSoilTest(landId){
   return tests.slice().sort((a,b)=>b.date.localeCompare(a.date))[0];
 }
 
-// M7-F: Harvest event functions
-// _harvestRows: module-level array of field row objects being built in the sheet
+// OI-0123: Harvest tile flow — tile-first, mobile-first harvest sheet
+// _harvestTiles: one entry per selected active feed type
+// Each tile holds its own fieldRows array
+let _harvestTiles = [];
+// {feedTypeId, feedTypeName, cuttingNum, fieldRows: [
+//   {id, landId, landName, fieldCode, farmName,
+//    quantity, weightPerUnitKg, batchId, batchIdDirty, notes}
+// ]}
+
+// Kept for legacy compatibility (cleared on open)
 let _harvestRows = [];
 
+function _generateBatchId(landId, feedTypeId, date){
+  const p=(S.pastures||[]).find(p=>String(p.id)===String(landId));
+  const ft=(S.feedTypes||[]).find(f=>f.id===feedTypeId);
+  const farm=p&&p.farmId?(S.farms||[]).find(f=>String(f.id)===String(p.farmId)):null;
+  const farmPart=farm
+    ?farm.name.replace(/[^a-zA-Z]/g,'').substring(0,3).toUpperCase()
+    :'UNK';
+  const fieldPart=p&&p.fieldCode
+    ?p.fieldCode.toUpperCase()
+    :(p?p.name.replace(/[^a-zA-Z0-9]/g,'').substring(0,3).toUpperCase()+'⚠':'FLD');
+  const cutPart=ft&&ft.cuttingNum!=null?String(ft.cuttingNum):'?';
+  const datePart=date?date.replace(/-/g,''):'';
+  return [farmPart,fieldPart,cutPart,datePart].join('-');
+}
+
 function openHarvestSheet(){
-  _harvestRows = [];
-  document.getElementById('harvest-sheet-date').value = todayStr();
-  document.getElementById('harvest-sheet-notes').value = '';
-  _renderHarvestRows();
+  _harvestTiles=[];
+  _harvestRows=[];
+  document.getElementById('harvest-sheet-date').value=todayStr();
+  document.getElementById('harvest-sheet-notes').value='';
+  _renderHarvestTileGrid();
   document.getElementById('harvest-sheet-wrap').style.display='flex';
 }
 function closeHarvestSheet(){
   document.getElementById('harvest-sheet-wrap').style.display='none';
-  _harvestRows = [];
+  _harvestTiles=[];
+  _harvestRows=[];
 }
 
-function _renderHarvestRows(){
+function _renderHarvestTileGrid(){
   const el=document.getElementById('harvest-row-list');
-  if(!_harvestRows.length){
-    el.innerHTML='<div style="font-size:13px;color:var(--text2);padding:8px 0;">No fields added yet. Use "+ Add field" to start.</div>';
+  const activeFTs=(S.feedTypes||[]).filter(f=>f.harvestActive&&!f.archived);
+  if(!activeFTs.length){
+    el.innerHTML=`<div style="padding:16px;text-align:center;background:var(--bg2);border-radius:var(--radius);margin-bottom:12px;">
+      <div style="font-size:22px;margin-bottom:6px;">🌾</div>
+      <div style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:4px;">No harvest types active</div>
+      <div style="font-size:12px;color:var(--text3);">Go to Settings → Feed Types and enable<br>🌾 Harvest active on the types you're cutting.</div>
+    </div>`;
     return;
   }
-  // Build field options once
-  const fieldOpts = '<option value="">— pick field —</option>' +
-    (S.pastures||[]).filter(p=>!p.archived).map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
-  const ftOpts = '<option value="">— pick feed type —</option>' +
-    (S.feedTypes||[]).filter(f=>!f.archived).map(f=>`<option value="${f.id}">${f.name} (${f.unit})</option>`).join('');
-
-  el.innerHTML = _harvestRows.map((r,i)=>`
-    <div style="border:0.5px solid var(--border2);border-radius:var(--radius);padding:10px;margin-bottom:10px;background:var(--bg2);">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <div style="font-size:12px;font-weight:600;color:var(--text2);">Field ${i+1}</div>
-        <button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:18px;padding:0;" onclick="_removeHarvestRow(${i})">×</button>
-      </div>
-      <div class="two">
-        <div class="field"><label>Field</label>
-          <select onchange="_harvestRowFieldChange(${i},this.value)">${fieldOpts.replace(`value="${r.landId||''}"`,`value="${r.landId||''}" selected`)}</select>
-        </div>
-        <div class="field"><label>Feed type</label>
-          <select onchange="_harvestRowFeedTypeChange(${i},this.value)">${ftOpts.replace(`value="${r.feedTypeId||''}"`,`value="${r.feedTypeId||''}" selected`)}</select>
-        </div>
-      </div>
-      <div class="two">
-        <div class="field"><label>Quantity</label>
-          <input type="number" min="0" step="0.5" value="${r.quantity||''}" placeholder="0"
-            onchange="_harvestRows[${i}].quantity=parseFloat(this.value)||null"/>
-        </div>
-        <div class="field"><label>Unit</label>
-          <select onchange="_harvestRows[${i}].batchUnit=this.value">
-            <option value="round-bale"${r.batchUnit==='round-bale'?' selected':''}>Round bale</option>
-            <option value="square-small"${r.batchUnit==='square-small'?' selected':''}>Sq bale (small)</option>
-            <option value="square-large"${r.batchUnit==='square-large'?' selected':''}>Sq bale (large)</option>
-            <option value="tonne"${r.batchUnit==='tonne'?' selected':''}>Tonne</option>
-            <option value="kg"${r.batchUnit==='kg'?' selected':''}>kg</option>
-          </select>
-        </div>
-      </div>
-      <div class="two">
-        <div class="field"><label>DM %</label>
-          <input type="number" min="0" max="100" step="0.1" value="${r.dmPct||''}" placeholder="88"
-            onchange="_harvestRows[${i}].dmPct=parseFloat(this.value)||null"/>
-        </div>
-        <div class="field"><label>Wt/unit (kg)</label>
-          <input type="number" min="0" step="1" value="${r.weightPerUnitKg||''}" placeholder="550"
-            onchange="_harvestRows[${i}].weightPerUnitKg=parseFloat(this.value)||null"/>
-        </div>
-      </div>
-      <div class="three">
-        <div class="field"><label>N kg/t DM</label>
-          <input type="number" min="0" step="0.1" value="${r.nPerTonneDM||''}" placeholder="—"
-            onchange="_harvestRows[${i}].nPerTonneDM=parseFloat(this.value)||null"/>
-        </div>
-        <div class="field"><label>P kg/t DM</label>
-          <input type="number" min="0" step="0.1" value="${r.pPerTonneDM||''}" placeholder="—"
-            onchange="_harvestRows[${i}].pPerTonneDM=parseFloat(this.value)||null"/>
-        </div>
-        <div class="field"><label>K kg/t DM</label>
-          <input type="number" min="0" step="0.1" value="${r.kPerTonneDM||''}" placeholder="—"
-            onchange="_harvestRows[${i}].kPerTonneDM=parseFloat(this.value)||null"/>
-        </div>
-      </div>
-      <div class="field"><label>Organic batch ID (optional)</label>
-        <input type="text" value="${r.batchId||''}" placeholder="e.g. 2026-HAY-001"
-          onchange="_harvestRows[${i}].batchId=this.value.trim()||null"/>
-      </div>
-      <div class="field"><label>Notes (optional)</label>
-        <input type="text" value="${r.notes||''}"
-          onchange="_harvestRows[${i}].notes=this.value.trim()||null"/>
-      </div>
-    </div>`).join('');
-}
-
-function _harvestRowFieldChange(idx, landId){
-  const p=(S.pastures||[]).find(p=>String(p.id)===String(landId));
-  _harvestRows[idx].landId   = landId || null;
-  _harvestRows[idx].landName = p ? p.name : null;
-  _harvestRows[idx].acres    = p ? (p.acres||null) : null;
-}
-
-function _harvestRowFeedTypeChange(idx, feedTypeId){
-  _harvestRows[idx].feedTypeId = feedTypeId || null;
-  if(!feedTypeId) return;
-  const ft=(S.feedTypes||[]).find(f=>f.id===feedTypeId);
-  if(!ft) return;
-  // Auto-fill DM% from feed type
-  if(ft.dm) _harvestRows[idx].dmPct = ft.dm;
-  // Auto-fill NPK from linked forage type
-  if(ft.forageTypeId){
-    const fType=(S.forageTypes||[]).find(f=>f.id===ft.forageTypeId);
-    if(fType){
-      if(fType.nPerTonneDM != null) _harvestRows[idx].nPerTonneDM = fType.nPerTonneDM;
-      if(fType.pPerTonneDM != null) _harvestRows[idx].pPerTonneDM = fType.pPerTonneDM;
-      if(fType.kPerTonneDM != null) _harvestRows[idx].kPerTonneDM = fType.kPerTonneDM;
-    }
-  }
-  _renderHarvestRows();
-}
-
-function _addHarvestRow(){
-  _harvestRows.push({
-    id:             String(Date.now() + _harvestRows.length),
-    landId:         null, landName: null, acres: null,
-    feedTypeId:     null,
-    batchUnit:      'round-bale',
-    quantity:       null, weightPerUnitKg: null,
-    dmPct:          null, nPerTonneDM: null, pPerTonneDM: null, kPerTonneDM: null,
-    batchId:        null, notes: null,
-    createdAt:      new Date().toISOString(),
+  const date=document.getElementById('harvest-sheet-date').value;
+  // Build tile grid HTML + expanded field rows for selected tiles
+  let html='<div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Select harvest type</div>';
+  html+=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-bottom:14px;">`;
+  activeFTs.forEach(ft=>{
+    const tileIdx=_harvestTiles.findIndex(t=>t.feedTypeId===ft.id);
+    const selected=tileIdx>=0;
+    html+=`<button onclick="_harvestToggleTile('${ft.id}')"
+      style="padding:10px 8px;border-radius:var(--radius);border:2px solid ${selected?'var(--green)':'var(--border2)'};
+      background:${selected?'var(--green)':'var(--bg2)'};color:${selected?'white':'var(--text)'};
+      cursor:pointer;text-align:left;line-height:1.3;">
+      <div style="font-size:13px;font-weight:600;">${ft.name}</div>
+      ${ft.cuttingNum!=null?`<div style="font-size:11px;opacity:0.8;margin-top:2px;">C${ft.cuttingNum} · ${ft.unit}</div>`:`<div style="font-size:11px;opacity:0.8;margin-top:2px;">${ft.unit}</div>`}
+    </button>`;
   });
-  _renderHarvestRows();
+  html+='</div>';
+
+  // Expanded sections for each selected tile
+  _harvestTiles.forEach((tile,ti)=>{
+    const ft=(S.feedTypes||[]).find(f=>f.id===tile.feedTypeId);
+    const cutLabel=ft&&ft.cuttingNum!=null?` — C${ft.cuttingNum}`:'';
+    html+=`<div style="border:1.5px solid var(--green);border-radius:var(--radius);padding:12px;margin-bottom:12px;background:var(--bg);">
+      <div style="font-size:12px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:10px;">▼ ${tile.feedTypeName}${cutLabel}</div>`;
+    tile.fieldRows.forEach((row,ri)=>{
+      const fieldOpts='<option value="">— pick field —</option>'+
+        (S.pastures||[]).filter(p=>!p.archived).map(p=>`<option value="${p.id}"${String(p.id)===String(row.landId)?' selected':''}>${p.name}${p.fieldCode?' ['+p.fieldCode+']':''}</option>`).join('');
+      html+=`<div style="background:var(--bg2);border-radius:var(--radius);padding:10px;margin-bottom:8px;position:relative;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <div style="font-size:12px;font-weight:600;color:var(--text2);">Field ${ri+1}</div>
+          <button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:18px;padding:0;" onclick="_harvestRemoveFieldRow(${ti},${ri})">×</button>
+        </div>
+        <div class="field" style="margin-bottom:8px;">
+          <label style="font-size:12px;font-weight:600;">Weight / bale (kg)</label>
+          <input type="number" min="0" step="1" value="${row.weightPerUnitKg||''}" placeholder="${ft?(ft.wt||ft.weightPerUnitKg||''):''}"
+            style="font-size:18px;font-weight:600;height:44px;"
+            oninput="_harvestTiles[${ti}].fieldRows[${ri}].weightPerUnitKg=parseFloat(this.value)||null"/>
+        </div>
+        <div class="two">
+          <div class="field"><label>Field</label>
+            <select onchange="_harvestFieldRowFieldChange(${ti},${ri},this.value)">${fieldOpts}</select>
+          </div>
+          <div class="field"><label>Bale count</label>
+            <input type="number" min="0" step="1" value="${row.quantity||''}" placeholder="0"
+              oninput="_harvestTiles[${ti}].fieldRows[${ri}].quantity=parseFloat(this.value)||null"/>
+          </div>
+        </div>
+        <div class="field">
+          <label>Batch ID <span style="font-weight:400;font-size:10px;color:var(--text3);">(auto-generated · editable)</span></label>
+          <input type="text" value="${row.batchId||_generateBatchId(row.landId,tile.feedTypeId,date)}"
+            placeholder="${_generateBatchId(row.landId,tile.feedTypeId,date)||'Set field + date first'}"
+            oninput="_harvestTiles[${ti}].fieldRows[${ri}].batchId=this.value.trim()||null;_harvestTiles[${ti}].fieldRows[${ri}].batchIdDirty=true"/>
+        </div>
+        <div class="field"><label>Notes (optional)</label>
+          <input type="text" value="${row.notes||''}"
+            oninput="_harvestTiles[${ti}].fieldRows[${ri}].notes=this.value.trim()||null"/>
+        </div>
+      </div>`;
+    });
+    html+=`<button class="btn btn-outline btn-sm" onclick="_harvestAddFieldRow(${ti})" style="width:100%;margin-top:2px;">+ Add field</button>
+    </div>`;
+  });
+
+  el.innerHTML=html;
 }
 
-function _removeHarvestRow(idx){
-  _harvestRows.splice(idx,1);
-  _renderHarvestRows();
+function _harvestToggleTile(feedTypeId){
+  const idx=_harvestTiles.findIndex(t=>t.feedTypeId===feedTypeId);
+  if(idx>=0){
+    _harvestTiles.splice(idx,1);
+  } else {
+    const ft=(S.feedTypes||[]).find(f=>f.id===feedTypeId);
+    _harvestTiles.push({
+      feedTypeId,
+      feedTypeName:ft?ft.name:'Unknown',
+      cuttingNum:ft?ft.cuttingNum:null,
+      fieldRows:[],
+    });
+    // Auto-add first empty field row
+    _harvestAddFieldRow(_harvestTiles.length-1);
+    return; // _harvestAddFieldRow calls _renderHarvestTileGrid
+  }
+  _renderHarvestTileGrid();
+}
+
+function _harvestAddFieldRow(tileIdx){
+  if(!_harvestTiles[tileIdx]) return;
+  _harvestTiles[tileIdx].fieldRows.push({
+    id:String(Date.now()+_harvestTiles[tileIdx].fieldRows.length),
+    landId:null,landName:null,fieldCode:null,farmName:null,
+    quantity:null,weightPerUnitKg:null,
+    batchId:null,batchIdDirty:false,notes:null,
+    createdAt:new Date().toISOString(),
+  });
+  _renderHarvestTileGrid();
+}
+
+function _harvestRemoveFieldRow(tileIdx,rowIdx){
+  if(!_harvestTiles[tileIdx]) return;
+  _harvestTiles[tileIdx].fieldRows.splice(rowIdx,1);
+  _renderHarvestTileGrid();
+}
+
+function _harvestFieldRowFieldChange(tileIdx,rowIdx,landId){
+  const tile=_harvestTiles[tileIdx];if(!tile) return;
+  const row=tile.fieldRows[rowIdx];if(!row) return;
+  const p=(S.pastures||[]).find(p=>String(p.id)===String(landId));
+  const farm=p&&p.farmId?(S.farms||[]).find(f=>String(f.id)===String(p.farmId)):null;
+  row.landId    = landId||null;
+  row.landName  = p?p.name:null;
+  row.fieldCode = p?p.fieldCode:null;
+  row.farmName  = farm?farm.name:null;
+  // Regenerate batch ID if not manually edited
+  if(!row.batchIdDirty){
+    const date=document.getElementById('harvest-sheet-date').value;
+    row.batchId=_generateBatchId(landId,tile.feedTypeId,date)||null;
+  }
+  _renderHarvestTileGrid();
 }
 
 function saveHarvestEvent(){
   const date=document.getElementById('harvest-sheet-date').value;
   if(!date){alert('Date is required');return;}
-  if(!_harvestRows.length){alert('Add at least one field record');return;}
-  // Validate: each row needs a field and quantity
-  for(let i=0;i<_harvestRows.length;i++){
-    const r=_harvestRows[i];
-    if(!r.landId){alert(`Field ${i+1}: select a field`);return;}
-    if(!r.quantity){alert(`Field ${i+1}: enter quantity`);return;}
+  if(!_harvestTiles.length){alert('Select at least one harvest type');return;}
+  // Validate
+  for(let ti=0;ti<_harvestTiles.length;ti++){
+    const tile=_harvestTiles[ti];
+    if(!tile.fieldRows.length){alert(`${tile.feedTypeName}: add at least one field`);return;}
+    for(let ri=0;ri<tile.fieldRows.length;ri++){
+      const r=tile.fieldRows[ri];
+      if(!r.landId){alert(`${tile.feedTypeName} — Field ${ri+1}: select a field`);return;}
+      if(!r.quantity){alert(`${tile.feedTypeName} — Field ${ri+1}: enter bale count`);return;}
+    }
   }
-  const evId = String(Date.now());
-  const ev = {
-    id:         evId,
-    date,
-    notes:      document.getElementById('harvest-sheet-notes').value.trim()||null,
-    createdAt:  new Date().toISOString(),
-    fields:     _harvestRows.map((r,i)=>({...r, id: String(Date.now()+i+1)})),
+  const evId=String(Date.now());
+  const ev={
+    id:evId,date,
+    notes:document.getElementById('harvest-sheet-notes').value.trim()||null,
+    createdAt:new Date().toISOString(),
+    fields:[],
   };
+  _harvestTiles.forEach(tile=>{
+    tile.fieldRows.forEach((r,i)=>{
+      const ft=(S.feedTypes||[]).find(f=>f.id===tile.feedTypeId);
+      const batchId=r.batchId||_generateBatchId(r.landId,tile.feedTypeId,date)||null;
+      const fieldRecord={
+        ...r,
+        id:String(Date.now()+ev.fields.length+i+1),
+        feedTypeId:tile.feedTypeId,
+        batchUnit:(ft?ft.unit:null)||'bale',
+        batchId,
+      };
+      ev.fields.push(fieldRecord);
+    });
+  });
+
   S.harvestEvents.push(ev);
+  queueWrite('harvest_events',_harvestEventRow(ev,_sbOperationId));
+  ev.fields.forEach(f=>queueWrite('harvest_event_fields',_harvestEventFieldRow(f,evId)));
 
-  // Queue parent event + per-field rows
-  queueWrite('harvest_events', _harvestEventRow(ev, _sbOperationId));
-  ev.fields.forEach(f => queueWrite('harvest_event_fields', _harvestEventFieldRow(f, evId)));
-
-  // Auto-create one S.batches[] entry per field
-  ev.fields.forEach(f => {
+  // Auto-create one S.batches[] entry per field record
+  ev.fields.forEach(f=>{
     const ft=(S.feedTypes||[]).find(t=>t.id===f.feedTypeId);
     const p=(S.pastures||[]).find(p=>String(p.id)===String(f.landId));
-    const label = [dLabel(date), p?p.name:'Field', ft?ft.name:'Harvest'].filter(Boolean).join(' · ');
-    const batch = {
-      id:                  Date.now() + S.batches.length + Math.floor(Math.random()*1000),
-      archived:            false,
-      typeId:              f.feedTypeId ?? null,
-      typeName:            ft ? ft.name : null,
-      unit:                ft ? ft.unit : (f.batchUnit||'bale'),
-      dm:                  f.dmPct ?? (ft ? ft.dm : null),
-      qty:                 f.quantity ?? 0,
-      remaining:           f.quantity ?? 0,
-      wt:                  f.weightPerUnitKg ?? null,
-      cpu:                 0,
+    const label=[dLabel(date),p?p.name:'Field',ft?ft.name:'Harvest'].filter(Boolean).join(' · ');
+    const batch={
+      id:Date.now()+S.batches.length+Math.floor(Math.random()*1000),
+      archived:false,
+      typeId:f.feedTypeId??null,
+      typeName:ft?ft.name:null,
+      unit:ft?ft.unit:(f.batchUnit||'bale'),
+      dm:f.dmPct??(ft?ft.dm:null),
+      qty:f.quantity??0,
+      remaining:f.quantity??0,
+      wt:f.weightPerUnitKg??null,
+      cpu:0,
       label,
       date,
-      sourceHarvestEventId: evId,
-      sourceFieldId:        f.landId ?? null,
+      batchId:f.batchId??null,
+      sourceHarvestEventId:evId,
+      sourceFieldId:f.landId??null,
     };
     S.batches.push(batch);
-    queueWrite('batches', _batchRow(batch, _sbOperationId));
+    queueWrite('batches',_batchRow(batch,_sbOperationId));
   });
 
   save();
@@ -8792,6 +8925,9 @@ function saveHarvestEvent(){
   renderBatchListS();
   alert(`Harvest saved — ${ev.fields.length} batch${ev.fields.length!==1?'es':''} created.`);
 }
+
+// Legacy stubs removed — _renderHarvestRows, _harvestRowFieldChange,
+// _harvestRowFeedTypeChange, _addHarvestRow, _removeHarvestRow replaced by tile flow above.
 
 function renderHarvestEvents(){
   const el=document.getElementById('harvest-events-list');
@@ -10222,6 +10358,7 @@ function openLocEdit(idx){
   document.getElementById('loc-edit-idx').value=idx;
   document.getElementById('le-name').value=p.name||'';
   document.getElementById('le-acres').value=p.acres||'';
+  const fcEl=document.getElementById('le-field-code');if(fcEl)fcEl.value=p.fieldCode||'';
   const isCon=p.locationType==='confinement';
   document.getElementById('le-loctype').value=isCon?'confinement':'pasture';
   document.getElementById('le-pasture-fields').style.display=isCon?'none':'block';
@@ -10276,8 +10413,9 @@ function saveLocEdit(){
       id: generatePastureId(), archived: false,
       name, acres: parseFloat(document.getElementById('le-acres').value)||0,
       locationType: locType,
-      farmId:  document.getElementById('loc-farm-id')?.value  || (S.farms&&S.farms.length?S.farms[0].id:null),
-      landUse: document.getElementById('loc-land-use')?.value || (isCon?'confinement':'pasture'),
+      farmId:    document.getElementById('loc-farm-id')?.value  || (S.farms&&S.farms.length?S.farms[0].id:null),
+      landUse:   document.getElementById('loc-land-use')?.value || (isCon?'confinement':'pasture'),
+      fieldCode: document.getElementById('le-field-code')?.value.trim()||null, // OI-0122
     };
     if(!isCon){
       loc.soil    = document.getElementById('le-soil').value;
@@ -10312,6 +10450,7 @@ function saveLocEdit(){
   // M7-B: persist farm + land use
   p.farmId  = document.getElementById('loc-farm-id')?.value  || p.farmId  || null;
   p.landUse = document.getElementById('loc-land-use')?.value || p.landUse || (isCon?'confinement':'pasture');
+  p.fieldCode = document.getElementById('le-field-code')?.value.trim()||p.fieldCode||null; // OI-0122
   if(!isCon){
     p.soil    = document.getElementById('le-soil').value;
     p.species = document.getElementById('le-species').value;
@@ -15785,6 +15924,10 @@ function applyFieldMode(){
     nav('feed', document.getElementById('bn-feed'));
     // Delay slightly so the feed screen renders before the sheet opens
     setTimeout(()=>{ openQuickFeedSheet(); }, 180);
+  } else if(fieldParam === 'harvest'){
+    // OI-0123: harvest field mode — nav to Fields screen, open harvest sheet
+    nav('pastures', document.getElementById('bn-pastures'));
+    setTimeout(()=>{ openHarvestSheet(); }, 180);
   }
 }
 
@@ -17490,6 +17633,14 @@ window.addEventListener('offline', ()=>{
       <div class="field"><label>Acres</label><input type="number" id="le-acres" step="0.5" placeholder="20"/></div>
     </div>
     <div class="two">
+      <div class="field">
+        <label>Field code <span style="font-weight:400;color:var(--text2);font-size:11px;">(optional)</span></label>
+        <input type="text" id="le-field-code" placeholder="e.g. 07, B2, HKX" maxlength="8"/>
+        <div style="font-size:10px;color:var(--text2);margin-top:2px;">Short code for harvest batch lot numbers.</div>
+      </div>
+      <div></div>
+    </div>
+    <div class="two">
       <div class="field"><label>Farm</label>
         <select id="loc-farm-id"><option value="">— none —</option></select>
       </div>
@@ -18969,6 +19120,23 @@ if ('serviceWorker' in navigator) {
           <option value="silage">Silage</option>
           <option value="grain">Grain/supp</option>
         </select>
+      </div>
+    </div>
+    <div class="two">
+      <div class="field"><label>Cutting #</label>
+        <select id="ft-cutting-num">
+          <option value="">None</option>
+          <option value="1">1st cut</option>
+          <option value="2">2nd cut</option>
+          <option value="3">3rd cut</option>
+          <option value="4">4th cut</option>
+        </select>
+      </div>
+      <div class="field" style="display:flex;align-items:flex-end;padding-bottom:2px;">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
+          <input type="checkbox" id="ft-harvest-active" style="width:16px;height:16px;cursor:pointer;"/>
+          🌾 Harvest active
+        </label>
       </div>
     </div>
     <div style="font-size:12px;font-weight:600;color:var(--text2);margin:10px 0 4px;">Hay analysis — optional</div>

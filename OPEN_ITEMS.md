@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260331.0008
-**Reconciled against build:** b20260331.0008
+**Last updated:** b20260331.1446
+**Reconciled against build:** b20260331.1139
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -23,21 +23,21 @@
 | 🟡 Open — Polish | 1 |
 | 🔵 Open — Enhancement | 20 |
 | ⚪ Open — Debt | 6 |
-| ✅ Closed | 80 |
+| ✅ Closed | 83 |
 
 ---
 
 ## Session Queue
 
-Recommended work order as of b20260330.2312. Update after each session.
+Recommended work order as of b20260331.1446. Update after each session.
 
 | Priority | OI | Title | Notes |
 |---|---|---|---|
-| 1 | OI-0105 | Membership-weighted NPK for multi-group events | Design first — future enhancement |
-| 2 | — | M7 post-session | Deploy, verify forage seed data, test harvest → batch flow |
+| 1 | OI-0069 | Rotation calendar sub-move block colours | Polish — next session |
+| 2 | OI-0105 | Membership-weighted NPK for multi-group events | Design first — future enhancement |
 
-> **M7 sub-tasks A–F complete** at b20260331.0100 — full Land/Farms/Harvest milestone done. Harvest event sheet + batch auto-creation shipped. OI-0111 closed.
-> **Last updated:** b20260331.0100
+> **OI-0122/0123/0124 closed** b20260331.2158 — harvest tile flow complete: schema groundwork, tile-first sheet, `?field=harvest` routing, PWA shortcut, field card harvest log + reconcile view.
+> **Last updated:** b20260331.2158
 
 ---
 
@@ -50,6 +50,144 @@ Recommended work order as of b20260330.2312. Update after each session.
 ---
 
 ## Open Items
+
+### OI-0124
+**Source:** User report / design session — b20260331.1446
+**Area:** Fields screen — harvest log, reconcile view
+**Severity:** Enhancement
+**Status:** ✅ Closed
+**Found:** b20260331.1446
+**Closed:** b20260331.2158
+
+Harvest log and reconcile view on the Fields screen. After OI-0122 and OI-0123 are shipped, the Fields screen harvest events log needs a dedicated view oriented around the batch ID lot number system — making it useful for organic audit and physical inventory reconcile.
+
+**Scope:**
+- Harvest events log on field card: show cutting#, batch ID, bale count, date — one row per harvest event field record
+- Reconcile summary per field per year: cuts logged, total bales, batch IDs as printable list
+- Batch ID appears prominently — this is the tie-out reference between the app and physical bale tags
+- Filter/group by cutting number (1st/2nd/3rd/4th) within the field view
+- No new data model changes — all data present after OI-0122/0123
+
+**Depends on:** OI-0122 (schema), OI-0123 (harvest event model with batch IDs)
+
+**Acceptance criteria:** A farmer can open a field's harvest history, see all batches with their lot numbers by cutting, and confirm the count matches physical inventory.
+
+---
+
+### OI-0123
+**Source:** User report / design session — b20260331.1446
+**Area:** Harvest sheet — full UI rewrite
+**Severity:** Enhancement
+**Status:** ✅ Closed
+**Found:** b20260331.1446
+**Closed:** b20260331.2158
+
+Rewrite `openHarvestSheet()` / `_renderHarvestRows()` / `saveHarvestEvent()` to implement the tile-first harvest flow designed in the b20260331.1446 design session.
+
+**Current model (field → feed type):** User adds field rows, picks a feed type per row.
+**New model (feed type tile → fields):** User taps active-tile feed types, then adds fields under each tile.
+
+**Full spec:**
+
+*Tile grid:*
+- Renders `S.feedTypes.filter(f => f.harvestActive && !f.archived)` as large tap-target tiles
+- Tile label: feed type name + cutting badge (`1st`, `2nd`, etc. from `ft.cuttingNum`)
+- Tap = select/deselect tile. Selected tiles expand inline to show their field sub-record list
+- If no active tiles exist: show nudge "No harvest types active — enable them in Feed Types settings"
+
+*Per-tile field sub-records (vertical list):*
+- "+ Add field" button per tile — appends a field row under that tile
+- Each field row (in order of visual prominence):
+  1. **Weight per bale** (large input, first — most variable field condition to field condition)
+  2. Field picker (select from `S.pastures`, non-archived)
+  3. Bale count / quantity
+  4. Auto-generated batch ID (editable text input)
+  5. Notes (optional)
+- Batch ID auto-generated on field selection: `[FARM3]-[FIELDCODE]-[CUT#]-[YYYYMMDD]`
+  - `FARM3`: first 3 chars of `S.farms.find(f.id === p.farmId).name`, uppercased
+  - `FIELDCODE`: `p.fieldCode` if set, else first 3 chars of field name + `⚠` hint
+  - `CUT#`: `ft.cuttingNum` (integer). If null on feed type: omit segment + warn in ID field
+  - `YYYYMMDD`: harvest event date (from date field at top of sheet)
+- Batch ID regenerates when field or date changes unless user has manually edited it (dirty flag)
+
+*Sheet header:*
+- Date field (top)
+- Event notes (optional, below date)
+
+*Save:*
+- One `S.harvestEvents[]` entry per save (one event covers all tiles + fields)
+- One `S.batches[]` auto-created per field sub-record (as now, but with `cuttingNum` + `batchId` populated)
+- Existing `queueWrite` paths for `harvest_events` + `harvest_event_fields` + `batches`
+
+*Launch contexts (single unified sheet — no separate implementations):*
+- Fields screen "🌾 Harvest" button → `openHarvestSheet()` (existing trigger, same sheet)
+- `?field=harvest` URL param → field mode → `applyFieldMode()` → `setTimeout(openHarvestSheet, 180)` (mirrors `?field=feed` pattern)
+- Sheet is mobile-first by design — same layout in all contexts
+
+**Depends on:** OI-0122 (`fieldCode`, `cuttingNum`, `harvestActive` schema + setup UI)
+
+**Acceptance criteria:** Farmer in field mode opens harvest sheet, sees their active cut tiles, taps one, adds fields with weights, sees auto-generated batch IDs, saves — harvest event created, batches created with lot numbers, reconcile view shows the entries.
+
+---
+
+### OI-0122
+**Source:** User report / design session — b20260331.1446
+**Area:** Feed types, Pastures/Fields, Supabase schema, shape functions
+**Severity:** Enhancement
+**Status:** ✅ Closed
+**Found:** b20260331.1446
+**Closed:** b20260331.2158
+
+Schema groundwork for the harvest tile flow. Three new fields across two existing collections. No UX change to harvest sheet itself — that is OI-0123.
+
+**New fields:**
+
+`S.feedTypes[]`:
+- `cuttingNum: null | 1 | 2 | 3 | 4` — integer, set at feed type setup. Drives batch ID generator and harvest analytics. `null` = not a cut hay product (e.g. silage, grain).
+- `harvestActive: false` — operation-level flag. When `true`, this feed type appears as a tile in the harvest sheet. Toggled per feed type in the feed types list.
+
+`S.pastures[]`:
+- `fieldCode: null | string` — user-set short code (e.g. `07`, `B2`, `HKX`). Stable identifier for batch ID lot numbers and organic audit trail. Max ~6 chars. Set once at field setup, never auto-derived.
+
+**SQL (three ALTERs — run before deploying OI-0122 build):**
+```sql
+ALTER TABLE feed_types ADD COLUMN IF NOT EXISTS cutting_num smallint;
+ALTER TABLE feed_types ADD COLUMN IF NOT EXISTS harvest_active boolean DEFAULT false;
+ALTER TABLE pastures ADD COLUMN IF NOT EXISTS field_code text;
+```
+
+**Shape function changes:**
+- `_feedTypeRow()`: add `cutting_num`, `harvest_active`
+- `_pastureRow()`: add `field_code`
+- `_SB_ALLOWED_COLS['feed_types']`: add `cutting_num`, `harvest_active`
+- `_SB_ALLOWED_COLS['pastures']`: add `field_code`
+- Assembly layer (`loadFromSupabase`): `feedType.cuttingNum = r.cutting_num ?? null`, `feedType.harvestActive = r.harvest_active ?? false`, `pasture.fieldCode = r.field_code ?? null`
+
+**Migration guards (in `ensureDataArrays` or assembly):**
+- Existing `S.feedTypes[]` default `cuttingNum: null, harvestActive: false` — no data loss
+- Existing `S.pastures[]` default `fieldCode: null` — no data loss
+
+**UI changes:**
+
+Feed type add/edit sheet:
+- Add "Cutting #" selector: None / 1 / 2 / 3 / 4 — writes `cuttingNum`
+- Add "🌾 Harvest active" toggle — writes `harvestActive`
+
+Feed type list card (Settings):
+- Show cutting badge + `🌾` indicator when `harvestActive` is true — scannable at a glance
+- Toggle `harvestActive` directly from list row (no need to open full edit sheet for season flip)
+
+Field add/edit sheet (`openLocEdit` / `openAddLocationSheet`):
+- Add "Field code" text input — short, user-assigned. Placeholder: "e.g. 07, B2, HKX"
+- Help text: "Used in batch lot numbers for harvest records."
+
+Field card (Fields screen / `renderPastures()`):
+- Show `fieldCode` as a small badge on the field card when set — visible without editing
+- When not set: faint hint "No field code" — nudges setup but doesn't block workflow
+
+**Acceptance criteria:** Feed types have cutting# and harvest-active flag configurable in settings. Fields have a stable field code visible on their card. All fields persist to Supabase. Existing data unaffected.
+
+---
 
 ### OI-0111
 **Source:** Migration tracking — b20260330

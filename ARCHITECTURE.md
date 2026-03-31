@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260331.2129`
+**Current build:** `b20260331.2205`
 **Last updated:** 2026-03-31
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -162,7 +162,7 @@ All sheets are always in the DOM. Toggle: add/remove `.open` on the `-wrap` div.
 |---|---|---|
 | `S.pastures` | Array | All locations. `locationType`: `"pasture"` or `"confinement"` |
 | `S.events` | Array | Grazing events (open + closed). Core ledger. Contains `feedEntries[]` sub-records. Each event now carries `groups[]` array (group entries with `groupId`, `groupName`, `dateAdded`, `dateRemoved`). Legacy `groupId` scalar kept for backward compat — always equals `groups[0].groupId`. |
-| `S.feedTypes` | Array | Feed type templates (unit, DM%, category). **M0b-J:** optional `nPct`, `pPct`, `kPct` fields (hay analysis — from lab test). Null when not provided; degrades gracefully. Displayed as `N/P/K` badge in Feed Types sheet when set. |
+| `S.feedTypes` | Array | Feed type templates (unit, DM%, category). **M0b-J:** optional `nPct`, `pPct`, `kPct` fields (hay analysis — from lab test). **M7-E:** `forageTypeId` FK to `S.forageTypes[]`. **OI-0122:** `cuttingNum` (`null|1|2|3|4`) — which cutting this product is; `harvestActive` (`bool`) — when `true`, feed type appears as a tile in the harvest sheet. Season flip: farmer unflag 1st cut, flag 2nd cut. Feed type card shows `C1`/`C2` badge + `🌾 ACTIVE` badge. |
 | `S.batches` | Array | Feed batches (specific deliveries; `typeId` links to feedType) |
 | `S.manureBatches` | Array | Manure batches captured from confinement events |
 | `S.inputProducts` | Array | Commercial amendment products |
@@ -1035,13 +1035,16 @@ All 20+ app tables use `operation_member_access` policy with `get_my_operation_i
 - UI: Settings → Farms card — add/edit/delete. Delete blocked if farm has fields assigned.
 - Migration guard: `migrateHomeFarm()` — creates "Home Farm" only when genuinely needed. Guard chain: (1) **Fetch-ok gate** — if `_sbFarmsFetchOk=false` and `S.farms` empty, return immediately (don't create phantom farm on network failure). (2) **Pasture-derivation** — if `S.farms` empty but all pastures share one `farmId`, that farm exists in Supabase (FK-proven); reconstruct locally, only re-queue if fetch failed. (3) **Queue-check** — before creating, look for existing farms write in sync queue. (4) **Create** — only if all above fail. (5) **Reassign** — unconditionally set all pastures to canonical farmId.
 
-### S.pastures[] additions (M7-B)
-Two new fields added additively — no existing fields removed:
+### S.pastures[] additions (M7-B + OI-0122)
+Three new fields added additively — no existing fields removed:
 - `farmId`: string FK → `S.farms[].id`
 - `landUse`: `'pasture'` | `'mixed-use'` | `'crop'` | `'confinement'`
+- `fieldCode`: `null | string` — user-set short stable code (e.g. `07`, `B2`, `HKX`). Max ~8 chars. Used as the field segment in auto-generated harvest batch lot numbers. Set once at field setup; never auto-derived from name.
 
-`_pastureRow()` now writes `farm_id` and `land_use` to Supabase.
-Assembly in `loadFromSupabase` defaults: `landUse = locationType==='confinement' ? 'confinement' : 'pasture'`.
+`_pastureRow()` writes `farm_id`, `land_use`, and `field_code` to Supabase.
+Assembly in `loadFromSupabase` defaults: `landUse = locationType==='confinement' ? 'confinement' : 'pasture'`; `fieldCode = null`.
+Field card shows `[07]` badge when code is set; faint "no code" hint otherwise.
+Location edit sheet has Field code input with help text.
 
 ### Fields screen (M7-C)
 - Nav labels "Pastures" renamed to "Fields" (mobile + desktop nav, AREA object, feedback selectors)
@@ -1072,28 +1075,35 @@ Assembly in `loadFromSupabase` defaults: `landUse = locationType==='confinement'
 - `feedType.forageTypeId` — FK to forage type; written by `addFeedType()`, stored via `_feedTypeRow()`
 - Settings: Forage types card — add/edit/delete; delete blocked if linked to a feed type
 
-### S.harvestEvents[] (M7-F)
+### S.harvestEvents[] (M7-F / OI-0123)
 ```javascript
 {
   id, date, notes, createdAt,
   fields: [{
-    id, landId, landName, acres, feedTypeId,
-    batchUnit,        // 'round-bale'|'square-small'|'square-large'|'tonne'|'kg'
-    quantity, weightPerUnitKg, dmPct,
-    nPerTonneDM, pPerTonneDM, kPerTonneDM,  // kg removed per tonne DM
-    batchId,          // user-entered organic ID (optional)
+    id, landId, landName, fieldCode, farmName,
+    feedTypeId,
+    batchUnit,          // from feed type unit
+    quantity,           // bale count
+    weightPerUnitKg,    // weight per bale (most prominent field in UI)
+    dmPct,
+    nPerTonneDM, pPerTonneDM, kPerTonneDM,
+    batchId,            // auto-generated organic lot number (editable; dirty flag prevents regen)
+    batchIdDirty,       // true if user manually edited batchId
     notes, createdAt
   }]
 }
 ```
 - Shape functions: `_harvestEventRow(ev, opId)` + `_harvestEventFieldRow(f, harvestEventId)`
+- `_SB_ALLOWED_COLS['harvest_event_fields']` includes `batch_id`
 - Fetched via nested select: `harvest_events` → `harvest_event_fields(*)`
-- `saveHarvestEvent()`: validates rows, writes `S.harvestEvents[]`, queues parent + field rows, **auto-creates one `S.batches[]` per field** with `sourceHarvestEventId` + `sourceFieldId` for nutrient tracing
-- NPK auto-fill chain: `feedType.forageTypeId → S.forageTypes[].nPerTonneDM` → harvest row
-- Fields screen: "🌾 Harvest" button (admin-gated); harvest events log shown when events exist
-- `let _harvestRows` — module-level sheet state array; cleared on open/close
+- **Harvest sheet (OI-0123 rewrite):** tile-first, mobile-first. Feed types with `harvestActive:true` appear as tap-to-select tiles. Selecting a tile expands field rows beneath it. Weight per bale is the first and largest input. Batch ID auto-generated via `_generateBatchId(landId, feedTypeId, date)` → `FARM-FIELD-CUT-DATE` (e.g. `DBL-07-1-20260601`). Dirty flag prevents regeneration after manual edit.
+- `saveHarvestEvent()`: tile-aware validation, flattens tile→fieldRows to `ev.fields[]`, queues parent + field rows, **auto-creates one `S.batches[]` per field** with `sourceHarvestEventId` + `sourceFieldId`
+- `_harvestTiles[]` — module-level tile state (replaces `_harvestRows[]`)
+- **Field mode routing (OI-0123):** `?field=harvest` → `applyFieldMode()` → `nav('pastures')` + `setTimeout(openHarvestSheet, 180)`. Same sheet, no separate variant.
+- **PWA manifest shortcut (OI-0123):** "Log Harvest" (`/?field=harvest`) added alongside "Log Feed" — appears on long-press of home screen icon after PWA install.
+- **Harvest log per field card (OI-0124):** `fieldHarvestSection(pId)` (defined inside `renderPastureCard`) queries `S.harvestEvents[].fields` for records matching `landId`. Shows compact rows: `[BatchID] C1 · 47 bales · Jun 1`. Tap `<details>` to expand. Nested "Reconcile by year" `<details>` shows cuts grouped by year with all batch IDs as a scannable list — printable reference for organic audit.
 
-### M7 complete — all sub-tasks A–F shipped (b20260331.0100)
+### M7 complete + OI-0122/0123/0124 complete — b20260331.2158
 
 ---
 
@@ -1182,6 +1192,12 @@ A stripped-down layout for focused phone use in the field. Activated by any of t
 **Toggle button:** `#field-mode-toggle` in `.hdr-right`. Label is "⊞ Field" in normal mode, "← Detail" in field mode. Set by `setFieldModeUI(active)`.
 
 **Routing on `?field=feed`:** `applyFieldMode()` calls `nav('feed',…)` then `setTimeout(openQuickFeedSheet, 180)`.
+
+**Routing on `?field=harvest` (OI-0123):** `applyFieldMode()` calls `nav('pastures',…)` then `setTimeout(openHarvestSheet, 180)`. Lands on Fields screen so closing the sheet goes somewhere sensible.
+
+**PWA manifest shortcuts:** Two shortcuts defined inline in `<link rel="manifest">`:
+- `/?field=feed` → "Log Feed" (🌾)
+- `/?field=harvest` → "Log Harvest" (🚜) — added OI-0123
 
 **Home screen branching:** `renderHome()` checks `body.field-mode` and delegates to `renderFieldHome()` when active. `renderFieldHome()` is currently a stub — see **OI-0006** for full tile grid implementation.
 
