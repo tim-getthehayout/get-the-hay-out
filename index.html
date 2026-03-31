@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]},{"name": "Log Harvest","short_name": "Harvest","description": "Open Harvest sheet in field mode","url": "/?field=harvest","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🚜%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260331.2205" id="app-version-meta"/>
+<meta name="app-version" content="b20260331.2231" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -1027,6 +1027,7 @@ body:not(.field-mode) #field-mode-toggle{
         <button class="btn btn-green btn-sm" onclick="openAddLocation()" style="flex-shrink:0;">+ Add</button>
         <button class="btn btn-outline btn-sm" onclick="openBulkSurveySheet()" style="flex-shrink:0;">📋 Survey</button>
         <button class="btn btn-outline btn-sm" id="harvest-btn" onclick="openHarvestSheet()" style="flex-shrink:0;display:none;">🌾 Harvest</button>
+        <button class="btn btn-outline btn-sm" onclick="openFeedTypesSheet()" style="flex-shrink:0;">⚙️ Feed types</button>
         <div style="flex:1;position:relative;">
           <input type="search" id="pasture-search" placeholder="Filter fields…"
             oninput="renderPastures()"
@@ -1617,7 +1618,10 @@ body:not(.field-mode) #field-mode-toggle{
       <div style="font-size:16px;font-weight:600;">🌾 Harvest</div>
       <button style="border:none;background:transparent;font-size:22px;cursor:pointer;color:var(--text2);padding:0;" onclick="closeHarvestSheet()">✕</button>
     </div>
-    <div style="font-size:12px;color:var(--text2);margin-bottom:14px;">Each field record creates a feed batch automatically.</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div style="font-size:12px;color:var(--text2);">Each field record creates a feed batch automatically.</div>
+      <button class="btn btn-outline btn-xs" onclick="openFeedTypesSheet()" style="flex-shrink:0;white-space:nowrap;">⚙️ Feed types</button>
+    </div>
     <div class="two">
       <div class="field"><label>Harvest date *</label><input type="date" id="harvest-sheet-date" onchange="_renderHarvestTileGrid()"/></div>
       <div class="field"><label>Event notes (optional)</label><input type="text" id="harvest-sheet-notes" placeholder="e.g. Good yield"/></div>
@@ -5087,15 +5091,21 @@ function saveQuickFeed(){
 
 // ── FEED TYPES SHEET ──────────────────────────────────────────────────────────
 function openFeedTypesSheet(){
+  cancelFeedTypeEdit(); // always start in create mode
   renderFeedTypes();
   populateBatchTypeSelect();
   populateForageTypeSelect(); // M7-E: populate forage type selector
   document.getElementById('feed-types-wrap').classList.add('open');
 }
 function closeFeedTypesSheet(){
+  cancelFeedTypeEdit();
   document.getElementById('feed-types-wrap').classList.remove('open');
   // Refresh batch type select after any changes
   populateBatchTypeSelect();
+  // If harvest sheet is open, re-render its tile grid in case harvest-active flags changed
+  if(document.getElementById('harvest-sheet-wrap')?.style.display==='flex'){
+    _renderHarvestTileGrid();
+  }
 }
 
 function addFeedTypeFromSheet(){
@@ -8621,18 +8631,81 @@ function addFeedType(){
   const harvestActive=!!(document.getElementById('ft-harvest-active')?.checked);
   S.feedTypes.push({id:generateFeedTypeId(),archived:false,name,unit:document.getElementById('ft-unit').value,dm:parseFloat(document.getElementById('ft-dm').value)||85,cat:document.getElementById('ft-cat').value,nPct,pPct,kPct,forageTypeId:forageTypeId||null,cuttingNum,harvestActive});
   const _ft=S.feedTypes[S.feedTypes.length-1];
-  stampSetup();queueWrite('feed_types',_feedTypeRow(_ft,_sbOperationId));save();renderFeedTypes();populateBatchTypeSelect();document.getElementById('ft-name').value='';
+  stampSetup();queueWrite('feed_types',_feedTypeRow(_ft,_sbOperationId));save();renderFeedTypes();populateBatchTypeSelect();_clearFeedTypeForm();
+}
+function _clearFeedTypeForm(){
+  document.getElementById('ft-name').value='';
   document.getElementById('ft-npct').value='';document.getElementById('ft-ppct').value='';document.getElementById('ft-kpct').value='';
   const ftSel=document.getElementById('ft-forage-type');if(ftSel)ftSel.value='';
   const ftCut=document.getElementById('ft-cutting-num');if(ftCut)ftCut.value='';
   const ftHa=document.getElementById('ft-harvest-active');if(ftHa)ftHa.checked=false;
+  const ftDm=document.getElementById('ft-dm');if(ftDm)ftDm.value='';
+  const ftCat=document.getElementById('ft-cat');if(ftCat)ftCat.value='hay';
+}
+function openEditFeedType(idx){
+  const ft=S.feedTypes[idx];if(!ft)return;
+  document.getElementById('ft-edit-idx').value=String(idx);
+  document.getElementById('ft-name').value=ft.name||'';
+  document.getElementById('ft-unit').value=ft.unit||'bale';
+  document.getElementById('ft-dm').value=ft.dm!=null?ft.dm:'';
+  document.getElementById('ft-cat').value=ft.cat||'hay';
+  const ftSel=document.getElementById('ft-forage-type');if(ftSel)ftSel.value=ft.forageTypeId||'';
+  const ftCut=document.getElementById('ft-cutting-num');if(ftCut)ftCut.value=ft.cuttingNum!=null?String(ft.cuttingNum):'';
+  const ftHa=document.getElementById('ft-harvest-active');if(ftHa)ftHa.checked=!!ft.harvestActive;
+  document.getElementById('ft-npct').value=ft.nPct!=null?ft.nPct:'';
+  document.getElementById('ft-ppct').value=ft.pPct!=null?ft.pPct:'';
+  document.getElementById('ft-kpct').value=ft.kPct!=null?ft.kPct:'';
+  document.getElementById('ft-form-title').textContent='Edit feed type';
+  document.getElementById('ft-create-btns').style.display='none';
+  document.getElementById('ft-edit-btns').style.display='';
+  // Only show delete for admins
+  const delBtn=document.getElementById('ft-delete-btn');
+  if(delBtn) delBtn.style.display=isAdmin()?'':'none';
+  // Scroll form into view
+  document.getElementById('ft-form-title').scrollIntoView({behavior:'smooth',block:'start'});
+}
+function saveEditFeedType(){
+  const idxStr=document.getElementById('ft-edit-idx').value;
+  const idx=parseInt(idxStr);if(isNaN(idx))return;
+  const ft=S.feedTypes[idx];if(!ft)return;
+  const name=document.getElementById('ft-name').value.trim();if(!name){alert('Name is required');return;}
+  ft.name=name;
+  ft.unit=document.getElementById('ft-unit').value;
+  ft.dm=parseFloat(document.getElementById('ft-dm').value)||85;
+  ft.cat=document.getElementById('ft-cat').value;
+  ft.forageTypeId=document.getElementById('ft-forage-type')?.value||null;
+  const cuttingNumRaw=document.getElementById('ft-cutting-num')?.value||'';
+  ft.cuttingNum=cuttingNumRaw?parseInt(cuttingNumRaw):null;
+  ft.harvestActive=!!(document.getElementById('ft-harvest-active')?.checked);
+  ft.nPct=parseFloat(document.getElementById('ft-npct').value)||null;
+  ft.pPct=parseFloat(document.getElementById('ft-ppct').value)||null;
+  ft.kPct=parseFloat(document.getElementById('ft-kpct').value)||null;
+  stampSetup();queueWrite('feed_types',_feedTypeRow(ft,_sbOperationId));save();
+  cancelFeedTypeEdit();
+  renderFeedTypes();populateBatchTypeSelect();
+}
+function cancelFeedTypeEdit(){
+  document.getElementById('ft-edit-idx').value='';
+  document.getElementById('ft-form-title').textContent='Add feed type';
+  document.getElementById('ft-create-btns').style.display='';
+  document.getElementById('ft-edit-btns').style.display='none';
+  _clearFeedTypeForm();
+}
+function _deleteFeedTypeFromEdit(){
+  const idxStr=document.getElementById('ft-edit-idx').value;
+  const idx=parseInt(idxStr);if(isNaN(idx))return;
+  cancelFeedTypeEdit();
+  tryDeleteFeedType(idx);
 }
 function renderFeedTypes(){
   const el=document.getElementById('ft-list');
   if(!S.feedTypes.length){el.innerHTML='<div style="font-size:13px;color:var(--text2);margin-bottom:8px;">None yet</div>';populateBatchTypeSelect();return;}
   el.innerHTML=S.feedTypes.map((ft,i)=>ft.archived
     ?`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);opacity:0.45;"><span style="font-size:13px;">${ft.name} <span class="badge bb">archived</span></span><button class="btn btn-outline btn-xs" onclick="unarchive('feedType','${ft.id}')">Unarchive</button></div>`
-    :`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);font-size:13px;"><span>${ft.name} <span class="badge bb">${ft.unit}</span> <span class="badge bg">${ft.dm}% DM</span>${(ft.nPct||ft.pPct||ft.kPct)?` <span class="badge bt">N${ft.nPct??'?'} P${ft.pPct??'?'} K${ft.kPct??'?'}</span>`:''}${ft.cuttingNum!=null?` <span class="badge ba">C${ft.cuttingNum}</span>`:''}${ft.harvestActive?` <span class="badge bg">🌾 ACTIVE</span>`:''}</span><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;" onclick="tryDeleteFeedType(${i})">×</button></div>`
+    :`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);font-size:13px;">
+        <span>${ft.name} <span class="badge bb">${ft.unit}</span> <span class="badge bg">${ft.dm}% DM</span>${(ft.nPct||ft.pPct||ft.kPct)?` <span class="badge bt">N${ft.nPct??'?'} P${ft.pPct??'?'} K${ft.kPct??'?'}</span>`:''}${ft.cuttingNum!=null?` <span class="badge ba">C${ft.cuttingNum}</span>`:''}${ft.harvestActive?` <span class="badge bg">🌾 ACTIVE</span>`:''}</span>
+        <button class="btn btn-outline btn-xs" style="flex-shrink:0;margin-left:8px;" onclick="openEditFeedType(${i})">Edit</button>
+      </div>`
   ).join('');
   populateBatchTypeSelect();
 }
@@ -16870,20 +16943,30 @@ function renderRotationCalendar(containerId){
   }).join('');
 
   // ── Legend (semantic: green = pasture, tan = stored feed) ────────────────
+  // OI-0069: hasStoredFeedSubMoves drives both the tan-swatch condition and the
+  // second sub-move legend entry. Without this, tan sub-move blocks appear with
+  // no legend entry when no main events are stored-feed / confinement.
+  const hasStoredFeedSubMoves = allEvs.some(e=>(e.subMoves||[]).some(sm=>sm.noPasture));
+  const hasTanBlocks = allEvs.some(e=>e.noPasture||e.locationType==='confinement') || hasStoredFeedSubMoves;
   const legend =
     `<span style="display:inline-flex;align-items:center;gap:5px;margin-right:12px;font-size:12px;">
       <span style="width:12px;height:12px;border-radius:3px;background:#639922;display:inline-block;"></span>
       Pasture grazing
     </span>` +
-    (allEvs.some(e=>e.noPasture||e.locationType==='confinement') ?
+    (hasTanBlocks ?
     `<span style="display:inline-flex;align-items:center;gap:5px;margin-right:12px;font-size:12px;">
       <span style="width:12px;height:12px;border-radius:3px;background:#C4A882;display:inline-block;"></span>
       Hay / stored feed
     </span>` : '') +
     `<span style="display:inline-flex;align-items:center;gap:5px;margin-right:12px;font-size:12px;">
       <span style="width:12px;height:12px;border-radius:3px;background:#639922;border-top:2px dashed rgba(255,255,255,0.5);display:inline-block;"></span>
-      Sub-move
+      Pasture sub-move
     </span>` +
+    (hasStoredFeedSubMoves ?
+    `<span style="display:inline-flex;align-items:center;gap:5px;margin-right:12px;font-size:12px;">
+      <span style="width:12px;height:12px;border-radius:3px;background:#C4A882;border-top:2px dashed rgba(255,255,255,0.5);display:inline-block;"></span>
+      Stored feed sub-move
+    </span>` : '') +
     (openEvs.length ?
     `<span style="display:inline-flex;align-items:center;gap:5px;margin-right:12px;font-size:12px;">
       <span style="width:12px;height:12px;border-radius:3px;background:#639922;
@@ -19092,15 +19175,17 @@ if ('serviceWorker' in navigator) {
     <div class="sheet-handle"></div>
     <div style="font-size:16px;font-weight:600;margin-bottom:4px;">Feed types</div>
     <div style="font-size:12px;color:var(--text2);margin-bottom:14px;">Define each type once — batches reference them for DM% and unit.</div>
-    <div id="ft-list" style="margin-bottom:12px;"></div>
-    <div class="div"></div>
-    <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Add feed type</div>
+
+    <!-- ── Create / Edit form (always visible at top) ── -->
+    <input type="hidden" id="ft-edit-idx" value=""/>
+    <div id="ft-form-title" style="font-size:13px;font-weight:600;margin-bottom:8px;">Add feed type</div>
     <div class="two">
       <div class="field"><label>Name</label><input type="text" id="ft-name" placeholder="Round bale"/></div>
       <div class="field"><label>Unit</label>
         <select id="ft-unit">
           <option value="bale">bale</option>
           <option value="sq bale">sq bale</option>
+          <option value="round-bale">round-bale</option>
           <option value="ton">ton</option>
           <option value="lb">lb</option>
           <option value="bag">bag</option>
@@ -19146,10 +19231,21 @@ if ('serviceWorker' in navigator) {
       <div class="field"><label>P %</label><input type="number" id="ft-ppct" placeholder="0.2" step="0.01" min="0" max="10"/></div>
       <div class="field"><label>K %</label><input type="number" id="ft-kpct" placeholder="2.0" step="0.01" min="0" max="10"/></div>
     </div>
-    <div class="btn-row" style="margin-top:8px;">
+    <!-- Create mode buttons -->
+    <div id="ft-create-btns" class="btn-row" style="margin-top:8px;">
       <button class="btn btn-green" onclick="addFeedTypeFromSheet()">Add type</button>
       <button class="btn btn-outline" onclick="closeFeedTypesSheet()">Done</button>
     </div>
+    <!-- Edit mode buttons (hidden until editing) -->
+    <div id="ft-edit-btns" class="btn-row" style="margin-top:8px;display:none;">
+      <button class="btn btn-green" onclick="saveEditFeedType()">Save changes</button>
+      <button class="btn btn-outline" onclick="cancelFeedTypeEdit()">Cancel</button>
+      <button class="btn btn-outline" id="ft-delete-btn" style="color:var(--red);border-color:var(--red);margin-left:auto;" onclick="_deleteFeedTypeFromEdit()">Delete</button>
+    </div>
+
+    <div class="div" style="margin-top:16px;"></div>
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Existing types</div>
+    <div id="ft-list"></div>
   </div>
 </div>
 

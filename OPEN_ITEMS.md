@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260331.1446
-**Reconciled against build:** b20260331.1139
+**Last updated:** b20260331.2224
+**Reconciled against build:** b20260331.2224
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -20,24 +20,25 @@
 |---|---|
 | 🔴 Open — Roadblock | 0 |
 | 🔴 Open — Bug | 0 |
-| 🟡 Open — Polish | 1 |
+| 🟡 Open — Polish | 0 |
 | 🔵 Open — Enhancement | 20 |
 | ⚪ Open — Debt | 6 |
-| ✅ Closed | 83 |
+| ✅ Closed | 85 |
 
 ---
 
 ## Session Queue
 
-Recommended work order as of b20260331.1446. Update after each session.
+Recommended work order as of b20260331.2211. Update after each session.
 
 | Priority | OI | Title | Notes |
 |---|---|---|---|
-| 1 | OI-0069 | Rotation calendar sub-move block colours | Polish — next session |
-| 2 | OI-0105 | Membership-weighted NPK for multi-group events | Design first — future enhancement |
+| 1 | OI-0105 | Membership-weighted NPK for multi-group events | Design first — future enhancement |
 
-> **OI-0122/0123/0124 closed** b20260331.2158 — harvest tile flow complete: schema groundwork, tile-first sheet, `?field=harvest` routing, PWA shortcut, field card harvest log + reconcile view.
-> **Last updated:** b20260331.2158
+> **OI-0126 closed** b20260331.2224 — Feed types button added to Fields screen and Harvest sheet; feed types sheet redesigned (form at top, list at bottom, Edit button per row, delete only inside edit form).
+> **OI-0125 closed** b20260331.2211 — rotation calendar legend now has four conditional swatches.
+> **OI-0122/0123/0124 closed** b20260331.2158 — harvest tile flow complete.
+> **Last updated:** b20260331.2224
 
 ---
 
@@ -50,6 +51,38 @@ Recommended work order as of b20260331.1446. Update after each session.
 ---
 
 ## Open Items
+
+### OI-0126
+**Source:** User report — b20260331.2224
+**Area:** Feed Types sheet + Harvest sheet + Fields screen
+**Severity:** Enhancement
+**Status:** ✅ Closed
+**Found:** b20260331.2224
+**Closed:** b20260331.2224
+
+Three related harvest module polish changes delivered together:
+
+**A — Feed types button on Fields screen.** `openFeedTypesSheet()` button added to the Fields screen header row alongside Survey and Harvest. Visible to all users.
+
+**B — Feed types button inside Harvest sheet.** Small `⚙️ Feed types` button added in the subtitle row of the harvest sheet. Closing the feed types sheet from this context auto-calls `_renderHarvestTileGrid()` so newly activated types appear immediately as tiles without reopening the harvest sheet.
+
+**C — Feed types sheet redesign.** Form layout reversed (create form at top, existing types list at bottom). Edit button per row replaces `×` delete. Delete now only reachable inside the edit form (admin-gated). New functions: `openEditFeedType(idx)`, `saveEditFeedType()`, `cancelFeedTypeEdit()`, `_deleteFeedTypeFromEdit()`, `_clearFeedTypeForm()`. Hidden `ft-edit-idx` input + `ft-form-title` + `ft-create-btns`/`ft-edit-btns` div pair drive the create/edit mode toggle.
+
+---
+
+### OI-0125
+**Source:** Claude observation — b20260331.2211 (session queue previously labelled "OI-0069")
+**Area:** Rotation Calendar (`renderRotationCalendar()`, ~L16589)
+**Severity:** Polish
+**Status:** ✅ Closed
+**Found:** b20260325.0037 (session queue carried forward as OI-0069)
+**Closed:** b20260331.2211
+
+Rotation calendar legend was missing a "Stored feed sub-move" swatch. The block colour logic (`c.win.smNoPasture`) correctly rendered stored-feed sub-move blocks in tan (`#C4A882`) and pasture sub-move blocks in green (`#639922`), but the legend only had a single green-dashed "Sub-move" entry — so tan sub-move blocks had no legend entry when no main events were stored-feed or confinement.
+
+**Fix:** Added `hasStoredFeedSubMoves` flag (scans all sub-moves for `sm.noPasture=true`) and `hasTanBlocks` (combines main-event and sub-move checks). Legend now renders four conditional swatches: green solid (always), tan solid (`hasTanBlocks`), green dashed (always), tan dashed (`hasStoredFeedSubMoves`). Also renamed "Sub-move" → "Pasture sub-move" for clarity.
+
+---
 
 ### OI-0124
 **Source:** User report / design session — b20260331.1446

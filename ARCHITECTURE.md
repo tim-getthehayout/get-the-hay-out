@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260331.2205`
+**Current build:** `b20260331.2231`
 **Last updated:** 2026-03-31
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -665,7 +665,20 @@ Calendar blocks no longer use group colors. All blocks use one of two semantic c
 - **`#639922` (green)** — pasture grazing events (`ev.noPasture` falsy)
 - **`#C4A882` (tan)** — 100% stored-feed or confinement events (`ev.noPasture` true or `ev.locationType==='confinement'`)
 
-`grpColor()` is no longer called from within `renderRotationCalendar()`. The legend now shows "Pasture grazing / Hay / stored feed / Sub-move" instead of group names.
+Sub-move blocks use `c.win.smNoPasture` (stored at window build time from `!!sm.noPasture`) to pick green vs tan independently of the parent event — a bale-grazing sub-move on a pasture paddock correctly renders green.
+
+`grpColor()` is no longer called from within `renderRotationCalendar()`.
+
+**Legend (as of b20260331.2211 — OI-0069):** Two computed flags drive all four possible legend entries:
+- `hasStoredFeedSubMoves` — any `sm.noPasture=true` across all events
+- `hasTanBlocks` — `hasStoredFeedSubMoves` OR any main event is stored-feed/confinement
+
+| Swatch | Condition |
+|---|---|
+| Green solid — "Pasture grazing" | Always shown |
+| Tan solid — "Hay / stored feed" | `hasTanBlocks` |
+| Green dashed — "Pasture sub-move" | Always shown |
+| Tan dashed — "Stored feed sub-move" | `hasStoredFeedSubMoves` |
 
 ### Sub-Move Toast — Duration Warning Removed (as of b20260323.2354)
 `saveSubMove()` previously showed `'\nDuration not set — edit to add hours later.'` whenever `hrs === 0`. Duration is not required at sub-move creation time — it is inferred from the next move or event close. The branch was removed. The alert now confirms the location only, with the pasture % line appearing only when hours were entered.
@@ -1102,8 +1115,26 @@ Location edit sheet has Field code input with help text.
 - **Field mode routing (OI-0123):** `?field=harvest` → `applyFieldMode()` → `nav('pastures')` + `setTimeout(openHarvestSheet, 180)`. Same sheet, no separate variant.
 - **PWA manifest shortcut (OI-0123):** "Log Harvest" (`/?field=harvest`) added alongside "Log Feed" — appears on long-press of home screen icon after PWA install.
 - **Harvest log per field card (OI-0124):** `fieldHarvestSection(pId)` (defined inside `renderPastureCard`) queries `S.harvestEvents[].fields` for records matching `landId`. Shows compact rows: `[BatchID] C1 · 47 bales · Jun 1`. Tap `<details>` to expand. Nested "Reconcile by year" `<details>` shows cuts grouped by year with all batch IDs as a scannable list — printable reference for organic audit.
+- **Feed types button access (OI-0126, b20260331.2224):** `openFeedTypesSheet()` now accessible from three places: Feed screen (original), Fields screen header button row, and inside the Harvest sheet (btn-xs in subtitle row). Closing feed types from inside the harvest sheet auto-calls `_renderHarvestTileGrid()` so newly activated tile types appear without re-opening the sheet.
 
-### M7 complete + OI-0122/0123/0124 complete — b20260331.2158
+### Feed Types Sheet — Edit mode (OI-0126, b20260331.2224)
+Form layout reversed: create form at top, existing types list at bottom (was list-then-form).
+
+**New functions:**
+- `openEditFeedType(idx)` — fills form with existing feed type values, swaps button rows to edit mode, scrolls form into view
+- `saveEditFeedType()` — writes mutated ft fields, queues Supabase write, returns to create mode
+- `cancelFeedTypeEdit()` — resets form, restores create mode; called by Cancel button, `openFeedTypesSheet()`, and `closeFeedTypesSheet()`
+- `_deleteFeedTypeFromEdit()` — calls `cancelFeedTypeEdit()` then `tryDeleteFeedType(idx)`; only reached via the Delete button inside edit mode
+- `_clearFeedTypeForm()` — extracted helper to zero all form fields (used by both add and cancel paths)
+
+**UI changes:**
+- List rows: `×` delete button replaced with `Edit` button (`btn-outline btn-xs`)
+- Delete only reachable from inside the edit form (admin-gated, same as before)
+- `ft-edit-idx` hidden input tracks which index is being edited (`""` = create mode)
+- `ft-form-title` div changes between "Add feed type" / "Edit feed type"
+- `ft-create-btns` / `ft-edit-btns` divs toggle visibility on mode switch
+
+### M7 complete + OI-0122/0123/0124/0125/0126 complete — b20260331.2224
 
 ---
 
