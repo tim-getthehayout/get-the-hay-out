@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260331.0132" id="app-version-meta"/>
+<meta name="app-version" content="b20260331.0146" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -1973,6 +1973,8 @@ let _sbSession = null;  // current auth session; updated by auth state listener
 let _sbOperationId = localStorage.getItem('gthy-operation-id') || null;  // M2: cached operation UUID
 let _sbProfile = null;  // M6: current user's operation_members row {role, display_name, field_mode}
 let _sbRealtimeChannel = null;  // M2: active realtime subscription
+let _sbLoadInProgress = false;  // guard: prevents concurrent loadFromSupabase calls on rapid auth events
+let _sbFarmsFetchOk = false;    // M7: true only when farms table was successfully reached this session
 
 function sbInitClient(){
   if(_sbClient) return;
@@ -1990,25 +1992,29 @@ function sbInitClient(){
     if(event === 'SIGNED_IN' || event === 'INITIAL_SESSION'){
       if(session){
         logError('supabase-auth', event + ': ' + (session?.user?.email||'?'), '');
+        // Guard against concurrent loads — Supabase fires SIGNED_IN on every
+        // token refresh (~hourly), not just genuine sign-ins. Without this guard,
+        // each token refresh triggers a full reload; if one is already running
+        // (or the network briefly hiccups during the refresh), all table fetches
+        // fail simultaneously and migrateHomeFarm creates a duplicate farm.
+        if(_sbLoadInProgress){ return; }
+        _sbLoadInProgress = true;
         sbGetOperationId().then(async opId => {
           if(opId){
-            // Always flush pending offline writes BEFORE loading from Supabase,
-            // regardless of whether this is a fresh sign-in or a session restore
-            // (INITIAL_SESSION). Without this, a page reload or PWA resume after
-            // offline use loads stale server data and overwrites local changes.
             setSyncStatus('pending', 'Reconnecting…');
             await ensureQueueFlushed();
-            loadFromSupabase(opId);
+            await loadFromSupabase(opId);
             subscribeRealtime(opId);
           }
           else { updateHeaderAvatar(); renderCurrentScreen(); }
-        });
+        }).finally(() => { _sbLoadInProgress = false; });
       }
     }
     if(event === 'SIGNED_OUT'){
       setSyncStatus('off', 'Not signed in');
       _sbOperationId = null;
       _sbProfile = null;
+      _sbFarmsFetchOk = false;
       localStorage.removeItem('gthy-operation-id');
       updateHeaderAvatar();
       renderCurrentScreen(); // re-render to show nudge banner
@@ -2617,7 +2623,7 @@ async function loadFromSupabase(operationId){
       pastureRows, feedTypeRows, batchRows, classRows, inputProductRows,
       treatmentTypeRows, aiBullRows, todoRows, feedbackRows,
       paddockObsRows, weightRecordRows, groupMemberRows,
-      inputAppLocRows, manureTxRows, surveyRows, farmRows,
+      inputAppLocRows, manureTxRows, surveyRows, farmRes,
       soilTestRows, forageTypeRows, harvestEvRes,
     ] = await Promise.all([
       // Hierarchical — nested select handles sub-table FKs automatically
@@ -2657,6 +2663,11 @@ async function loadFromSupabase(operationId){
       _sbFetch('forage_types',             operationId),       // M7-E: forage reference library
       // M7-F: harvest events with per-field sub-records (nested select)
       _sbClient.from('harvest_events').select('*,harvest_event_fields(*)').eq('operation_id', operationId),
+      // M7-A: farms — fetched inline (not via _sbFetch) so we can detect network failure vs
+      // genuine empty table. _sbFetch swallows errors and returns [], making the two
+      // indistinguishable — migrateHomeFarm() needs to know the difference to avoid
+      // creating duplicate Home Farms when Supabase is temporarily unreachable.
+      _sbClient.from('farms').select('*').eq('operation_id', operationId),
     ]);
 
     // Log any errors on primary hierarchical fetches
@@ -2680,11 +2691,21 @@ async function loadFromSupabase(operationId){
       return p;
     });
     // M7-A: assemble farms
-    S.farms = (farmRows || []).map(r => {
-      const f = _sbToCamel(r);
-      if (!f.createdAt && f.created_at) f.createdAt = f.created_at;
-      return f;
-    });
+    // M7-A: assemble farms — farmRes is {data,error} from inline fetch (not _sbFetch)
+    // so we can distinguish "no farms exist" from "network was down during fetch".
+    // Only overwrite S.farms and set the fetch-ok flag when the request actually succeeded.
+    if(farmRes.error){
+      logError('supabase-load', 'farms: ' + farmRes.error.message, '');
+      // Do NOT overwrite S.farms — keep whatever localStorage had.
+      // _sbFarmsFetchOk stays false → migrateHomeFarm will not create a new farm.
+    } else {
+      _sbFarmsFetchOk = true;
+      S.farms = (farmRes.data || []).map(r => {
+        const f = _sbToCamel(r);
+        if (!f.createdAt && f.created_at) f.createdAt = f.created_at;
+        return f;
+      });
+    }
     // M7-D: assemble soil tests — land_id → landId, organic_matter → organicMatter, ph → pH
     S.soilTests = (soilTestRows || []).map(r => {
       const t = _sbToCamel(r);
@@ -15961,6 +15982,16 @@ function migrateM0aData(){
 function migrateHomeFarm(){
   if(!Array.isArray(S.farms)) S.farms=[];
   if(!Array.isArray(S.pastures)) return;
+
+  // Critical guard: only create a Home Farm when we know the farms table was
+  // successfully reached. If the fetch failed (network outage during token refresh),
+  // S.farms will be empty but that doesn't mean no farm exists — Supabase just
+  // couldn't be reached. Creating a farm here would produce another duplicate.
+  if(!_sbFarmsFetchOk && S.farms.length===0){
+    // Farms fetch failed — preserve whatever localStorage has and return.
+    // The existing farmId values on pastures remain valid.
+    return;
+  }
 
   let defaultFarmId = S.farms.length>0 ? String(S.farms[0].id) : null;
 
