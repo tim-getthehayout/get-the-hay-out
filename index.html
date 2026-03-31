@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260331.0153" id="app-version-meta"/>
+<meta name="app-version" content="b20260331.0204" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -2263,10 +2263,6 @@ function sbCacheIdentity(displayName, operationId){
 // Caches result in localStorage so subsequent loads skip the query.
 async function sbGetOperationId(){
   // If we have both the operation ID and the profile, no network call needed.
-  // If we only have the cached operation ID but _sbProfile is null (e.g. page
-  // reload after a prior session), we must still fetch the member row so that
-  // isAdmin() works correctly. Without this, owners see member-level UI after
-  // a reload because _sbProfile stays null and isAdmin() returns false.
   if(_sbOperationId && _sbProfile) return _sbOperationId;
   if(!_sbClient || !_sbSession) return _sbOperationId || null;
   try{
@@ -2275,18 +2271,28 @@ async function sbGetOperationId(){
       .select('operation_id, role, display_name, field_mode')
       .eq('user_id', _sbSession.user.id)
       .maybeSingle();
+    if(error){
+      // Any error (400, network, RLS) — if we have a cached ID, use it.
+      // Never bootstrap on error: that would create a duplicate operation.
+      logError('supabase-getop', 'sbGetOperationId error: ' + error.message, '');
+      return _sbOperationId || null;
+    }
     if(data?.operation_id){
       _sbOperationId = data.operation_id;
-      _sbProfile = data;  // M6: store full profile for isAdmin() checks
+      _sbProfile = data;
       localStorage.setItem('gthy-operation-id', _sbOperationId);
       sbCacheIdentity(data.display_name, _sbOperationId);
       return _sbOperationId;
     }
-    // No operation found — bootstrap
+    // data is null — no member row found.
+    // If we have a cached ID (returning user), trust it — the query may have
+    // returned empty due to a transient issue. Only bootstrap on genuine first
+    // sign-in where no cached ID exists at all.
+    if(_sbOperationId) return _sbOperationId;
     return await sbBootstrapOperation();
   } catch(e){
     logError('supabase-getop', 'sbGetOperationId failed: ' + e.message, '');
-    return null;
+    return _sbOperationId || null;  // fall back to cache, never null for returning users
   }
 }
 
