@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260331.0204" id="app-version-meta"/>
+<meta name="app-version" content="b20260331.0231" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -16006,61 +16006,69 @@ function migrateHomeFarm(){
   if(!Array.isArray(S.farms)) S.farms=[];
   if(!Array.isArray(S.pastures)) return;
 
-  // Critical guard: only create a Home Farm when we know the farms table was
-  // successfully reached. If the fetch failed (network outage during token refresh),
-  // S.farms will be empty but that doesn't mean no farm exists — Supabase just
-  // couldn't be reached. Creating a farm here would produce another duplicate.
-  if(!_sbFarmsFetchOk && S.farms.length===0){
-    // Farms fetch failed — preserve whatever localStorage has and return.
-    // The existing farmId values on pastures remain valid.
-    return;
-  }
+  // Guard 1: farms fetch failed — don't create anything, preserve local state.
+  if(!_sbFarmsFetchOk && S.farms.length===0) return;
 
   let defaultFarmId = S.farms.length>0 ? String(S.farms[0].id) : null;
 
   if(!defaultFarmId && S.pastures.length>0){
-    // S.farms is empty — but before creating a new farm, check if one is
-    // already pending in the sync queue. If we just create another, we get
-    // duplicate Home Farms every time the Supabase farms fetch fails or the
-    // previous write hasn't flushed yet. Use the queued farm's ID if it exists.
-    const pendingQueue = JSON.parse(localStorage.getItem('gthy-sync-queue')||'[]');
-    const queuedFarm = pendingQueue.find(op =>
-      op.table==='farms' && op.record?.operation_id===_sbOperationId
-    );
-    if(queuedFarm){
-      // Reconstruct the queued farm into S.farms so the rest of the app can see it
-      const f={
-        id:        String(queuedFarm.record.id),
-        name:      queuedFarm.record.name || 'Home Farm',
-        address:   queuedFarm.record.address || '',
-        notes:     queuedFarm.record.notes || '',
-        createdAt: queuedFarm.record.created_at || new Date().toISOString(),
-      };
+    // S.farms is empty even though the fetch succeeded (INSERT RLS may be blocking
+    // writes so the farm never lands in Supabase, but pastures already reference it).
+    // Guard 2: derive the canonical ID from the pastures themselves — if they all
+    // share a common farmId, that ID IS the canonical farm. Reconstruct it into
+    // S.farms and use it, rather than creating yet another duplicate.
+    const pastureIds = [...new Set((S.pastures||[]).map(p=>p.farmId).filter(Boolean).map(String))];
+    if(pastureIds.length===1){
+      // All pastures agree on one farmId — reconstruct that farm from localStorage
+      // or the queue. This handles the case where the farm INSERT into Supabase
+      // failed silently (RLS blocking) but the local state is consistent.
+      const existingId = pastureIds[0];
+      const pendingQueue = JSON.parse(localStorage.getItem('gthy-sync-queue')||'[]');
+      const queuedFarm = pendingQueue.find(op=>
+        op.table==='farms' && String(op.record?.id)===existingId
+      );
+      const f = queuedFarm ? {
+        id: existingId, name: queuedFarm.record.name||'Home Farm',
+        address: queuedFarm.record.address||'', notes: queuedFarm.record.notes||'',
+        createdAt: queuedFarm.record.created_at||new Date().toISOString(),
+      } : { id: existingId, name: 'Home Farm', address: '', notes: '',
+            createdAt: new Date().toISOString() };
       S.farms.push(f);
-      defaultFarmId = f.id;
+      defaultFarmId = existingId;
+      // Re-queue the farm write so Supabase eventually gets it
+      if(_sbOperationId) queueWrite('farms', _farmRow(f, _sbOperationId));
     } else {
-      // Truly no farm anywhere — create one
-      const homeFarm={
-        id:        String(Date.now()),
-        name:      'Home Farm',
-        address:   '',
-        notes:     '',
-        createdAt: new Date().toISOString(),
-      };
-      S.farms.push(homeFarm);
-      defaultFarmId = homeFarm.id;
-      if(_sbOperationId) queueWrite('farms', _farmRow(homeFarm, _sbOperationId));
+      // No consistent farmId on pastures — check queue for a pending farm write
+      const pendingQueue = JSON.parse(localStorage.getItem('gthy-sync-queue')||'[]');
+      const queuedFarm = pendingQueue.find(op=>
+        op.table==='farms' && op.record?.operation_id===_sbOperationId
+      );
+      if(queuedFarm){
+        const f={
+          id: String(queuedFarm.record.id), name: queuedFarm.record.name||'Home Farm',
+          address: queuedFarm.record.address||'', notes: queuedFarm.record.notes||'',
+          createdAt: queuedFarm.record.created_at||new Date().toISOString(),
+        };
+        S.farms.push(f);
+        defaultFarmId = f.id;
+      } else {
+        // Truly no farm anywhere — create one
+        const homeFarm={
+          id: String(Date.now()), name: 'Home Farm', address: '', notes: '',
+          createdAt: new Date().toISOString(),
+        };
+        S.farms.push(homeFarm);
+        defaultFarmId = homeFarm.id;
+        if(_sbOperationId) queueWrite('farms', _farmRow(homeFarm, _sbOperationId));
+      }
     }
   }
 
   if(!defaultFarmId) return;
 
-  // Reassign ALL pastures to the canonical farm ID — not just those with no farmId.
-  // This fixes pastures that point to a stale ID from a previous migrateHomeFarm run
-  // (which would cause FK violations when the stale farm ID doesn't exist in Supabase).
+  // Reassign ALL pastures to the canonical farm ID.
   let changed=false;
   (S.pastures||[]).forEach(p=>{
-    const pFarm = p.farmId ? String(p.farmId) : null;
     if(pFarm !== defaultFarmId){ p.farmId = defaultFarmId; changed=true; }
     if(!p.landUse){
       p.landUse = (p.locationType==='confinement') ? 'confinement' : 'pasture';
