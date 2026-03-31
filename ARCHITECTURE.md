@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260331.2231`
+**Current build:** `b20260331.2345`
 **Last updated:** 2026-03-31
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -162,7 +162,7 @@ All sheets are always in the DOM. Toggle: add/remove `.open` on the `-wrap` div.
 |---|---|---|
 | `S.pastures` | Array | All locations. `locationType`: `"pasture"` or `"confinement"` |
 | `S.events` | Array | Grazing events (open + closed). Core ledger. Contains `feedEntries[]` sub-records. Each event now carries `groups[]` array (group entries with `groupId`, `groupName`, `dateAdded`, `dateRemoved`). Legacy `groupId` scalar kept for backward compat — always equals `groups[0].groupId`. |
-| `S.feedTypes` | Array | Feed type templates (unit, DM%, category). **M0b-J:** optional `nPct`, `pPct`, `kPct` fields (hay analysis — from lab test). **M7-E:** `forageTypeId` FK to `S.forageTypes[]`. **OI-0122:** `cuttingNum` (`null|1|2|3|4`) — which cutting this product is; `harvestActive` (`bool`) — when `true`, feed type appears as a tile in the harvest sheet. Season flip: farmer unflag 1st cut, flag 2nd cut. Feed type card shows `C1`/`C2` badge + `🌾 ACTIVE` badge. |
+| `S.feedTypes` | Array | Feed type templates (unit, DM%, category). **M0b-J:** optional `nPct`, `pPct`, `kPct` fields (hay analysis — from lab test). **M7-E:** `forageTypeId` FK to `S.forageTypes[]`. **OI-0122:** `cuttingNum` (`null|1|2|3|4`) — which cutting this product is; `harvestActive` (`bool`) — when `true`, feed type appears as a tile in the harvest sheet. Season flip: farmer unflag 1st cut, flag 2nd cut. Feed type card shows `C1`/`C2` badge + inline toggle pill. **OI-0127:** `defaultWeightLbs` (`null|number`) — default weight per bale/unit in lbs; pre-populates weight field on new harvest field rows. |
 | `S.batches` | Array | Feed batches (specific deliveries; `typeId` links to feedType) |
 | `S.manureBatches` | Array | Manure batches captured from confinement events |
 | `S.inputProducts` | Array | Commercial amendment products |
@@ -1117,8 +1117,30 @@ Location edit sheet has Field code input with help text.
 - **Harvest log per field card (OI-0124):** `fieldHarvestSection(pId)` (defined inside `renderPastureCard`) queries `S.harvestEvents[].fields` for records matching `landId`. Shows compact rows: `[BatchID] C1 · 47 bales · Jun 1`. Tap `<details>` to expand. Nested "Reconcile by year" `<details>` shows cuts grouped by year with all batch IDs as a scannable list — printable reference for organic audit.
 - **Feed types button access (OI-0126, b20260331.2224):** `openFeedTypesSheet()` now accessible from three places: Feed screen (original), Fields screen header button row, and inside the Harvest sheet (btn-xs in subtitle row). Closing feed types from inside the harvest sheet auto-calls `_renderHarvestTileGrid()` so newly activated tile types appear without re-opening the sheet.
 
-### Feed Types Sheet — Edit mode (OI-0126, b20260331.2224)
+### Harvest — weight units clarification (OI-0127, b20260331.2335)
+⚠️ **Known naming mismatch:** `weightPerUnitKg` (JS field name) and `weight_per_unit_kg` (Supabase column) are named as kg but the **entire app treats the value as lbs** — `batch.wt` downstream uses `b.wt ? l.qty*b.wt : l.qty` to compute lbs as-fed, and the XLSX template comment confirms "weight of one unit in lbs (round bale ~850)". A schema rename would require a migration; deferred. Tracked under OI-0059 (calculation audit).
+
+UI labels corrected to lbs: harvest sheet field label "Weight / bale (kg)" → "Weight / bale (lbs)"; field card display "· kg/bale" → "· lbs/bale".
+
+`_harvestAddFieldRow(tileIdx)` now pre-populates `weightPerUnitKg` from `ft.defaultWeightLbs` when the feed type has a default set.
+
+### Harvest — batch ID sanitization (OI-0127, b20260331.2335)
+`_generateBatchId()` now strips non-alphanumeric characters from `p.fieldCode` before using it as the field segment. Previously `fieldCode = "E-3"` produced `HOM-E-3-1-20260331` (5 dash-separated segments, broken). Now strips to `E3` → `HOM-E3-1-20260331` (4 segments, correct). Same strip already applied to the fallback name path; now consistent.
+
+**SQL required before pushing harvest builds:**
+```sql
+ALTER TABLE harvest_events ALTER COLUMN id TYPE text;
+ALTER TABLE harvest_event_fields ALTER COLUMN id TYPE text;
+ALTER TABLE harvest_event_fields ALTER COLUMN harvest_event_id TYPE text;
+ALTER TABLE feed_types ADD COLUMN IF NOT EXISTS default_weight_lbs numeric;
+```
+
+### Feed Types Sheet — Edit mode + inline toggle (OI-0126/0127, b20260331.2224/2335)
 Form layout reversed: create form at top, existing types list at bottom (was list-then-form).
+
+**Inline harvest-active toggle (OI-0127):** Each non-archived feed type row in the list now has a pill toggle button: green `🌾 Active` / gray outline `○ Inactive`. Calls `toggleFeedTypeHarvestActive(idx)` — flips `ft.harvestActive`, queues Supabase write, saves, re-renders list, and re-renders harvest tile grid if that sheet is currently open. No need to open Edit just to flip the season.
+
+**`defaultWeightLbs` field (OI-0127):** "Default weight (lbs) per bale/unit" input (`ft-default-weight`) added between the Cutting # row and the Hay analysis section. Badge shown in list row when set.
 
 **New functions:**
 - `openEditFeedType(idx)` — fills form with existing feed type values, swaps button rows to edit mode, scrolls form into view
@@ -1226,15 +1248,32 @@ A stripped-down layout for focused phone use in the field. Activated by any of t
 
 **Routing on `?field=harvest` (OI-0123):** `applyFieldMode()` calls `nav('pastures',…)` then `setTimeout(openHarvestSheet, 180)`. Lands on Fields screen so closing the sheet goes somewhere sensible.
 
-**PWA manifest shortcuts:** Two shortcuts defined inline in `<link rel="manifest">`:
+**Routing on `?field=home` (OI-0006, b20260331.2335):** `applyFieldMode()` calls `nav('home',…)`. `renderHome()` detects `body.field-mode` and delegates to `renderFieldHome()`. Also triggers when `activate=true` but no specific `fieldParam` given (user-pref field mode with no URL action).
+
+**PWA manifest shortcuts:** Three shortcuts defined inline in `<link rel="manifest">`:
+- `/?field=home` → "Field Home" (⊞) — added OI-0006
 - `/?field=feed` → "Log Feed" (🌾)
 - `/?field=harvest` → "Log Harvest" (🚜) — added OI-0123
 
-**Home screen branching:** `renderHome()` checks `body.field-mode` and delegates to `renderFieldHome()` when active. `renderFieldHome()` is currently a stub — see **OI-0006** for full tile grid implementation.
+**Field Home tile grid (OI-0006, b20260331.2335):** `renderFieldHome()` fully implemented. Replaces the stub that showed a single feed button.
 
-**User schema addition:** `user.fieldMode: false` added to `addUser()`. Field is optional on existing user objects — `getActiveUser().fieldMode` falsy = detail mode.
+| Constant / Function | Purpose |
+|---|---|
+| `FIELD_MODULES` | Array of `{key, icon, label, handler}` — all available modules |
+| `FIELD_MODULES_DEFAULT` | `['feed','harvest','survey','animals']` — default when user has no prefs |
+| `_getUserFieldModules()` | Returns `user.fieldModules[]` or default |
+| `_setUserFieldModules(keys)` | Writes to `user.fieldModules`, calls `save()` |
+| `toggleFieldModule(key)` | Adds/removes a module key, saves, re-renders |
+| `renderFieldModules()` | Settings card — per-module on/off toggle pills |
+| `renderFieldHome()` | 2-column grid of large tiles (min 100px, glove-friendly touch targets) |
 
-**PWA manifest shortcut:** `/?field=feed` → "Log Feed" — appears on long-press of the home screen icon after PWA install.
+**Module keys:** `feed` · `harvest` · `survey` · `animals`. Future modules added to `FIELD_MODULES` constant — stub with `handler:null` until implemented.
+
+**Per-user storage:** `user.fieldModules[]` — array of active module keys. Stored on the active user object in `S.users[]` / `_sbProfile`. No Supabase column needed — user objects persist to localStorage via `save()`.
+
+**Settings card:** "Field mode" card added to Settings screen (above Farm users). Shows each module as a toggle row. `renderFieldModules()` called from the settings render chain.
+
+**Note:** Each module may eventually get a streamlined mobile-optimized variant of its sheet (larger tap targets, fewer secondary actions). The current handlers call existing sheets as-is. OI logged for future module-specific UX work.
 
 ---
 

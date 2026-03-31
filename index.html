@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]},{"name": "Log Harvest","short_name": "Harvest","description": "Open Harvest sheet in field mode","url": "/?field=harvest","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🚜%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
+<link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Field Home","short_name": "Field","description": "Open field mode home screen","url": "/?field=home","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E⊞%3C/text%3E%3C/svg%3E","sizes": "512x512"}]},{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]},{"name": "Log Harvest","short_name": "Harvest","description": "Open Harvest sheet in field mode","url": "/?field=harvest","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🚜%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260331.2231" id="app-version-meta"/>
+<meta name="app-version" content="b20260331.2345" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -1260,6 +1260,13 @@ body:not(.field-mode) #field-mode-toggle{
         </div>
         <div style="font-size:11px;color:var(--text2);margin-bottom:8px;">Reference library for DM% and NPK removal values. Linked to feed types and harvest events.</div>
         <div id="forage-type-list"></div>
+      </div>
+
+      <!-- Field Mode modules (OI-0006) -->
+      <div class="card">
+        <div class="sec">Field mode</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Choose which tiles appear on the field home screen. Settings are per-user.</div>
+        <div id="field-modules-list"></div>
       </div>
 
       <!-- Farm users (M6) -->
@@ -2769,6 +2776,7 @@ async function loadFromSupabase(operationId){
       const ft = _sbToCamel(r);
       if (ft.cuttingNum  === undefined) ft.cuttingNum  = null;  // OI-0122
       if (ft.harvestActive === undefined) ft.harvestActive = false; // OI-0122
+      if (ft.defaultWeightLbs === undefined) ft.defaultWeightLbs = null; // OI-0127
       return ft;
     });
     S.batches = (batchRows || []).map(r => {
@@ -3103,6 +3111,7 @@ function _feedTypeRow(ft, opId){
     forage_type_id:   ft.forageTypeId ?? null,  // M7-E
     cutting_num:      ft.cuttingNum    ?? null,  // OI-0122
     harvest_active:   ft.harvestActive ?? false, // OI-0122
+    default_weight_lbs: ft.defaultWeightLbs ?? null, // OI-0127
   };
 }
 
@@ -3386,11 +3395,14 @@ const _SB_ALLOWED_COLS = {
   ai_bulls:             new Set(['id','operation_id','name','breed','tag','archived']),
   input_products:       new Set(['id','operation_id','name','type','npk_n','npk_p','npk_k','cost_per_unit','unit','archived']),
   todos:                new Set(['id','operation_id','title','status','note','paddock','animal_id','assigned_to','created_by','created_at','updated_at']),
-  feed_types:           new Set(['id','operation_id','name','dm_pct','unit','cost_per_unit','n_pct','p_pct','k_pct','archived','setup_updated_at','forage_type_id','cutting_num','harvest_active']),
+  feed_types:           new Set(['id','operation_id','name','dm_pct','unit','cost_per_unit','n_pct','p_pct','k_pct','archived','setup_updated_at','forage_type_id','cutting_num','harvest_active','default_weight_lbs']),
   treatment_types:      new Set(['id','operation_id','name','category','archived']),
   animal_group_memberships: new Set(['id','operation_id','group_id','animal_id','date_joined','date_left','reason']),
   animal_weight_records: new Set(['id','operation_id','animal_id','recorded_at','weight_lbs','note','source','created_at']),
   manure_batch_transactions: new Set(['id','operation_id','batch_id','type','date','volume_lbs','n_lbs','p_lbs','k_lbs','source_event_id','application_id','pasture_names','notes','recorded_at']),
+  // harvest_event_fields: child table — no operation_id column; harvest_event_id FK suffices.
+  // This entry strips the operation_id auto-injected by queueWrite() before it reaches Supabase.
+  harvest_event_fields: new Set(['id','harvest_event_id','land_id','land_name','acres','feed_type_id','batch_unit','quantity','weight_per_unit_kg','dm_pct','n_per_tonne_dm','p_per_tonne_dm','k_per_tonne_dm','batch_id','notes','created_at']),
 };
 function _sanitizeQueueRecord(table, record){
   const allowed = _SB_ALLOWED_COLS[table];
@@ -3798,6 +3810,7 @@ function ensureDataArrays(){
   (S.feedTypes||[]).forEach(ft=>{
     if(ft.cuttingNum   === undefined) ft.cuttingNum   = null;
     if(ft.harvestActive === undefined) ft.harvestActive = false;
+    if(ft.defaultWeightLbs === undefined) ft.defaultWeightLbs = null; // OI-0127
   });
   (S.pastures||[]).forEach(p=>{
     if(p.fieldCode === undefined) p.fieldCode = null;
@@ -3867,7 +3880,7 @@ function renderCurrentScreen(){
   else if(curScreen==='pastures')renderPastures();
   else if(curScreen==='feedback')renderFeedbackTab();
   else if(curScreen==='reports'){renderReportsScreen();}
-  else if(curScreen==='settings'){loadSettings();renderOperationMembersList();renderClassesList();renderGroupsList();renderGrpAnimalPicker();sbUpdateAuthUI();renderSyncQueueInspector();renderFarms();renderForageTypes();}
+  else if(curScreen==='settings'){loadSettings();renderOperationMembersList();renderClassesList();renderGroupsList();renderGrpAnimalPicker();sbUpdateAuthUI();renderSyncQueueInspector();renderFarms();renderForageTypes();renderFieldModules();}
 }
 
 // ─── USER SYSTEM ──────────────────────────────────────────────────────────────
@@ -4160,26 +4173,78 @@ function renderMobilePerformanceStrip(){
 }
 // ─── END MOBILE PERFORMANCE STRIP ─────────────────────────────────────────────
 
-// ─── FIELD HOME (stub — tile grid session pending) ────────────────────────────
-// Full implementation: OI-0006. Tile grid + per-user module selection.
+// ─── FIELD HOME — tile grid (OI-0006) ────────────────────────────────────────
+// All available field modules. Future modules stub here with handler:null
+// to indicate "not yet implemented — tap does nothing beyond showing label".
+const FIELD_MODULES = [
+  { key:'feed',    icon:'🌾', label:'Log Feed',    handler:()=>{ nav('feed',document.getElementById('bn-feed')); setTimeout(openQuickFeedSheet,120); } },
+  { key:'harvest', icon:'🚜', label:'Log Harvest', handler:()=>{ nav('pastures',document.getElementById('bn-pastures')); setTimeout(openHarvestSheet,120); } },
+  { key:'survey',  icon:'📋', label:'Survey',      handler:()=>{ nav('pastures',document.getElementById('bn-pastures')); setTimeout(openBulkSurveySheet,120); } },
+  { key:'animals', icon:'🐄', label:'Animals',     handler:()=>{ nav('animals',document.getElementById('bn-animals')); } },
+];
+const FIELD_MODULES_DEFAULT = ['feed','harvest','survey','animals'];
+
+function _getUserFieldModules(){
+  const user = getActiveUser ? getActiveUser() : null;
+  if(user && Array.isArray(user.fieldModules)) return user.fieldModules;
+  return FIELD_MODULES_DEFAULT;
+}
+function _setUserFieldModules(keys){
+  const user = getActiveUser ? getActiveUser() : null;
+  if(!user) return;
+  user.fieldModules = keys;
+  save();
+}
+function toggleFieldModule(key){
+  const current = _getUserFieldModules();
+  const next = current.includes(key) ? current.filter(k=>k!==key) : [...current, key];
+  _setUserFieldModules(next);
+  renderFieldModules();
+}
+function renderFieldModules(){
+  const el = document.getElementById('field-modules-list');
+  if(!el) return;
+  const active = _getUserFieldModules();
+  el.innerHTML = FIELD_MODULES.map(m=>{
+    const on = active.includes(m.key);
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--border);">
+      <span style="font-size:14px;">${m.icon} ${m.label}</span>
+      <button onclick="toggleFieldModule('${m.key}')"
+        style="padding:4px 14px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;
+               border:1.5px solid ${on?'var(--green)':'var(--border2)'};
+               background:${on?'var(--green)':'transparent'};
+               color:${on?'white':'var(--text2)'};">${on?'✓ On':'Off'}</button>
+    </div>`;
+  }).join('');
+}
 function renderFieldHome(){
   const grpsEl = document.getElementById('home-groups');
   const noneEl = document.getElementById('home-no-groups');
   if(noneEl) noneEl.style.display = 'none';
   if(!grpsEl) return;
+  const activeKeys = _getUserFieldModules();
+  const tiles = FIELD_MODULES.filter(m => activeKeys.includes(m.key));
+  const tileHTML = tiles.length
+    ? tiles.map(m=>`
+        <button onclick="(${m.handler.toString()})()"
+          style="display:flex;flex-direction:column;align-items:center;justify-content:center;
+                 gap:10px;min-height:100px;border-radius:12px;
+                 border:1.5px solid var(--border2);background:var(--bg2);
+                 cursor:pointer;font-family:inherit;padding:16px 8px;
+                 transition:background 0.15s,border-color 0.15s;
+                 -webkit-tap-highlight-color:transparent;"
+          ontouchstart="this.style.background='var(--green-l)';this.style.borderColor='var(--green)';"
+          ontouchend="this.style.background='var(--bg2)';this.style.borderColor='var(--border2)';">
+          <span style="font-size:36px;line-height:1;">${m.icon}</span>
+          <span style="font-size:14px;font-weight:700;color:var(--text);">${m.label}</span>
+        </button>`).join('')
+    : `<div style="font-size:13px;color:var(--text2);padding:16px 0;">No modules active — go to Settings → Field mode to add tiles.</div>`;
+
   grpsEl.innerHTML = `
-    <div style="padding:24px 16px 12px;">
-      <div style="font-size:18px;font-weight:700;margin-bottom:4px;">Field Mode</div>
-      <div style="font-size:13px;color:var(--text2);margin-bottom:20px;">
-        Quick-access tile grid coming soon. For now, use the Feed screen to log feedings.
-      </div>
-      <button class="btn btn-green" style="width:100%;font-size:16px;padding:16px;"
-        onclick="nav('feed',document.getElementById('bn-feed'));setTimeout(openQuickFeedSheet,120);">
-        🌾 Log Feed
-      </button>
-      <div style="margin-top:10px;font-size:12px;color:var(--text2);text-align:center;">
-        Tap <strong>← Detail</strong> in the header to return to the full app.
-      </div>
+    <div style="padding:16px 0 8px;">
+      <div style="font-size:18px;font-weight:700;margin-bottom:2px;">Field Mode</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:16px;">Tap to log. Tap <strong>← Detail</strong> in the header to return.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">${tileHTML}</div>
     </div>`;
 }
 // ─── END FIELD HOME ───────────────────────────────────────────────────────────
@@ -8430,7 +8495,7 @@ function renderPastures(){
           ?`<span style="font-size:10px;font-weight:700;color:var(--amber-d);background:var(--bg2);border:1px solid var(--amber-d);border-radius:5px;padding:0 4px;">C${ft.cuttingNum}</span> `
           :'';
         const batchLabel=f.batchId?`<span style="font-family:monospace;font-size:11px;font-weight:600;color:var(--teal-d);">${f.batchId}</span>`:'<span style="font-size:11px;color:var(--text3);">no batch ID</span>';
-        const wtNote=f.weightPerUnitKg?` · ${f.weightPerUnitKg}kg/bale`:'';
+        const wtNote=f.weightPerUnitKg?` · ${f.weightPerUnitKg}lbs/bale`:'';
         return `<div style="font-size:11px;padding:3px 0;border-bottom:0.5px solid var(--border);display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
           ${cutBadge}${batchLabel}
           <span style="color:var(--text2);">${f.quantity??'?'} ${f.batchUnit||'bales'} · ${dLabel(f.evDate)}${wtNote}</span>
@@ -8629,7 +8694,8 @@ function addFeedType(){
   const cuttingNumRaw=document.getElementById('ft-cutting-num')?.value||'';
   const cuttingNum=cuttingNumRaw?parseInt(cuttingNumRaw):null;
   const harvestActive=!!(document.getElementById('ft-harvest-active')?.checked);
-  S.feedTypes.push({id:generateFeedTypeId(),archived:false,name,unit:document.getElementById('ft-unit').value,dm:parseFloat(document.getElementById('ft-dm').value)||85,cat:document.getElementById('ft-cat').value,nPct,pPct,kPct,forageTypeId:forageTypeId||null,cuttingNum,harvestActive});
+  const defaultWeightLbs=parseFloat(document.getElementById('ft-default-weight')?.value)||null;
+  S.feedTypes.push({id:generateFeedTypeId(),archived:false,name,unit:document.getElementById('ft-unit').value,dm:parseFloat(document.getElementById('ft-dm').value)||85,cat:document.getElementById('ft-cat').value,nPct,pPct,kPct,forageTypeId:forageTypeId||null,cuttingNum,harvestActive,defaultWeightLbs});
   const _ft=S.feedTypes[S.feedTypes.length-1];
   stampSetup();queueWrite('feed_types',_feedTypeRow(_ft,_sbOperationId));save();renderFeedTypes();populateBatchTypeSelect();_clearFeedTypeForm();
 }
@@ -8641,6 +8707,7 @@ function _clearFeedTypeForm(){
   const ftHa=document.getElementById('ft-harvest-active');if(ftHa)ftHa.checked=false;
   const ftDm=document.getElementById('ft-dm');if(ftDm)ftDm.value='';
   const ftCat=document.getElementById('ft-cat');if(ftCat)ftCat.value='hay';
+  const ftWt=document.getElementById('ft-default-weight');if(ftWt)ftWt.value='';
 }
 function openEditFeedType(idx){
   const ft=S.feedTypes[idx];if(!ft)return;
@@ -8655,13 +8722,12 @@ function openEditFeedType(idx){
   document.getElementById('ft-npct').value=ft.nPct!=null?ft.nPct:'';
   document.getElementById('ft-ppct').value=ft.pPct!=null?ft.pPct:'';
   document.getElementById('ft-kpct').value=ft.kPct!=null?ft.kPct:'';
+  const ftWt=document.getElementById('ft-default-weight');if(ftWt)ftWt.value=ft.defaultWeightLbs!=null?ft.defaultWeightLbs:'';
   document.getElementById('ft-form-title').textContent='Edit feed type';
   document.getElementById('ft-create-btns').style.display='none';
   document.getElementById('ft-edit-btns').style.display='';
-  // Only show delete for admins
   const delBtn=document.getElementById('ft-delete-btn');
   if(delBtn) delBtn.style.display=isAdmin()?'':'none';
-  // Scroll form into view
   document.getElementById('ft-form-title').scrollIntoView({behavior:'smooth',block:'start'});
 }
 function saveEditFeedType(){
@@ -8680,6 +8746,7 @@ function saveEditFeedType(){
   ft.nPct=parseFloat(document.getElementById('ft-npct').value)||null;
   ft.pPct=parseFloat(document.getElementById('ft-ppct').value)||null;
   ft.kPct=parseFloat(document.getElementById('ft-kpct').value)||null;
+  ft.defaultWeightLbs=parseFloat(document.getElementById('ft-default-weight')?.value)||null;
   stampSetup();queueWrite('feed_types',_feedTypeRow(ft,_sbOperationId));save();
   cancelFeedTypeEdit();
   renderFeedTypes();populateBatchTypeSelect();
@@ -8697,14 +8764,23 @@ function _deleteFeedTypeFromEdit(){
   cancelFeedTypeEdit();
   tryDeleteFeedType(idx);
 }
+// OI-0127: inline harvest-active toggle — one tap, immediate save, re-renders harvest tile grid if open
+function toggleFeedTypeHarvestActive(idx){
+  const ft=S.feedTypes[idx];if(!ft)return;
+  ft.harvestActive=!ft.harvestActive;
+  stampSetup();queueWrite('feed_types',_feedTypeRow(ft,_sbOperationId));save();
+  renderFeedTypes();
+  if(document.getElementById('harvest-sheet-wrap')?.style.display==='flex') _renderHarvestTileGrid();
+}
 function renderFeedTypes(){
   const el=document.getElementById('ft-list');
   if(!S.feedTypes.length){el.innerHTML='<div style="font-size:13px;color:var(--text2);margin-bottom:8px;">None yet</div>';populateBatchTypeSelect();return;}
   el.innerHTML=S.feedTypes.map((ft,i)=>ft.archived
     ?`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);opacity:0.45;"><span style="font-size:13px;">${ft.name} <span class="badge bb">archived</span></span><button class="btn btn-outline btn-xs" onclick="unarchive('feedType','${ft.id}')">Unarchive</button></div>`
-    :`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);font-size:13px;">
-        <span>${ft.name} <span class="badge bb">${ft.unit}</span> <span class="badge bg">${ft.dm}% DM</span>${(ft.nPct||ft.pPct||ft.kPct)?` <span class="badge bt">N${ft.nPct??'?'} P${ft.pPct??'?'} K${ft.kPct??'?'}</span>`:''}${ft.cuttingNum!=null?` <span class="badge ba">C${ft.cuttingNum}</span>`:''}${ft.harvestActive?` <span class="badge bg">🌾 ACTIVE</span>`:''}</span>
-        <button class="btn btn-outline btn-xs" style="flex-shrink:0;margin-left:8px;" onclick="openEditFeedType(${i})">Edit</button>
+    :`<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:7px 0;border-bottom:0.5px solid var(--border);font-size:13px;">
+        <span style="flex:1;min-width:0;">${ft.name} <span class="badge bb">${ft.unit}</span> <span class="badge bg">${ft.dm}% DM</span>${ft.defaultWeightLbs?` <span class="badge bt">${ft.defaultWeightLbs} lbs</span>`:''}${(ft.nPct||ft.pPct||ft.kPct)?` <span class="badge bt">N${ft.nPct??'?'} P${ft.pPct??'?'} K${ft.kPct??'?'}</span>`:''}${ft.cuttingNum!=null?` <span class="badge ba">C${ft.cuttingNum}</span>`:''}</span>
+        <button onclick="toggleFeedTypeHarvestActive(${i})" style="flex-shrink:0;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;border:1.5px solid ${ft.harvestActive?'var(--green)':'var(--border2)'};background:${ft.harvestActive?'var(--green)':'transparent'};color:${ft.harvestActive?'white':'var(--text2)'};">${ft.harvestActive?'🌾 Active':'○ Inactive'}</button>
+        <button class="btn btn-outline btn-xs" style="flex-shrink:0;" onclick="openEditFeedType(${i})">Edit</button>
       </div>`
   ).join('');
   populateBatchTypeSelect();
@@ -8774,8 +8850,9 @@ function _generateBatchId(landId, feedTypeId, date){
   const farmPart=farm
     ?farm.name.replace(/[^a-zA-Z]/g,'').substring(0,3).toUpperCase()
     :'UNK';
+  // OI-0127: sanitize fieldCode — strip non-alphanum so "E-3" → "E3" and never breaks the dash separator
   const fieldPart=p&&p.fieldCode
-    ?p.fieldCode.toUpperCase()
+    ?p.fieldCode.replace(/[^a-zA-Z0-9]/g,'').toUpperCase()
     :(p?p.name.replace(/[^a-zA-Z0-9]/g,'').substring(0,3).toUpperCase()+'⚠':'FLD');
   const cutPart=ft&&ft.cuttingNum!=null?String(ft.cuttingNum):'?';
   const datePart=date?date.replace(/-/g,''):'';
@@ -8839,8 +8916,8 @@ function _renderHarvestTileGrid(){
           <button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:18px;padding:0;" onclick="_harvestRemoveFieldRow(${ti},${ri})">×</button>
         </div>
         <div class="field" style="margin-bottom:8px;">
-          <label style="font-size:12px;font-weight:600;">Weight / bale (kg)</label>
-          <input type="number" min="0" step="1" value="${row.weightPerUnitKg||''}" placeholder="${ft?(ft.wt||ft.weightPerUnitKg||''):''}"
+          <label style="font-size:12px;font-weight:600;">Weight / bale (lbs)</label>
+          <input type="number" min="0" step="1" value="${row.weightPerUnitKg||''}" placeholder="${ft&&ft.defaultWeightLbs?ft.defaultWeightLbs:''}"
             style="font-size:18px;font-weight:600;height:44px;"
             oninput="_harvestTiles[${ti}].fieldRows[${ri}].weightPerUnitKg=parseFloat(this.value)||null"/>
         </div>
@@ -8893,10 +8970,13 @@ function _harvestToggleTile(feedTypeId){
 
 function _harvestAddFieldRow(tileIdx){
   if(!_harvestTiles[tileIdx]) return;
-  _harvestTiles[tileIdx].fieldRows.push({
-    id:String(Date.now()+_harvestTiles[tileIdx].fieldRows.length),
+  const tile=_harvestTiles[tileIdx];
+  const ft=(S.feedTypes||[]).find(f=>f.id===tile.feedTypeId);
+  const defaultWt=ft&&ft.defaultWeightLbs?ft.defaultWeightLbs:null;
+  tile.fieldRows.push({
+    id:String(Date.now()+tile.fieldRows.length),
     landId:null,landName:null,fieldCode:null,farmName:null,
-    quantity:null,weightPerUnitKg:null,
+    quantity:null,weightPerUnitKg:defaultWt, // pre-populated from feed type default (lbs)
     batchId:null,batchIdDirty:false,notes:null,
     createdAt:new Date().toISOString(),
   });
@@ -16001,6 +16081,9 @@ function applyFieldMode(){
     // OI-0123: harvest field mode — nav to Fields screen, open harvest sheet
     nav('pastures', document.getElementById('bn-pastures'));
     setTimeout(()=>{ openHarvestSheet(); }, 180);
+  } else if(fieldParam === 'home' || (activate && !fieldParam)){
+    // OI-0006: field home tile grid — just nav to home, renderHome() delegates to renderFieldHome()
+    nav('home', document.getElementById('bn-home'));
   }
 }
 
@@ -19217,12 +19300,15 @@ if ('serviceWorker' in navigator) {
           <option value="4">4th cut</option>
         </select>
       </div>
-      <div class="field" style="display:flex;align-items:flex-end;padding-bottom:2px;">
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
-          <input type="checkbox" id="ft-harvest-active" style="width:16px;height:16px;cursor:pointer;"/>
-          🌾 Harvest active
-        </label>
+      <div class="field"><label>Default weight (lbs) <span style="font-weight:400;color:var(--text2);font-size:11px;">per bale/unit</span></label>
+        <input type="number" id="ft-default-weight" placeholder="850" min="0" step="1"/>
       </div>
+    </div>
+    <div class="field" style="padding-bottom:6px;">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
+        <input type="checkbox" id="ft-harvest-active" style="width:16px;height:16px;cursor:pointer;"/>
+        🌾 Harvest active — show as tile on harvest sheet
+      </label>
     </div>
     <div style="font-size:12px;font-weight:600;color:var(--text2);margin:10px 0 4px;">Hay analysis — optional</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">From a lab feed test. Used to credit uneaten bale OM as a fertility input. Leave blank if unknown.</div>

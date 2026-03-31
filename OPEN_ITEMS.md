@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260331.2224
-**Reconciled against build:** b20260331.2224
+**Last updated:** b20260331.2335
+**Reconciled against build:** b20260331.2335
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -21,24 +21,25 @@
 | 🔴 Open — Roadblock | 0 |
 | 🔴 Open — Bug | 0 |
 | 🟡 Open — Polish | 0 |
-| 🔵 Open — Enhancement | 20 |
+| 🔵 Open — Enhancement | 23 |
 | ⚪ Open — Debt | 6 |
-| ✅ Closed | 85 |
+| ✅ Closed | 96 |
 
 ---
 
 ## Session Queue
 
-Recommended work order as of b20260331.2211. Update after each session.
+Recommended work order as of b20260331.2335. Update after each session.
 
 | Priority | OI | Title | Notes |
 |---|---|---|---|
 | 1 | OI-0105 | Membership-weighted NPK for multi-group events | Design first — future enhancement |
+| 2 | OI-0129 | Field mode per-module streamlined UX | Design first — each module may need mobile-optimized sheet variant |
 
-> **OI-0126 closed** b20260331.2224 — Feed types button added to Fields screen and Harvest sheet; feed types sheet redesigned (form at top, list at bottom, Edit button per row, delete only inside edit form).
-> **OI-0125 closed** b20260331.2211 — rotation calendar legend now has four conditional swatches.
-> **OI-0122/0123/0124 closed** b20260331.2158 — harvest tile flow complete.
-> **Last updated:** b20260331.2224
+> **OI-0128 closed** b20260331.2335 — Field home tile grid (OI-0006 resolved): `renderFieldHome()` full 2-column tile grid; `FIELD_MODULES` constant; per-user `user.fieldModules[]`; Settings card; `?field=home` routing; 3rd PWA shortcut "Field Home".
+> **OI-0127 closed** b20260331.2335 — Harvest module fixes: `defaultWeightLbs` on feed types (form, list badge, pre-populate harvest rows); weight label kg→lbs throughout; batch ID fieldCode sanitization (`E-3`→`E3`); `harvest_event_fields` `_SB_ALLOWED_COLS` entry (fixes Error [1] operation_id); inline harvest-active toggle pill per feed type row.
+> **OI-0126 closed** b20260331.2224 — Feed types button on Fields/Harvest; form redesign.
+> **Last updated:** b20260331.2335
 
 ---
 
@@ -51,6 +52,64 @@ Recommended work order as of b20260331.2211. Update after each session.
 ---
 
 ## Open Items
+
+### OI-0129
+**Source:** User report / design session — b20260331.2335
+**Area:** Field Mode — per-module sheets
+**Severity:** Enhancement
+**Status:** 🔵 Open
+**Found:** b20260331.2335
+**Closed:** —
+
+Each field mode tile currently calls the existing full-featured sheet (Quick Feed, Harvest, Survey, Animals). For true field-optimized UX, each module may benefit from a simplified sheet variant: larger tap targets, fewer secondary actions, single-task flow. Deferred until field mode is used in practice and specific friction points are identified.
+
+**Acceptance criteria:** At least one module has a documented streamlined variant that differs meaningfully from the existing sheet. Design session required first.
+
+---
+
+### OI-0128
+**Source:** User report — b20260331.2335
+**Area:** Field Mode / Home Screen (`renderFieldHome`, `applyFieldMode`, PWA manifest)
+**Severity:** Enhancement
+**Status:** ✅ Closed
+**Found:** b20260322.1353 (as OI-0006)
+**Closed:** b20260331.2335
+
+Field home tile grid — full implementation of OI-0006. `renderFieldHome()` now renders a 2-column grid of large tappable tiles (100px min height, glove-friendly). `FIELD_MODULES` constant defines all four modules (Feed, Harvest, Survey, Animals). Per-user `user.fieldModules[]` controls which tiles show; defaults to all four. `toggleFieldModule(key)` + `renderFieldModules()` power the Settings → Field mode card. `?field=home` routing added to `applyFieldMode()`. 3rd PWA shortcut "Field Home" (`/?field=home`, ⊞ icon) added to manifest — bookmarkable URL for farm workers to land directly in field mode. OI-0006 closed via this item.
+
+**Future:** Each module may get a streamlined sheet variant — tracked as OI-0129.
+
+---
+
+### OI-0127
+**Source:** User report — b20260331.2335
+**Area:** Harvest sheet · Feed types sheet · `_generateBatchId` · `_SB_ALLOWED_COLS`
+**Severity:** Bug + Enhancement
+**Status:** ✅ Closed
+**Found:** b20260331.2335
+**Closed:** b20260331.2335
+
+Four harvest module fixes shipped together:
+
+**A — `defaultWeightLbs` on feed types.** New field on `S.feedTypes[]`. "Default weight (lbs) per bale/unit" input added to feed type form (`ft-default-weight`). Badge shown in list row. `_harvestAddFieldRow()` pre-populates `weightPerUnitKg` from `ft.defaultWeightLbs` when a new field row is added. Wired in `addFeedType()`, `openEditFeedType()`, `saveEditFeedType()`, `_clearFeedTypeForm()`. `_feedTypeRow()` and `_SB_ALLOWED_COLS['feed_types']` updated. Requires `ALTER TABLE feed_types ADD COLUMN IF NOT EXISTS default_weight_lbs numeric` before pushing.
+
+**B — Weight label kg→lbs.** Harvest sheet field label "Weight / bale (kg)" → "Weight / bale (lbs)". Field card display "· kg/bale" → "· lbs/bale". Internal field name `weightPerUnitKg` and Supabase column `weight_per_unit_kg` intentionally left as-is (rename = migration risk); mismatch documented in ARCHITECTURE under the weight units clarification note.
+
+**C — Batch ID fieldCode sanitization.** `_generateBatchId()` now strips non-alphanumeric characters from `p.fieldCode` before using it as the field segment. `"E-3"` → `"E3"`, preventing the 5-segment broken ID `HOM-E-3-1-20260331`.
+
+**D — `harvest_event_fields` `_SB_ALLOWED_COLS` entry.** `queueWrite()` auto-injects `operation_id` into every record. `harvest_event_fields` has no `operation_id` column (child table — `harvest_event_id` FK suffices). The missing `_SB_ALLOWED_COLS` entry meant the injected `operation_id` reached Supabase → Error [1] "Could not find the 'operation_id' column". Fix: added `harvest_event_fields` entry to `_SB_ALLOWED_COLS` without `operation_id`.
+
+**E — Inline harvest-active toggle.** `toggleFeedTypeHarvestActive(idx)` added. Feed type list rows now show a pill toggle (green `🌾 Active` / gray `○ Inactive`) alongside the Edit button. One-tap saves immediately and re-renders the harvest tile grid if that sheet is open.
+
+**SQL required before pushing:**
+```sql
+ALTER TABLE harvest_events ALTER COLUMN id TYPE text;
+ALTER TABLE harvest_event_fields ALTER COLUMN id TYPE text;
+ALTER TABLE harvest_event_fields ALTER COLUMN harvest_event_id TYPE text;
+ALTER TABLE feed_types ADD COLUMN IF NOT EXISTS default_weight_lbs numeric;
+```
+
+---
 
 ### OI-0126
 **Source:** User report — b20260331.2224
@@ -1540,9 +1599,9 @@ Per-paddock feed and residual tracking. In multi-paddock events (e.g. bale grazi
 **Source:** Claude observation — b20260322.1353
 **Area:** Field Mode / Home Screen (~renderFieldHome)
 **Severity:** Enhancement
-**Status:** 🔵 Open
+**Status:** ✅ Closed
 **Found:** b20260322.1353
-**Closed:** —
+**Closed:** b20260331.2335 (via OI-0128)
 
 `renderFieldHome()` is currently a stub that shows a single "Log Feed" button and a placeholder message. The intended implementation is a large-icon tile grid with per-user configurable modules (feed, pasture survey, move, weight entry). Each tile launches its task handler sheet directly without navigating through the full app.
 
