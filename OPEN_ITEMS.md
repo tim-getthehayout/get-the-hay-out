@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260330.2156
-**Reconciled against build:** b20260330.2156
+**Last updated:** b20260331.0008
+**Reconciled against build:** b20260331.0008
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -21,25 +21,23 @@
 | 🔴 Open — Roadblock | 0 |
 | 🔴 Open — Bug | 0 |
 | 🟡 Open — Polish | 1 |
-| 🔵 Open — Enhancement | 22 |
-| ⚪ Open — Debt | 7 |
-| ✅ Closed | 76 |
+| 🔵 Open — Enhancement | 20 |
+| ⚪ Open — Debt | 6 |
+| ✅ Closed | 80 |
 
 ---
 
 ## Session Queue
 
-Recommended work order as of b20260330.2116. Update after each session.
+Recommended work order as of b20260330.2312. Update after each session.
 
 | Priority | OI | Title | Notes |
 |---|---|---|---|
-| 1 | OI-0114 | Flush error storm — no suppression for repeated identical failures | Debt — circuit breaker / dedup to error log |
-| 2 | OI-0069 | Rotation calendar — sub-move blocks green for pasture, tan for hay | Small, self-contained fix in renderRotationCalendar() |
-| 3 | OI-0105 | Membership-weighted NPK for multi-group events | Design first — future enhancement |
+| 1 | OI-0105 | Membership-weighted NPK for multi-group events | Design first — future enhancement |
+| 2 | — | M7 post-session | Deploy, verify forage seed data, test harvest → batch flow |
 
-> **OI-0115 + OI-0116 complete** at b20260330.2116 — cascade SQL fix for `pastures.id` bigint + full surveys feature: Supabase `surveys` table, draft/commit flow, Surveys ATC tab, pasture edit history panel.
-> **OI-0113 closed** — paddock_observations.pasture_id now text.
-> **Last updated:** b20260330.2116
+> **M7 sub-tasks A–F complete** at b20260331.0100 — full Land/Farms/Harvest milestone done. Harvest event sheet + batch auto-creation shipped. OI-0111 closed.
+> **Last updated:** b20260331.0100
 
 ---
 
@@ -54,12 +52,12 @@ Recommended work order as of b20260330.2116. Update after each session.
 ## Open Items
 
 ### OI-0111
-**Source:** User report — b20260330.1939
-**Area:** `_openGroupMembership` (~L8359)
-**Severity:** Bug
+**Source:** Migration tracking — b20260330
+**Area:** M7 — Land, Farms & Harvest
+**Severity:** Enhancement
 **Status:** ✅ Closed
-**Found:** b20260330.1939
-**Closed:** b20260330.1939
+**Found:** b20260330
+**Closed:** b20260331.0100 (A–F all complete)
 
 Adding multiple animals to a group in one save produced only 1 membership row in Supabase. Root cause: `_openGroupMembership` used `id: Date.now()` — synchronous `forEach` loop assigns the same millisecond timestamp to all membership rows. `queueWrite` deduplication matches on `id`, so each row overwrites the previous one in the queue. 10 cows added → 1 queue entry → 1 row in Supabase → after `loadFromSupabase` the group shows 1 cow. **Fix:** Changed to `id: Date.now() + S.animalGroupMemberships.length`. Since the array grows with each push, every call in the loop gets a unique value regardless of clock resolution.
 
@@ -472,10 +470,11 @@ SQL script `supabase-fix-pastures-id-cascade.sql` — dropped all FK constraints
 
 ### OI-0114
 **Source:** Claude observation — b20260330.2005
-**Area:** `flushToSupabase` (~L3039), error log (~L10262)
+**Area:** `flushToSupabase` (~L3039), `logError` (~L12976)
 **Severity:** Debt
-**Status:** ⚪ Open
+**Status:** ✅ Closed
 **Found:** b20260330.2005
+**Closed:** b20260330.2312
 
 When `flushToSupabase` runs against a queue containing N permanently-stuck items (schema error or network dropout), every flush attempt logs N individual error entries. With `ensureQueueFlushed` now firing on every auth event and realtime callback, a single stuck queue generates hundreds of log entries in seconds — filling the 200-entry cap and burying useful earlier entries. Confirmed: 20 stuck queue items × ~8 reconnect cycles = 160 identical error entries at 19:51:46, pushing all earlier entries out of the log.
 
@@ -802,11 +801,11 @@ Three drive sync robustness fixes applied together:
 
 ### OI-0058
 **Source:** In-app feedback — id:1774356724442
-**Area:** Rotation Calendar (`renderRotationCalendar()`, ~L11971)
+**Area:** Rotation Calendar (`renderRotationCalendar()`, ~L14205)
 **Severity:** Bug
-**Status:** 🔴 Open
+**Status:** ✅ Closed
 **Found:** b20260325.0013 (feedback dated 2026-03-24, v1.2)
-**Closed:** —
+**Closed:** b20260330.2312
 
 "Sub moves that are pasture (versus the primary bale grazing paddock) should be green on the rotation calendar." Currently all sub-move blocks use the same colour as the parent event (hay/tan). A sub-move on a grazing paddock should use the green pasture colour to correctly represent where the animals actually are and what the fertility picture looks like.
 

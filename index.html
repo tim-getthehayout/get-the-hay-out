@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260330.2208" id="app-version-meta"/>
+<meta name="app-version" content="b20260331.0107" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -561,7 +561,7 @@ body:not(.field-mode) #field-mode-toggle{
       </button>
       <button class="dsk-nav-item" id="dbn-pastures" onclick="nav('pastures',this)">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
-        Pastures
+        Fields
       </button>
       <button class="dsk-nav-item" id="dbn-feed" onclick="nav('feed',this)">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
@@ -1023,18 +1023,26 @@ body:not(.field-mode) #field-mode-toggle{
       <div id="input-applications-list" style="margin-bottom:12px;"></div>
       <div class="div"></div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-        <div style="font-size:15px;font-weight:600;">Locations</div>
+        <div style="font-size:15px;font-weight:600;">Fields</div>
         <button class="btn btn-green btn-sm" onclick="openAddLocation()" style="flex-shrink:0;">+ Add</button>
         <button class="btn btn-outline btn-sm" onclick="openBulkSurveySheet()" style="flex-shrink:0;">📋 Survey</button>
+        <button class="btn btn-outline btn-sm" id="harvest-btn" onclick="openHarvestSheet()" style="flex-shrink:0;display:none;">🌾 Harvest</button>
         <div style="flex:1;position:relative;">
-          <input type="search" id="pasture-search" placeholder="Filter locations…"
+          <input type="search" id="pasture-search" placeholder="Filter fields…"
             oninput="renderPastures()"
             style="width:100%;padding:6px 28px 6px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;box-sizing:border-box;"/>
           <span id="pasture-search-clear" onclick="clearPastureSearch()"
             style="display:none;position:absolute;right:8px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:15px;color:var(--text2);line-height:1;">×</span>
         </div>
       </div>
+      <!-- M7-C: Land use filter chips -->
+      <div id="field-filter-chips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;"></div>
       <div id="pasture-list"></div>
+      <!-- M7-F: Harvest events log -->
+      <div id="harvest-events-section" style="margin-top:16px;display:none;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:6px;">Harvest events</div>
+        <div id="harvest-events-list"></div>
+      </div>
       </div><!-- end pastures-list-pane -->
 
       <!-- SURVEYS PANE -->
@@ -1085,7 +1093,7 @@ body:not(.field-mode) #field-mode-toggle{
               <option value="animals">Animals</option>
               <option value="events">Events</option>
               <option value="feed">Feed</option>
-              <option value="pastures">Pastures</option>
+              <option value="pastures">Fields</option>
               <option value="reports">Reports</option>
               <option value="todos">To-Dos</option>
               <option value="settings">Settings</option>
@@ -1232,6 +1240,25 @@ body:not(.field-mode) #field-mode-toggle{
         </div>
         <input type="file" id="import-file" accept=".json" style="display:none;" onchange="importDataJSON(event)"/>
         <div id="import-status" style="font-size:12px;color:var(--teal-d);margin-top:8px;display:none;"></div>
+      </div>
+
+      <!-- Farms (M7-A) -->
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <div class="sec" style="margin:0;">Farms</div>
+          <button class="btn btn-outline btn-sm" onclick="openEditFarmSheet(null)">+ Add farm</button>
+        </div>
+        <div id="farm-list"></div>
+      </div>
+
+      <!-- Forage types (M7-E) -->
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <div class="sec" style="margin:0;">Forage types</div>
+          <button class="btn btn-outline btn-sm" onclick="openEditForageTypeSheet(null)">+ Add</button>
+        </div>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:8px;">Reference library for DM% and NPK removal values. Linked to feed types and harvest events.</div>
+        <div id="forage-type-list"></div>
       </div>
 
       <!-- Farm users (M6) -->
@@ -1535,9 +1562,7 @@ body:not(.field-mode) #field-mode-toggle{
     </button>
     <button class="bnav-btn" id="bn-pastures" onclick="nav('pastures',this)">
       <svg class="bnav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
-      Pastures
-    </button>
-    <button class="bnav-btn" id="bn-feed" onclick="nav('feed',this)">
+      Fields onclick="nav('feed',this)">
       <svg class="bnav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18M3 15h18M9 3v18M15 3v18" stroke-linecap="round"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
       Feed
     </button>
@@ -1568,6 +1593,105 @@ body:not(.field-mode) #field-mode-toggle{
   </div>
 </div>
 
+<!-- FARM SHEET (M7-A) -->
+<div class="sheet-wrap" id="farm-sheet-wrap" style="display:none;">
+  <div class="sheet-backdrop" onclick="closeFarmSheet()"></div>
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:14px;" id="farm-sheet-title">Add Farm</div>
+    <input type="hidden" id="farm-sheet-idx"/>
+    <div class="field"><label>Farm name *</label><input type="text" id="farm-sheet-name" placeholder="e.g. Home Farm"/></div>
+    <div class="field"><label>Address (optional)</label><input type="text" id="farm-sheet-addr" placeholder="e.g. 123 County Rd"/></div>
+    <div class="field"><label>Notes (optional)</label><input type="text" id="farm-sheet-notes" placeholder=""/></div>
+    <button class="btn btn-green" onclick="saveFarmFromSheet()">Save farm</button>
+    <button class="btn btn-outline" onclick="closeFarmSheet()" style="margin-top:8px;">Cancel</button>
+  </div>
+</div>
+
+<!-- HARVEST EVENT SHEET (M7-F) -->
+<div class="sheet-wrap" id="harvest-sheet-wrap" style="display:none;">
+  <div class="sheet-backdrop" onclick="closeHarvestSheet()"></div>
+  <div class="sheet" style="max-height:92vh;overflow-y:auto;">
+    <div class="sheet-handle"></div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:4px;">Record Harvest</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:14px;">Each field creates a feed batch automatically.</div>
+    <div class="two">
+      <div class="field"><label>Harvest date *</label><input type="date" id="harvest-sheet-date"/></div>
+      <div class="field"><label>Event notes (optional)</label><input type="text" id="harvest-sheet-notes" placeholder="e.g. 1st cut"/></div>
+    </div>
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Fields harvested</div>
+    <div id="harvest-row-list"></div>
+    <button class="btn btn-outline btn-sm" onclick="_addHarvestRow()" style="margin-bottom:14px;">+ Add field</button>
+    <div class="btn-row">
+      <button class="btn btn-green" onclick="saveHarvestEvent()">Save harvest</button>
+      <button class="btn btn-outline" onclick="closeHarvestSheet()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- FORAGE TYPE SHEET (M7-E) -->
+<div class="sheet-wrap" id="forage-sheet-wrap" style="display:none;">
+  <div class="sheet-backdrop" onclick="closeForageTypeSheet()"></div>
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:4px;" id="forage-sheet-title">Add Forage Type</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">NPK values are kg removed per tonne of dry matter harvested.</div>
+    <input type="hidden" id="forage-sheet-idx"/>
+    <div class="field"><label>Name *</label><input type="text" id="forage-sheet-name" placeholder="e.g. Alfalfa Hay"/></div>
+    <div class="two">
+      <div class="field"><label>DM %</label><input type="number" id="forage-sheet-dm" placeholder="88" step="0.1" min="0" max="100"/></div>
+      <div class="field"><label>Unit</label><select disabled style="opacity:0.5;"><option>kg/t DM</option></select></div>
+    </div>
+    <div class="three">
+      <div class="field"><label>N kg/t DM</label><input type="number" id="forage-sheet-n" placeholder="18.0" step="0.1" min="0"/></div>
+      <div class="field"><label>P kg/t DM</label><input type="number" id="forage-sheet-p" placeholder="2.8" step="0.1" min="0"/></div>
+      <div class="field"><label>K kg/t DM</label><input type="number" id="forage-sheet-k" placeholder="20.0" step="0.1" min="0"/></div>
+    </div>
+    <div class="field"><label>Notes (optional)</label><input type="text" id="forage-sheet-notes" placeholder="Source, lab, year…"/></div>
+    <div class="btn-row" style="margin-top:8px;">
+      <button class="btn btn-green" onclick="saveForageTypeFromSheet()">Save</button>
+      <button class="btn btn-outline" onclick="closeForageTypeSheet()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- SOIL TEST SHEET (M7-D) -->
+<div class="sheet-wrap" id="soil-sheet-wrap" style="display:none;">
+  <div class="sheet-backdrop" onclick="closeSoilTestSheet()"></div>
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:2px;">Soil Test</div>
+    <div style="font-size:13px;color:var(--teal-d);font-weight:500;margin-bottom:12px;" id="soil-sheet-land-name"></div>
+    <input type="hidden" id="soil-sheet-land-id"/>
+    <input type="hidden" id="soil-sheet-id"/>
+    <div class="two">
+      <div class="field"><label>Test date *</label><input type="date" id="soil-sheet-date"/></div>
+      <div class="field"><label>Unit</label>
+        <select id="soil-sheet-unit">
+          <option value="lbs/acre">lbs/acre</option>
+          <option value="kg/ha">kg/ha</option>
+          <option value="ppm">ppm</option>
+        </select>
+      </div>
+    </div>
+    <div class="three">
+      <div class="field"><label>N</label><input type="number" id="soil-sheet-n" placeholder="40" step="0.1" min="0"/></div>
+      <div class="field"><label>P</label><input type="number" id="soil-sheet-p" placeholder="30" step="0.1" min="0"/></div>
+      <div class="field"><label>K</label><input type="number" id="soil-sheet-k" placeholder="120" step="0.1" min="0"/></div>
+    </div>
+    <div class="two">
+      <div class="field"><label>pH (optional)</label><input type="number" id="soil-sheet-ph" placeholder="6.5" step="0.1" min="0" max="14"/></div>
+      <div class="field"><label>Organic matter % (optional)</label><input type="number" id="soil-sheet-om" placeholder="3.2" step="0.1" min="0" max="100"/></div>
+    </div>
+    <div class="field"><label>Lab (optional)</label><input type="text" id="soil-sheet-lab" placeholder="e.g. Waypoint Analytical"/></div>
+    <div class="field"><label>Notes (optional)</label><input type="text" id="soil-sheet-notes" placeholder=""/></div>
+    <div class="btn-row" style="margin-top:8px;">
+      <button class="btn btn-green" onclick="saveSoilTest()">Save test</button>
+      <button class="btn btn-outline" onclick="closeSoilTestSheet()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- FEEDBACK SHEET -->
 <div class="sheet-wrap" id="fb-sheet-wrap">
   <div class="sheet-backdrop" onclick="closeFeedbackSheet()"></div>
@@ -1592,7 +1716,7 @@ body:not(.field-mode) #field-mode-toggle{
         <option value="animals">Animals</option>
         <option value="events">Events</option>
         <option value="feed">Feed</option>
-        <option value="pastures">Pastures</option>
+        <option value="pastures">Fields</option>
         <option value="reports">Reports</option>
         <option value="todos">To-Dos</option>
         <option value="settings">Settings</option>
@@ -2488,7 +2612,8 @@ async function loadFromSupabase(operationId){
       pastureRows, feedTypeRows, batchRows, classRows, inputProductRows,
       treatmentTypeRows, aiBullRows, todoRows, feedbackRows,
       paddockObsRows, weightRecordRows, groupMemberRows,
-      inputAppLocRows, manureTxRows, surveyRows,
+      inputAppLocRows, manureTxRows, surveyRows, farmRows,
+      soilTestRows, forageTypeRows, harvestEvRes,
     ] = await Promise.all([
       // Hierarchical — nested select handles sub-table FKs automatically
       _sbClient.from('events').select(
@@ -2522,6 +2647,11 @@ async function loadFromSupabase(operationId){
       _sbFetch('input_application_locations', operationId),   // M0 top-level array
       _sbFetch('manure_batch_transactions', operationId),      // M0 top-level array
       _sbFetch('surveys',                  operationId),       // OI-0115: survey parent rows
+      _sbFetch('farms',                    operationId),       // M7-A: farm grouping
+      _sbFetch('soil_tests',               operationId),       // M7-D: soil test anchor
+      _sbFetch('forage_types',             operationId),       // M7-E: forage reference library
+      // M7-F: harvest events with per-field sub-records (nested select)
+      _sbClient.from('harvest_events').select('*,harvest_event_fields(*)').eq('operation_id', operationId),
     ]);
 
     // Log any errors on primary hierarchical fetches
@@ -2538,7 +2668,40 @@ async function loadFromSupabase(operationId){
       // Supabase stores min_days/max_days; app reads recoveryMinDays/recoveryMaxDays everywhere.
       if (p.recoveryMinDays == null && p.minDays != null) p.recoveryMinDays = p.minDays;
       if (p.recoveryMaxDays == null && p.maxDays != null) p.recoveryMaxDays = p.maxDays;
+      // M7-B: farm_id → farmId, land_use → landUse (snake→camel via _sbToCamel handles this,
+      // but add explicit defaults so downstream code can always read them safely)
+      if (p.farmId == null)  p.farmId  = null;
+      if (p.landUse == null) p.landUse = p.locationType === 'confinement' ? 'confinement' : 'pasture';
       return p;
+    });
+    // M7-A: assemble farms
+    S.farms = (farmRows || []).map(r => {
+      const f = _sbToCamel(r);
+      if (!f.createdAt && f.created_at) f.createdAt = f.created_at;
+      return f;
+    });
+    // M7-D: assemble soil tests — land_id → landId, organic_matter → organicMatter, ph → pH
+    S.soilTests = (soilTestRows || []).map(r => {
+      const t = _sbToCamel(r);
+      if (t.ph != null && t.pH == null) t.pH = t.ph;
+      return t;
+    });
+    // M7-E: assemble forage types — snake→camel via _sbToCamel handles all fields
+    S.forageTypes = (forageTypeRows || []).map(_sbToCamel);
+    // M7-F: assemble harvest events — nested harvest_event_fields → ev.fields[]
+    if(harvestEvRes.error) logError('supabase-load', 'harvest_events: ' + harvestEvRes.error.message, '');
+    S.harvestEvents = (harvestEvRes.data || []).map(r => {
+      const ev = _sbToCamel(r);
+      ev.fields = (r.harvest_event_fields || []).map(f => {
+        const fRow = _sbToCamel(f);
+        // Alias snake→camel for compound field names _sbToCamel may not catch
+        if (fRow.weightPerUnitKg == null && fRow.weight_per_unit_kg != null) fRow.weightPerUnitKg = fRow.weight_per_unit_kg;
+        if (fRow.nPerTonneDm  != null && fRow.nPerTonneDM  == null) fRow.nPerTonneDM  = fRow.nPerTonneDm;
+        if (fRow.pPerTonneDm  != null && fRow.pPerTonneDM  == null) fRow.pPerTonneDM  = fRow.pPerTonneDm;
+        if (fRow.kPerTonneDm  != null && fRow.kPerTonneDM  == null) fRow.kPerTonneDM  = fRow.kPerTonneDm;
+        return fRow;
+      });
+      return ev;
     });
     S.feedTypes                 = (feedTypeRows        || []).map(_sbToCamel);
     S.batches = (batchRows || []).map(r => {
@@ -2629,7 +2792,7 @@ async function loadFromSupabase(operationId){
     // Migration guards — all additive, safe to run on Supabase-loaded data
     migrateHerdToGroups(); migrateGroupsToAnimals(); migrateAnimalSystemIds();
     migrateSystemIds(); migrateToPaddocksField(); migrateToGroupsField();
-    migrateWeaningFields(); migrateM0aData();
+    migrateWeaningFields(); migrateM0aData(); migrateHomeFarm(); migrateForageTypes();
 
     // Rebuild ev.totals for closed events. totals is a computed JS object — it is never
     // stored in Supabase. On first load, closed events have totals=undefined which causes
@@ -2707,6 +2870,88 @@ function _pastureRow(p, opId){
     max_days:         p.recoveryMaxDays ?? p.maxDays ?? null,
     archived:         p.archived || false,
     setup_updated_at: p.setupUpdatedAt || null,
+    farm_id:          p.farmId ?? null,        // M7-B
+    land_use:         p.landUse ?? null,       // M7-B
+  };
+}
+
+// M7-A: _farmRow — maps S.farms[] entry to Supabase farms table columns
+function _farmRow(f, opId){
+  return {
+    id:           f.id,
+    operation_id: opId,
+    name:         f.name ?? '',
+    address:      f.address ?? null,
+    notes:        f.notes ?? null,
+    created_at:   f.createdAt ?? new Date().toISOString(),
+  };
+}
+
+// M7-D: _soilTestRow — maps S.soilTests[] entry to Supabase soil_tests columns
+function _soilTestRow(t, opId){
+  return {
+    id:             t.id,
+    operation_id:   opId,
+    land_id:        t.landId ?? null,
+    date:           t.date ?? null,
+    n:              t.n    != null ? parseFloat(t.n)    : null,
+    p:              t.p    != null ? parseFloat(t.p)    : null,
+    k:              t.k    != null ? parseFloat(t.k)    : null,
+    unit:           t.unit ?? 'lbs/acre',
+    ph:             t.pH   != null ? parseFloat(t.pH)   : null,
+    organic_matter: t.organicMatter != null ? parseFloat(t.organicMatter) : null,
+    lab:            t.lab   ?? null,
+    notes:          t.notes ?? null,
+    created_at:     t.createdAt ?? new Date().toISOString(),
+  };
+}
+
+// M7-F: _harvestEventRow — parent harvest event row
+function _harvestEventRow(ev, opId){
+  return {
+    id:           ev.id,
+    operation_id: opId,
+    date:         ev.date ?? null,
+    notes:        ev.notes ?? null,
+    created_at:   ev.createdAt ?? new Date().toISOString(),
+  };
+}
+
+// M7-F: _harvestEventFieldRow — per-field sub-record
+function _harvestEventFieldRow(f, harvestEventId){
+  return {
+    id:                 f.id,
+    harvest_event_id:   harvestEventId,
+    land_id:            f.landId    ?? null,
+    land_name:          f.landName  ?? null,
+    acres:              f.acres     != null ? parseFloat(f.acres)     : null,
+    feed_type_id:       f.feedTypeId ?? null,
+    batch_unit:         f.batchUnit  ?? null,
+    quantity:           f.quantity   != null ? parseFloat(f.quantity)  : null,
+    weight_per_unit_kg: f.weightPerUnitKg != null ? parseFloat(f.weightPerUnitKg) : null,
+    dm_pct:             f.dmPct      != null ? parseFloat(f.dmPct)     : null,
+    n_per_tonne_dm:     f.nPerTonneDM != null ? parseFloat(f.nPerTonneDM) : null,
+    p_per_tonne_dm:     f.pPerTonneDM != null ? parseFloat(f.pPerTonneDM) : null,
+    k_per_tonne_dm:     f.kPerTonneDM != null ? parseFloat(f.kPerTonneDM) : null,
+    batch_id:           f.batchId  ?? null,
+    notes:              f.notes    ?? null,
+    created_at:         f.createdAt ?? new Date().toISOString(),
+  };
+}
+
+// M7-E: _forageTypeRow — maps S.forageTypes[] entry to Supabase forage_types columns
+function _forageTypeRow(ft, opId){
+  return {
+    id:               ft.id,
+    operation_id:     opId,
+    name:             ft.name ?? '',
+    dm_pct:           ft.dmPct         != null ? parseFloat(ft.dmPct)         : null,
+    n_per_tonne_dm:   ft.nPerTonneDM   != null ? parseFloat(ft.nPerTonneDM)   : null,
+    p_per_tonne_dm:   ft.pPerTonneDM   != null ? parseFloat(ft.pPerTonneDM)   : null,
+    k_per_tonne_dm:   ft.kPerTonneDM   != null ? parseFloat(ft.kPerTonneDM)   : null,
+    notes:            ft.notes   ?? null,
+    is_seeded:        ft.isSeeded ?? false,
+    created_at:       ft.createdAt ?? new Date().toISOString(),
   };
 }
 
@@ -2770,6 +3015,7 @@ function _feedTypeRow(ft, opId){
     k_pct:            ft.kPct ?? null,
     archived:         ft.archived ?? false,
     setup_updated_at: ft.setupUpdatedAt ?? null,
+    forage_type_id:   ft.forageTypeId ?? null,  // M7-E
   };
 }
 
@@ -3143,6 +3389,17 @@ async function pushAllToSupabase(){
   (S.inputProducts||[]).forEach(p => queueWrite('input_products', _inputProductRow(p, opId)));
   // Pastures use a special shape function
   (S.pastures||[]).forEach(p => queueWrite('pastures', _pastureRow(p, opId)));
+  // M7-A: farms
+  (S.farms||[]).forEach(f => queueWrite('farms', _farmRow(f, opId)));
+  // M7-D: soil tests
+  (S.soilTests||[]).forEach(t => queueWrite('soil_tests', _soilTestRow(t, opId)));
+  // M7-E: forage types
+  (S.forageTypes||[]).forEach(ft => queueWrite('forage_types', _forageTypeRow(ft, opId)));
+  // M7-F: harvest events + per-field sub-records
+  (S.harvestEvents||[]).forEach(ev => {
+    queueWrite('harvest_events', _harvestEventRow(ev, opId));
+    (ev.fields||[]).forEach(f => queueWrite('harvest_event_fields', _harvestEventFieldRow(f, ev.id)));
+  });
   // Events: use queueEventWrite which handles all 6 child tables
   (S.events||[]).forEach(ev => queueEventWrite(ev));
   // Flush immediately — this is an explicit full-replace, not incremental
@@ -3424,7 +3681,11 @@ function ensureDataArrays(){
                 'animalWeightRecords',  // M0b-F: top-level weight time series
                 'animalGroupMemberships', // M0b-G: top-level membership ledger
                 'inputApplicationLocations', // M0b-H: top-level amendment locations
-                'manureBatchTransactions'];  // M0b-I: top-level transaction ledger
+                'manureBatchTransactions',  // M0b-I: top-level transaction ledger
+                'farms',          // M7-A: farm grouping for all land
+                'soilTests',      // M7-D: soil test anchor per field
+                'forageTypes',    // M7-E: forage nutritional reference library
+                'harvestEvents']; // M7-F: machine harvest events
   arrays.forEach(k=>{if(!Array.isArray(S[k]))S[k]=[];});
   if(!S.herd)S.herd={name:'',type:'',count:0,weight:0,dmi:2.5};
   if(S._paddocksMigrated===undefined)S._paddocksMigrated=false;
@@ -3496,7 +3757,7 @@ function renderCurrentScreen(){
   else if(curScreen==='pastures')renderPastures();
   else if(curScreen==='feedback')renderFeedbackTab();
   else if(curScreen==='reports'){renderReportsScreen();}
-  else if(curScreen==='settings'){loadSettings();renderOperationMembersList();renderClassesList();renderGroupsList();renderGrpAnimalPicker();sbUpdateAuthUI();renderSyncQueueInspector();}
+  else if(curScreen==='settings'){loadSettings();renderOperationMembersList();renderClassesList();renderGroupsList();renderGrpAnimalPicker();sbUpdateAuthUI();renderSyncQueueInspector();renderFarms();renderForageTypes();}
 }
 
 // ─── USER SYSTEM ──────────────────────────────────────────────────────────────
@@ -4722,6 +4983,7 @@ function saveQuickFeed(){
 function openFeedTypesSheet(){
   renderFeedTypes();
   populateBatchTypeSelect();
+  populateForageTypeSelect(); // M7-E: populate forage type selector
   document.getElementById('feed-types-wrap').classList.add('open');
 }
 function closeFeedTypesSheet(){
@@ -7876,7 +8138,38 @@ function renderPastures(){
   const hasConfinement=S.pastures.some(p=>p.locationType==='confinement'&&p.captureManure);
   document.getElementById('manure-inventory-section').style.display=hasConfinement?'block':'none';
   if(hasConfinement)renderManureInventory();
-  if(!S.pastures.length){el.innerHTML='<div class="empty">No locations yet</div>';return;}
+  if(!S.pastures.length){el.innerHTML='<div class="empty">No fields yet</div>';return;}
+  // M7-F: show Harvest button for admins; show events section when harvests exist
+  const harvestBtn=document.getElementById('harvest-btn');
+  if(harvestBtn) harvestBtn.style.display=isAdmin()?'':'none';
+  const harvestSec=document.getElementById('harvest-events-section');
+  if(harvestSec){
+    const hasHarvests=(S.harvestEvents||[]).length>0;
+    harvestSec.style.display=hasHarvests?'block':'none';
+    if(hasHarvests) renderHarvestEvents();
+  }
+
+  // ── M7-C: Filter chips ──────────────────────────────────────────────────
+  const chipEl=document.getElementById('field-filter-chips');
+  if(chipEl){
+    const activeLU=window._fieldLandUseFilter||'all';
+    const chipData=[
+      {k:'all',label:'All'},
+      {k:'pasture',label:'Pasture'},
+      {k:'mixed-use',label:'Mixed-Use'},
+      {k:'crop',label:'Crop'},
+      {k:'confinement',label:'Confinement'},
+    ];
+    chipEl.innerHTML=chipData.map(c=>{
+      const active=activeLU===c.k;
+      return `<button onclick="window._fieldLandUseFilter='${c.k}';renderPastures()"
+        style="padding:3px 10px;border-radius:12px;font-size:11px;font-weight:${active?'700':'400'};
+        border:1px solid ${active?'var(--green)':'var(--border2)'};
+        background:${active?'var(--green)':'var(--bg2)'};
+        color:${active?'white':'var(--text2)'};cursor:pointer;">${c.label}</button>`;
+    }).join('');
+  }
+
   // Pasture search filter
   const pastureSearchRaw = (document.getElementById('pasture-search')?.value||'').trim();
   const pastureQ = pastureSearchRaw.toLowerCase();
@@ -7889,13 +8182,20 @@ function renderPastures(){
     return `<span style="cursor:pointer;color:${active?'var(--green)':'var(--text2)'};font-weight:${active?'600':'400'};"
       onclick="pastureSortCol='${col}';pastureSortDir=${active?-1:1}*pastureSortDir;renderPastures()">${label}${arrow}</span>`;
   }
-  const sortedPastureList = [...S.pastures].filter(p=>!pastureQ
-    || p.name.toLowerCase().includes(pastureQ)
-    || (p.soil||'').toLowerCase().includes(pastureQ)
-    || (p.species||'').toLowerCase().includes(pastureQ)
-    || (p.description||'').toLowerCase().includes(pastureQ)
-    || String(p.acres||'').includes(pastureQ)
-  ).sort((a,b)=>{
+
+  // ── M7-C: land use filter ───────────────────────────────────────────────
+  const activeLU=window._fieldLandUseFilter||'all';
+  let filteredPastures=[...S.pastures].filter(p=>{
+    if(activeLU!=='all' && (p.landUse||'pasture')!==activeLU) return false;
+    if(!pastureQ) return true;
+    return p.name.toLowerCase().includes(pastureQ)
+      || (p.soil||'').toLowerCase().includes(pastureQ)
+      || (p.species||'').toLowerCase().includes(pastureQ)
+      || (p.description||'').toLowerCase().includes(pastureQ)
+      || String(p.acres||'').includes(pastureQ);
+  });
+
+  const sortedPastureList = filteredPastures.sort((a,b)=>{
     let av, bv;
     if(pastureSortCol==='name'){ av=a.name; bv=b.name; return pastureSortDir*av.localeCompare(bv,'en',{numeric:true}); }
     if(pastureSortCol==='acres'){ return pastureSortDir*((a.acres||0)-(b.acres||0)); }
@@ -7918,10 +8218,38 @@ function renderPastures(){
     }
     return 0;
   });
-  el.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0 6px;border-bottom:0.5px solid var(--border);font-size:11px;margin-bottom:6px;">
+
+  // ── M7-C: land use badge helper ─────────────────────────────────────────
+  const LU_LABEL={pasture:'Pasture','mixed-use':'Mixed-Use',crop:'Crop',confinement:'Confinement'};
+  const LU_COLOR={'pasture':'var(--green)','mixed-use':'var(--teal-d)','crop':'var(--amber-d)','confinement':'var(--purple-d)'};
+  function landUseBadge(p){
+    const lu=p.landUse||(p.locationType==='confinement'?'confinement':'pasture');
+    return `<span style="font-size:10px;font-weight:600;color:${LU_COLOR[lu]||'var(--text2)'};
+      background:var(--bg2);border:1px solid ${LU_COLOR[lu]||'var(--border)'};
+      border-radius:8px;padding:1px 6px;margin-left:4px;">${LU_LABEL[lu]||lu}</span>`;
+  }
+
+  // ── M7-C: group by farm ─────────────────────────────────────────────────
+  const multipleF=(S.farms||[]).length>1;
+  const farmMap={};
+  (S.farms||[]).forEach(f=>{ farmMap[f.id]=f.name; });
+  // Group pastures by farmId; unassigned under '' key
+  const byFarm={};
+  sortedPastureList.forEach(p=>{
+    const key=p.farmId||'';
+    if(!byFarm[key]) byFarm[key]=[];
+    byFarm[key].push(p);
+  });
+  // Ordered: farms in S.farms order, then unassigned
+  const farmKeys=[...(S.farms||[]).map(f=>f.id),''].filter(k=>byFarm[k]);
+
+  const sortHdrRow=`<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0 6px;border-bottom:0.5px solid var(--border);font-size:11px;margin-bottom:6px;">
     <div>${pastureSortHdr('name','Name')} · ${pastureSortHdr('acres','Acres')}</div>
     <div>${pastureSortHdr('graze','Exp. Graze')} · ${pastureSortHdr('survey','Survey')} · ${pastureSortHdr('avg','Avg %')}</div>
-  </div>` + sortedPastureList.map((p)=>{ const i=S.pastures.indexOf(p);
+  </div>`;
+
+  function renderPastureCard(p){
+    const i=S.pastures.indexOf(p);
     if(p.archived) return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:0.5px solid var(--border);opacity:0.45;">
       <div><div style="font-size:13px;font-weight:500;">${p.name} <span class="badge bb">archived</span></div><div style="font-size:11px;color:var(--text2);">${p.acres||0} ac</div></div>
       <button class="btn btn-outline btn-xs" onclick="unarchive('pasture',${JSON.stringify(p.id)})">Unarchive</button>
@@ -7933,7 +8261,10 @@ function renderPastures(){
     const openTasks=S.todos.filter(t=>t.paddock===p.name&&t.status!=='closed').length;
     const typeBadge=isCon?`<span class="badge bb">${p.captureManure?Math.round(p.capturePercent||80)+'% cap':'no cap'}</span>`:'';
     const detail=isCon?(p.description||'Confinement'):`${p.acres} ac · ${p.soil||''}${p.species?' · '+p.species:''}`;
-    // Calculate NPK totals for pasture locations
+    // M7-D: soil test last-tested line
+    const lst=!isCon?latestSoilTest(p.id):null;
+    const soilLine=lst?`<div style="font-size:11px;color:var(--teal-d);margin-top:2px;">🧪 Soil test: ${dLabel(lst.date)} · N${lst.n??'?'} P${lst.p??'?'} K${lst.k??'?'} ${lst.unit||'lbs/acre'}</div>`:
+      (!isCon?`<div style="font-size:11px;color:var(--text2);margin-top:2px;opacity:0.6;">🧪 No soil test yet</div>`:'');
     let npkLine='';
     if(!isCon){
       const gEvsClosed=S.events.filter(e=>evMatchesPasture(e,p.name,p.id)&&e.status==='closed'&&e.locationType!=='confinement'&&e.totals&&e.totals.npk);
@@ -7946,7 +8277,7 @@ function renderPastures(){
         npkLine=`<div style="font-size:11px;color:var(--text2);margin-top:3px;">` +
           `NPK: N${totalN.toFixed(1)} / P${totalP.toFixed(1)} / K${totalK.toFixed(1)} lbs` +
           (spreadEvs.length?` (incl. ${spreadEvs.length} spread event${spreadEvs.length!==1?'s':''})` : '') +
-          (totalOM>0.1?` · <span style="color:var(--teal-d);">OM: ${totalOM<1000?totalOM.toFixed(0):( totalOM/2000).toFixed(2)+' ton'} DM residual</span>`:'') +
+          (totalOM>0.1?` · <span style="color:var(--teal-d);">OM: ${totalOM<1000?totalOM.toFixed(0):(totalOM/2000).toFixed(2)+' ton'} DM residual</span>`:'') +
           `</div>`;
       }
     }
@@ -7956,8 +8287,21 @@ function renderPastures(){
       const remLbs=batches.reduce((s,b)=>s+getBatchRemaining(b),0);
       if(remLbs>0){const vol=volLbsToDisplay(remLbs);manureLine=`<div style="font-size:11px;color:var(--amber-d);margin-top:3px;">~${vol.val} ${vol.unit} in storage</div>`;}
     }
-    return `<div class="chip"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><div style="font-size:14px;font-weight:600;">${p.name} ${isActive?'<span class="badge bt">active</span>':''} ${isCon?'<span class="badge bb">confinement</span>':''}</div><div style="font-size:12px;color:var(--text2);margin-top:2px;">${detail}</div>${npkLine}${manureLine}${(()=>{return !isCon?recoveryDateLine(p,true):'';})()}</div><div style="display:flex;gap:6px;align-items:center;">${typeBadge}${avg!==null?`<span class="badge ${avg>=60?'bg':'ba'}">${avg}% avg</span>`:''} ${openTasks?`<span class="badge ba">${openTasks} task${openTasks!==1?'s':''}</span>`:''}${(()=>{const lr=latestSurveyRating(p.id,p.name);return lr?`<span style="font-size:11px;font-weight:700;color:${surveyRatingColor(lr.rating)};background:${surveyRatingBg(lr.rating)};padding:2px 7px;border-radius:10px;" title="Survey ${dLabel(lr.date)}">${lr.rating}</span>`:'';})()}<button class="btn btn-outline btn-xs" onclick="openLocEdit(${i})">Edit</button><button class="btn btn-outline btn-xs" onclick="openSurveySheet('${p.id}')">📋 Survey</button><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:20px;padding:2px 6px;" onclick="tryDeletePasture(${i})">×</button></div></div></div>`;
-  }).join('');
+    return `<div class="chip"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><div style="font-size:14px;font-weight:600;">${p.name}${landUseBadge(p)} ${isActive?'<span class="badge bt">active</span>':''} ${isCon?'<span class="badge bb">confinement</span>':''}</div><div style="font-size:12px;color:var(--text2);margin-top:2px;">${detail}</div>${soilLine}${npkLine}${manureLine}${(()=>{return !isCon?recoveryDateLine(p,true):'';})()}</div><div style="display:flex;gap:6px;align-items:center;">${typeBadge}${avg!==null?`<span class="badge ${avg>=60?'bg':'ba'}">${avg}% avg</span>`:''} ${openTasks?`<span class="badge ba">${openTasks} task${openTasks!==1?'s':''}</span>`:''}${(()=>{const lr=latestSurveyRating(p.id,p.name);return lr?`<span style="font-size:11px;font-weight:700;color:${surveyRatingColor(lr.rating)};background:${surveyRatingBg(lr.rating)};padding:2px 7px;border-radius:10px;" title="Survey ${dLabel(lr.date)}">${lr.rating}</span>`:'';})()}<button class="btn btn-outline btn-xs" onclick="openLocEdit(${i})">Edit</button><button class="btn btn-outline btn-xs" onclick="openSurveySheet('${p.id}')">📋 Survey</button>${!isCon?`<button class="btn btn-outline btn-xs" onclick="openSoilTestSheet('${p.id}')">🧪 Soil</button>`:''}<button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:20px;padding:2px 6px;" onclick="tryDeletePasture(${i})">×</button></div></div></div>`;
+  }
+
+  if(multipleF){
+    el.innerHTML=sortHdrRow+farmKeys.map(fk=>{
+      const farmLabel=fk ? (farmMap[fk]||'Unknown Farm') : 'Unassigned';
+      const cards=byFarm[fk].map(renderPastureCard).join('');
+      return `<div style="margin-bottom:16px;">
+        <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.04em;padding:6px 0 4px;border-bottom:1px solid var(--border2);margin-bottom:4px;">${farmLabel}</div>
+        ${cards}
+      </div>`;
+    }).join('');
+  } else {
+    el.innerHTML=sortHdrRow+sortedPastureList.map(renderPastureCard).join('');
+  }
 }
 
 // ─── SETTINGS ─────────────────────────────────────────────────────────────────
@@ -8074,10 +8418,12 @@ function addFeedType(){
   const nPct=parseFloat(document.getElementById('ft-npct').value)||null;
   const pPct=parseFloat(document.getElementById('ft-ppct').value)||null;
   const kPct=parseFloat(document.getElementById('ft-kpct').value)||null;
-  S.feedTypes.push({id:generateFeedTypeId(),archived:false,name,unit:document.getElementById('ft-unit').value,dm:parseFloat(document.getElementById('ft-dm').value)||85,cat:document.getElementById('ft-cat').value,nPct,pPct,kPct});
+  const forageTypeId=document.getElementById('ft-forage-type')?.value||null;
+  S.feedTypes.push({id:generateFeedTypeId(),archived:false,name,unit:document.getElementById('ft-unit').value,dm:parseFloat(document.getElementById('ft-dm').value)||85,cat:document.getElementById('ft-cat').value,nPct,pPct,kPct,forageTypeId:forageTypeId||null});
   const _ft=S.feedTypes[S.feedTypes.length-1];
   stampSetup();queueWrite('feed_types',_feedTypeRow(_ft,_sbOperationId));save();renderFeedTypes();populateBatchTypeSelect();document.getElementById('ft-name').value='';
   document.getElementById('ft-npct').value='';document.getElementById('ft-ppct').value='';document.getElementById('ft-kpct').value='';
+  const ftSel=document.getElementById('ft-forage-type');if(ftSel)ftSel.value='';
 }
 function renderFeedTypes(){
   const el=document.getElementById('ft-list');
@@ -8087,6 +8433,418 @@ function renderFeedTypes(){
     :`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);font-size:13px;"><span>${ft.name} <span class="badge bb">${ft.unit}</span> <span class="badge bg">${ft.dm}% DM</span>${(ft.nPct||ft.pPct||ft.kPct)?` <span class="badge bt">N${ft.nPct??'?'} P${ft.pPct??'?'} K${ft.kPct??'?'}</span>`:''}</span><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;" onclick="tryDeleteFeedType(${i})">×</button></div>`
   ).join('');
   populateBatchTypeSelect();
+}
+
+// M7-A: Farm management functions
+// M7-D: Soil test functions
+function openSoilTestSheet(landId){
+  if(!landId){alert('No field selected');return;}
+  const p=S.pastures.find(p=>String(p.id)===String(landId));
+  document.getElementById('soil-sheet-land-id').value = String(landId);
+  document.getElementById('soil-sheet-land-name').textContent = p ? p.name : 'Unknown field';
+  document.getElementById('soil-sheet-id').value = '';
+  document.getElementById('soil-sheet-date').value = todayStr();
+  ['n','p','k','ph','om','lab','notes'].forEach(f=>{ const el=document.getElementById('soil-sheet-'+f); if(el) el.value=''; });
+  document.getElementById('soil-sheet-unit').value='lbs/acre';
+  document.getElementById('soil-sheet-wrap').style.display='flex';
+}
+function closeSoilTestSheet(){
+  document.getElementById('soil-sheet-wrap').style.display='none';
+}
+function saveSoilTest(){
+  const landId=document.getElementById('soil-sheet-land-id').value;
+  const date=document.getElementById('soil-sheet-date').value;
+  if(!date){alert('Date is required');return;}
+  const t={
+    id:            String(Date.now()),
+    landId,
+    date,
+    n:             parseFloat(document.getElementById('soil-sheet-n').value)||null,
+    p:             parseFloat(document.getElementById('soil-sheet-p').value)||null,
+    k:             parseFloat(document.getElementById('soil-sheet-k').value)||null,
+    unit:          document.getElementById('soil-sheet-unit').value||'lbs/acre',
+    pH:            parseFloat(document.getElementById('soil-sheet-ph').value)||null,
+    organicMatter: parseFloat(document.getElementById('soil-sheet-om').value)||null,
+    lab:           document.getElementById('soil-sheet-lab').value.trim()||null,
+    notes:         document.getElementById('soil-sheet-notes').value.trim()||null,
+    createdAt:     new Date().toISOString(),
+  };
+  S.soilTests.push(t);
+  queueWrite('soil_tests', _soilTestRow(t, _sbOperationId));
+  save(); closeSoilTestSheet(); renderPastures();
+}
+// Helper: get most recent soil test for a field
+function latestSoilTest(landId){
+  const tests=(S.soilTests||[]).filter(t=>String(t.landId)===String(landId));
+  if(!tests.length) return null;
+  return tests.slice().sort((a,b)=>b.date.localeCompare(a.date))[0];
+}
+
+// M7-F: Harvest event functions
+// _harvestRows: module-level array of field row objects being built in the sheet
+let _harvestRows = [];
+
+function openHarvestSheet(){
+  if(!isAdmin()){ alert('Admin access required to record harvest events.'); return; }
+  _harvestRows = [];
+  document.getElementById('harvest-sheet-date').value = todayStr();
+  document.getElementById('harvest-sheet-notes').value = '';
+  _renderHarvestRows();
+  document.getElementById('harvest-sheet-wrap').style.display='flex';
+}
+function closeHarvestSheet(){
+  document.getElementById('harvest-sheet-wrap').style.display='none';
+  _harvestRows = [];
+}
+
+function _renderHarvestRows(){
+  const el=document.getElementById('harvest-row-list');
+  if(!_harvestRows.length){
+    el.innerHTML='<div style="font-size:13px;color:var(--text2);padding:8px 0;">No fields added yet. Use "+ Add field" to start.</div>';
+    return;
+  }
+  // Build field options once
+  const fieldOpts = '<option value="">— pick field —</option>' +
+    (S.pastures||[]).filter(p=>!p.archived).map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+  const ftOpts = '<option value="">— pick feed type —</option>' +
+    (S.feedTypes||[]).filter(f=>!f.archived).map(f=>`<option value="${f.id}">${f.name} (${f.unit})</option>`).join('');
+
+  el.innerHTML = _harvestRows.map((r,i)=>`
+    <div style="border:0.5px solid var(--border2);border-radius:var(--radius);padding:10px;margin-bottom:10px;background:var(--bg2);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="font-size:12px;font-weight:600;color:var(--text2);">Field ${i+1}</div>
+        <button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:18px;padding:0;" onclick="_removeHarvestRow(${i})">×</button>
+      </div>
+      <div class="two">
+        <div class="field"><label>Field</label>
+          <select onchange="_harvestRowFieldChange(${i},this.value)">${fieldOpts.replace(`value="${r.landId||''}"`,`value="${r.landId||''}" selected`)}</select>
+        </div>
+        <div class="field"><label>Feed type</label>
+          <select onchange="_harvestRowFeedTypeChange(${i},this.value)">${ftOpts.replace(`value="${r.feedTypeId||''}"`,`value="${r.feedTypeId||''}" selected`)}</select>
+        </div>
+      </div>
+      <div class="two">
+        <div class="field"><label>Quantity</label>
+          <input type="number" min="0" step="0.5" value="${r.quantity||''}" placeholder="0"
+            onchange="_harvestRows[${i}].quantity=parseFloat(this.value)||null"/>
+        </div>
+        <div class="field"><label>Unit</label>
+          <select onchange="_harvestRows[${i}].batchUnit=this.value">
+            <option value="round-bale"${r.batchUnit==='round-bale'?' selected':''}>Round bale</option>
+            <option value="square-small"${r.batchUnit==='square-small'?' selected':''}>Sq bale (small)</option>
+            <option value="square-large"${r.batchUnit==='square-large'?' selected':''}>Sq bale (large)</option>
+            <option value="tonne"${r.batchUnit==='tonne'?' selected':''}>Tonne</option>
+            <option value="kg"${r.batchUnit==='kg'?' selected':''}>kg</option>
+          </select>
+        </div>
+      </div>
+      <div class="two">
+        <div class="field"><label>DM %</label>
+          <input type="number" min="0" max="100" step="0.1" value="${r.dmPct||''}" placeholder="88"
+            onchange="_harvestRows[${i}].dmPct=parseFloat(this.value)||null"/>
+        </div>
+        <div class="field"><label>Wt/unit (kg)</label>
+          <input type="number" min="0" step="1" value="${r.weightPerUnitKg||''}" placeholder="550"
+            onchange="_harvestRows[${i}].weightPerUnitKg=parseFloat(this.value)||null"/>
+        </div>
+      </div>
+      <div class="three">
+        <div class="field"><label>N kg/t DM</label>
+          <input type="number" min="0" step="0.1" value="${r.nPerTonneDM||''}" placeholder="—"
+            onchange="_harvestRows[${i}].nPerTonneDM=parseFloat(this.value)||null"/>
+        </div>
+        <div class="field"><label>P kg/t DM</label>
+          <input type="number" min="0" step="0.1" value="${r.pPerTonneDM||''}" placeholder="—"
+            onchange="_harvestRows[${i}].pPerTonneDM=parseFloat(this.value)||null"/>
+        </div>
+        <div class="field"><label>K kg/t DM</label>
+          <input type="number" min="0" step="0.1" value="${r.kPerTonneDM||''}" placeholder="—"
+            onchange="_harvestRows[${i}].kPerTonneDM=parseFloat(this.value)||null"/>
+        </div>
+      </div>
+      <div class="field"><label>Organic batch ID (optional)</label>
+        <input type="text" value="${r.batchId||''}" placeholder="e.g. 2026-HAY-001"
+          onchange="_harvestRows[${i}].batchId=this.value.trim()||null"/>
+      </div>
+      <div class="field"><label>Notes (optional)</label>
+        <input type="text" value="${r.notes||''}"
+          onchange="_harvestRows[${i}].notes=this.value.trim()||null"/>
+      </div>
+    </div>`).join('');
+}
+
+function _harvestRowFieldChange(idx, landId){
+  const p=(S.pastures||[]).find(p=>String(p.id)===String(landId));
+  _harvestRows[idx].landId   = landId || null;
+  _harvestRows[idx].landName = p ? p.name : null;
+  _harvestRows[idx].acres    = p ? (p.acres||null) : null;
+}
+
+function _harvestRowFeedTypeChange(idx, feedTypeId){
+  _harvestRows[idx].feedTypeId = feedTypeId || null;
+  if(!feedTypeId) return;
+  const ft=(S.feedTypes||[]).find(f=>f.id===feedTypeId);
+  if(!ft) return;
+  // Auto-fill DM% from feed type
+  if(ft.dm) _harvestRows[idx].dmPct = ft.dm;
+  // Auto-fill NPK from linked forage type
+  if(ft.forageTypeId){
+    const fType=(S.forageTypes||[]).find(f=>f.id===ft.forageTypeId);
+    if(fType){
+      if(fType.nPerTonneDM != null) _harvestRows[idx].nPerTonneDM = fType.nPerTonneDM;
+      if(fType.pPerTonneDM != null) _harvestRows[idx].pPerTonneDM = fType.pPerTonneDM;
+      if(fType.kPerTonneDM != null) _harvestRows[idx].kPerTonneDM = fType.kPerTonneDM;
+    }
+  }
+  _renderHarvestRows();
+}
+
+function _addHarvestRow(){
+  _harvestRows.push({
+    id:             String(Date.now() + _harvestRows.length),
+    landId:         null, landName: null, acres: null,
+    feedTypeId:     null,
+    batchUnit:      'round-bale',
+    quantity:       null, weightPerUnitKg: null,
+    dmPct:          null, nPerTonneDM: null, pPerTonneDM: null, kPerTonneDM: null,
+    batchId:        null, notes: null,
+    createdAt:      new Date().toISOString(),
+  });
+  _renderHarvestRows();
+}
+
+function _removeHarvestRow(idx){
+  _harvestRows.splice(idx,1);
+  _renderHarvestRows();
+}
+
+function saveHarvestEvent(){
+  const date=document.getElementById('harvest-sheet-date').value;
+  if(!date){alert('Date is required');return;}
+  if(!_harvestRows.length){alert('Add at least one field record');return;}
+  // Validate: each row needs a field and quantity
+  for(let i=0;i<_harvestRows.length;i++){
+    const r=_harvestRows[i];
+    if(!r.landId){alert(`Field ${i+1}: select a field`);return;}
+    if(!r.quantity){alert(`Field ${i+1}: enter quantity`);return;}
+  }
+  const evId = String(Date.now());
+  const ev = {
+    id:         evId,
+    date,
+    notes:      document.getElementById('harvest-sheet-notes').value.trim()||null,
+    createdAt:  new Date().toISOString(),
+    fields:     _harvestRows.map((r,i)=>({...r, id: String(Date.now()+i+1)})),
+  };
+  S.harvestEvents.push(ev);
+
+  // Queue parent event + per-field rows
+  queueWrite('harvest_events', _harvestEventRow(ev, _sbOperationId));
+  ev.fields.forEach(f => queueWrite('harvest_event_fields', _harvestEventFieldRow(f, evId)));
+
+  // Auto-create one S.batches[] entry per field
+  ev.fields.forEach(f => {
+    const ft=(S.feedTypes||[]).find(t=>t.id===f.feedTypeId);
+    const p=(S.pastures||[]).find(p=>String(p.id)===String(f.landId));
+    const label = [dLabel(date), p?p.name:'Field', ft?ft.name:'Harvest'].filter(Boolean).join(' · ');
+    const batch = {
+      id:                  Date.now() + S.batches.length + Math.floor(Math.random()*1000),
+      archived:            false,
+      typeId:              f.feedTypeId ?? null,
+      typeName:            ft ? ft.name : null,
+      unit:                ft ? ft.unit : (f.batchUnit||'bale'),
+      dm:                  f.dmPct ?? (ft ? ft.dm : null),
+      qty:                 f.quantity ?? 0,
+      remaining:           f.quantity ?? 0,
+      wt:                  f.weightPerUnitKg ?? null,
+      cpu:                 0,
+      label,
+      date,
+      sourceHarvestEventId: evId,
+      sourceFieldId:        f.landId ?? null,
+    };
+    S.batches.push(batch);
+    queueWrite('batches', _batchRow(batch, _sbOperationId));
+  });
+
+  save();
+  closeHarvestSheet();
+  renderPastures();
+  renderBatchListS();
+  alert(`Harvest saved — ${ev.fields.length} batch${ev.fields.length!==1?'es':''} created.`);
+}
+
+function renderHarvestEvents(){
+  const el=document.getElementById('harvest-events-list');
+  if(!el) return;
+  const evs=(S.harvestEvents||[]).slice().sort((a,b)=>b.date.localeCompare(a.date));
+  if(!evs.length){
+    el.innerHTML='<div style="font-size:13px;color:var(--text2);margin-top:8px;">No harvest events recorded.</div>';
+    return;
+  }
+  el.innerHTML=evs.map(ev=>{
+    const fieldLines=ev.fields.map(f=>{
+      const p=(S.pastures||[]).find(p=>String(p.id)===String(f.landId));
+      const ft=(S.feedTypes||[]).find(t=>t.id===f.feedTypeId);
+      return `<div style="font-size:11px;color:var(--text2);padding-left:8px;">· ${p?p.name:(f.landName||'?')}: ${f.quantity??'?'} ${f.batchUnit||'units'} ${ft?'('+ft.name+')':''}</div>`;
+    }).join('');
+    return `<div style="padding:8px 0;border-bottom:0.5px solid var(--border);">
+      <div style="font-size:13px;font-weight:600;">${dLabel(ev.date)} <span style="font-weight:400;color:var(--text2);">${ev.fields.length} field${ev.fields.length!==1?'s':''}</span></div>
+      ${fieldLines}
+      ${ev.notes?`<div style="font-size:11px;color:var(--text2);margin-top:2px;">${ev.notes}</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+// M7-E: Forage type management
+function renderForageTypes(){
+  const el=document.getElementById('forage-type-list');
+  if(!el) return;
+  if(!(S.forageTypes||[]).length){
+    el.innerHTML='<div style="font-size:13px;color:var(--text2);margin-bottom:8px;">No forage types yet.</div>';
+    return;
+  }
+  el.innerHTML=(S.forageTypes||[]).map((ft,i)=>`
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:8px 0;border-bottom:0.5px solid var(--border);">
+      <div>
+        <div style="font-size:13px;font-weight:600;">${ft.name}${ft.isSeeded?'<span style="font-size:10px;font-weight:400;color:var(--text2);margin-left:6px;">seeded</span>':''}</div>
+        <div style="font-size:11px;color:var(--text2);">DM ${ft.dmPct??'?'}% · N ${ft.nPerTonneDM??'?'} / P ${ft.pPerTonneDM??'?'} / K ${ft.kPerTonneDM??'?'} kg/t DM</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0;margin-left:8px;">
+        <button class="btn btn-outline btn-xs" onclick="openEditForageTypeSheet(${i})">Edit</button>
+        <button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;padding:0 2px;" onclick="tryDeleteForageType(${i})">×</button>
+      </div>
+    </div>`).join('');
+  populateForageTypeSelect();
+}
+
+function populateForageTypeSelect(){
+  document.querySelectorAll('.forage-type-sel').forEach(sel=>{
+    const cur=sel.value;
+    sel.innerHTML='<option value="">— Custom / none —</option>'+
+      (S.forageTypes||[]).map(ft=>`<option value="${ft.id}">${ft.name}</option>`).join('');
+    if(cur) sel.value=cur;
+  });
+}
+
+function openEditForageTypeSheet(idx){
+  const ft=idx==null ? null : (S.forageTypes||[])[idx];
+  document.getElementById('forage-sheet-idx').value   = idx==null ? '' : idx;
+  document.getElementById('forage-sheet-name').value  = ft ? (ft.name||'') : '';
+  document.getElementById('forage-sheet-dm').value    = ft ? (ft.dmPct??'') : '';
+  document.getElementById('forage-sheet-n').value     = ft ? (ft.nPerTonneDM??'') : '';
+  document.getElementById('forage-sheet-p').value     = ft ? (ft.pPerTonneDM??'') : '';
+  document.getElementById('forage-sheet-k').value     = ft ? (ft.kPerTonneDM??'') : '';
+  document.getElementById('forage-sheet-notes').value = ft ? (ft.notes||'') : '';
+  document.getElementById('forage-sheet-title').textContent = ft ? 'Edit Forage Type' : 'Add Forage Type';
+  document.getElementById('forage-sheet-wrap').style.display='flex';
+}
+function closeForageTypeSheet(){
+  document.getElementById('forage-sheet-wrap').style.display='none';
+}
+function saveForageTypeFromSheet(){
+  const name=document.getElementById('forage-sheet-name').value.trim();
+  if(!name){alert('Name is required');return;}
+  const idx=document.getElementById('forage-sheet-idx').value;
+  const isEdit=idx!=='';
+  const ft=isEdit ? S.forageTypes[parseInt(idx)] : {id:String(Date.now()),createdAt:new Date().toISOString(),isSeeded:false};
+  ft.name        = name;
+  ft.dmPct       = parseFloat(document.getElementById('forage-sheet-dm').value)||null;
+  ft.nPerTonneDM = parseFloat(document.getElementById('forage-sheet-n').value)||null;
+  ft.pPerTonneDM = parseFloat(document.getElementById('forage-sheet-p').value)||null;
+  ft.kPerTonneDM = parseFloat(document.getElementById('forage-sheet-k').value)||null;
+  ft.notes       = document.getElementById('forage-sheet-notes').value.trim()||null;
+  if(!isEdit) S.forageTypes.push(ft);
+  queueWrite('forage_types', _forageTypeRow(ft, _sbOperationId));
+  stampSetup(); save(); renderForageTypes(); closeForageTypeSheet();
+}
+function tryDeleteForageType(idx){
+  const ft=(S.forageTypes||[])[idx];
+  if(!ft) return;
+  const inUse=(S.feedTypes||[]).some(t=>t.forageTypeId===ft.id);
+  if(inUse){alert(`Cannot delete "${ft.name}" — it is linked to one or more feed types. Remove the link first.`);return;}
+  if(!confirm(`Delete forage type "${ft.name}"?`)) return;
+  S.forageTypes.splice(idx,1); stampSetup(); save(); renderForageTypes();
+}
+
+// Apply forage type defaults to feed type sheet fields when selector changes
+function onForageTypeSelect(selEl){
+  const id=selEl.value;
+  if(!id) return;
+  const ft=(S.forageTypes||[]).find(f=>f.id===id);
+  if(!ft) return;
+  const dmEl=document.getElementById('ft-dm');
+  const nEl=document.getElementById('ft-npct');
+  const pEl=document.getElementById('ft-ppct');
+  const kEl=document.getElementById('ft-kpct');
+  // Convert nPerTonneDM (kg N/t DM) → nPct (% N in DM)
+  // nPct = (nPerTonneDM / 10)  [1 kg/t = 0.1%]
+  if(dmEl && ft.dmPct)   dmEl.value = ft.dmPct;
+  if(nEl  && ft.nPerTonneDM != null) nEl.value = (ft.nPerTonneDM / 10).toFixed(2);
+  if(pEl  && ft.pPerTonneDM != null) pEl.value = (ft.pPerTonneDM / 10).toFixed(2);
+  if(kEl  && ft.kPerTonneDM != null) kEl.value = (ft.kPerTonneDM / 10).toFixed(2);
+}
+
+function renderFarms(){
+  const el=document.getElementById('farm-list');
+  if(!el) return;
+  if(!S.farms||!S.farms.length){
+    el.innerHTML='<div style="font-size:13px;color:var(--text2);margin-bottom:8px;">No farms yet — one will be created automatically when you add a field.</div>';
+    return;
+  }
+  el.innerHTML=S.farms.map((f,i)=>{
+    const fieldCount=(S.pastures||[]).filter(p=>p.farmId===f.id).length;
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:0.5px solid var(--border);">
+      <div>
+        <div style="font-size:13px;font-weight:600;">${f.name}</div>
+        <div style="font-size:11px;color:var(--text2);">${fieldCount} field${fieldCount!==1?'s':''}${f.address?' · '+f.address:''}</div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <button class="btn btn-outline btn-xs" onclick="openEditFarmSheet(${i})">Edit</button>
+        ${fieldCount===0?`<button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;padding:0 2px;" onclick="tryDeleteFarm(${i})">×</button>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openEditFarmSheet(idx){
+  const f = idx==null ? null : S.farms[idx];
+  document.getElementById('farm-sheet-idx').value  = idx==null ? '' : idx;
+  document.getElementById('farm-sheet-name').value  = f ? (f.name||'') : '';
+  document.getElementById('farm-sheet-addr').value  = f ? (f.address||'') : '';
+  document.getElementById('farm-sheet-notes').value = f ? (f.notes||'') : '';
+  document.getElementById('farm-sheet-title').textContent = f ? 'Edit Farm' : 'Add Farm';
+  document.getElementById('farm-sheet-wrap').style.display='flex';
+}
+function closeFarmSheet(){
+  document.getElementById('farm-sheet-wrap').style.display='none';
+}
+function saveFarmFromSheet(){
+  const name=document.getElementById('farm-sheet-name').value.trim();
+  if(!name){alert('Farm name is required');return;}
+  const idx=document.getElementById('farm-sheet-idx').value;
+  const isEdit = idx!=='';
+  const f = isEdit ? S.farms[parseInt(idx)] : {id:String(Date.now()),createdAt:new Date().toISOString()};
+  f.name    = name;
+  f.address = document.getElementById('farm-sheet-addr').value.trim();
+  f.notes   = document.getElementById('farm-sheet-notes').value.trim();
+  if(!isEdit) S.farms.push(f);
+  queueWrite('farms', _farmRow(f, _sbOperationId));
+  stampSetup(); save(); renderFarms(); populateFarmSelect(); closeFarmSheet();
+}
+function tryDeleteFarm(idx){
+  const f=S.farms[idx];
+  if(!f) return;
+  const fieldCount=(S.pastures||[]).filter(p=>p.farmId===f.id).length;
+  if(fieldCount>0){alert(`Cannot delete "${f.name}" — it has ${fieldCount} field${fieldCount!==1?'s':''} assigned. Reassign them first.`);return;}
+  if(!confirm(`Delete farm "${f.name}"?`)) return;
+  S.farms.splice(idx,1); stampSetup(); save(); renderFarms();
+}
+// Populate farm selector in loc-edit sheet
+function populateFarmSelect(){
+  const sel=document.getElementById('loc-farm-id');
+  if(!sel) return;
+  sel.innerHTML='<option value="">— none —</option>'+(S.farms||[]).map(f=>`<option value="${f.id}">${f.name}</option>`).join('');
 }
 function populateBatchTypeSelect(){document.getElementById('b-type').innerHTML='<option value="">— type —</option>'+S.feedTypes.filter(ft=>!ft.archived).map(ft=>`<option value="${ft.id}">${ft.name} (${ft.unit})</option>`).join('');}
 function calcBatch(){const q=parseFloat(document.getElementById('b-qty').value),c=parseFloat(document.getElementById('b-cpu').value);if(q&&c)document.getElementById('b-tcost').value=(q*c).toFixed(2);}
@@ -8147,7 +8905,7 @@ function updateHeader(){
 
 // ─── FEEDBACK ─────────────────────────────────────────────────────────────────
 const CAT={roadblock:{label:'🚧 Roadblock',cls:'br',pillCls:'cp-roadblock'},bug:{label:'Bug',cls:'br',pillCls:'cp-bug'},ux:{label:'UX friction',cls:'ba',pillCls:'cp-ux'},feature:{label:'Missing feature',cls:'bp',pillCls:'cp-feature'},calc:{label:'Calculation',cls:'bt',pillCls:'cp-calc'},idea:{label:'Idea',cls:'bg',pillCls:'cp-idea'}};
-const AREA={home:'Home',animals:'Animals',events:'Events',feed:'Feed',pastures:'Pastures',reports:'Reports',todos:'To-Dos',settings:'Settings',sync:'Sync / Data',other:'Other'};
+const AREA={home:'Home',animals:'Animals',events:'Events',feed:'Feed',pastures:'Fields',reports:'Reports',todos:'To-Dos',settings:'Settings',sync:'Sync / Data',other:'Other'};
 // Maps the current screen name to the most relevant area for auto-suggestion in the feedback sheet.
 const SCREEN_AREA={home:'home',feed:'feed',animals:'animals',events:'events',todos:'todos',pastures:'pastures',feedback:'other',reports:'reports',settings:'settings'};
 // Builds a Supabase-safe feedback row. Only writes known columns — excludes the
@@ -9329,6 +10087,12 @@ function openAddLocation(){
   document.getElementById('le-confinement-fields').style.display = 'none';
   document.getElementById('le-capture-fields').style.display    = 'none';
   document.getElementById('le-delete-wrap').style.display       = 'none';
+  // M7-B: default farm to first farm; default land use to pasture
+  populateFarmSelect();
+  const farmSel=document.getElementById('loc-farm-id');
+  if(farmSel) farmSel.value = S.farms&&S.farms.length ? S.farms[0].id : '';
+  const luSel=document.getElementById('loc-land-use');
+  if(luSel) luSel.value='pasture';
   document.getElementById('loc-edit-wrap').classList.add('open');
 }
 
@@ -9354,6 +10118,12 @@ function openLocEdit(idx){
     document.getElementById('le-batch-mode').value=p.batchMode||'accumulate';
     document.getElementById('le-capture-fields').style.display=p.captureManure?'block':'none';
   }
+  // M7-B: farm + land use
+  populateFarmSelect();
+  const farmSel=document.getElementById('loc-farm-id');
+  if(farmSel) farmSel.value=p.farmId||'';
+  const luSel=document.getElementById('loc-land-use');
+  if(luSel) luSel.value=p.landUse||(isCon?'confinement':'pasture');
   document.getElementById('le-delete-wrap').style.display='block';
   // Survey history — only for pasture/paddock locations
   const histWrap = document.getElementById('le-survey-history-wrap');
@@ -9387,6 +10157,8 @@ function saveLocEdit(){
       id: generatePastureId(), archived: false,
       name, acres: parseFloat(document.getElementById('le-acres').value)||0,
       locationType: locType,
+      farmId:  document.getElementById('loc-farm-id')?.value  || (S.farms&&S.farms.length?S.farms[0].id:null),
+      landUse: document.getElementById('loc-land-use')?.value || (isCon?'confinement':'pasture'),
     };
     if(!isCon){
       loc.soil    = document.getElementById('le-soil').value;
@@ -9418,6 +10190,9 @@ function saveLocEdit(){
   p.name  = name;
   p.acres = parseFloat(document.getElementById('le-acres').value)||p.acres;
   p.locationType = locType;
+  // M7-B: persist farm + land use
+  p.farmId  = document.getElementById('loc-farm-id')?.value  || p.farmId  || null;
+  p.landUse = document.getElementById('loc-land-use')?.value || p.landUse || (isCon?'confinement':'pasture');
   if(!isCon){
     p.soil    = document.getElementById('le-soil').value;
     p.species = document.getElementById('le-species').value;
@@ -12975,9 +13750,20 @@ function showEventsImportStatus(type,msg){
 
 function logError(source, message, stack){
   if(!Array.isArray(S.errorLog))S.errorLog=[];
+  const msg = String(message).slice(0,300);
+  // OI-0114: dedup consecutive identical entries — storm suppression.
+  // If last entry has same source + message, increment repeatCount instead of
+  // pushing a new row. Timestamp updated to most recent occurrence.
+  const last = S.errorLog[S.errorLog.length - 1];
+  if(last && last.source === source && last.message === msg){
+    last.repeatCount = (last.repeatCount || 1) + 1;
+    last.ts = new Date().toISOString();
+    try{localStorage.setItem('gthy',JSON.stringify(S));}catch(e){}
+    return;
+  }
   S.errorLog.push({
     ts: new Date().toISOString(),
-    source, message: String(message).slice(0,300),
+    source, message: msg,
     stack: String(stack||'').slice(0,600),
     screen: typeof curScreen!=='undefined'?curScreen:'',
     version: S.version||'?',
@@ -12995,7 +13781,7 @@ function exportErrorLog(){
   const lines=['GET THE HAY OUT — Error Log','Generated: '+new Date().toISOString(),'Version: '+(S.version||'?'),'Entries: '+S.errorLog.length,'','─'.repeat(60)];
   S.errorLog.slice().reverse().forEach((e,i)=>{
     lines.push('');
-    lines.push('['+(i+1)+'] '+e.ts);
+    lines.push('['+(i+1)+'] '+e.ts+(e.repeatCount>1?' (×'+e.repeatCount+')':''));
     lines.push('Source:  '+e.source);
     lines.push('Screen:  '+e.screen);
     lines.push('Message: '+e.message);
@@ -15133,6 +15919,75 @@ function migrateM0aData(){
   });
 }
 
+// M7-A: Auto-create "Home Farm" if no farms exist but pastures do.
+// Runs on every load — additive guard, safe to re-run.
+// Also defaults farmId on all pastures that have none, and sets landUse default.
+function migrateHomeFarm(){
+  if(!Array.isArray(S.farms)) S.farms=[];
+  if(!Array.isArray(S.pastures)) return;
+  // Create Home Farm if none exist and we have pastures to assign
+  if(S.farms.length===0 && S.pastures.length>0){
+    const homeFarm={
+      id:         String(Date.now()),
+      name:       'Home Farm',
+      address:    '',
+      notes:      '',
+      createdAt:  new Date().toISOString(),
+    };
+    S.farms.push(homeFarm);
+    if(_sbOperationId) queueWrite('farms', _farmRow(homeFarm, _sbOperationId));
+  }
+  // Default farmId and landUse on any pasture missing them
+  const defaultFarmId = S.farms.length>0 ? S.farms[0].id : null;
+  let changed=false;
+  (S.pastures||[]).forEach(p=>{
+    if(!p.farmId && defaultFarmId){ p.farmId=defaultFarmId; changed=true; }
+    if(!p.landUse){
+      p.landUse = (p.locationType==='confinement') ? 'confinement' : 'pasture';
+      changed=true;
+    }
+  });
+  if(changed){
+    // Queue pasture updates so Supabase gets the new farm_id/land_use values
+    if(_sbOperationId){
+      (S.pastures||[]).forEach(p=>queueWrite('pastures',_pastureRow(p,_sbOperationId)));
+    }
+  }
+}
+
+// M7-E: Seed forage types reference library if none exist.
+// Runs on every load — additive guard, safe to re-run.
+// Values from USDA / extension research averages. All marked isSeeded:true.
+function migrateForageTypes(){
+  if(!Array.isArray(S.forageTypes)) S.forageTypes=[];
+  if(S.forageTypes.length > 0) return; // already seeded
+  const seed=[
+    {name:'Alfalfa Hay',        dmPct:89, nPerTonneDM:27.0, pPerTonneDM:3.0, kPerTonneDM:24.0},
+    {name:'Mixed Grass Hay',    dmPct:88, nPerTonneDM:18.0, pPerTonneDM:2.8, kPerTonneDM:20.0},
+    {name:'Grass Hay (pure)',   dmPct:87, nPerTonneDM:16.0, pPerTonneDM:2.5, kPerTonneDM:18.0},
+    {name:'Timothy Hay',        dmPct:88, nPerTonneDM:14.0, pPerTonneDM:2.4, kPerTonneDM:17.0},
+    {name:'Orchardgrass Hay',   dmPct:88, nPerTonneDM:20.0, pPerTonneDM:3.0, kPerTonneDM:22.0},
+    {name:'Alfalfa/Grass Mix',  dmPct:88, nPerTonneDM:22.0, pPerTonneDM:2.9, kPerTonneDM:21.0},
+    {name:'Corn Silage',        dmPct:35, nPerTonneDM:14.0, pPerTonneDM:2.5, kPerTonneDM:13.0},
+  ];
+  let _id=Date.now();
+  seed.forEach(s=>{
+    const ft={
+      id:         String(_id++),
+      name:       s.name,
+      dmPct:      s.dmPct,
+      nPerTonneDM:s.nPerTonneDM,
+      pPerTonneDM:s.pPerTonneDM,
+      kPerTonneDM:s.kPerTonneDM,
+      notes:      '',
+      isSeeded:   true,
+      createdAt:  new Date().toISOString(),
+    };
+    S.forageTypes.push(ft);
+    if(_sbOperationId) queueWrite('forage_types', _forageTypeRow(ft, _sbOperationId));
+  });
+}
+
 function migrateWeaningFields(){
   (S.animals||[]).forEach(a=>{
     if(a.weaned===undefined) a.weaned=null;
@@ -15546,7 +16401,7 @@ function renderRotationCalendar(containerId){
         const myIdx = sortedSms.findIndex(x=>x===sm);
         const nextSm = sortedSms[myIdx+1];
         const smEnd  = nextSm ? nextSm.date : (ev.dateOut||todayStr());
-        windows.push({ev, start:smStart, end:smEnd, isSubMove:true});
+        windows.push({ev, start:smStart, end:smEnd, isSubMove:true, smNoPasture:!!sm.noPasture});
       });
     });
 
@@ -15606,8 +16461,8 @@ function renderRotationCalendar(containerId){
       }
       const ev       = c.win.ev;
       const isSubMove= c.win.isSubMove;
-      const isHayFeed= !!ev.noPasture;
-      const color    = evCalColor(ev);
+      const isHayFeed= c.win.isSubMove ? c.win.smNoPasture : !!ev.noPasture;
+      const color    = isHayFeed || ev.locationType==='confinement' ? '#C4A882' : '#639922';
       const name     = grpName(ev.groupId);
       const auds     = eventAUDs(ev);
       const isOpen   = ev.status==='open';
@@ -16015,7 +16870,7 @@ function renderSurveyReport(){
   const surveyObs = (S.paddockObservations||[]).filter(o=>o.source==='survey'&&o.forageQuality!=null);
 
   if(!surveyObs.length){
-    el.innerHTML = rptSectionHead('Pasture surveys','No surveys recorded yet. Use the 📋 Survey button on the Pastures tab to start.') +
+    el.innerHTML = rptSectionHead('Pasture surveys','No surveys recorded yet. Use the 📋 Survey button on the Fields tab to start.') +
       '<div class="card"><div class="empty">No survey data yet.</div></div>';
     return;
   }
@@ -16461,6 +17316,19 @@ window.addEventListener('offline', ()=>{
     <div class="two">
       <div class="field"><label>Name</label><input type="text" id="le-name" placeholder="North paddock"/></div>
       <div class="field"><label>Acres</label><input type="number" id="le-acres" step="0.5" placeholder="20"/></div>
+    </div>
+    <div class="two">
+      <div class="field"><label>Farm</label>
+        <select id="loc-farm-id"><option value="">— none —</option></select>
+      </div>
+      <div class="field"><label>Land use</label>
+        <select id="loc-land-use">
+          <option value="pasture">Pasture</option>
+          <option value="mixed-use">Mixed-use</option>
+          <option value="crop">Crop</option>
+          <option value="confinement">Confinement</option>
+        </select>
+      </div>
     </div>
     <div class="field"><label>Location type</label>
       <select id="le-loctype" onchange="onLeLocTypeChange()">
@@ -17915,6 +18783,11 @@ if ('serviceWorker' in navigator) {
           <option value="bag">bag</option>
         </select>
       </div>
+    </div>
+    <div class="field"><label>Forage type <span style="font-weight:400;color:var(--text2);font-size:11px;">(auto-fills DM% and NPK)</span></label>
+      <select id="ft-forage-type" class="forage-type-sel" onchange="onForageTypeSelect(this)">
+        <option value="">— Custom / none —</option>
+      </select>
     </div>
     <div class="two">
       <div class="field"><label>DM %</label><input type="number" id="ft-dm" placeholder="85"/></div>

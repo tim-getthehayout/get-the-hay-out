@@ -1,8 +1,8 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260330.2208`
-**Last updated:** 2026-03-29
+**Current build:** `b20260331.0107`
+**Last updated:** 2026-03-31
 
 > This is the authoritative navigation guide for every AI coding session.
 > Update it at the end of every session using the SESSION_RULES.md protocol.
@@ -977,6 +977,83 @@ across reloads via `sb-*` localStorage — rate limit only affects new sign-in a
 **Pattern:** JSONB columns stored via `JSON.stringify()` in migration scripts must be parsed back at assembly time. The assembly layer is the correct place — not render functions.
 **Supabase repair SQL:** `UPDATE todos SET assigned_to = assigned_to::text::jsonb WHERE jsonb_typeof(assigned_to) = 'string';`
 
+
+
+---
+
+## M7 — Land, Farms & Harvest (b20260331.0008)
+
+### S.farms[]
+```javascript
+{ id, name, address, notes, createdAt }
+```
+- `id`: timestamp string (existing pattern)
+- Supabase table: `farms` — RLS via `operation_members`
+- Shape function: `_farmRow(f, opId)`
+- UI: Settings → Farms card — add/edit/delete. Delete blocked if farm has fields assigned.
+- Migration guard: `migrateHomeFarm()` — auto-creates "Home Farm" if no farms exist but pastures do. Defaults `farmId` on all existing pastures. Runs on every `loadFromSupabase`.
+
+### S.pastures[] additions (M7-B)
+Two new fields added additively — no existing fields removed:
+- `farmId`: string FK → `S.farms[].id`
+- `landUse`: `'pasture'` | `'mixed-use'` | `'crop'` | `'confinement'`
+
+`_pastureRow()` now writes `farm_id` and `land_use` to Supabase.
+Assembly in `loadFromSupabase` defaults: `landUse = locationType==='confinement' ? 'confinement' : 'pasture'`.
+
+### Fields screen (M7-C)
+- Nav labels "Pastures" renamed to "Fields" (mobile + desktop nav, AREA object, feedback selectors)
+- `renderPastures()` gains: filter chips (All/Pasture/Mixed-Use/Crop/Confinement), `landUse` badge per card, farm section grouping when multiple farms exist
+- Filter state: `window._fieldLandUseFilter` (default `'all'`)
+- JS variable `S.pastures` and all function names unchanged — UI labels only
+
+### S.soilTests[] (M7-D)
+```javascript
+{ id, landId, date, n, p, k, unit, pH, organicMatter, lab, notes, createdAt }
+```
+- `unit`: `'lbs/acre'` | `'kg/ha'` | `'ppm'`
+- Shape function: `_soilTestRow(t, opId)`
+- `latestSoilTest(landId)` — returns most recent test by date for a field
+- Field card shows last-tested date + N/P/K/unit; "🧪 Soil" button opens `openSoilTestSheet(landId)`
+- NPK ledger anchor: most recent soil test resets the baseline for per-field NPK replay (query-time; not yet wired to reports — Post-M7)
+
+### S.forageTypes[] (M7-E)
+```javascript
+{ id, name, dmPct, nPerTonneDM, pPerTonneDM, kPerTonneDM, notes, isSeeded, createdAt }
+```
+- NPK values in **kg per tonne of dry matter** (harvest removal accounting)
+- `isSeeded: true` for the 7 pre-populated entries (Alfalfa, Mixed Grass, Grass, Timothy, Orchardgrass, Alfalfa/Grass Mix, Corn Silage)
+- Shape function: `_forageTypeRow(ft, opId)`
+- Migration guard: `migrateForageTypes()` — seeds on first load if `S.forageTypes.length === 0`
+- `populateForageTypeSelect()` — populates all `.forage-type-sel` selectors
+- `onForageTypeSelect(selEl)` — auto-fills DM%/NPK on feed type sheet; converts nPerTonneDM→nPct via ÷10
+- `feedType.forageTypeId` — FK to forage type; written by `addFeedType()`, stored via `_feedTypeRow()`
+- Settings: Forage types card — add/edit/delete; delete blocked if linked to a feed type
+
+### S.harvestEvents[] (M7-F)
+```javascript
+{
+  id, date, notes, createdAt,
+  fields: [{
+    id, landId, landName, acres, feedTypeId,
+    batchUnit,        // 'round-bale'|'square-small'|'square-large'|'tonne'|'kg'
+    quantity, weightPerUnitKg, dmPct,
+    nPerTonneDM, pPerTonneDM, kPerTonneDM,  // kg removed per tonne DM
+    batchId,          // user-entered organic ID (optional)
+    notes, createdAt
+  }]
+}
+```
+- Shape functions: `_harvestEventRow(ev, opId)` + `_harvestEventFieldRow(f, harvestEventId)`
+- Fetched via nested select: `harvest_events` → `harvest_event_fields(*)`
+- `saveHarvestEvent()`: validates rows, writes `S.harvestEvents[]`, queues parent + field rows, **auto-creates one `S.batches[]` per field** with `sourceHarvestEventId` + `sourceFieldId` for nutrient tracing
+- NPK auto-fill chain: `feedType.forageTypeId → S.forageTypes[].nPerTonneDM` → harvest row
+- Fields screen: "🌾 Harvest" button (admin-gated); harvest events log shown when events exist
+- `let _harvestRows` — module-level sheet state array; cleared on open/close
+
+### M7 complete — all sub-tasks A–F shipped (b20260331.0100)
+
+---
 
 ## ⚠️ Dead Code — Removed (Do Not Re-Add)
 
