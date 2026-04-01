@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260401.2022
-**Reconciled against build:** b20260401.2022
+**Last updated:** b20260401.2240
+**Reconciled against build:** b20260401.2240
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -33,7 +33,7 @@ Recommended work order as of b20260401.2022. Update after each session.
 
 | Priority | OI | Title | Notes |
 |---|---|---|---|
-| 1 | OI-0138 | Admin console artifact — submissions management | Next session — service role key needed at start |
+| 1 | OI-0138 | Admin console artifact — submissions management | Edge Function deployed first, then open console artifact |
 | 2 | OI-0139 | Thread reply UI in-app | Users see dev_response but can't reply yet |
 | 3 | OI-0105 | Membership-weighted NPK for multi-group events | Design first — future enhancement |
 | 4 | OI-0129 | Field mode per-module streamlined UX | Design first — each module may need mobile-optimized sheet variant |
@@ -75,26 +75,56 @@ Recommended work order as of b20260401.2022. Update after each session.
 ---
 
 ### OI-0138
-**Source:** Claude observation — b20260401.2022
+**Source:** Claude observation — b20260401.2022, redesigned b20260401.2037
 **Area:** Developer Tooling / Admin Console
 **Severity:** Enhancement
 **Status:** 🔵 Open — Enhancement
 **Found:** b20260401.2022
 **Closed:** —
 
-**Admin console artifact — cross-operation submissions management.** A standalone Claude Artifact (React) that connects to the Supabase `submissions` table via service-role key. Reads feedback and support tickets across ALL operations. Multi-app config array: `[{name, appKey, url, svcKey}]` — one entry per Supabase project, forward-compatible with future apps each having their own project.
+**Admin console — Edge Function + admin secret architecture.** A two-part system: a Supabase Edge Function that holds the service role key server-side, and a standalone React artifact (runs in Claude.ai) that calls it via a lightweight admin secret.
 
-**Features:**
-- Filter by: app, type (feedback/support), cat, status, area, priority, operation
-- Write `dev_response` back to specific items (PATCH via Supabase REST)
-- Thread view: full `thread[]` display; append dev reply
-- Link `oi_number` to open items
-- AI triage: batch-send uncategorized items to Claude Haiku for category suggestions
-- Export: generate OPEN_ITEMS import JSON for session use
+**Why not service role key in the artifact:** The service role bypasses all RLS. Exposing it in a browser artifact risks full-project compromise if the session is screenshotted or leaked. The Edge Function keeps it server-side permanently.
 
-**Service role key:** stays in the artifact/local session only — never deployed. Paste at session start.
+**Why not a dedicated admin user per operation:** Requires adding the user to every operation manually — clunky at scale, pollutes the member list.
 
-**Acceptance criteria:** Artifact renders all submissions from GTHY operation. Writing `dev_response` to an item is reflected in the app on next load. Filter + sort works across all fields. OI number linkage persists to Supabase.
+**Architecture:**
+```
+React artifact (browser)
+  → POST /functions/v1/admin-submissions
+    Header: X-Admin-Secret: <uuid you generate once>
+  → Edge Function validates secret (env var ADMIN_SECRET)
+  → Queries submissions with internal service role client
+  → Returns results — only submissions data, nothing else
+```
+
+**Edge Function actions:**
+- `GET ?action=list` — all submissions, cross-tenant, with optional query filters
+- `PATCH ?action=respond` — write `dev_response`, append to `thread[]`, set `first_response_at`
+- `PATCH ?action=update` — edit `cat`, `type`, `status`, `area`, `priority`, `oi_number`
+- `DELETE ?action=delete` — hard delete by id
+
+**Console config (one entry per Supabase project):**
+```js
+{ name: "Get The Hay Out", fnUrl: "https://…supabase.co/functions/v1/admin-submissions", adminSecret: "paste-at-session-start" }
+```
+Admin secret is pasted into the artifact's React state — never written to a file or committed.
+
+**Console features:**
+- Filter by: type, status, cat, priority, area, operation (cross-tenant)
+- Full thread view + dev reply input
+- Edit cat/type/status/area/priority inline
+- Link `oi_number` to any item
+- AI triage: batch uncategorized items to Claude Haiku for category suggestions (approve/reject per item)
+- Export: `gthy-feedback-YYYY-MM-DD-admin.json` in standard session-import format
+
+**One-time setup before first use:**
+1. Supabase Dashboard → Edge Functions → New function `admin-submissions`
+2. Set env vars: `ADMIN_SECRET` (run `uuidgen` in Terminal), `SUPABASE_SERVICE_ROLE_KEY` (from Dashboard → Settings → API)
+3. Deploy function code (delivered this session as `admin-submissions_index.ts`)
+4. At console open: paste function URL + admin secret
+
+**Acceptance criteria:** Console renders all submissions from GTHY operation. Writing `dev_response` is reflected in app on next load. Filter/sort works. OI number linkage persists. AI triage approvals write to Supabase and refresh the list.
 
 ---
 **Source:** Claude observation — b20260401.1011

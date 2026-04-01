@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260401.2037`
+**Current build:** `b20260401.2245`
 **Last updated:** 2026-04-01
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -1227,10 +1227,17 @@ Full column set in `_SB_ALLOWED_COLS['submissions']`. New columns added b2026040
 **Edit permissions (RLS):** Admin role can UPDATE any submission. Regular members can only UPDATE rows where `submitter_id = auth.uid()`. Legacy rows (`submitter_id IS NULL`) are admin-only. Delete is gated identically. In-app delete calls Supabase directly (not via queue) and removes from `S.feedback[]` in one step.
 
 ### Areas (`f.area`)
-`home` · `animals` · `events` · `feed` · `pastures` · `reports` · `todos` · `settings` · `sync` · `other`. Auto-suggested from `SCREEN_AREA` map.
+`home` · `animals` · `events` · `feed` · `pastures` · `harvest` · `field-mode` · `reports` · `todos` · `settings` · `sync` · `other`. Auto-suggested from `SCREEN_AREA` map. `harvest` and `field-mode` added b20260401.2240.
 
-### Admin console (planned — next session)
-Separate Claude Artifact using service-role key against `submissions` table. Multi-app config array: `[{name, appKey, url, svcKey}]`. Writes `dev_response` + `thread` back; links `oi_number`. Claude Cowork integration reads the same table.
+### Feedback screen filters
+Status/category filters plus area filter and a `has-response` pseudo-filter — shows items where `f.devResponse` or `f.dev_response` is set. Added b20260401.2240.
+
+### Admin console (delivered b20260401.2037)
+Standalone `gthy-admin-console.html` — open locally in any browser, no deployment needed. Connects to Supabase via a Deno Edge Function (`admin-submissions`) deployed to the GTHY Supabase project. Edge Function holds the service role key server-side as an env var; console authenticates with a lightweight `ADMIN_SECRET` UUID pasted at session open.
+
+**Edge Function** (`supabase/functions/admin-submissions/index.ts`): actions `list` (GET, filterable), `respond` (PATCH — dev_response + thread), `update` (PATCH — cat/type/status/area/priority/oi_number), `delete` (DELETE). JWT verification disabled on function — auth handled by `x-admin-secret` header check only.
+
+**Console features:** filter by type/status/cat/priority/area/operation, two-pane list+detail, edit all fields, send dev responses, full thread view, AI triage (Claude Haiku via Anthropic API — key pasted into toolbar), export JSON in standard session-import format.
 
 ### Stream 2 — Claude Observations (Session Notes)
 Developer-level observations made by Claude during coding sessions — things noticed off the current task.

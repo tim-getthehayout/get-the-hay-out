@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260401.2037" id="app-version-meta"/>
+<meta name="app-version" content="b20260401.2245" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -1124,6 +1124,8 @@ body:not(.field-mode) #field-mode-toggle{
               <option value="events">Events</option>
               <option value="feed">Feed</option>
               <option value="pastures">Fields</option>
+              <option value="harvest">Harvest</option>
+              <option value="field-mode">Field Mode</option>
               <option value="reports">Reports</option>
               <option value="todos">To-Dos</option>
               <option value="settings">Settings</option>
@@ -1133,6 +1135,7 @@ body:not(.field-mode) #field-mode-toggle{
             <select id="fb-filter" onchange="renderFeedbackList()" style="font-size:12px;padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);font-family:inherit;">
               <option value="all">All</option><option value="open">Open</option><option value="resolved">Resolved</option><option value="closed">Closed</option>
               <option value="roadblock">Roadblocks</option><option value="bug">Bugs</option><option value="ux">UX</option><option value="feature">Features</option><option value="calc">Calc</option><option value="idea">Ideas</option><option value="question">Questions</option>
+              <option value="has-response">Has Dev Response</option>
             </select>
           </div>
         </div>
@@ -1763,6 +1766,8 @@ body:not(.field-mode) #field-mode-toggle{
         <option value="events">Events</option>
         <option value="feed">Feed</option>
         <option value="pastures">Fields</option>
+        <option value="harvest">Harvest</option>
+        <option value="field-mode">Field Mode</option>
         <option value="reports">Reports</option>
         <option value="todos">To-Dos</option>
         <option value="settings">Settings</option>
@@ -1839,6 +1844,8 @@ body:not(.field-mode) #field-mode-toggle{
           <option value="events">Events</option>
           <option value="feed">Feed</option>
           <option value="pastures">Fields</option>
+          <option value="harvest">Harvest</option>
+          <option value="field-mode">Field Mode</option>
           <option value="reports">Reports</option>
           <option value="todos">To-Dos</option>
           <option value="settings">Settings</option>
@@ -9548,7 +9555,7 @@ function updateHeader(){
 
 // ─── FEEDBACK ─────────────────────────────────────────────────────────────────
 const CAT={roadblock:{label:'🚧 Roadblock',cls:'br',pillCls:'cp-roadblock'},bug:{label:'Bug',cls:'br',pillCls:'cp-bug'},ux:{label:'UX friction',cls:'ba',pillCls:'cp-ux'},feature:{label:'Missing feature',cls:'bp',pillCls:'cp-feature'},calc:{label:'Calculation',cls:'bt',pillCls:'cp-calc'},idea:{label:'Idea',cls:'bg',pillCls:'cp-idea'},question:{label:'Question',cls:'bt',pillCls:'cp-question'}};
-const AREA={home:'Home',animals:'Animals',events:'Events',feed:'Feed',pastures:'Fields',reports:'Reports',todos:'To-Dos',settings:'Settings',sync:'Sync / Data',other:'Other'};
+const AREA={home:'Home',animals:'Animals',events:'Events',feed:'Feed',pastures:'Fields',harvest:'Harvest',['field-mode']:'Field Mode',reports:'Reports',todos:'To-Dos',settings:'Settings',sync:'Sync / Data',other:'Other'};
 // Maps the current screen name to the most relevant area for auto-suggestion in the feedback sheet.
 const SCREEN_AREA={home:'home',feed:'feed',animals:'animals',events:'events',todos:'todos',pastures:'pastures',feedback:'other',reports:'reports',settings:'settings'};
 // Builds a Supabase-safe feedback row. Only writes known columns — excludes the
@@ -9748,6 +9755,7 @@ function renderFeedbackList(){
   let items=[...S.feedback].reverse();
   if(['open','resolved','closed'].includes(filter))items=items.filter(f=>f.status===filter);
   else if(['roadblock','bug','ux','feature','calc','idea','question'].includes(filter))items=items.filter(f=>f.cat===filter);
+  else if(filter==='has-response')items=items.filter(f=>f.devResponse||f.dev_response);
   if(areaFilter&&areaFilter!=='all')items=items.filter(f=>f.area===areaFilter);
   if(typeFilter&&typeFilter!=='all')items=items.filter(f=>(f.type||'feedback')===typeFilter);
   if(!items.length){el.innerHTML='<div class="empty">No items in this filter</div>';return;}
