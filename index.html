@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260401.1017" id="app-version-meta"/>
+<meta name="app-version" content="b20260401.2037" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -140,6 +140,19 @@ body.field-mode .field-mode-sheet.open .sheet{
 .cp-idea.sel{background:var(--green-l);color:var(--green-d);border-color:var(--green);}
 .cp-roadblock.sel{background:var(--red-l);color:var(--red-d);border-color:var(--red);}
 .cp-roadblock{font-weight:700;}
+.cp-question.sel{background:var(--teal-l);color:var(--teal-d);border-color:var(--teal);}
+/* Type toggle pills */
+.fb-type-pill.sel{background:var(--green);color:white;border-color:var(--green);}
+/* Support ticket left-border treatment */
+.fb-item-support{border-left:3px solid var(--teal) !important;}
+/* Dev response / thread block */
+.fb-dev-resp{background:var(--teal-l);border-left:3px solid var(--teal);border-radius:var(--radius);padding:8px 10px;margin-top:8px;font-size:13px;color:var(--teal-d);}
+.fb-thread{margin-top:6px;display:none;}
+.fb-thread.open{display:block;}
+.fb-thread-msg{padding:6px 10px;border-radius:var(--radius);font-size:12px;margin-bottom:4px;line-height:1.5;}
+.fb-thread-msg.dev{background:var(--teal-l);color:var(--teal-d);}
+.fb-thread-msg.user{background:var(--bg2);color:var(--text);}
+.fb-thread-meta{font-size:10px;opacity:0.7;margin-top:2px;}
 .ctx-tag{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius);font-size:12px;color:var(--text2);margin-bottom:14px;}
 .confirm-item{padding:12px 14px;background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius-l);margin-bottom:8px;}
 .brief-box{background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius);padding:12px;font-size:12px;line-height:1.65;white-space:pre-wrap;font-family:Menlo,monospace;color:var(--text);max-height:300px;overflow-y:auto;margin-bottom:10px;}
@@ -1097,8 +1110,13 @@ body:not(.field-mode) #field-mode-toggle{
       </div>
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-          <div class="sec" style="margin:0;">All feedback</div>
-          <div style="display:flex;gap:6px;">
+          <div class="sec" style="margin:0;">All submissions</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
+            <select id="fb-type-filter" onchange="renderFeedbackList()" style="font-size:12px;padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);font-family:inherit;">
+              <option value="all">All types</option>
+              <option value="feedback">Feedback</option>
+              <option value="support">Support</option>
+            </select>
             <select id="fb-area-filter" onchange="renderFeedbackList()" style="font-size:12px;padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);font-family:inherit;">
               <option value="all">All areas</option>
               <option value="home">Home</option>
@@ -1114,7 +1132,7 @@ body:not(.field-mode) #field-mode-toggle{
             </select>
             <select id="fb-filter" onchange="renderFeedbackList()" style="font-size:12px;padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);font-family:inherit;">
               <option value="all">All</option><option value="open">Open</option><option value="resolved">Resolved</option><option value="closed">Closed</option>
-              <option value="roadblock">Roadblocks</option><option value="bug">Bugs</option><option value="ux">UX</option><option value="feature">Features</option><option value="calc">Calc</option><option value="idea">Ideas</option>
+              <option value="roadblock">Roadblocks</option><option value="bug">Bugs</option><option value="ux">UX</option><option value="feature">Features</option><option value="calc">Calc</option><option value="idea">Ideas</option><option value="question">Questions</option>
             </select>
           </div>
         </div>
@@ -1719,7 +1737,12 @@ body:not(.field-mode) #field-mode-toggle{
   <div class="sheet-backdrop" onclick="closeFeedbackSheet()"></div>
   <div class="sheet">
     <div class="sheet-handle"></div>
-    <div style="font-size:16px;font-weight:600;margin-bottom:6px;">Leave feedback</div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:10px;" id="fb-sheet-title">Leave feedback</div>
+    <!-- Type toggle: Feedback vs Get Help -->
+    <div style="display:flex;gap:8px;margin-bottom:12px;">
+      <button class="fb-type-pill sel" id="fb-type-feedback" onclick="selFbType('feedback',this)" style="flex:1;padding:8px;border:1.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);font-size:13px;font-weight:500;cursor:pointer;transition:all .15s;">💬 Feedback</button>
+      <button class="fb-type-pill" id="fb-type-support" onclick="selFbType('support',this)" style="flex:1;padding:8px;border:1.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);font-size:13px;font-weight:500;cursor:pointer;transition:all .15s;">🆘 Get Help</button>
+    </div>
     <div class="ctx-tag"><span id="fb-ctx-text">—</span></div>
     <div style="font-size:13px;color:var(--text2);margin-bottom:8px;">Category</div>
     <div class="cat-pills">
@@ -1729,6 +1752,7 @@ body:not(.field-mode) #field-mode-toggle{
       <button class="cat-pill cp-feature" onclick="selCat('feature',this)">Missing feature</button>
       <button class="cat-pill cp-calc" onclick="selCat('calc',this)">Calculation</button>
       <button class="cat-pill cp-idea" onclick="selCat('idea',this)">Idea</button>
+      <button class="cat-pill cp-question" onclick="selCat('question',this)">Question</button>
     </div>
     <div class="field" style="margin-top:10px;">
       <label>Area</label>
@@ -1744,6 +1768,16 @@ body:not(.field-mode) #field-mode-toggle{
         <option value="settings">Settings</option>
         <option value="sync">Sync / Data</option>
         <option value="other">Other</option>
+      </select>
+    </div>
+    <!-- Priority — only shown for support tickets -->
+    <div class="field" id="fb-priority-row" style="display:none;">
+      <label>Priority</label>
+      <select id="fb-priority" style="width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);font-family:inherit;font-size:14px;">
+        <option value="normal">Normal</option>
+        <option value="high">High — blocking my work</option>
+        <option value="urgent">Urgent — data at risk</option>
+        <option value="low">Low — when you get a chance</option>
       </select>
     </div>
     <div class="field"><label>Note</label><textarea id="fb-note" placeholder="What did you notice? What did you expect?"></textarea></div>
@@ -1766,6 +1800,78 @@ body:not(.field-mode) #field-mode-toggle{
     <div class="btn-row">
       <button class="btn btn-teal" onclick="saveResolve()">Mark resolved</button>
       <button class="btn btn-outline" onclick="closeResolveSheet()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT SUBMISSION SHEET -->
+<div class="sheet-wrap" id="edit-sub-wrap">
+  <div class="sheet-backdrop" onclick="closeEditSubmissionSheet()"></div>
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:10px;">Edit submission</div>
+    <input type="hidden" id="edit-sub-id"/>
+    <input type="hidden" id="edit-sub-type" value="feedback"/>
+    <input type="hidden" id="edit-sub-cat" value="idea"/>
+    <!-- Type toggle -->
+    <div style="display:flex;gap:8px;margin-bottom:12px;">
+      <button class="fb-type-pill edit-type-pill sel" id="edit-type-feedback" onclick="_editSelType('feedback',this)" style="flex:1;padding:7px;border:1.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);font-size:13px;font-weight:500;cursor:pointer;">💬 Feedback</button>
+      <button class="fb-type-pill edit-type-pill" id="edit-type-support" onclick="_editSelType('support',this)" style="flex:1;padding:7px;border:1.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);font-size:13px;font-weight:500;cursor:pointer;">🆘 Support</button>
+    </div>
+    <!-- Category pills -->
+    <div style="font-size:13px;color:var(--text2);margin-bottom:6px;">Category</div>
+    <div class="cat-pills" style="margin-bottom:12px;">
+      <button class="cat-pill edit-cat-pill cp-roadblock" data-cat="roadblock" onclick="_editSelCat('roadblock',this)">🚧 Roadblock</button>
+      <button class="cat-pill edit-cat-pill cp-bug" data-cat="bug" onclick="_editSelCat('bug',this)">Bug</button>
+      <button class="cat-pill edit-cat-pill cp-ux" data-cat="ux" onclick="_editSelCat('ux',this)">UX friction</button>
+      <button class="cat-pill edit-cat-pill cp-feature" data-cat="feature" onclick="_editSelCat('feature',this)">Missing feature</button>
+      <button class="cat-pill edit-cat-pill cp-calc" data-cat="calc" onclick="_editSelCat('calc',this)">Calculation</button>
+      <button class="cat-pill edit-cat-pill cp-idea" data-cat="idea" onclick="_editSelCat('idea',this)">Idea</button>
+      <button class="cat-pill edit-cat-pill cp-question" data-cat="question" onclick="_editSelCat('question',this)">Question</button>
+    </div>
+    <div class="two">
+      <div class="field">
+        <label>Area</label>
+        <select id="edit-sub-area" style="width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);font-family:inherit;font-size:14px;">
+          <option value="">— pick area —</option>
+          <option value="home">Home</option>
+          <option value="animals">Animals</option>
+          <option value="events">Events</option>
+          <option value="feed">Feed</option>
+          <option value="pastures">Fields</option>
+          <option value="reports">Reports</option>
+          <option value="todos">To-Dos</option>
+          <option value="settings">Settings</option>
+          <option value="sync">Sync / Data</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Priority</label>
+        <select id="edit-sub-priority" style="width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);font-family:inherit;font-size:14px;">
+          <option value="normal">Normal</option>
+          <option value="high">High</option>
+          <option value="urgent">Urgent</option>
+          <option value="low">Low</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Status</label>
+      <select id="edit-sub-status" style="width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);font-family:inherit;font-size:14px;">
+        <option value="open">Open</option>
+        <option value="resolved">Resolved</option>
+        <option value="closed">Closed</option>
+      </select>
+    </div>
+    <div class="field"><label>Note</label><textarea id="edit-sub-note" style="min-height:80px;"></textarea></div>
+    <div class="btn-row">
+      <button class="btn btn-green" onclick="saveEditSubmission()">Save changes</button>
+      <button class="btn btn-outline" onclick="closeEditSubmissionSheet()">Cancel</button>
+    </div>
+    <!-- Delete — only visible when editing, separated visually -->
+    <div style="margin-top:16px;padding-top:12px;border-top:0.5px solid var(--border);">
+      <button class="btn btn-outline btn-sm" style="color:var(--red);border-color:var(--red);width:100%;" onclick="deleteSubmission(parseInt(document.getElementById('edit-sub-id').value))">🗑 Delete this item</button>
     </div>
   </div>
 </div>
@@ -2729,7 +2835,7 @@ async function loadFromSupabase(operationId){
     const [
       evRes, animalRes, groupRes, manureBatchRes, inputAppRes,
       pastureRows, feedTypeRows, batchRows, classRows, inputProductRows,
-      treatmentTypeRows, aiBullRows, todoRows, feedbackRows,
+      treatmentTypeRows, aiBullRows, todoRows, submissionRows,
       paddockObsRows, weightRecordRows, groupMemberRows,
       inputAppLocRows, manureTxRows, surveyRows, farmRes,
       soilTestRows, forageTypeRes, harvestEvRes,
@@ -2759,7 +2865,7 @@ async function loadFromSupabase(operationId){
       _sbFetch('treatment_types',          operationId),
       _sbFetch('ai_bulls',                 operationId),
       _sbFetch('todos',                    operationId),
-      _sbFetch('feedback',                 operationId),
+      _sbFetch('submissions',              operationId),
       _sbFetch('paddock_observations',     operationId),
       _sbFetch('animal_weight_records',    operationId),       // M0 top-level array
       _sbFetch('animal_group_memberships', operationId),       // M0 top-level array
@@ -2887,11 +2993,19 @@ async function loadFromSupabase(operationId){
       if (!Array.isArray(t.assignedTo)) t.assignedTo = [];
       return t;
     });
-    S.feedback = (feedbackRows || []).map(r => {
+    S.feedback = (submissionRows || []).map(r => {
       const f = _sbToCamel(r);
-      // Migration stored ctx.screen as flat 'screen' column — reconstruct the
-      // nested ctx object so all render/export code that reads f.ctx.screen works.
+      // Reconstruct ctx object from flat screen column for legacy rows
       if (!f.ctx) f.ctx = { screen: f.screen || '?', activeEvent: null };
+      // Parse thread JSONB if returned as string
+      if (f.thread && typeof f.thread === 'string') {
+        try { f.thread = JSON.parse(f.thread); } catch(e) { f.thread = []; }
+      }
+      if (!Array.isArray(f.thread)) f.thread = [];
+      // Defaults for new fields on legacy rows
+      if (!f.app)      f.app      = 'gthy';
+      if (!f.type)     f.type     = 'feedback';
+      if (!f.priority) f.priority = 'normal';
       return f;
     });
     S.paddockObservations       = (paddockObsRows      || []).map(_sbToCamel);
@@ -2973,7 +3087,7 @@ function subscribeRealtime(operationId){
   if(_sbRealtimeChannel){ _sbRealtimeChannel.unsubscribe(); _sbRealtimeChannel = null; }
   if(!_sbClient || !operationId) return;
   const WATCHED = ['events','todos','animals','pastures','animal_groups','batches',
-                   'feed_types','manure_batches','input_applications','feedback',
+                   'feed_types','manure_batches','input_applications','submissions',
                    'paddock_observations','animal_weight_records','surveys'];
   const ch = _sbClient.channel('gthy-' + operationId);
   // Debounce: collapse rapid realtime events (e.g. queue flushing many rows) into
@@ -3462,7 +3576,7 @@ function queueEventWrite(ev){
 const _SB_ALLOWED_COLS = {
   surveys:              new Set(['id','operation_id','date','status','draft_ratings','notes','created_at']),
   paddock_observations: new Set(['id','operation_id','pasture_id','observed_at','source','source_id','confidence_rank','veg_height','forage_cover_pct','forage_quality','recovery_min_days','recovery_max_days','notes','recorded_at']),
-  feedback:             new Set(['id','operation_id','cat','status','note','tester','version','ts','screen','area','resolved_in_version','resolution_note','linked_to']),
+  submissions:          new Set(['id','operation_id','app','type','cat','area','screen','priority','status','note','tester','version','ts','submitter_id','dev_response','dev_response_ts','first_response_at','thread','oi_number','resolved_in_version','resolution_note','linked_to']),
   animals:              new Set(['id','operation_id','tag','name','sex','class_id','birth_date','weaned','weaned_date','wean_target_date','confirmed_bred','confirmed_bred_date','dam_id','status','cull_date','cull_reason','notes','updated_at']),
   batches:              new Set(['id','operation_id','feed_type_id','name','quantity','unit','wt','dm_pct','cost_per_unit','purchase_date','archived','notes','updated_at']),
   animal_groups:        new Set(['id','operation_id','name','color','archived','setup_updated_at']),
@@ -3561,7 +3675,7 @@ async function pushAllToSupabase(){
     ['manure_batch_transactions', S.manureBatchTransactions, r => _manureBatchTransactionRow(r, opId)],
     ['paddock_observations',     S.paddockObservations,    r => _paddockObservationRow(r, opId)],
     ['todos',                    S.todos,                  r => _todoRow(r, opId)],
-    ['feedback',                 S.feedback,               r => _feedbackRow(r, opId)],
+    ['submissions',              S.feedback,               r => _submissionRow(r, opId)],
     ['surveys',                  (S.surveys||[]).filter(s=>s.status==='committed'), r => _surveyRow(r, opId)],
   ];
   for(const [table, arr, rowFn] of flatTables){
@@ -9433,49 +9547,104 @@ function updateHeader(){
 }
 
 // ─── FEEDBACK ─────────────────────────────────────────────────────────────────
-const CAT={roadblock:{label:'🚧 Roadblock',cls:'br',pillCls:'cp-roadblock'},bug:{label:'Bug',cls:'br',pillCls:'cp-bug'},ux:{label:'UX friction',cls:'ba',pillCls:'cp-ux'},feature:{label:'Missing feature',cls:'bp',pillCls:'cp-feature'},calc:{label:'Calculation',cls:'bt',pillCls:'cp-calc'},idea:{label:'Idea',cls:'bg',pillCls:'cp-idea'}};
+const CAT={roadblock:{label:'🚧 Roadblock',cls:'br',pillCls:'cp-roadblock'},bug:{label:'Bug',cls:'br',pillCls:'cp-bug'},ux:{label:'UX friction',cls:'ba',pillCls:'cp-ux'},feature:{label:'Missing feature',cls:'bp',pillCls:'cp-feature'},calc:{label:'Calculation',cls:'bt',pillCls:'cp-calc'},idea:{label:'Idea',cls:'bg',pillCls:'cp-idea'},question:{label:'Question',cls:'bt',pillCls:'cp-question'}};
 const AREA={home:'Home',animals:'Animals',events:'Events',feed:'Feed',pastures:'Fields',reports:'Reports',todos:'To-Dos',settings:'Settings',sync:'Sync / Data',other:'Other'};
 // Maps the current screen name to the most relevant area for auto-suggestion in the feedback sheet.
 const SCREEN_AREA={home:'home',feed:'feed',animals:'animals',events:'events',todos:'todos',pastures:'pastures',feedback:'other',reports:'reports',settings:'settings'};
 // Builds a Supabase-safe feedback row. Only writes known columns — excludes the
 // JS-only nested ctx object which has no Supabase column and would cause a 400 error.
-function _feedbackRow(f,opId){
-  // Schema: id, operation_id, cat, status, note, tester, version, ts, screen,
-  //         area, resolved_in_version, resolution_note, linked_to
-  // resolved_at, confirmed_by, confirmed_at are JS-only fields not in Supabase schema
+function _submissionRow(f,opId){
+  // Schema: submissions table — all columns in _SB_ALLOWED_COLS['submissions']
+  // submitter_id links to auth.users for per-user edit permissions.
+  // thread is JSONB array [{role:'dev'|'user', text, ts, author}]
   return {
     id:                   f.id,
     operation_id:         opId,
+    app:                  f.app||'gthy',
+    type:                 f.type||'feedback',
     cat:                  f.cat||'idea',
+    area:                 f.area||null,
+    screen:               f.ctx?.screen||f.screen||null,
+    priority:             f.priority||'normal',
     status:               f.status||'open',
     note:                 f.note||null,
     tester:               f.tester||null,
     version:              f.version||null,
     ts:                   f.ts||null,
-    screen:               f.ctx?.screen||f.screen||null,
-    area:                 f.area||null,
+    submitter_id:         f.submitterId||null,
+    dev_response:         f.devResponse||null,
+    dev_response_ts:      f.devResponseTs||null,
+    first_response_at:    f.firstResponseAt||null,
+    thread:               JSON.stringify(Array.isArray(f.thread)?f.thread:[]),
+    oi_number:            f.oiNumber||null,
     resolved_in_version:  f.resolvedInVersion||null,
     resolution_note:      f.resolutionNote||null,
     linked_to:            f.linkedTo||null,
   };
 }
 let selCatVal='';
+let selTypeVal='feedback'; // 'feedback' | 'support'
 function openFeedbackSheet(){
   const ae=getActive();const ctx=[`Screen: ${curScreen}`];if(ae)ctx.push(`Event: ${evDisplayName(ae)} day ${daysBetween(ae.dateIn,todayStr())}`);
   document.getElementById('fb-ctx-text').textContent=ctx.join(' · ');
-  document.getElementById('fb-note').value='';selCatVal='';document.querySelectorAll('.cat-pill').forEach(p=>p.classList.remove('sel'));
+  document.getElementById('fb-note').value='';selCatVal='';selTypeVal='feedback';
+  document.querySelectorAll('.cat-pill').forEach(p=>p.classList.remove('sel'));
   document.getElementById('fb-area').value=SCREEN_AREA[curScreen]||'';
+  // Reset type toggle to Feedback
+  document.querySelectorAll('.fb-type-pill').forEach(p=>p.classList.remove('sel'));
+  const defPill=document.getElementById('fb-type-feedback');if(defPill)defPill.classList.add('sel');
+  _fbUpdateTypeUI('feedback');
   document.getElementById('fb-sheet-wrap').classList.add('open');setTimeout(()=>document.getElementById('fb-note').focus(),300);
 }
 function closeFeedbackSheet(){document.getElementById('fb-sheet-wrap').classList.remove('open');}
 function selCat(cat,btn){selCatVal=cat;document.querySelectorAll('.cat-pill').forEach(p=>p.classList.remove('sel'));btn.classList.add('sel');}
+function selFbType(type,btn){
+  selTypeVal=type;
+  document.querySelectorAll('.fb-type-pill').forEach(p=>p.classList.remove('sel'));
+  btn.classList.add('sel');
+  _fbUpdateTypeUI(type);
+}
+function _fbUpdateTypeUI(type){
+  const titleEl=document.getElementById('fb-sheet-title');
+  const noteEl=document.getElementById('fb-note');
+  const priRow=document.getElementById('fb-priority-row');
+  if(type==='support'){
+    if(titleEl)titleEl.textContent='Get help';
+    if(noteEl)noteEl.placeholder='Describe what you need help with…';
+    if(priRow)priRow.style.display='';
+  } else {
+    if(titleEl)titleEl.textContent='Leave feedback';
+    if(noteEl)noteEl.placeholder='What did you notice? What did you expect?';
+    if(priRow)priRow.style.display='none';
+  }
+}
 function saveFeedbackItem(){
   const note=document.getElementById('fb-note').value.trim();
   if(!note){document.getElementById('fb-note').style.borderColor='var(--red)';setTimeout(()=>document.getElementById('fb-note').style.borderColor='',1500);return;}
   const ae=getActive();const area=document.getElementById('fb-area').value||'other';
-  S.feedback.push({id:Date.now(),cat:selCatVal||'idea',area,note,tester:S.testerName||(getActiveUser()?getActiveUser().name:'anonymous'),version:S.version||'b20260322.0936',status:'open',ctx:{screen:curScreen,activeEvent:ae?{pasture:ae.pasture,day:daysBetween(ae.dateIn,todayStr())}:null},ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:null});
+  const priEl=document.getElementById('fb-priority');
+  const priority=(selTypeVal==='support'&&priEl)?priEl.value:'normal';
+  const user=getActiveUser();
+  S.feedback.push({
+    id:Date.now(),
+    app:'gthy',
+    type:selTypeVal||'feedback',
+    cat:selCatVal||(selTypeVal==='support'?'question':'idea'),
+    area,note,
+    tester:S.testerName||(user?user.name:'anonymous'),
+    submitterId:_sbSession?.user?.id||null,
+    version:document.getElementById('app-version-meta')?.getAttribute('content')||'?',
+    priority,
+    status:'open',
+    ctx:{screen:curScreen,activeEvent:ae?{pasture:ae.pasture,day:daysBetween(ae.dateIn,todayStr())}:null},
+    ts:new Date().toISOString(),
+    thread:[],
+    resolvedInVersion:null,resolutionNote:null,resolvedAt:null,
+    confirmedBy:null,confirmedAt:null,linkedTo:null,
+    devResponse:null,devResponseTs:null,oiNumber:null,
+  });
   const _nf=S.feedback[S.feedback.length-1];
-  queueWrite('feedback',_feedbackRow(_nf,_sbOperationId));
+  queueWrite('submissions',_submissionRow(_nf,_sbOperationId));
   save();closeFeedbackSheet();updateFeedbackBadge();if(curScreen==='feedback')renderFeedbackTab();
 }
 function renderFeedbackTab(){renderConfirmSection();renderFeedbackStats();renderFeedbackList();}
@@ -9487,14 +9656,14 @@ function renderConfirmSection(){
     return `<div class="confirm-item"><div class="ci-tag"><span class="badge ${cfg.cls}">${cfg.label}</span> · ${f.version||'?'} · by ${f.tester}</div><div style="font-size:14px;margin-bottom:6px;line-height:1.5;">${escHtml(f.note)}</div><div style="font-size:12px;color:var(--teal-d);background:var(--teal-l);padding:6px 10px;border-radius:var(--radius);margin-bottom:8px;">Fix: ${escHtml(f.resolutionNote||'—')}</div><div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Resolved in ${f.resolvedInVersion||'?'}</div><div class="btn-row"><button class="btn btn-teal btn-sm" onclick="confirmFixed(${f.id})">This is fixed</button><button class="btn btn-outline btn-sm" style="color:var(--red);border-color:var(--red);" onclick="reopenIssue(${f.id})">Still broken</button></div></div>`;
   }).join('');
 }
-function confirmFixed(id){const f=S.feedback.find(x=>x.id===id);if(!f)return;f.status='closed';f.confirmedBy=S.testerName||'anonymous';f.confirmedAt=new Date().toISOString();queueWrite('feedback',_feedbackRow(f,_sbOperationId));save();renderFeedbackTab();updateFeedbackBadge();}
+function confirmFixed(id){const f=S.feedback.find(x=>x.id===id);if(!f)return;f.status='closed';f.confirmedBy=S.testerName||'anonymous';f.confirmedAt=new Date().toISOString();queueWrite('submissions',_submissionRow(f,_sbOperationId));save();renderFeedbackTab();updateFeedbackBadge();}
 function reopenIssue(id){
   const orig=S.feedback.find(x=>x.id===id);if(!orig)return;
   orig.status='closed';orig.confirmedBy=S.testerName||'anonymous';orig.confirmedAt=new Date().toISOString();
   S.feedback.push({id:Date.now(),cat:orig.cat,area:orig.area||'other',note:`[Regression] ${orig.note}`,tester:S.testerName||'anonymous',version:S.version||'b20260322.0936',status:'open',ctx:orig.ctx,ts:new Date().toISOString(),resolvedInVersion:null,resolutionNote:null,resolvedAt:null,confirmedBy:null,confirmedAt:null,linkedTo:orig.id});
   const _rf=S.feedback[S.feedback.length-1];
-  queueWrite('feedback',_feedbackRow(orig,_sbOperationId));
-  queueWrite('feedback',_feedbackRow(_rf,_sbOperationId));
+  queueWrite('submissions',_submissionRow(orig,_sbOperationId));
+  queueWrite('submissions',_submissionRow(_rf,_sbOperationId));
   save();renderFeedbackTab();updateFeedbackBadge();
 }
 function openResolveSheet(id){
@@ -9508,27 +9677,118 @@ function saveResolve(){
   if(!note){alert('Describe what was changed');return;}
   const f=S.feedback.find(x=>x.id===id);if(!f)return;
   f.status='resolved';f.resolutionNote=note;f.resolvedInVersion=S.version||'b20260322.0936';f.resolvedAt=new Date().toISOString();
-  queueWrite('feedback',_feedbackRow(f,_sbOperationId));
+  queueWrite('submissions',_submissionRow(f,_sbOperationId));
   save();closeResolveSheet();renderFeedbackTab();updateFeedbackBadge();
 }
 function renderFeedbackStats(){
   const el=document.getElementById('fb-stats');if(!S.feedback.length){el.innerHTML='';return;}
   const open=S.feedback.filter(f=>f.status==='open').length;const resolved=S.feedback.filter(f=>f.status==='resolved').length;const closed=S.feedback.filter(f=>f.status==='closed').length;
-  el.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;"><span class="badge ba">${open} open</span><span class="badge bt">${resolved} awaiting</span><span class="badge bb">${closed} closed</span></div>`;
+  const support=S.feedback.filter(f=>f.type==='support').length;
+  el.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;"><span class="badge ba">${open} open</span><span class="badge bt">${resolved} awaiting</span><span class="badge bb">${closed} closed</span>${support?`<span class="badge bt">🆘 ${support} support</span>`:''}</div>`;
+}
+
+// ─── EDIT SUBMISSION ──────────────────────────────────────────────────────────
+function openEditSubmissionSheet(id){
+  const f=S.feedback.find(x=>x.id===id);if(!f)return;
+  document.getElementById('edit-sub-id').value=id;
+  // Type toggle
+  document.querySelectorAll('.edit-type-pill').forEach(p=>p.classList.remove('sel'));
+  const tPill=document.getElementById('edit-type-'+(f.type||'feedback'));if(tPill)tPill.classList.add('sel');
+  document.getElementById('edit-sub-type').value=f.type||'feedback';
+  // Category pills
+  document.querySelectorAll('.edit-cat-pill').forEach(p=>p.classList.remove('sel'));
+  const cPill=document.querySelector(`.edit-cat-pill[data-cat="${f.cat||'idea'}"]`);if(cPill)cPill.classList.add('sel');
+  document.getElementById('edit-sub-cat').value=f.cat||'idea';
+  // Other fields
+  document.getElementById('edit-sub-area').value=f.area||'';
+  document.getElementById('edit-sub-status').value=f.status||'open';
+  document.getElementById('edit-sub-priority').value=f.priority||'normal';
+  document.getElementById('edit-sub-note').value=f.note||'';
+  document.getElementById('edit-sub-wrap').classList.add('open');
+}
+function closeEditSubmissionSheet(){document.getElementById('edit-sub-wrap').classList.remove('open');}
+function _editSelCat(cat,btn){
+  document.querySelectorAll('.edit-cat-pill').forEach(p=>p.classList.remove('sel'));
+  btn.classList.add('sel');
+  document.getElementById('edit-sub-cat').value=cat;
+}
+function _editSelType(type,btn){
+  document.querySelectorAll('.edit-type-pill').forEach(p=>p.classList.remove('sel'));
+  btn.classList.add('sel');
+  document.getElementById('edit-sub-type').value=type;
+}
+function saveEditSubmission(){
+  const id=parseInt(document.getElementById('edit-sub-id').value);
+  const f=S.feedback.find(x=>x.id===id);if(!f)return;
+  f.type    = document.getElementById('edit-sub-type').value||'feedback';
+  f.cat     = document.getElementById('edit-sub-cat').value||'idea';
+  f.area    = document.getElementById('edit-sub-area').value||'other';
+  f.status  = document.getElementById('edit-sub-status').value||'open';
+  f.priority= document.getElementById('edit-sub-priority').value||'normal';
+  f.note    = document.getElementById('edit-sub-note').value.trim()||f.note;
+  queueWrite('submissions',_submissionRow(f,_sbOperationId));
+  save();closeEditSubmissionSheet();renderFeedbackTab();updateFeedbackBadge();
+}
+function deleteSubmission(id){
+  if(!confirm('Delete this item? This cannot be undone.'))return;
+  S.feedback=S.feedback.filter(x=>x.id!==id);
+  // Also queue a delete against Supabase — queueWrite with null body signals DELETE
+  // Use direct Supabase call since queue is upsert-only
+  if(_sbClient&&_sbOperationId){
+    _sbClient.from('submissions').delete().eq('id',id).eq('operation_id',_sbOperationId)
+      .then(({error})=>{if(error)logError('delete-submission',error.message,'');});
+  }
+  save();closeEditSubmissionSheet();renderFeedbackTab();updateFeedbackBadge();
 }
 function renderFeedbackList(){
-  const el=document.getElementById('fb-list');const filter=document.getElementById('fb-filter').value;const areaFilter=document.getElementById('fb-area-filter').value;
+  const el=document.getElementById('fb-list');
+  const filter=document.getElementById('fb-filter').value;
+  const areaFilter=document.getElementById('fb-area-filter').value;
+  const typeFilter=document.getElementById('fb-type-filter')?.value||'all';
   let items=[...S.feedback].reverse();
   if(['open','resolved','closed'].includes(filter))items=items.filter(f=>f.status===filter);
-  else if(['roadblock','bug','ux','feature','calc','idea'].includes(filter))items=items.filter(f=>f.cat===filter);
+  else if(['roadblock','bug','ux','feature','calc','idea','question'].includes(filter))items=items.filter(f=>f.cat===filter);
   if(areaFilter&&areaFilter!=='all')items=items.filter(f=>f.area===areaFilter);
-  if(!items.length){el.innerHTML='<div class="empty">No feedback in this filter</div>';return;}
-  el.innerHTML=items.map(f=>{const cfg=CAT[f.cat]||CAT.idea;const d=new Date(f.ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  if(typeFilter&&typeFilter!=='all')items=items.filter(f=>(f.type||'feedback')===typeFilter);
+  if(!items.length){el.innerHTML='<div class="empty">No items in this filter</div>';return;}
+  el.innerHTML=items.map(f=>{
+    const cfg=CAT[f.cat]||CAT.idea;
+    const d=new Date(f.ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});
     const sb=f.status==='open'?'<span class="badge ba">open</span>':f.status==='resolved'?'<span class="badge bt">awaiting</span>':'<span class="badge bb">closed</span>';
     const fCtx=f.ctx||{screen:f.screen||'?',activeEvent:null};
     const ctx=[`Screen: ${fCtx.screen}`,fCtx.activeEvent?`Event: ${fCtx.activeEvent.pasture} day ${fCtx.activeEvent.day}`:null].filter(Boolean).join(' · ');
     const areaBadge=f.area&&AREA[f.area]?`<span class="badge bb" style="font-size:10px;opacity:0.85;">${AREA[f.area]}</span> `:'';
-    return `<div class="row"><div class="row-head"><span><span class="badge ${cfg.cls}">${cfg.label}</span> ${sb} ${areaBadge}${f.linkedTo?' <span class="badge br">regression</span>':''}</span><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:20px;padding:2px 6px;" onclick="S.feedback=S.feedback.filter(x=>x.id!==${f.id});save();renderFeedbackTab();updateFeedbackBadge();">×</button></div><div style="font-size:14px;margin-top:4px;line-height:1.5;">${escHtml(f.note)}</div>${f.resolutionNote?`<div style="font-size:12px;color:var(--teal-d);background:var(--teal-l);padding:4px 8px;border-radius:var(--radius);margin-top:4px;">Fix (${f.resolvedInVersion}): ${escHtml(f.resolutionNote)}</div>`:''}${f.confirmedBy?`<div style="font-size:11px;color:var(--text2);margin-top:3px;">Confirmed: ${f.confirmedBy}</div>`:''}<div class="row-detail" style="margin-top:4px;">${ctx} · ${f.tester} · ${f.version||'?'} · ${d}</div>${f.status==='open'?`<button class="btn btn-outline btn-xs" style="margin-top:8px;" onclick="openResolveSheet(${f.id})">Mark resolved</button>`:''}</div>`;
+    const typeBadge=(f.type==='support')?'<span class="badge bt" style="font-size:10px;">🆘 support</span> ':'';
+    const priLabel={high:'🔴 High',urgent:'🚨 Urgent',low:'Low',normal:''}[f.priority||'normal']||'';
+    const priBadge=priLabel?`<span style="font-size:10px;color:var(--text2);margin-left:4px;">${priLabel}</span>`:'';
+    const supportBorder=f.type==='support'?'fb-item-support':'';
+    // Dev response block — shows latest message collapsed; thread expands below
+    let devRespHtml='';
+    const thread=Array.isArray(f.thread)?f.thread:[];
+    const latest=f.devResponse||null;
+    if(latest){
+      const hasThread=thread.length>1;
+      const threadHtml=thread.map(m=>`<div class="fb-thread-msg ${m.role}"><div>${escHtml(m.text)}</div><div class="fb-thread-meta">${m.author||m.role} · ${m.ts?new Date(m.ts).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):''}</div></div>`).join('');
+      devRespHtml=`<div class="fb-dev-resp">
+        <div style="font-size:11px;font-weight:600;margin-bottom:4px;opacity:0.8;">💬 Response from dev</div>
+        <div style="font-size:13px;">${escHtml(latest)}</div>
+        ${hasThread?`<button onclick="this.closest('.fb-dev-resp').querySelector('.fb-thread').classList.toggle('open');this.textContent=this.textContent.includes('▸')?'▴ Hide thread':'▸ See full thread (${thread.length})'" style="background:none;border:none;color:var(--teal-d);font-size:11px;cursor:pointer;padding:4px 0 0;font-family:inherit;">▸ See full thread (${thread.length})</button>
+        <div class="fb-thread">${threadHtml}</div>`:''}
+      </div>`;
+    }
+    // Resolution note
+    const resHtml=f.resolutionNote?`<div style="font-size:12px;color:var(--teal-d);background:var(--teal-l);padding:4px 8px;border-radius:var(--radius);margin-top:4px;">Fix (${f.resolvedInVersion}): ${escHtml(f.resolutionNote)}</div>`:'';
+    const confHtml=f.confirmedBy?`<div style="font-size:11px;color:var(--text2);margin-top:3px;">Confirmed: ${f.confirmedBy}</div>`:'';
+    return `<div class="row ${supportBorder}" data-fbid="${f.id}">
+      <div class="row-head">
+        <span><span class="badge ${cfg.cls}">${cfg.label}</span> ${sb} ${typeBadge}${areaBadge}${f.linkedTo?' <span class="badge br">regression</span>':''}${priBadge}</span>
+        <button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:13px;padding:4px 6px;border-radius:var(--radius);display:flex;align-items:center;gap:3px;" onclick="openEditSubmissionSheet(${f.id})" title="Edit">✏️</button>
+      </div>
+      <div style="font-size:14px;margin-top:4px;line-height:1.5;">${escHtml(f.note)}</div>
+      ${resHtml}${confHtml}${devRespHtml}
+      <div class="row-detail" style="margin-top:4px;">${ctx} · ${f.tester} · ${f.version||'?'} · ${d}</div>
+      ${f.status==='open'?`<button class="btn btn-outline btn-xs" style="margin-top:8px;" onclick="openResolveSheet(${f.id})">Mark resolved</button>`:''}
+    </div>`;
   }).join('');
 }
 function updateFeedbackBadge(){
@@ -13998,7 +14258,7 @@ async function executeReset(){
       'animal_group_class_compositions','animals','animal_groups','animal_classes',
       'manure_batch_transactions','manure_batches','input_application_locations',
       'input_applications','input_products','paddock_observations','pastures',
-      'batches','feed_types','treatment_types','ai_bulls','todos','feedback',
+      'batches','feed_types','treatment_types','ai_bulls','todos','submissions',
       'operation_settings'
     ];
     const tables = mode==='events' ? eventTables : allTables;

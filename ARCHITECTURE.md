@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260401.1017`
+**Current build:** `b20260401.2037`
 **Last updated:** 2026-04-01
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -62,7 +62,7 @@ build = 'b' + datetime.now().strftime('%Y%m%d') + '.' + datetime.now().strftime(
 | ~5805 | **`renderEventsLog()`** ← displaced here by Batch Adj insertion; logically part of Events section above. Now renders consolidated parent + sub-move thread (OI-0029, b20260329.1751) |
 | ~5954 | Pastures screen + recovery date helpers + **Survey system (OI-0115):** `openBulkSurveySheet`, `openSurveySheet(pastureId, surveyId)`, `saveSurveyDraft`, `completeBulkSurvey`, `discardSurvey`, `updateSurveyReading`, `deleteSurveyReading`, `renderSurveysTab`, `renderPastureEditHistory`, `setPasturesView`, `openBulkSurveyEdit`, `pasturesView` |
 | ~6030 | Settings screen — includes Sync queue inspector card (`renderSyncQueueInspector`, `exportSyncQueue`) |
-| ~6222 | Feedback tab + Dev Brief + Export CSV |
+| ~6222 | **Submissions tab** (formerly Feedback) + Dev Brief + Export CSV. `renderFeedbackTab()` → `renderConfirmSection()` + `renderFeedbackStats()` + `renderFeedbackList()`. Edit sheet: `openEditSubmissionSheet(id)`, `saveEditSubmission()`, `deleteSubmission(id)`, `closeEditSubmissionSheet()`. Shape function: `_submissionRow(f,opId)`. Type system: `selTypeVal` module var; `selFbType(type,btn)`; `_fbUpdateTypeUI(type)`. |
 | ~6432 | Manure system |
 | ~6532 | Animal Classes & Groups + Add/Edit Group sheet + Animal Health Events |
 | ~7579 | Individual Animals (add/edit/cull) |
@@ -128,8 +128,9 @@ All sheets are always in the DOM. Toggle: add/remove `.open` on the `-wrap` div.
 | Sheet Purpose | Wrap ID | Open Function | Close Function |
 |---|---|---|---|
 | User picker | `#user-picker-wrap` | `openUserPicker()` | `closeUserPicker()` |
-| Submit feedback | `#fb-sheet-wrap` | `openFeedbackSheet()` | `closeFeedbackSheet()` |
+| Submit feedback / Get Help | `#fb-sheet-wrap` | `openFeedbackSheet()` | `closeFeedbackSheet()` |
 | Resolve feedback | `#resolve-sheet-wrap` | `openResolveSheet(id)` | `closeResolveSheet()` |
+| Edit submission | `#edit-sub-wrap` | `openEditSubmissionSheet(id)` | `closeEditSubmissionSheet()` |
 | To-do add/edit | `#todo-sheet-wrap` | `openTodoSheet(id)` | `closeTodoSheet()` |
 | Quick feed | `#quick-feed-wrap` | `openQuickFeedSheet(groupId)` | `closeQuickFeedSheet()` |
 | Feed types config | `#feed-types-wrap` | `openFeedTypesSheet()` | `closeFeedTypesSheet()` |
@@ -172,7 +173,7 @@ All sheets are always in the DOM. Toggle: add/remove `.open` on the `-wrap` div.
 | `S.animals` | Array | Individual animal records |
 | `S.users` | Array | Farm users (legacy shim — identity is now Supabase `operation_members`; retained for todo assignment compat) |
 | `S.todos` | Array | Farm task records |
-| `S.feedback` | Array | In-app feedback items |
+| `S.feedback` | Array | Submissions (feedback + support tickets). JS state key unchanged; Supabase table renamed to `submissions` in b20260401.2022. |
 | `S.surveys` | Array | Pasture survey ratings |
 | `S.treatmentTypes` | Array | Treatment type templates. Each record: `id`, `name`, `category` (one of `TREATMENT_CATEGORIES`), `archived` |
 | `S.aiBulls` | Array | AI sire records |
@@ -292,8 +293,8 @@ All sheets are always in the DOM. Toggle: add/remove `.open` on the `-wrap` div.
 | `goFeedGroup(gId)` | Bridge: home Feed button → nav to feed → open Quick Feed sheet |
 | `goFeedEvent(evId)` | Location-view feed bridge: finds first active group in event, delegates to `goFeedGroup`. `qfFromHome` flag ensures cancel/save return to home. (~L3434) |
 | `moveAllGroupsInEvent(evId)` | Location-view "Move All": collects all active group IDs from event via `evGroups()`, sets `wizGroupIds`, launches Move Wizard. (~L2930) |
-| `exportFeedbackJSON()` | Exports `S.feedback` as `gthy-feedback-YYYY-MM-DD-HHMM.json` for Claude session import into OPEN_ITEMS.md. Distinct from the full backup — feedback only, structured for machine parsing. |
-| `exportFeedbackCSV()` | Human-readable CSV export of feedback. For record-keeping; Claude uses the JSON export. |
+| `exportFeedbackJSON()` | Exports `S.feedback` as `gthy-feedback-YYYY-MM-DD-HHMM.json` for Claude session import into OPEN_ITEMS.md. Distinct from the full backup — submissions only, structured for machine parsing. Includes `type` and `app` fields as of b20260401.2022. |
+| `exportFeedbackCSV()` | Human-readable CSV export of submissions. For record-keeping; Claude uses the JSON export. |
 | `exportDataJSON()` | Full data backup as `gthy-backup-YYYY-MM-DD-HHMM.json`. Full replacement restore — not merged. |
 | `flushToSupabase()` | Called on `visibilitychange` → visible. Drains `gthy-sync-queue` to Supabase. Also called by `supabaseSyncDebounced` 800ms after every `save()`. Uses `op.conflictKey \|\| 'id'` per entry — supports tables whose PK is not `id`. |
 | `pushAllToSupabase()` | **M4.5-C** Full re-push of entire S state to Supabase. Iterates all S arrays, queues every record using correct patterns (`_pastureRow` for pastures, `queueEventWrite` for events, `_sbToSnake` for flat tables), then calls `flushToSupabase()` immediately. Called by `importDataJSON()` after backup restore when signed in. Safe to call repeatedly — all writes are upserts. |
@@ -970,9 +971,9 @@ across reloads via `sb-*` localStorage — rate limit only affects new sign-in a
 **Pattern:** When building shape functions, never convert numeric IDs to strings unless the Supabase column is explicitly `text`. Check the migration script for the canonical type.
 
 ### `feedback` 400 — extra columns not in schema (Fixed b20260329.2116)
-**Root cause:** `_feedbackRow()` sent `resolved_at`, `confirmed_by`, `confirmed_at` — not in the Supabase `feedback` table. PostgREST rejected every write.
-**Fix:** Three fields removed from `_feedbackRow()`. JS objects keep them for local use.
-**If columns needed later:** `ALTER TABLE feedback ADD COLUMN resolved_at timestamptz; ADD COLUMN confirmed_by text; ADD COLUMN confirmed_at timestamptz;` then restore to `_feedbackRow`.
+**Root cause:** `_feedbackRow()` (now `_submissionRow()`) sent `resolved_at`, `confirmed_by`, `confirmed_at` — not in the Supabase `feedback` table (now `submissions`). PostgREST rejected every write.
+**Fix:** Three fields removed from shape function. JS objects keep them for local use.
+**Columns available in submissions table:** `ALTER TABLE submissions ADD COLUMN resolved_at timestamptz; ...` if needed — they are now proper Supabase columns as of b20260401.2022 migration.
 
 ### `activeSmGC` ReferenceError in `renderGroupCard` — OI-0097 (Fixed b20260329.2112)
 **Root cause:** `const activeSmGC` declared inside `if(ae){...}` block but referenced in `return` template outside that block. `const` is block-scoped.
@@ -1187,33 +1188,49 @@ The punch list receives items from two streams:
 
 ---
 
-## Dual Feedback Loop
+## Submissions System (b20260401.2022)
 
-GTHO operates two parallel issue streams that feed into `OPEN_ITEMS.md`:
+GTHY captures two types of user input through a unified `submissions` Supabase table (renamed from `feedback`). JS state key remains `S.feedback[]` for backward compatibility.
 
-### Stream 1 — In-App Feedback (S.feedback)
-Farmer-reported observations captured through the in-app feedback sheet (`openFeedbackSheet()`).
-- Stored in `S.feedback[]` with fields: `id`, `cat`, `status`, `note`, `tester`, `version`, `ts`, `ctx`, `resolvedInVersion`, `resolutionNote`, `linkedTo`
-- Status lifecycle: `open` → `resolved` (developer marks fix applied) → `closed` (farmer confirms fixed) or reopened as regression
-- **Export for session import:** `exportFeedbackJSON()` → `gthy-feedback-YYYY-MM-DD-HHMM.json`
-- At session start, upload the latest feedback JSON and Claude imports new items into OPEN_ITEMS.md
+### Submission types (`f.type`)
+| Value | UI label | Use case |
+|---|---|---|
+| `feedback` | 💬 Feedback | Developer observations, ideas, bugs — one-way |
+| `support` | 🆘 Get Help | User needs a response — threaded, has priority |
 
-**Feedback categories (`f.cat`)** — defined in `CAT` object (~L6274):
+### Status lifecycle
+`open` → `resolved` (developer marks fix) → `closed` (user confirms) · or reopened as `regression` via `reopenIssue()`
 
-| Key | Label | Badge class | Dev brief priority |
+### Categories (`f.cat`) — defined in `CAT` object
+| Key | Label | Badge | Dev brief priority |
 |---|---|---|---|
-| `roadblock` | 🚧 Roadblock | `br` (red) | **1st — HIGH PRIORITY** |
-| `bug` | Bug | `br` (red) | 2nd |
-| `calc` | Calculation | `bt` (teal) | 3rd |
-| `ux` | UX friction | `ba` (amber) | 4th |
-| `feature` | Missing feature | `bp` (purple) | 5th |
-| `idea` | Idea | `bg` (green) | 6th |
+| `roadblock` | 🚧 Roadblock | `br` red | **1st** |
+| `bug` | Bug | `br` red | 2nd |
+| `calc` | Calculation | `bt` teal | 3rd |
+| `ux` | UX friction | `ba` amber | 4th |
+| `feature` | Missing feature | `bp` purple | 5th |
+| `idea` | Idea | `bg` green | 6th |
+| `question` | Question | `bt` teal | 7th |
 
-**Feedback areas (`f.area`)** — defined in `AREA` object (~L7142): `home` · `animals` · `events` · `feed` · `pastures` · `reports` · `todos` · `settings` · `sync` · `other`. Auto-suggested from current screen via `SCREEN_AREA` map. Stored as flat `area` column in Supabase `feedback` table.
+### Priority (`f.priority`) — support tickets only
+`normal` · `high` · `urgent` · `low`
 
-**`_feedbackRow(f, opId)`** (~L7148) — builds a Supabase-safe feedback row with only known schema columns. All feedback `queueWrite` calls must use this helper — never `_sbToSnake` on a raw feedback item (the nested `ctx` object has no Supabase column).
+### Supabase schema (`submissions` table)
+Full column set in `_SB_ALLOWED_COLS['submissions']`. New columns added b20260401.2022: `app`, `type`, `priority`, `submitter_id`, `dev_response`, `dev_response_ts`, `first_response_at`, `thread` (jsonb), `oi_number`. Legacy `feedback` rows backfilled with `app='gthy'`, `type='feedback'`.
 
-**Assembly note:** Supabase `feedback` rows have no `ctx` JSONB column — migration stored `ctx.screen` as a flat `screen` column. Assembly layer in `loadFromSupabase()` reconstructs `f.ctx = { screen: f.screen||'?', activeEvent: null }` so all render/export code continues to work unchanged.
+**`_submissionRow(f, opId)`** — shape function for all `queueWrite('submissions',...)` calls. `thread` is JSON-stringified before write; parsed back at assembly. Never use `_sbToSnake` on a raw feedback item — the nested `ctx` has no Supabase column.
+
+**Assembly note:** `screen` flat column → `f.ctx.screen` reconstructed at assembly. `thread` JSONB string → parsed to `[]` at assembly. New fields default at assembly: `app='gthy'`, `type='feedback'`, `priority='normal'` for legacy rows.
+
+**Dev response display:** When `f.devResponse` is set, a teal banner shows the latest message. Thread (if >1 message) is collapsed; "▸ See full thread" toggles it open inline.
+
+**Edit permissions (RLS):** Admin role can UPDATE any submission. Regular members can only UPDATE rows where `submitter_id = auth.uid()`. Legacy rows (`submitter_id IS NULL`) are admin-only. Delete is gated identically. In-app delete calls Supabase directly (not via queue) and removes from `S.feedback[]` in one step.
+
+### Areas (`f.area`)
+`home` · `animals` · `events` · `feed` · `pastures` · `reports` · `todos` · `settings` · `sync` · `other`. Auto-suggested from `SCREEN_AREA` map.
+
+### Admin console (planned — next session)
+Separate Claude Artifact using service-role key against `submissions` table. Multi-app config array: `[{name, appKey, url, svcKey}]`. Writes `dev_response` + `thread` back; links `oi_number`. Claude Cowork integration reads the same table.
 
 ### Stream 2 — Claude Observations (Session Notes)
 Developer-level observations made by Claude during coding sessions — things noticed off the current task.
@@ -1225,10 +1242,10 @@ Developer-level observations made by Claude during coding sessions — things no
 | Export | Function | File format | Purpose |
 |---|---|---|---|
 | Full backup | `exportDataJSON()` | `gthy-backup-YYYY-MM-DD-HHMM.json` | Data restore |
-| Feedback export | `exportFeedbackJSON()` | `gthy-feedback-YYYY-MM-DD-HHMM.json` | Session import into punch list |
+| Submissions export | `exportFeedbackJSON()` | `gthy-feedback-YYYY-MM-DD-HHMM.json` | Session import into punch list |
 
 These two exports serve completely different purposes and must never be combined.
-The backup is for disaster recovery. The feedback export is for the development workflow.
+The backup is for disaster recovery. The submissions export is for the development workflow.
 
 ---
 

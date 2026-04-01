@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260401.1011
-**Reconciled against build:** b20260401.1011
+**Last updated:** b20260401.2022
+**Reconciled against build:** b20260401.2022
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -21,7 +21,7 @@
 | 🔴 Open — Roadblock | 0 |
 | 🔴 Open — Bug | 0 |
 | 🟡 Open — Polish | 0 |
-| 🔵 Open — Enhancement | 23 |
+| 🔵 Open — Enhancement | 25 |
 | ⚪ Open — Debt | 9 |
 | ✅ Closed | 101 |
 
@@ -29,14 +29,16 @@
 
 ## Session Queue
 
-Recommended work order as of b20260401.0954. Update after each session.
+Recommended work order as of b20260401.2022. Update after each session.
 
 | Priority | OI | Title | Notes |
 |---|---|---|---|
-| 1 | OI-0105 | Membership-weighted NPK for multi-group events | Design first — future enhancement |
-| 2 | OI-0129 | Field mode per-module streamlined UX | Design first — each module may need mobile-optimized sheet variant |
-| 3 | OI-0134 | Private repo + edge-function auth gate | Infrastructure only — no app code changes |
-| 4 | OI-0135 | Vite + ES modules migration | Structural refactor — no feature changes |
+| 1 | OI-0138 | Admin console artifact — submissions management | Next session — service role key needed at start |
+| 2 | OI-0139 | Thread reply UI in-app | Users see dev_response but can't reply yet |
+| 3 | OI-0105 | Membership-weighted NPK for multi-group events | Design first — future enhancement |
+| 4 | OI-0129 | Field mode per-module streamlined UX | Design first — each module may need mobile-optimized sheet variant |
+| 5 | OI-0134 | Private repo + edge-function auth gate | Infrastructure only — no app code changes |
+| 6 | OI-0135 | Vite + ES modules migration | Structural refactor — no feature changes |
 
 > **OI-0137 added and closed** b20260401.1011 — PWA manifest encoding bug. Shortcuts were silently broken since first implementation.
 > **OI-0133 closed** b20260401.0055 — CSS regression fix: `field-mode-sheet` rule corrected to `.open .sheet` selector; harvest sheet switched to `.open` class.
@@ -56,7 +58,45 @@ Recommended work order as of b20260401.0954. Update after each session.
 
 ## Open Items
 
-### OI-0137
+### OI-0139
+**Source:** Claude observation — b20260401.2022
+**Area:** Submissions / Support
+**Severity:** Enhancement
+**Status:** 🔵 Open — Enhancement
+**Found:** b20260401.2022
+**Closed:** —
+
+**Thread reply UI — users see dev responses but cannot reply in-app.** The `dev_response` and `thread` fields are written by the admin console and displayed in the app (collapsible thread banner). However there is currently no in-app UI for users to send a reply to a thread. Users who receive a dev response on a support ticket can only read it. A "Reply" button below the thread banner would append a `{role:'user', text, ts, author}` entry to the thread array and `queueWrite('submissions',...)` the updated row.
+
+**Depends on:** OI-0138 (admin console must be working so dev can see replies)
+
+**Acceptance criteria:** Tapping "Reply" on a support ticket with a dev response opens a small text input inline. Submitting appends to `f.thread[]`, queues write. Dev sees the reply in the admin console thread view.
+
+---
+
+### OI-0138
+**Source:** Claude observation — b20260401.2022
+**Area:** Developer Tooling / Admin Console
+**Severity:** Enhancement
+**Status:** 🔵 Open — Enhancement
+**Found:** b20260401.2022
+**Closed:** —
+
+**Admin console artifact — cross-operation submissions management.** A standalone Claude Artifact (React) that connects to the Supabase `submissions` table via service-role key. Reads feedback and support tickets across ALL operations. Multi-app config array: `[{name, appKey, url, svcKey}]` — one entry per Supabase project, forward-compatible with future apps each having their own project.
+
+**Features:**
+- Filter by: app, type (feedback/support), cat, status, area, priority, operation
+- Write `dev_response` back to specific items (PATCH via Supabase REST)
+- Thread view: full `thread[]` display; append dev reply
+- Link `oi_number` to open items
+- AI triage: batch-send uncategorized items to Claude Haiku for category suggestions
+- Export: generate OPEN_ITEMS import JSON for session use
+
+**Service role key:** stays in the artifact/local session only — never deployed. Paste at session start.
+
+**Acceptance criteria:** Artifact renders all submissions from GTHY operation. Writing `dev_response` to an item is reflected in the app on next load. Filter + sort works across all fields. OI number linkage persists to Supabase.
+
+---
 **Source:** Claude observation — b20260401.1011
 **Area:** PWA / Manifest
 **Severity:** Bug
