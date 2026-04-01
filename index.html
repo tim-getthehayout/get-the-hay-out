@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Field Home","short_name": "Field","description": "Open field mode home screen","url": "/?field=home","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E⊞%3C/text%3E%3C/svg%3E","sizes": "512x512"}]},{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]},{"name": "Log Harvest","short_name": "Harvest","description": "Open Harvest sheet in field mode","url": "/?field=harvest","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🚜%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260331.2345" id="app-version-meta"/>
+<meta name="app-version" content="b20260401.0000" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -2275,13 +2275,14 @@ function _sbLoadCachedIdentity(){
 function sbCacheIdentity(displayName, operationId){
   const ex=_sbLoadCachedIdentity();
   localStorage.setItem('gthy-identity', JSON.stringify({
-    id:          _sbSession?.user?.id || null,
-    displayName: displayName || ex?.displayName || _sbSession?.user?.email?.split('@')[0] || 'Farmer',
-    email:       _sbSession?.user?.email || '',
-    color:       ex?.color     || '#639922',
-    role:        ex?.role      || 'owner',
-    fieldMode:   ex?.fieldMode || false,
-    operationId: operationId || _sbOperationId || ex?.operationId || null,
+    id:           _sbSession?.user?.id || null,
+    displayName:  displayName || ex?.displayName || _sbSession?.user?.email?.split('@')[0] || 'Farmer',
+    email:        _sbSession?.user?.email || '',
+    color:        ex?.color        || '#639922',
+    role:         ex?.role         || 'owner',
+    fieldMode:    ex?.fieldMode    || false,
+    fieldModules: ex?.fieldModules || null, // OI-0128: per-user module prefs — null = use default
+    operationId:  operationId || _sbOperationId || ex?.operationId || null,
   }));
 }
 
@@ -3588,17 +3589,17 @@ function getUser(id){return S.users.find(u=>u.id===id)||null;} // Legacy — S.u
 function getActiveUser(){
   if(_sbSession?.user){
     const c=_sbLoadCachedIdentity();
-    // M6: prefer _sbProfile.role (live from operation_members) over cached value
     const role = _sbProfile?.role || c?.role || 'owner';
     const fieldMode = _sbProfile?.field_mode ?? c?.fieldMode ?? false;
+    const fieldModules = c?.fieldModules || null; // OI-0128: null = use FIELD_MODULES_DEFAULT
     return {id:_sbSession.user.id, name:_sbProfile?.display_name||c?.displayName||_sbSession.user.email?.split('@')[0]||'Farmer',
       email:_sbSession.user.email||'', color:c?.color||'#639922',
-      role, fieldMode, _fromSupabase:true};
+      role, fieldMode, fieldModules, _fromSupabase:true};
   }
   const c=_sbLoadCachedIdentity();
   if(c) return {id:c.id, name:c.displayName||'Farmer', email:c.email||'', color:c.color||'#639922',
-    role:c.role||'owner', fieldMode:c.fieldMode||false, _fromCache:true};
-  return {id:null, name:'Guest', email:'', color:'#639922', role:'owner', fieldMode:false, _guest:true};
+    role:c.role||'owner', fieldMode:c.fieldMode||false, fieldModules:c.fieldModules||null, _fromCache:true};
+  return {id:null, name:'Guest', email:'', color:'#639922', role:'owner', fieldMode:false, fieldModules:null, _guest:true};
 }
 function avatarHtml(user,lg=false){
   if(!user)return '';
@@ -4185,15 +4186,17 @@ const FIELD_MODULES = [
 const FIELD_MODULES_DEFAULT = ['feed','harvest','survey','animals'];
 
 function _getUserFieldModules(){
-  const user = getActiveUser ? getActiveUser() : null;
-  if(user && Array.isArray(user.fieldModules)) return user.fieldModules;
+  // Read directly from gthy-identity cache — getActiveUser() returns a fresh object
+  // each call so mutating it doesn't persist. The cache is the durable store.
+  const c = _sbLoadCachedIdentity();
+  if(c && Array.isArray(c.fieldModules)) return c.fieldModules;
   return FIELD_MODULES_DEFAULT;
 }
 function _setUserFieldModules(keys){
-  const user = getActiveUser ? getActiveUser() : null;
-  if(!user) return;
-  user.fieldModules = keys;
-  save();
+  // Write directly into gthy-identity, preserving all other fields.
+  const c = _sbLoadCachedIdentity();
+  if(c === null) return; // no identity yet — nothing to write into
+  localStorage.setItem('gthy-identity', JSON.stringify({...c, fieldModules: keys}));
 }
 function toggleFieldModule(key){
   const current = _getUserFieldModules();
@@ -16103,7 +16106,8 @@ function toggleFieldMode(){
 
   // If entering field mode, navigate to feed screen (most common task)
   if(willBeActive){
-    nav('feed', document.getElementById('bn-feed'));
+    // OI-0128: land on field home tile grid, not feed screen
+    nav('home', document.getElementById('bn-home'));
   } else {
     // Returning to detail mode — go home
     nav('home', document.getElementById('bn-home'));

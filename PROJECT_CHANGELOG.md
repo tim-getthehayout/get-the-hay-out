@@ -3,6 +3,11 @@
 
 | Build | File | Change |
 |---|---|---|
+| b20260331.2356 | HTML | OI-0130-A — Field module toggle persistence fix. `_getUserFieldModules()` now reads from `_sbLoadCachedIdentity()` directly. `_setUserFieldModules(keys)` writes `fieldModules` into `gthy-identity` via spread-merge. `sbCacheIdentity()` updated to preserve existing `fieldModules` on identity refresh. `getActiveUser()` return object now includes `fieldModules` for read-only reference. |
+| b20260331.2356 | HTML | OI-0130-B — `toggleFieldMode()` navigation fix. Hardcoded `nav('feed')` replaced with `nav('home')`. Tapping ⊞ Field now lands on field home tile grid instead of Quick Feed sheet. |
+| b20260331.2356 | ARCHITECTURE | Field Mode section: per-user storage paragraph updated (gthy-identity write-through, null sentinel). Toggle button note updated (nav to home both ways, old nav('feed') removed). |
+| b20260331.2356 | OPEN_ITEMS | OI-0130 added and closed. Status counts updated (Closed: 96→97). |
+|---|---|---|
 | b20260331.2335 | HTML | OI-0127-A — `defaultWeightLbs` on `S.feedTypes[]`. `_feedTypeRow()` + `_SB_ALLOWED_COLS['feed_types']` updated. Assembly layer + `ensureDataArrays` migration guard. "Default weight (lbs)" input (`ft-default-weight`) in feed type form between Cutting # and Hay analysis sections. Badge shown in list row. `addFeedType()`, `openEditFeedType()`, `saveEditFeedType()`, `_clearFeedTypeForm()` all wired. `_harvestAddFieldRow()` pre-populates `weightPerUnitKg` from `ft.defaultWeightLbs`. SQL required: `ALTER TABLE feed_types ADD COLUMN IF NOT EXISTS default_weight_lbs numeric`. |
 | b20260331.2335 | HTML | OI-0127-B — Weight label corrected to lbs: harvest sheet "Weight / bale (kg)" → "Weight / bale (lbs)"; field card "· kg/bale" → "· lbs/bale". Internal field names unchanged (rename = migration risk; mismatch documented in ARCHITECTURE). |
 | b20260331.2335 | HTML | OI-0127-C — `_generateBatchId()` sanitizes `fieldCode` — strips non-alphanumeric chars so `"E-3"` → `"E3"`. Prevents broken 5-segment batch IDs like `HOM-E-3-1-20260331`. |

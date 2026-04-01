@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260331.2345`
+**Current build:** `b20260401.0000`
 **Last updated:** 2026-03-31
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -1242,7 +1242,7 @@ A stripped-down layout for focused phone use in the field. Activated by any of t
 
 **What the class hides:** `.dsk-sidebar`, `.bnav`, `#sync-indicator`, `#ver-tag`, `.hdr-sub`. On desktop it collapses the grid to a single column.
 
-**Toggle button:** `#field-mode-toggle` in `.hdr-right`. Label is "⊞ Field" in normal mode, "← Detail" in field mode. Set by `setFieldModeUI(active)`.
+**Toggle button:** `#field-mode-toggle` in `.hdr-right`. Label is "⊞ Field" in normal mode, "← Detail" in field mode. Set by `setFieldModeUI(active)`. Tapping it calls `toggleFieldMode()` which navigates to `home` in both directions — entering field mode lands on the tile grid, exiting returns to the normal home screen. (`nav('feed')` that was here pre-OI-0128 removed in b20260331.2356.)
 
 **Routing on `?field=feed`:** `applyFieldMode()` calls `nav('feed',…)` then `setTimeout(openQuickFeedSheet, 180)`.
 
@@ -1269,7 +1269,7 @@ A stripped-down layout for focused phone use in the field. Activated by any of t
 
 **Module keys:** `feed` · `harvest` · `survey` · `animals`. Future modules added to `FIELD_MODULES` constant — stub with `handler:null` until implemented.
 
-**Per-user storage:** `user.fieldModules[]` — array of active module keys. Stored on the active user object in `S.users[]` / `_sbProfile`. No Supabase column needed — user objects persist to localStorage via `save()`.
+**Per-user storage:** `user.fieldModules[]` — array of active module keys. Stored in `gthy-identity` localStorage cache (alongside `fieldMode`, `role`, `color`, etc.). **Not** stored on the `getActiveUser()` return object — that is rebuilt fresh on every call and mutations to it are discarded. `_getUserFieldModules()` reads directly from `_sbLoadCachedIdentity()`. `_setUserFieldModules(keys)` writes directly into `gthy-identity` via `JSON.parse → spread → JSON.stringify`. `sbCacheIdentity()` preserves `fieldModules` when it refreshes identity on sign-in. `null` = no preference saved yet → use `FIELD_MODULES_DEFAULT`.
 
 **Settings card:** "Field mode" card added to Settings screen (above Farm users). Shows each module as a toggle row. `renderFieldModules()` called from the settings render chain.
 

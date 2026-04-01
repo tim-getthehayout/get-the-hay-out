@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260331.2335
-**Reconciled against build:** b20260331.2335
+**Last updated:** b20260331.2356
+**Reconciled against build:** b20260331.2356
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -23,7 +23,7 @@
 | 🟡 Open — Polish | 0 |
 | 🔵 Open — Enhancement | 23 |
 | ⚪ Open — Debt | 6 |
-| ✅ Closed | 96 |
+| ✅ Closed | 97 |
 
 ---
 
@@ -36,10 +36,10 @@ Recommended work order as of b20260331.2335. Update after each session.
 | 1 | OI-0105 | Membership-weighted NPK for multi-group events | Design first — future enhancement |
 | 2 | OI-0129 | Field mode per-module streamlined UX | Design first — each module may need mobile-optimized sheet variant |
 
-> **OI-0128 closed** b20260331.2335 — Field home tile grid (OI-0006 resolved): `renderFieldHome()` full 2-column tile grid; `FIELD_MODULES` constant; per-user `user.fieldModules[]`; Settings card; `?field=home` routing; 3rd PWA shortcut "Field Home".
-> **OI-0127 closed** b20260331.2335 — Harvest module fixes: `defaultWeightLbs` on feed types (form, list badge, pre-populate harvest rows); weight label kg→lbs throughout; batch ID fieldCode sanitization (`E-3`→`E3`); `harvest_event_fields` `_SB_ALLOWED_COLS` entry (fixes Error [1] operation_id); inline harvest-active toggle pill per feed type row.
-> **OI-0126 closed** b20260331.2224 — Feed types button on Fields/Harvest; form redesign.
-> **Last updated:** b20260331.2335
+> **OI-0130 closed** b20260331.2356 — field mode module toggle persistence fix (`gthy-identity` write-through); `toggleFieldMode` nav fix (⊞ Field → home tile grid).
+> **OI-0128 closed** b20260331.2335 — Field home tile grid implemented.
+> **OI-0127 closed** b20260331.2335 — Harvest module fixes (weight lbs, batch ID, operation_id, inline toggle).
+> **Last updated:** b20260331.2356
 
 ---
 
@@ -52,6 +52,22 @@ Recommended work order as of b20260331.2335. Update after each session.
 ---
 
 ## Open Items
+
+### OI-0130
+**Source:** User report — b20260331.2356
+**Area:** Field Mode — module toggle persistence + `toggleFieldMode` navigation
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260331.2335
+**Closed:** b20260331.2356
+
+Two field mode bugs fixed together:
+
+**A — Module toggles not persisting.** `_setUserFieldModules()` was mutating the object returned by `getActiveUser()`, which is rebuilt fresh from `_sbProfile` + `gthy-identity` on every call — mutations to it are discarded immediately. Fix: `_getUserFieldModules()` now reads directly from `_sbLoadCachedIdentity()`; `_setUserFieldModules(keys)` writes directly into `gthy-identity` via `{...cachedIdentity, fieldModules: keys}`. `sbCacheIdentity()` updated to preserve `fieldModules` when refreshing identity on sign-in. `null` stored value = no preference yet → use `FIELD_MODULES_DEFAULT`. `getActiveUser()` return object now includes `fieldModules` for read-only reference.
+
+**B — ⊞ Field button landing on feed sheet instead of tile grid.** `toggleFieldMode()` had a hardcoded `nav('feed')` from before the field home existed. Changed to `nav('home')` so tapping ⊞ Field always lands on `renderFieldHome()` when entering field mode.
+
+---
 
 ### OI-0129
 **Source:** User report / design session — b20260331.2335
