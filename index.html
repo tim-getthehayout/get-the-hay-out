@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Field Home","short_name": "Field","description": "Open field mode home screen","url": "/?field=home","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E⊞%3C/text%3E%3C/svg%3E","sizes": "512x512"}]},{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]},{"name": "Log Harvest","short_name": "Harvest","description": "Open Harvest sheet in field mode","url": "/?field=harvest","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🚜%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260401.0000" id="app-version-meta"/>
+<meta name="app-version" content="b20260401.0023" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -1538,6 +1538,7 @@ body:not(.field-mode) #field-mode-toggle{
       <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
         <button class="btn btn-outline btn-sm" style="width:auto;" onclick="checkForAppUpdate()" id="check-update-btn">↻ Check for update</button>
         <button class="btn btn-green btn-sm" style="width:auto;display:none;" id="apply-update-btn" onclick="applyAppUpdate()">↻ Update now</button>
+        <button class="btn btn-outline btn-sm" style="width:auto;" onclick="openFeedbackSheet()">💬 Feedback</button>
       </div>
       <button class="btn btn-green" onclick="saveSettings()">Save settings</button>
       <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
@@ -1570,14 +1571,11 @@ body:not(.field-mode) #field-mode-toggle{
     </button>
     <button class="bnav-btn" id="bn-pastures" onclick="nav('pastures',this)">
       <svg class="bnav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
-      Fields onclick="nav('feed',this)">
+      Fields
+    </button>
+    <button class="bnav-btn" id="bn-feed" onclick="nav('feed',this)">
       <svg class="bnav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18M3 15h18M9 3v18M15 3v18" stroke-linecap="round"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
       Feed
-    </button>
-    <button class="bnav-btn" id="bn-feedback" onclick="nav('feedback',this)">
-      <svg class="bnav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-      Feedback
-      <span class="bnav-badge" id="fb-badge" style="display:none;"></span>
     </button>
     <button class="bnav-btn" id="bn-settings" onclick="nav('settings',this)">
       <svg class="bnav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
@@ -1586,9 +1584,10 @@ body:not(.field-mode) #field-mode-toggle{
   </div>
 </div>
 
-<!-- FAB (feedback) -->
-<button class="fab" onclick="openFeedbackSheet()">
-  <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+<!-- FAB (feedback) — badge shows unread count when > 0 -->
+<button class="fab" onclick="openFeedbackSheet()" id="fab-feedback" style="position:relative;">
+  <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+  <span id="fb-badge" style="display:none;position:absolute;top:-4px;right:-4px;background:var(--red);color:white;border-radius:10px;font-size:9px;font-weight:700;padding:1px 5px;min-width:16px;text-align:center;"></span>
 </button>
 
 <!-- USER PICKER MODAL -->
@@ -1891,28 +1890,50 @@ function checkForAppUpdate(){
     alert('Service worker not supported in this browser.');
     return;
   }
-  const btn = document.getElementById('check-update-btn') || event?.target;
+  const btn = document.getElementById('check-update-btn');
   const applyBtn = document.getElementById('apply-update-btn');
   if(btn){ btn.textContent = 'Checking…'; btn.disabled = true; }
+
   navigator.serviceWorker.getRegistration('/').then(reg=>{
     if(!reg){
-      if(btn){ btn.textContent='↻ Check for update'; btn.disabled=false; }
+      // No SW registered — do a hard reload which will re-register
+      if(btn){ btn.textContent='No SW — reloading…'; }
+      setTimeout(()=>window.location.reload(), 800);
       return;
     }
     window._swRegistration = reg;
+
     reg.update().then(()=>{
+      // Check immediately after update() resolves
       if(reg.waiting && navigator.serviceWorker.controller){
         window._pendingUpdateWorker = reg.waiting;
         showUpdateBanner();
         if(btn){ btn.textContent='Update ready ↑'; btn.disabled=false; }
         if(applyBtn) applyBtn.style.display='inline-block';
-      } else {
-        if(btn){ btn.textContent='✓ Up to date'; }
-        if(applyBtn) applyBtn.style.display='none';
-        setTimeout(()=>{
-          if(btn){ btn.textContent='↻ Check for update'; btn.disabled=false; }
-        }, 3000);
+        return;
       }
+      if(reg.installing){
+        // Still installing — poll until it finishes (iOS sometimes needs this)
+        if(btn){ btn.textContent='Installing…'; }
+        const pollStart = Date.now();
+        const poll = setInterval(()=>{
+          if(reg.waiting && navigator.serviceWorker.controller){
+            clearInterval(poll);
+            window._pendingUpdateWorker = reg.waiting;
+            showUpdateBanner();
+            if(btn){ btn.textContent='Update ready ↑'; btn.disabled=false; }
+            if(applyBtn) applyBtn.style.display='inline-block';
+          } else if(!reg.installing || Date.now()-pollStart > 10000){
+            clearInterval(poll);
+            if(btn){ btn.textContent='↻ Check for update'; btn.disabled=false; }
+          }
+        }, 500);
+        return;
+      }
+      // Nothing waiting or installing — already on latest
+      if(btn){ btn.textContent='✓ Up to date'; }
+      if(applyBtn) applyBtn.style.display='none';
+      setTimeout(()=>{ if(btn){ btn.textContent='↻ Check for update'; btn.disabled=false; } }, 3000);
     }).catch(()=>{
       if(btn){ btn.textContent='↻ Check for update'; btn.disabled=false; }
     });
@@ -1920,7 +1941,6 @@ function checkForAppUpdate(){
 }
 
 function applyAppUpdate(){
-  // Re-query the waiting worker at click time in case the reference was stale
   const worker =
     window._pendingUpdateWorker ||
     (window._swRegistration && window._swRegistration.waiting) ||
@@ -1928,12 +1948,23 @@ function applyAppUpdate(){
 
   if(worker){
     worker.postMessage('SKIP_WAITING');
-    // controllerchange event will fire reload — but set a safety timeout
-    // in case it doesn't fire (e.g. already the controller on iOS)
+    // controllerchange fires reload — safety timeout if it doesn't (iOS standalone)
     setTimeout(() => window.location.reload(), 1500);
   } else {
-    // No waiting worker found — just reload; browser will fetch fresh HTML
-    window.location.reload();
+    // OI-0131: nuclear option for iOS PWA — unregister SW, clear all caches, hard reload
+    // This forces the browser to fetch fresh HTML on next load
+    const clearAndReload = () => {
+      caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))))
+        .finally(() => window.location.reload());
+    };
+    if(navigator.serviceWorker.controller){
+      navigator.serviceWorker.getRegistration('/').then(reg=>{
+        if(reg) reg.unregister().then(clearAndReload).catch(clearAndReload);
+        else clearAndReload();
+      }).catch(clearAndReload);
+    } else {
+      clearAndReload();
+    }
   }
 }
 
@@ -3871,6 +3902,8 @@ function nav(screen,btn){
   if(curScreen==='reports'&&screen!=='reports'){Object.keys(_chartInstances||{}).forEach(k=>{try{_chartInstances[k].destroy();}catch(e){};delete _chartInstances[k];});}
   curScreen=screen;renderCurrentScreen();
   syncSidebarNav(screen);
+  // OI-0131: update field mode header button (Home vs Detail) based on current screen
+  if(typeof _updateFieldModeBtn === 'function') _updateFieldModeBtn();
 }
 function renderCurrentScreen(){
   if(curScreen==='home')renderHome();
@@ -16050,13 +16083,35 @@ function syncSidebarOpName(){
 function setFieldModeUI(active){
   const btn = document.getElementById('field-mode-toggle');
   if(!btn) return;
-  if(active){
-    btn.textContent = '← Detail';
-    btn.title = 'Exit field mode';
-  } else {
+  if(!active){
     btn.textContent = '⊞ Field';
     btn.title = 'Switch to field mode';
+    btn.onclick = toggleFieldMode;
+    return;
   }
+  // In field mode: button behaviour depends on current screen
+  // On home → "← Detail" exits field mode
+  // Anywhere else → "⌂ Home" returns to tile grid without exiting
+  _updateFieldModeBtn();
+}
+function _updateFieldModeBtn(){
+  const btn = document.getElementById('field-mode-toggle');
+  if(!btn) return;
+  if(!document.body.classList.contains('field-mode')) return;
+  const onHome = (typeof curScreen !== 'undefined' && curScreen === 'home');
+  if(onHome){
+    btn.textContent = '← Detail';
+    btn.title = 'Exit field mode';
+    btn.onclick = toggleFieldMode;
+  } else {
+    btn.textContent = '⌂ Home';
+    btn.title = 'Back to field home';
+    btn.onclick = _fieldModeGoHome;
+  }
+}
+function _fieldModeGoHome(){
+  nav('home', document.getElementById('bn-home'));
+  // renderHome() will call renderFieldHome() because field-mode class is still set
 }
 
 function applyFieldMode(){

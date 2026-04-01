@@ -1,8 +1,8 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260401.0000`
-**Last updated:** 2026-03-31
+**Current build:** `b20260401.0023`
+**Last updated:** 2026-04-01
 
 > This is the authoritative navigation guide for every AI coding session.
 > Update it at the end of every session using the SESSION_RULES.md protocol.
@@ -98,7 +98,7 @@ build = 'b' + datetime.now().strftime('%Y%m%d') + '.' + datetime.now().strftime(
 | `events` | `#s-events` | `renderEventsLog()` (~L5805) or `renderRotationCalendar()` (~L14205) | `#bn-events` `#dbn-events` |
 | `todos` | `#s-todos` | `renderTodos()` | `#bn-todos` `#dbn-todos` |
 | `pastures` | `#s-pastures` | `renderPastures()` | `#bn-pastures` `#dbn-pastures` |
-| `feedback` | `#s-feedback` | `renderFeedbackTab()` | `#bn-feedback` `#dbn-feedback` |
+| `feedback` | `#s-feedback` | `renderFeedbackTab()` | `#dbn-feedback` (desktop only — removed from mobile bnav in b20260401.0016) |
 | `reports` | `#s-reports` | `renderReportsScreen()` | `#dbn-reports` (desktop only) |
 
 **Reports tabs (RPT_TABS):** `rotation` · `npk` · `feed` · `animals` · `summary` · `survey` · `weaning`
@@ -1242,7 +1242,15 @@ A stripped-down layout for focused phone use in the field. Activated by any of t
 
 **What the class hides:** `.dsk-sidebar`, `.bnav`, `#sync-indicator`, `#ver-tag`, `.hdr-sub`. On desktop it collapses the grid to a single column.
 
-**Toggle button:** `#field-mode-toggle` in `.hdr-right`. Label is "⊞ Field" in normal mode, "← Detail" in field mode. Set by `setFieldModeUI(active)`. Tapping it calls `toggleFieldMode()` which navigates to `home` in both directions — entering field mode lands on the tile grid, exiting returns to the normal home screen. (`nav('feed')` that was here pre-OI-0128 removed in b20260331.2356.)
+**Toggle button:** `#field-mode-toggle` in `.hdr-right`. Label and behaviour are context-sensitive (set by `setFieldModeUI` + `_updateFieldModeBtn`, called from `nav()` on every screen change):
+
+| State | Label | Action |
+|---|---|---|
+| Not in field mode | ⊞ Field | `toggleFieldMode()` — enters field mode, goes to home tile grid |
+| Field mode, on home screen | ← Detail | `toggleFieldMode()` — exits field mode |
+| Field mode, on any other screen | ⌂ Home | `_fieldModeGoHome()` — navigates to home **without exiting** field mode |
+
+`_updateFieldModeBtn()` is called from `nav()` after every screen transition so the button always reflects the current context. `_fieldModeGoHome()` calls `nav('home',...)` which triggers `renderHome()` → `renderFieldHome()` because `body.field-mode` is still set.
 
 **Routing on `?field=feed`:** `applyFieldMode()` calls `nav('feed',…)` then `setTimeout(openQuickFeedSheet, 180)`.
 

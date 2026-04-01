@@ -3,6 +3,13 @@
 
 | Build | File | Change |
 |---|---|---|
+| b20260401.0016 | HTML | OI-0131-A — Field mode context-sensitive header button. `setFieldModeUI()` now calls `_updateFieldModeBtn()`. On home screen: "← Detail" exits field mode. Elsewhere: "⌂ Home" stays in field mode, navs to tile grid. `_updateFieldModeBtn()` hooked into `nav()` for every screen transition. New functions: `_updateFieldModeBtn()`, `_fieldModeGoHome()`. |
+| b20260401.0016 | HTML | OI-0131-B — Bottom nav rebuilt. Fields+Feed buttons were corrupted (closing/opening tags merged, rendering raw `onclick=...` as visible text). Rebuilt cleanly. `bn-feedback` removed — 7 items: Home, Animals, Tasks, Events, Fields, Feed, Settings. |
+| b20260401.0016 | HTML | OI-0131-C — FAB: chat bubble icon, `fb-badge` moved to FAB. "💬 Feedback" button added to Settings action row. |
+| b20260401.0016 | HTML | OI-0131-D — SW update hardening. `checkForAppUpdate()` polls `reg.installing` every 500ms up to 10s. `applyAppUpdate()` nuclear fallback: unregisters SW + clears all caches + hard reloads when no waiting worker found. |
+| b20260401.0016 | ARCHITECTURE | Field mode toggle table added. Screen map feedback row updated. |
+| b20260401.0016 | OPEN_ITEMS | OI-0131 added and closed. Closed: 97→98. |
+|---|---|---|
 | b20260331.2356 | HTML | OI-0130-A — Field module toggle persistence fix. `_getUserFieldModules()` now reads from `_sbLoadCachedIdentity()` directly. `_setUserFieldModules(keys)` writes `fieldModules` into `gthy-identity` via spread-merge. `sbCacheIdentity()` updated to preserve existing `fieldModules` on identity refresh. `getActiveUser()` return object now includes `fieldModules` for read-only reference. |
 | b20260331.2356 | HTML | OI-0130-B — `toggleFieldMode()` navigation fix. Hardcoded `nav('feed')` replaced with `nav('home')`. Tapping ⊞ Field now lands on field home tile grid instead of Quick Feed sheet. |
 | b20260331.2356 | ARCHITECTURE | Field Mode section: per-user storage paragraph updated (gthy-identity write-through, null sentinel). Toggle button note updated (nav to home both ways, old nav('feed') removed). |

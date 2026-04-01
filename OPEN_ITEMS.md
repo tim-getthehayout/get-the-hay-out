@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260331.2356
-**Reconciled against build:** b20260331.2356
+**Last updated:** b20260401.0016
+**Reconciled against build:** b20260401.0016
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -23,7 +23,7 @@
 | 🟡 Open — Polish | 0 |
 | 🔵 Open — Enhancement | 23 |
 | ⚪ Open — Debt | 6 |
-| ✅ Closed | 97 |
+| ✅ Closed | 98 |
 
 ---
 
@@ -36,10 +36,9 @@ Recommended work order as of b20260331.2335. Update after each session.
 | 1 | OI-0105 | Membership-weighted NPK for multi-group events | Design first — future enhancement |
 | 2 | OI-0129 | Field mode per-module streamlined UX | Design first — each module may need mobile-optimized sheet variant |
 
-> **OI-0130 closed** b20260331.2356 — field mode module toggle persistence fix (`gthy-identity` write-through); `toggleFieldMode` nav fix (⊞ Field → home tile grid).
-> **OI-0128 closed** b20260331.2335 — Field home tile grid implemented.
-> **OI-0127 closed** b20260331.2335 — Harvest module fixes (weight lbs, batch ID, operation_id, inline toggle).
-> **Last updated:** b20260331.2356
+> **OI-0131 closed** b20260401.0016 — field mode context-sensitive header button (⌂ Home vs ← Detail); bottom nav feedback removal + FAB fix; Settings feedback button; SW update hardening.
+> **OI-0130 closed** b20260331.2356 — field module toggle persistence; toggleFieldMode nav fix.
+> **Last updated:** b20260401.0016
 
 ---
 
@@ -52,6 +51,26 @@ Recommended work order as of b20260331.2335. Update after each session.
 ---
 
 ## Open Items
+
+### OI-0131
+**Source:** User report — b20260401.0016
+**Area:** Field mode header · Bottom nav · SW update
+**Severity:** Bug + Enhancement
+**Status:** ✅ Closed
+**Found:** b20260401.0000
+**Closed:** b20260401.0016
+
+Four fixes in one session:
+
+**A — Field mode context-sensitive header button.** When in field mode and not on the home screen, the toggle button now shows "⌂ Home" and calls `_fieldModeGoHome()` — navigates back to the tile grid without exiting field mode. Only on the home screen does it show "← Detail" to exit. `_updateFieldModeBtn()` called from `nav()` on every screen transition to keep it current. New functions: `_updateFieldModeBtn()`, `_fieldModeGoHome()`.
+
+**B — Bottom nav overflow/corruption fix.** The Fields and Feed nav buttons had their HTML corrupted (closing `</button>` and opening `<button` merged into garbled text that rendered as literal `onclick=...` content on screen). Both buttons rebuilt cleanly. Feedback removed from the 7-item mobile nav — was causing overflow on narrow phones. Nav items: Home, Animals, Tasks, Events, Fields, Feed, Settings.
+
+**C — Feedback access after nav removal.** FAB button updated to use chat bubble icon and now carries the `fb-badge` unread count. "💬 Feedback" button added to Settings bottom action row. Desktop sidebar `#dbn-feedback` unchanged.
+
+**D — SW update hardening for iOS PWA.** `checkForAppUpdate()` now polls for `reg.installing` when `reg.waiting` is null (iOS installs asynchronously after `reg.update()` resolves). Polls every 500ms up to 10s. `applyAppUpdate()` nuclear fallback: when no waiting worker found, unregisters SW + clears all caches + hard reload — forces iOS to fetch fresh HTML.
+
+---
 
 ### OI-0130
 **Source:** User report — b20260331.2356
