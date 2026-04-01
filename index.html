@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Field Home","short_name": "Field","description": "Open field mode home screen","url": "/?field=home","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E⊞%3C/text%3E%3C/svg%3E","sizes": "512x512"}]},{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]},{"name": "Log Harvest","short_name": "Harvest","description": "Open Harvest sheet in field mode","url": "/?field=harvest","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🚜%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260401.0132" id="app-version-meta"/>
+<meta name="app-version" content="b20260401.0950" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -2029,6 +2029,8 @@ let _sbRealtimeChannel = null;  // M2: active realtime subscription
 let _sbLoadInProgress = false;  // guard: prevents concurrent loadFromSupabase calls on rapid auth events
 let _sbFarmsFetchOk = false;    // M7: true only when farms table was successfully reached this session
 let _sbForageTypesFetchOk = false; // M7-E: true only when forage_types table was successfully reached
+let _sbHasLoadedOnce = false;  // guard: skip JWT-refresh SIGNED_IN reloads after first successful load
+let _sbLastLoadAt = 0;         // ms timestamp of last successful load — used with _sbHasLoadedOnce (10-min window)
 
 function sbInitClient(){
   if(_sbClient) return;
@@ -2063,6 +2065,13 @@ function sbInitClient(){
         // (or the network briefly hiccups during the refresh), all table fetches
         // fail simultaneously and migrateHomeFarm creates a duplicate farm.
         if(_sbLoadInProgress){ return; }
+        // Skip if we've already loaded and the last load was recent (< 10 min).
+        // Supabase fires SIGNED_IN on every JWT refresh (~5 min) — without this guard
+        // each refresh triggers a full 24-table reload; when the network is briefly
+        // unavailable that floods the error log with ~20 "Load failed" entries.
+        // Realtime subscription handles changes while active; a >10-min gap re-allows
+        // a full reload to pull in any changes missed while the app was backgrounded.
+        if(_sbHasLoadedOnce && (Date.now() - _sbLastLoadAt) < 10 * 60 * 1000){ return; }
         _sbLoadInProgress = true;
         sbGetOperationId().then(async opId => {
           if(opId){
@@ -2081,6 +2090,8 @@ function sbInitClient(){
       _sbProfile = null;
       _sbFarmsFetchOk = false;
       _sbForageTypesFetchOk = false;
+      _sbHasLoadedOnce = false;
+      _sbLastLoadAt = 0;
       // NOTE: deliberately NOT removing 'gthy-operation-id' from localStorage.
       // The operation ID is not session-sensitive — a returning user always gets
       // the same UUID. Keeping it cached means queueWrite() can self-heal null
@@ -2692,6 +2703,25 @@ async function loadFromSupabase(operationId){
   if(!_sbClient || !operationId) return;
   setSyncStatus('pending', 'Loading from Supabase…');
   try{
+    // Pre-flight: iOS wakes the app before the network stack is fully ready.
+    // Auth fires SIGNED_IN immediately on wake, but all fetches fail with
+    // "TypeError: Load failed" for ~0.5–2s while the radio re-associates.
+    // Probe with one lightweight query and back off before starting the 24-table load.
+    // This collapses what was ~20 error log entries per wake event into zero.
+    for(let _pf = 0; _pf < 3; _pf++){
+      const {error: _pfErr} = await _sbClient
+        .from('pastures').select('id').eq('operation_id', operationId).limit(1);
+      // No error, or a Supabase-level error (has a code) → network is up, proceed
+      if(!_pfErr || !(_pfErr.message||'').includes('Load failed')) break;
+      // "Load failed" = transport-level failure — network not ready yet
+      if(_pf === 2){
+        // All retries exhausted — bail cleanly (sync status shown; no 20-entry cascade)
+        setSyncStatus('error', 'Sync failed — showing cached data');
+        return;
+      }
+      await new Promise(r => setTimeout(r, 1500));
+    }
+
     // Use nested selects for hierarchical tables; _sbFetch for flat tables.
     // _sbFetch returns [] on error (logged, not thrown) — one table failure
     // does not abort the whole load.
@@ -2926,6 +2956,8 @@ async function loadFromSupabase(operationId){
     setSyncStatus('ok', 'Synced ' + new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}));
     updateHeader(); updateHeaderAvatar();
     renderCurrentScreen();
+    _sbHasLoadedOnce = true;   // suppress JWT-refresh reloads within 10-min window
+    _sbLastLoadAt = Date.now();
 
   } catch(e){
     logError('supabase-load', 'loadFromSupabase failed: ' + e.message, '');

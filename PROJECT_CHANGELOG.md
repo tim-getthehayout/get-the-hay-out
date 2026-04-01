@@ -3,6 +3,9 @@
 
 | Build | File | Change |
 |---|---|---|
+| b20260401.0946 | HTML | iOS wake / JWT-refresh resilience. (1) `_sbHasLoadedOnce` + `_sbLastLoadAt` module vars added. Auth handler skips load chain on SIGNED_IN if a successful load occurred within the last 10 min — eliminates redundant full reloads on every JWT refresh. Both flags reset on SIGNED_OUT. (2) Pre-flight probe loop added to top of `loadFromSupabase()` try block: single `.select('id').limit(1)` on `pastures`, retried up to 3× with 1.5s backoff. Absorbs "TypeError: Load failed" cascade when iOS wakes the PWA before the network stack is ready. All 3 probes failing → clean bail with sync-error status, zero cascade log entries. Supabase-level errors (have `.code`) pass straight through. |
+| b20260401.0946 | ARCHITECTURE | Load guard section updated: `_sbLoadInProgress` JWT frequency corrected (~5 min). New entries for `_sbHasLoadedOnce`/`_sbLastLoadAt` JWT-refresh skip guard and iOS wake pre-flight probe. |
+|---|---|---|
 | b20260401.0055 | HTML | OI-0133 — CSS regression fix. `body.field-mode .field-mode-sheet { display:flex !important }` replaced with `body.field-mode .field-mode-sheet.open .sheet { width/height:100%; border-radius:0 }` — only resizes inner sheet when wrap is open, never forces visibility. `#harvest-sheet-wrap` switched from `style.display='flex'/'none'` to `.classList.add/remove('open')` for consistency with all other sheets and to work with the `.open` CSS selector. All three `style.display==='flex'` guards updated to `.classList.contains('open')`. Redundant `style="display:none"` removed from harvest-sheet-wrap HTML. |
 | b20260401.0055 | ARCHITECTURE | Field-mode-sheet CSS pattern updated — correct selector documented, regression cause noted. Harvest sheet open/close mechanism updated. |
 | b20260401.0055 | OPEN_ITEMS | OI-0133 added and closed. Closed: 99→100. |

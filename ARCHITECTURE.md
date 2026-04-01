@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260401.0132`
+**Current build:** `b20260401.0950`
 **Last updated:** 2026-04-01
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -729,7 +729,11 @@ Critical ordering constraint for the app init block at bottom of `<script>`:
 2. `loadFromSupabase(opId)` — parallel-fetches all tables; assembles S from Supabase rows; calls all migrate guards; `saveLocal()`; re-renders
 3. `subscribeRealtime(opId)` — opens a Supabase channel; one `postgres_changes` listener per watched table; changes are debounced 2s and respect `_sbLoadInProgress` guard
 
-**Load concurrency guard (`_sbLoadInProgress`):** Supabase SDK fires `SIGNED_IN` on every JWT token refresh (~hourly), not just genuine sign-ins. Without this flag, token refresh during an active load would launch a concurrent second load. Auth handler sets `_sbLoadInProgress = true` before the load chain and clears it in a `finally` block. Realtime callback also checks this flag before scheduling a debounced reload. Reset on `SIGNED_OUT`.
+**Load concurrency guard (`_sbLoadInProgress`):** Supabase SDK fires `SIGNED_IN` on every JWT token refresh (~5 min), not just genuine sign-ins. Without this flag, token refresh during an active load would launch a concurrent second load. Auth handler sets `_sbLoadInProgress = true` before the load chain and clears it in a `finally` block. Realtime callback also checks this flag before scheduling a debounced reload. Reset on `SIGNED_OUT`.
+
+**JWT-refresh skip guard (`_sbHasLoadedOnce` + `_sbLastLoadAt`, b20260401.0946):** Prevents repeated full reloads on every JWT refresh (~5 min). After the first successful `loadFromSupabase()`, `_sbHasLoadedOnce` is set `true` and `_sbLastLoadAt` records the timestamp. Auth handler skips the load chain if both flags indicate a load completed within the last 10 minutes — JWT-refresh SIGNED_IN events are silently ignored during this window. A >10-min gap re-allows a full reload (catches changes missed while app was backgrounded). Both flags reset on `SIGNED_OUT` so a genuine sign-in always loads fresh.
+
+**iOS wake pre-flight probe (`loadFromSupabase`, b20260401.0946):** iOS wakes a PWA before the network stack is fully ready. Auth fires `SIGNED_IN` immediately on wake but all fetches return `TypeError: Load failed` for ~0.5–2s while the radio re-associates — producing a ~20-entry error log cascade. `loadFromSupabase()` now opens with a probe loop: one lightweight `.select('id').limit(1)` on `pastures`, retried up to 3× with 1.5s backoff. If the probe gets any Supabase-level error (has a `.code`) the network is up and the full load proceeds. If all 3 probe attempts return `"Load failed"` (transport failure), the function sets sync status to error and returns cleanly — zero cascade entries. Any other path proceeds to the 24-table `Promise.all` as before.
 
 **Farms fetch-ok flag (`_sbFarmsFetchOk`):** Set `true` only when the `farms` table fetch succeeds (returns data or confirmed empty). Used by `migrateHomeFarm()` to distinguish "no farms in Supabase" from "network/RLS failure returned empty". Reset on `SIGNED_OUT`.
 
