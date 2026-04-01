@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260401.0016
-**Reconciled against build:** b20260401.0016
+**Last updated:** b20260401.0044
+**Reconciled against build:** b20260401.0044
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -23,7 +23,7 @@
 | 🟡 Open — Polish | 0 |
 | 🔵 Open — Enhancement | 23 |
 | ⚪ Open — Debt | 6 |
-| ✅ Closed | 98 |
+| ✅ Closed | 99 |
 
 ---
 
@@ -36,9 +36,9 @@ Recommended work order as of b20260331.2335. Update after each session.
 | 1 | OI-0105 | Membership-weighted NPK for multi-group events | Design first — future enhancement |
 | 2 | OI-0129 | Field mode per-module streamlined UX | Design first — each module may need mobile-optimized sheet variant |
 
-> **OI-0131 closed** b20260401.0016 — field mode context-sensitive header button (⌂ Home vs ← Detail); bottom nav feedback removal + FAB fix; Settings feedback button; SW update hardening.
-> **OI-0130 closed** b20260331.2356 — field module toggle persistence; toggleFieldMode nav fix.
-> **Last updated:** b20260401.0016
+> **OI-0132 closed** b20260401.0044 — FAB restored to + cross; FAB hidden in field mode; Settings feedback → nav to feedback screen; harvest + feed sheets full-screen in field mode; Feed Animals tile flow; correct close/save routing to field home.
+> **OI-0131 closed** b20260401.0016 — field mode header button; bottom nav fix; SW hardening.
+> **Last updated:** b20260401.0044
 
 ---
 
@@ -51,6 +51,26 @@ Recommended work order as of b20260331.2335. Update after each session.
 ---
 
 ## Open Items
+
+### OI-0132
+**Source:** User report — b20260401.0044
+**Area:** FAB · Feedback · Field mode sheets · Quick Feed · Harvest
+**Severity:** Bug + Enhancement
+**Status:** ✅ Closed
+**Found:** b20260401.0023
+**Closed:** b20260401.0044
+
+Five fixes in one session:
+
+**A — FAB restored to green + cross.** Chat-bubble SVG replaced with explicit `22×22` `+` cross SVG. `body.field-mode .fab { display:none !important }` added — FAB hidden in field mode (not a field-mode action). FAB base CSS uses `right:16px` — confirmed bottom-right positioning.
+
+**B — Settings "Feedback log" button.** Changed from `openFeedbackSheet()` (opens the add-feedback form) to `nav('feedback', ...)` — correctly navigates to the full feedback screen with the list.
+
+**C — Harvest sheet full-screen in field mode.** `field-mode-sheet` class added to `#harvest-sheet-wrap`. `openHarvestSheet()` detects field mode: backdrop tap-to-close disabled, handle hidden, close button → "⌂ Done", cancel → "⌂ Done". `closeHarvestSheet()` calls `_fieldModeGoHome()` in field mode. `saveHarvestEvent()` calls `_fieldModeGoHome()` after save in field mode (instead of `renderPastures()`). Alert replaced with `showSurveyToast`.
+
+**D — Quick Feed "Feed Animals" full-screen flow.** `field-mode-sheet` class added to `#quick-feed-wrap`. Tile label "Log Feed" → "Feed Animals". `openQuickFeedSheet()` in field mode: backdrop disabled, handle hidden, step-1 "⌂ Done" button shown, Cancel hidden, step-2 cancel → "← Back". `qfShowEventStep()` respects field mode (cancel hidden, done shown). Step-2 "← Back" returns to event picker (not close). `saveQuickFeed()` in field mode: stays on event picker with toast — user feeds more groups or taps "⌂ Done". `closeQuickFeedSheet()` in field mode: always `_fieldModeGoHome()`.
+
+---
 
 ### OI-0131
 **Source:** User report — b20260401.0016

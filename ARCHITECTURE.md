@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260401.0023`
+**Current build:** `b20260401.0047`
 **Last updated:** 2026-04-01
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -1281,7 +1281,11 @@ A stripped-down layout for focused phone use in the field. Activated by any of t
 
 **Settings card:** "Field mode" card added to Settings screen (above Farm users). Shows each module as a toggle row. `renderFieldModules()` called from the settings render chain.
 
-**Note:** Each module may eventually get a streamlined mobile-optimized variant of its sheet (larger tap targets, fewer secondary actions). The current handlers call existing sheets as-is. OI logged for future module-specific UX work.
+**Field-mode full-screen sheets (OI-0132, b20260401.0044):** `body.field-mode .field-mode-sheet .sheet` is 100% width/height, no border-radius — full-screen overlay on mobile. Class `field-mode-sheet` is added to `#harvest-sheet-wrap` and `#quick-feed-wrap`. Both open functions detect `body.field-mode` and configure context-sensitive UI at open time: backdrop tap-to-close disabled, sheet handle hidden, close/cancel button labels updated.
+
+**Harvest sheet in field mode:** Close/cancel → "⌂ Done". After `saveHarvestEvent()` in field mode, calls `_fieldModeGoHome()` instead of `renderPastures()`. Alert replaced with `showSurveyToast`.
+
+**Quick Feed sheet in field mode (OI-0132):** Tile label "Log Feed" → "Feed Animals". Step 1 shows "⌂ Done" button (closes to field home); Cancel button hidden. Step 2 "← Back" returns to event picker (does NOT close sheet). After `saveQuickFeed()` in field mode, stays on event picker with toast — user can feed another group or tap "⌂ Done" to return to field home. `closeQuickFeedSheet()` in field mode always calls `_fieldModeGoHome()`.
 
 ---
 

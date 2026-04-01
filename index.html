@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Field Home","short_name": "Field","description": "Open field mode home screen","url": "/?field=home","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E⊞%3C/text%3E%3C/svg%3E","sizes": "512x512"}]},{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]},{"name": "Log Harvest","short_name": "Harvest","description": "Open Harvest sheet in field mode","url": "/?field=harvest","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🚜%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260401.0023" id="app-version-meta"/>
+<meta name="app-version" content="b20260401.0047" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -115,6 +115,14 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 .wiz-step{display:none;}.wiz-step.on{display:block;}
 .fab{position:fixed;bottom:calc(72px + var(--safe-bottom) + 12px);right:16px;width:48px;height:48px;border-radius:50%;background:var(--green);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:90;box-shadow:0 2px 10px rgba(0,0,0,0.2);}
 .fab:active{background:var(--green-d);}
+body.field-mode .fab{display:none !important;}
+/* Field-mode sheets: full-screen overlay on mobile, no backdrop tap-to-close */
+body.field-mode .field-mode-sheet{display:flex !important;}
+body.field-mode .field-mode-sheet .sheet{
+  width:100% !important;max-width:100% !important;height:100% !important;
+  max-height:100% !important;border-radius:0 !important;
+  overflow-y:auto;
+}
 .sheet-wrap{display:none;position:fixed;inset:0;z-index:200;}
 .sheet-wrap.open{display:flex;align-items:center;justify-content:center;}
 .sheet-backdrop{position:absolute;inset:0;background:rgba(0,0,0,0.4);}
@@ -1538,7 +1546,7 @@ body:not(.field-mode) #field-mode-toggle{
       <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
         <button class="btn btn-outline btn-sm" style="width:auto;" onclick="checkForAppUpdate()" id="check-update-btn">↻ Check for update</button>
         <button class="btn btn-green btn-sm" style="width:auto;display:none;" id="apply-update-btn" onclick="applyAppUpdate()">↻ Update now</button>
-        <button class="btn btn-outline btn-sm" style="width:auto;" onclick="openFeedbackSheet()">💬 Feedback</button>
+        <button class="btn btn-outline btn-sm" style="width:auto;" onclick="nav('feedback',document.getElementById('dbn-feedback'))">💬 Feedback log</button>
       </div>
       <button class="btn btn-green" onclick="saveSettings()">Save settings</button>
       <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
@@ -1586,8 +1594,8 @@ body:not(.field-mode) #field-mode-toggle{
 
 <!-- FAB (feedback) — badge shows unread count when > 0 -->
 <button class="fab" onclick="openFeedbackSheet()" id="fab-feedback" style="position:relative;">
-  <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-  <span id="fb-badge" style="display:none;position:absolute;top:-4px;right:-4px;background:var(--red);color:white;border-radius:10px;font-size:9px;font-weight:700;padding:1px 5px;min-width:16px;text-align:center;"></span>
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+  <span id="fb-badge" style="display:none;position:absolute;top:-4px;right:-4px;background:var(--red);color:white;border-radius:10px;font-size:9px;font-weight:700;padding:1px 5px;min-width:16px;text-align:center;line-height:14px;"></span>
 </button>
 
 <!-- USER PICKER MODAL -->
@@ -1616,13 +1624,13 @@ body:not(.field-mode) #field-mode-toggle{
 </div>
 
 <!-- HARVEST EVENT SHEET (M7-F) -->
-<div class="sheet-wrap" id="harvest-sheet-wrap" style="display:none;">
-  <div class="sheet-backdrop" onclick="closeHarvestSheet()"></div>
+<div class="sheet-wrap field-mode-sheet" id="harvest-sheet-wrap" style="display:none;">
+  <div class="sheet-backdrop" id="harvest-sheet-backdrop" onclick="closeHarvestSheet()"></div>
   <div class="sheet" style="max-height:92vh;overflow-y:auto;">
-    <div class="sheet-handle"></div>
+    <div class="sheet-handle" id="harvest-sheet-handle"></div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
       <div style="font-size:16px;font-weight:600;">🌾 Harvest</div>
-      <button style="border:none;background:transparent;font-size:22px;cursor:pointer;color:var(--text2);padding:0;" onclick="closeHarvestSheet()">✕</button>
+      <button style="border:none;background:transparent;font-size:22px;cursor:pointer;color:var(--text2);padding:0;" onclick="closeHarvestSheet()" id="harvest-sheet-close">✕</button>
     </div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
       <div style="font-size:12px;color:var(--text2);">Each field record creates a feed batch automatically.</div>
@@ -1635,7 +1643,7 @@ body:not(.field-mode) #field-mode-toggle{
     <div id="harvest-row-list"></div>
     <div class="btn-row" style="margin-top:4px;">
       <button class="btn btn-green" onclick="saveHarvestEvent()">Save harvest</button>
-      <button class="btn btn-outline" onclick="closeHarvestSheet()">Cancel</button>
+      <button class="btn btn-outline" onclick="closeHarvestSheet()" id="harvest-sheet-cancel">Cancel</button>
     </div>
   </div>
 </div>
@@ -4211,7 +4219,7 @@ function renderMobilePerformanceStrip(){
 // All available field modules. Future modules stub here with handler:null
 // to indicate "not yet implemented — tap does nothing beyond showing label".
 const FIELD_MODULES = [
-  { key:'feed',    icon:'🌾', label:'Log Feed',    handler:()=>{ nav('feed',document.getElementById('bn-feed')); setTimeout(openQuickFeedSheet,120); } },
+  { key:'feed',    icon:'🌾', label:'Feed Animals', handler:()=>{ nav('feed',document.getElementById('bn-feed')); setTimeout(openQuickFeedSheet,120); } },
   { key:'harvest', icon:'🚜', label:'Log Harvest', handler:()=>{ nav('pastures',document.getElementById('bn-pastures')); setTimeout(openHarvestSheet,120); } },
   { key:'survey',  icon:'📋', label:'Survey',      handler:()=>{ nav('pastures',document.getElementById('bn-pastures')); setTimeout(openBulkSurveySheet,120); } },
   { key:'animals', icon:'🐄', label:'Animals',     handler:()=>{ nav('animals',document.getElementById('bn-animals')); } },
@@ -4279,7 +4287,7 @@ function renderFieldHome(){
   grpsEl.innerHTML = `
     <div style="padding:16px 0 8px;">
       <div style="font-size:18px;font-weight:700;margin-bottom:2px;">Field Mode</div>
-      <div style="font-size:12px;color:var(--text2);margin-bottom:16px;">Tap to log. Tap <strong>← Detail</strong> in the header to return.</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:16px;">Tap to log. Use <strong>← Detail</strong> in the header to return to the full app.</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">${tileHTML}</div>
     </div>`;
 }
@@ -4980,7 +4988,6 @@ function openQuickFeedSheet(preselectGroupId){
     return;
   }
   // Pre-select if only one event or groupId passed
-  // Use evGroups() — never read e.groupId directly (multi-group events store via groups[])
   if(preselectGroupId){
     const ev = active.find(e=>evGroups(e).some(g=>g.groupId===preselectGroupId&&!g.dateRemoved));
     if(ev){ qfSelectEvent(ev.id); }
@@ -4990,6 +4997,18 @@ function openQuickFeedSheet(preselectGroupId){
   } else {
     qfShowEventStep(active);
   }
+  // OI-0132: field mode — configure full-screen UI
+  const isField = document.body.classList.contains('field-mode');
+  const backdrop = document.getElementById('qf-backdrop');
+  if(backdrop) backdrop.onclick = isField ? null : closeQuickFeedSheet;
+  const handle = document.getElementById('qf-handle');
+  if(handle) handle.style.display = isField ? 'none' : '';
+  const doneBtn = document.getElementById('qf-step1-done');
+  if(doneBtn) doneBtn.style.display = isField ? '' : 'none';
+  const cancelBtn = document.getElementById('qf-cancel-btn');
+  if(cancelBtn) cancelBtn.style.display = isField ? 'none' : '';
+  const step2Cancel = document.getElementById('qf-step2-cancel');
+  if(step2Cancel) step2Cancel.textContent = isField ? '← Back' : 'Cancel';
   document.getElementById('quick-feed-wrap').classList.add('open');
 }
 
@@ -4999,7 +5018,11 @@ function closeQuickFeedSheet(){
   qfEventId=null;
   const _returnHome = qfFromHome;
   qfFromHome=false;
-  if(_returnHome) nav('home', document.getElementById('bn-home')||document.getElementById('dbn-home'));
+  if(document.body.classList.contains('field-mode')){
+    _fieldModeGoHome();
+  } else if(_returnHome){
+    nav('home', document.getElementById('bn-home')||document.getElementById('dbn-home'));
+  }
 }
 
 function qfShowEventStep(active){
@@ -5032,7 +5055,10 @@ function qfShowEventStep(active){
   }).join('');
   // Show cancel on step 1 so user can dismiss without selecting
   const cancelRow = document.getElementById('qf-step1-cancel');
-  if(cancelRow) cancelRow.style.display = 'block';
+  const isField = document.body.classList.contains('field-mode');
+  if(cancelRow) cancelRow.style.display = isField ? 'none' : 'block';
+  const doneBtn = document.getElementById('qf-step1-done');
+  if(doneBtn) doneBtn.style.display = isField ? '' : 'none';
   document.getElementById('qf-step-event').style.display='block';
   document.getElementById('qf-step-form').style.display='none';
 }
@@ -5177,17 +5203,27 @@ function saveQuickFeed(){
   queueEventWrite(ev); // M3
   save();
   const returnHome = qfFromHome;
-  closeQuickFeedSheet(); // resets qfFromHome
+  const isField = document.body.classList.contains('field-mode');
   // Use evGroups() for group name — never read ev.groupId directly
   const gs = evGroups(ev);
   const gName = gs.length ? (getGroupById(gs[0].groupId)?.name || gs[0].groupName || 'Herd') : 'Herd';
-  if(returnHome){
-    nav('home', document.getElementById('bn-home')||document.getElementById('dbn-home'));
+  if(isField){
+    // Stay in quick-feed sheet — return to event picker so user can feed another group or tap Done
+    qfLines=[];
+    qfEventId=null;
+    const active = getActiveEvents();
+    qfShowEventStep(active);
+    showSurveyToast('Feeding saved for '+gName);
   } else {
-    renderFeedOverview();
-    renderBatchListS();
+    closeQuickFeedSheet(); // resets qfFromHome
+    if(returnHome){
+      nav('home', document.getElementById('bn-home')||document.getElementById('dbn-home'));
+    } else {
+      renderFeedOverview();
+      renderBatchListS();
+    }
+    showSurveyToast('Feeding saved for '+gName);
   }
-  showSurveyToast('Feeding saved for '+gName);
 }
 
 // ── FEED TYPES SHEET ──────────────────────────────────────────────────────────
@@ -8901,12 +8937,23 @@ function openHarvestSheet(){
   document.getElementById('harvest-sheet-date').value=todayStr();
   document.getElementById('harvest-sheet-notes').value='';
   _renderHarvestTileGrid();
+  // Field mode: full-screen, close/cancel → field home; backdrop non-interactive
+  const isField = document.body.classList.contains('field-mode');
+  const backdrop = document.getElementById('harvest-sheet-backdrop');
+  const closeBtn = document.getElementById('harvest-sheet-close');
+  const cancelBtn = document.getElementById('harvest-sheet-cancel');
+  const handle = document.getElementById('harvest-sheet-handle');
+  if(backdrop) backdrop.onclick = isField ? null : closeHarvestSheet;
+  if(handle) handle.style.display = isField ? 'none' : '';
+  if(closeBtn) closeBtn.textContent = isField ? '⌂ Done' : '✕';
+  if(cancelBtn) cancelBtn.textContent = isField ? '⌂ Done' : 'Cancel';
   document.getElementById('harvest-sheet-wrap').style.display='flex';
 }
 function closeHarvestSheet(){
   document.getElementById('harvest-sheet-wrap').style.display='none';
   _harvestTiles=[];
   _harvestRows=[];
+  if(document.body.classList.contains('field-mode')) _fieldModeGoHome();
 }
 
 function _renderHarvestTileGrid(){
@@ -9109,10 +9156,13 @@ function saveHarvestEvent(){
   });
 
   save();
-  closeHarvestSheet();
-  renderPastures();
-  renderBatchListS();
-  alert(`Harvest saved — ${ev.fields.length} batch${ev.fields.length!==1?'es':''} created.`);
+  const _wasFieldMode = document.body.classList.contains('field-mode');
+  closeHarvestSheet(); // resets tiles; in field mode calls _fieldModeGoHome
+  if(!_wasFieldMode){
+    renderPastures();
+    renderBatchListS();
+  }
+  showSurveyToast(`Harvest saved — ${ev.fields.length} batch${ev.fields.length!==1?'es':''} created.`);
 }
 
 // Legacy stubs removed — _renderHarvestRows, _harvestRowFieldChange,
@@ -19242,18 +19292,21 @@ if ('serviceWorker' in navigator) {
      Step 1: pick event (skip if only one open)
      Step 2: pick batches + quantities, date/time, save
      ═══════════════════════════════════════════════════════════════════════ -->
-<div class="sheet-wrap" id="quick-feed-wrap">
-  <div class="sheet-backdrop" onclick="closeQuickFeedSheet()"></div>
+<div class="sheet-wrap field-mode-sheet" id="quick-feed-wrap">
+  <div class="sheet-backdrop" id="qf-backdrop" onclick="closeQuickFeedSheet()"></div>
   <div class="sheet" style="max-height:92vh;overflow-y:auto;">
-    <div class="sheet-handle"></div>
+    <div class="sheet-handle" id="qf-handle"></div>
 
     <!-- Step 1: Event selection (hidden when pre-selected) -->
     <div id="qf-step-event">
-      <div style="font-size:16px;font-weight:600;margin-bottom:4px;">Feed animals</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <div style="font-size:16px;font-weight:600;">Feed Animals</div>
+        <button class="btn btn-outline btn-xs" id="qf-step1-done" style="display:none;" onclick="closeQuickFeedSheet()">⌂ Done</button>
+      </div>
       <div style="font-size:12px;color:var(--text2);margin-bottom:14px;">Select which location you are feeding</div>
       <div id="qf-event-list"></div>
       <div id="qf-step1-cancel" style="display:none;margin-top:4px;">
-        <button class="btn btn-outline" onclick="closeQuickFeedSheet()">Cancel</button>
+        <button class="btn btn-outline" onclick="closeQuickFeedSheet()" id="qf-cancel-btn">Cancel</button>
       </div>
     </div>
 
@@ -19302,7 +19355,7 @@ if ('serviceWorker' in navigator) {
 
       <div class="btn-row" style="margin-top:14px;">
         <button class="btn btn-green" onclick="saveQuickFeed()">Save feeding</button>
-        <button class="btn btn-outline" onclick="closeQuickFeedSheet()">Cancel</button>
+        <button class="btn btn-outline" onclick="document.body.classList.contains('field-mode')?qfShowEventStep():closeQuickFeedSheet()" id="qf-step2-cancel">Cancel</button>
       </div>
     </div>
   </div>

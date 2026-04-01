@@ -3,6 +3,13 @@
 
 | Build | File | Change |
 |---|---|---|
+| b20260401.0044 | HTML | OI-0132-A — FAB: `+` cross SVG restored (explicit `22×22`). `body.field-mode .fab { display:none !important }` added — FAB hidden in field mode. |
+| b20260401.0044 | HTML | OI-0132-B — Settings "💬 Feedback log" button now calls `nav('feedback',...)` — navigates to full feedback screen with list, not the add-feedback form. |
+| b20260401.0044 | HTML | OI-0132-C — Harvest sheet full-screen field mode. `field-mode-sheet` class added. `openHarvestSheet()` configures field-mode UI at open time (backdrop disabled, handle hidden, "⌂ Done" labels). `closeHarvestSheet()` → `_fieldModeGoHome()` in field mode. `saveHarvestEvent()` → `_fieldModeGoHome()` + `showSurveyToast` in field mode. |
+| b20260401.0044 | HTML | OI-0132-D — Quick Feed full-screen field mode. `field-mode-sheet` class added to `#quick-feed-wrap`. Tile label "Log Feed" → "Feed Animals". `openQuickFeedSheet()` configures field-mode UI. `qfShowEventStep()` hides cancel / shows "⌂ Done" in field mode. Step-2 "← Back" → `qfShowEventStep()` in field mode. `saveQuickFeed()` in field mode: stays on event picker with toast. `closeQuickFeedSheet()` → `_fieldModeGoHome()` in field mode. |
+| b20260401.0044 | ARCHITECTURE | Field mode section: `field-mode-sheet` CSS pattern, harvest sheet flow, quick feed flow documented. |
+| b20260401.0044 | OPEN_ITEMS | OI-0132 added and closed. Closed: 98→99. |
+|---|---|---|
 | b20260401.0016 | HTML | OI-0131-A — Field mode context-sensitive header button. `setFieldModeUI()` now calls `_updateFieldModeBtn()`. On home screen: "← Detail" exits field mode. Elsewhere: "⌂ Home" stays in field mode, navs to tile grid. `_updateFieldModeBtn()` hooked into `nav()` for every screen transition. New functions: `_updateFieldModeBtn()`, `_fieldModeGoHome()`. |
 | b20260401.0016 | HTML | OI-0131-B — Bottom nav rebuilt. Fields+Feed buttons were corrupted (closing/opening tags merged, rendering raw `onclick=...` as visible text). Rebuilt cleanly. `bn-feedback` removed — 7 items: Home, Animals, Tasks, Events, Fields, Feed, Settings. |
 | b20260401.0016 | HTML | OI-0131-C — FAB: chat bubble icon, `fb-badge` moved to FAB. "💬 Feedback" button added to Settings action row. |
