@@ -3,6 +3,10 @@
 
 | Build | File | Change |
 |---|---|---|
+| b20260401.0055 | HTML | OI-0133 — CSS regression fix. `body.field-mode .field-mode-sheet { display:flex !important }` replaced with `body.field-mode .field-mode-sheet.open .sheet { width/height:100%; border-radius:0 }` — only resizes inner sheet when wrap is open, never forces visibility. `#harvest-sheet-wrap` switched from `style.display='flex'/'none'` to `.classList.add/remove('open')` for consistency with all other sheets and to work with the `.open` CSS selector. All three `style.display==='flex'` guards updated to `.classList.contains('open')`. Redundant `style="display:none"` removed from harvest-sheet-wrap HTML. |
+| b20260401.0055 | ARCHITECTURE | Field-mode-sheet CSS pattern updated — correct selector documented, regression cause noted. Harvest sheet open/close mechanism updated. |
+| b20260401.0055 | OPEN_ITEMS | OI-0133 added and closed. Closed: 99→100. |
+|---|---|---|
 | b20260401.0044 | HTML | OI-0132-A — FAB: `+` cross SVG restored (explicit `22×22`). `body.field-mode .fab { display:none !important }` added — FAB hidden in field mode. |
 | b20260401.0044 | HTML | OI-0132-B — Settings "💬 Feedback log" button now calls `nav('feedback',...)` — navigates to full feedback screen with list, not the add-feedback form. |
 | b20260401.0044 | HTML | OI-0132-C — Harvest sheet full-screen field mode. `field-mode-sheet` class added. `openHarvestSheet()` configures field-mode UI at open time (backdrop disabled, handle hidden, "⌂ Done" labels). `closeHarvestSheet()` → `_fieldModeGoHome()` in field mode. `saveHarvestEvent()` → `_fieldModeGoHome()` + `showSurveyToast` in field mode. |

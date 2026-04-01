@@ -5,7 +5,7 @@
 <link rel="manifest" href="data:application/manifest+json,{"name": "Get The Hay Out","short_name": "GTHY","description": "Pasture tracking and grazing management for grass-based livestock farms","start_url": "/","display": "standalone","background_color": "#ffffff","theme_color": "#639922","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512","type": "image/svg+xml","purpose": "any maskable"}],"shortcuts": [{"name": "Field Home","short_name": "Field","description": "Open field mode home screen","url": "/?field=home","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E⊞%3C/text%3E%3C/svg%3E","sizes": "512x512"}]},{"name": "Log Feed","short_name": "Feed","description": "Open Quick Feed in field mode","url": "/?field=feed","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E","sizes": "512x512"}]},{"name": "Log Harvest","short_name": "Harvest","description": "Open Harvest sheet in field mode","url": "/?field=harvest","icons": [{"src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🚜%3C/text%3E%3C/svg%3E","sizes": "512x512"}]}]}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260401.0047" id="app-version-meta"/>
+<meta name="app-version" content="b20260401.0132" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -116,9 +116,11 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 .fab{position:fixed;bottom:calc(72px + var(--safe-bottom) + 12px);right:16px;width:48px;height:48px;border-radius:50%;background:var(--green);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:90;box-shadow:0 2px 10px rgba(0,0,0,0.2);}
 .fab:active{background:var(--green-d);}
 body.field-mode .fab{display:none !important;}
-/* Field-mode sheets: full-screen overlay on mobile, no backdrop tap-to-close */
-body.field-mode .field-mode-sheet{display:flex !important;}
-body.field-mode .field-mode-sheet .sheet{
+/* Field-mode sheets: when already open, make inner sheet full-screen on mobile.
+   The outer .sheet-wrap visibility is still controlled by .open class.
+   Do NOT set display:flex on .field-mode-sheet itself — it would force the
+   sheet visible permanently the moment field mode activates. */
+body.field-mode .field-mode-sheet.open .sheet{
   width:100% !important;max-width:100% !important;height:100% !important;
   max-height:100% !important;border-radius:0 !important;
   overflow-y:auto;
@@ -1624,7 +1626,7 @@ body:not(.field-mode) #field-mode-toggle{
 </div>
 
 <!-- HARVEST EVENT SHEET (M7-F) -->
-<div class="sheet-wrap field-mode-sheet" id="harvest-sheet-wrap" style="display:none;">
+<div class="sheet-wrap field-mode-sheet" id="harvest-sheet-wrap">
   <div class="sheet-backdrop" id="harvest-sheet-backdrop" onclick="closeHarvestSheet()"></div>
   <div class="sheet" style="max-height:92vh;overflow-y:auto;">
     <div class="sheet-handle" id="harvest-sheet-handle"></div>
@@ -5240,7 +5242,7 @@ function closeFeedTypesSheet(){
   // Refresh batch type select after any changes
   populateBatchTypeSelect();
   // If harvest sheet is open, re-render its tile grid in case harvest-active flags changed
-  if(document.getElementById('harvest-sheet-wrap')?.style.display==='flex'){
+  if(document.getElementById('harvest-sheet-wrap')?.classList.contains('open')){
     _renderHarvestTileGrid();
   }
 }
@@ -8842,7 +8844,7 @@ function toggleFeedTypeHarvestActive(idx){
   ft.harvestActive=!ft.harvestActive;
   stampSetup();queueWrite('feed_types',_feedTypeRow(ft,_sbOperationId));save();
   renderFeedTypes();
-  if(document.getElementById('harvest-sheet-wrap')?.style.display==='flex') _renderHarvestTileGrid();
+  if(document.getElementById('harvest-sheet-wrap')?.classList.contains('open')) _renderHarvestTileGrid();
 }
 function renderFeedTypes(){
   const el=document.getElementById('ft-list');
@@ -8947,10 +8949,10 @@ function openHarvestSheet(){
   if(handle) handle.style.display = isField ? 'none' : '';
   if(closeBtn) closeBtn.textContent = isField ? '⌂ Done' : '✕';
   if(cancelBtn) cancelBtn.textContent = isField ? '⌂ Done' : 'Cancel';
-  document.getElementById('harvest-sheet-wrap').style.display='flex';
+  document.getElementById('harvest-sheet-wrap').classList.add('open');
 }
 function closeHarvestSheet(){
-  document.getElementById('harvest-sheet-wrap').style.display='none';
+  document.getElementById('harvest-sheet-wrap').classList.remove('open');
   _harvestTiles=[];
   _harvestRows=[];
   if(document.body.classList.contains('field-mode')) _fieldModeGoHome();

@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260401.0047`
+**Current build:** `b20260401.0132`
 **Last updated:** 2026-04-01
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -1281,7 +1281,11 @@ A stripped-down layout for focused phone use in the field. Activated by any of t
 
 **Settings card:** "Field mode" card added to Settings screen (above Farm users). Shows each module as a toggle row. `renderFieldModules()` called from the settings render chain.
 
-**Field-mode full-screen sheets (OI-0132, b20260401.0044):** `body.field-mode .field-mode-sheet .sheet` is 100% width/height, no border-radius — full-screen overlay on mobile. Class `field-mode-sheet` is added to `#harvest-sheet-wrap` and `#quick-feed-wrap`. Both open functions detect `body.field-mode` and configure context-sensitive UI at open time: backdrop tap-to-close disabled, sheet handle hidden, close/cancel button labels updated.
+**Field-mode full-screen sheets (OI-0132, b20260401.0044 / regression fix b20260401.0055):** Class `field-mode-sheet` is added to `#harvest-sheet-wrap` and `#quick-feed-wrap`. Both open functions detect `body.field-mode` and configure context-sensitive UI at open time: backdrop tap-to-close disabled, handle hidden, close/cancel button labels updated.
+
+**⚠️ CSS rule:** `body.field-mode .field-mode-sheet.open .sheet { width/height:100%; border-radius:0 }` — targets the inner `.sheet` only when the outer wrap has the `.open` class. **Do NOT** use `body.field-mode .field-mode-sheet { display:flex }` — this would force sheets visible the moment field mode activates (regression in b20260401.0044/0047, fixed in b20260401.0055).
+
+**`#harvest-sheet-wrap` open/close mechanism (b20260401.0055):** Switched from `style.display='flex'/'none'` to `.classList.add/remove('open')` — consistent with all other sheets and required for the CSS `.field-mode-sheet.open` selector to work correctly. All `style.display==='flex'` guards updated to `.classList.contains('open')`.
 
 **Harvest sheet in field mode:** Close/cancel → "⌂ Done". After `saveHarvestEvent()` in field mode, calls `_fieldModeGoHome()` instead of `renderPastures()`. Alert replaced with `showSurveyToast`.
 

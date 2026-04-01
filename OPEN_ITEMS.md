@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260401.0044
-**Reconciled against build:** b20260401.0044
+**Last updated:** b20260401.0055
+**Reconciled against build:** b20260401.0055
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -23,7 +23,7 @@
 | 🟡 Open — Polish | 0 |
 | 🔵 Open — Enhancement | 23 |
 | ⚪ Open — Debt | 6 |
-| ✅ Closed | 99 |
+| ✅ Closed | 100 |
 
 ---
 
@@ -36,9 +36,9 @@ Recommended work order as of b20260331.2335. Update after each session.
 | 1 | OI-0105 | Membership-weighted NPK for multi-group events | Design first — future enhancement |
 | 2 | OI-0129 | Field mode per-module streamlined UX | Design first — each module may need mobile-optimized sheet variant |
 
-> **OI-0132 closed** b20260401.0044 — FAB restored to + cross; FAB hidden in field mode; Settings feedback → nav to feedback screen; harvest + feed sheets full-screen in field mode; Feed Animals tile flow; correct close/save routing to field home.
-> **OI-0131 closed** b20260401.0016 — field mode header button; bottom nav fix; SW hardening.
-> **Last updated:** b20260401.0044
+> **OI-0133 closed** b20260401.0055 — CSS regression fix: `field-mode-sheet` rule corrected to `.open .sheet` selector; harvest sheet switched to `.open` class.
+> **OI-0132 closed** b20260401.0044 — FAB, feedback nav, field mode full-screen sheets.
+> **Last updated:** b20260401.0055
 
 ---
 
@@ -51,6 +51,22 @@ Recommended work order as of b20260331.2335. Update after each session.
 ---
 
 ## Open Items
+
+### OI-0133
+**Source:** Session regression — b20260401.0055
+**Area:** Field mode CSS · Harvest sheet
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260401.0047
+**Closed:** b20260401.0055
+
+CSS regression introduced in b20260401.0044: `body.field-mode .field-mode-sheet { display:flex !important }` forced any element with class `field-mode-sheet` visible the instant `body.field-mode` was set — before any sheet was opened. Since `#quick-feed-wrap` carries that class, it became permanently visible on field mode entry, overriding its `display:none` state with `!important`.
+
+**Fix A — CSS rule corrected.** Changed to `body.field-mode .field-mode-sheet.open .sheet { ... }` — only resizes the inner `.sheet` when the outer wrap already has the `.open` class. Never forces visibility.
+
+**Fix B — Harvest sheet switched to `.open` class.** `#harvest-sheet-wrap` was opened/closed via `style.display='flex'/'none'` (inline style), making it invisible to the `.field-mode-sheet.open` CSS selector. Switched `openHarvestSheet()` to `.classList.add('open')` and `closeHarvestSheet()` to `.classList.remove('open')` — consistent with all other sheets. All three `style.display==='flex'` guards updated to `.classList.contains('open')`. Redundant `style="display:none"` removed from HTML (`.sheet-wrap` base CSS already provides `display:none`).
+
+---
 
 ### OI-0132
 **Source:** User report — b20260401.0044
