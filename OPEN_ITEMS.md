@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260401.0055
-**Reconciled against build:** b20260401.0055
+**Last updated:** b20260401.1011
+**Reconciled against build:** b20260401.1011
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -22,23 +22,27 @@
 | 🔴 Open — Bug | 0 |
 | 🟡 Open — Polish | 0 |
 | 🔵 Open — Enhancement | 23 |
-| ⚪ Open — Debt | 6 |
-| ✅ Closed | 100 |
+| ⚪ Open — Debt | 9 |
+| ✅ Closed | 101 |
 
 ---
 
 ## Session Queue
 
-Recommended work order as of b20260331.2335. Update after each session.
+Recommended work order as of b20260401.0954. Update after each session.
 
 | Priority | OI | Title | Notes |
 |---|---|---|---|
 | 1 | OI-0105 | Membership-weighted NPK for multi-group events | Design first — future enhancement |
 | 2 | OI-0129 | Field mode per-module streamlined UX | Design first — each module may need mobile-optimized sheet variant |
+| 3 | OI-0134 | Private repo + edge-function auth gate | Infrastructure only — no app code changes |
+| 4 | OI-0135 | Vite + ES modules migration | Structural refactor — no feature changes |
 
+> **OI-0137 added and closed** b20260401.1011 — PWA manifest encoding bug. Shortcuts were silently broken since first implementation.
 > **OI-0133 closed** b20260401.0055 — CSS regression fix: `field-mode-sheet` rule corrected to `.open .sheet` selector; harvest sheet switched to `.open` class.
 > **OI-0132 closed** b20260401.0044 — FAB, feedback nav, field mode full-screen sheets.
-> **Last updated:** b20260401.0055
+> **OI-0134, OI-0135, OI-0136 added** b20260401.0954 — Build evolution and IP protection strategy documented. See SESSION_BRIEF_b20260401_0954.md for full context.
+> **Last updated:** b20260401.1011
 
 ---
 
@@ -51,6 +55,72 @@ Recommended work order as of b20260331.2335. Update after each session.
 ---
 
 ## Open Items
+
+### OI-0137
+**Source:** Claude observation — b20260401.1011
+**Area:** PWA / Manifest
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260401.1011
+**Closed:** b20260401.1011
+
+**PWA manifest `href` encoding bug — shortcuts never loaded.** The `<link rel="manifest">` data URI on line 5 embedded raw JSON containing unescaped double-quote characters (`"`) inside an HTML attribute that is itself double-quote delimited. The HTML parser terminated the `href` attribute value at the first `"` inside the JSON, so the browser received `data:application/manifest+json,{` — a broken, invalid URI. The manifest never loaded. All three PWA shortcuts (Field Home, Log Feed, Log Harvest) were silently non-functional since they were first implemented. Fix: all `"` characters in the JSON body replaced with `%22`. Simultaneously fixed: viewport meta tag missing `/>` (line 6); added `<link rel="apple-touch-icon">` for correct iOS home screen icon.
+
+**⚠️ Re-install required:** The shortcuts will not appear on any device where the PWA is already installed with the broken manifest. User must remove and re-add the home screen icon to pick up the corrected manifest.
+
+**Acceptance criteria:** Chrome DevTools → Application → Manifest shows all three shortcuts. Long-pressing the home screen icon on Android shows shortcut context menu. iOS: re-adding to home screen and long-pressing shows shortcuts (iOS 16.4+ only).
+
+---
+
+### OI-0136
+**Source:** Claude observation — design session b20260401.0954
+**Area:** Infrastructure / Distribution
+**Severity:** Debt
+**Status:** ⚪ Open — Debt
+**Found:** b20260401.0954
+**Closed:** —
+
+**Capacitor native app wrapper for App Store / Play Store distribution.** Once the Vite migration (OI-0135) is stable, Capacitor can wrap the build output as a native iOS/Android app. This enables App Store distribution — relevant if commercializing or distributing GTHY to other farm operations. GTHY already has the required `manifest.json` and `sw.js` in place. Capacitor adds native APIs (camera, file system, push notifications) progressively without requiring UI changes.
+
+**Depends on:** OI-0135 (Vite migration must be stable first)
+
+**Acceptance criteria:** App builds and runs as a native iOS app via Xcode without functional regressions. Existing PWA install path on Safari continues to work.
+
+---
+
+### OI-0135
+**Source:** Claude observation — design session b20260401.0954
+**Area:** Infrastructure / Build Pipeline
+**Severity:** Debt
+**Status:** ⚪ Open — Debt
+**Found:** b20260401.0954
+**Closed:** —
+
+**Vite + ES modules migration — structural refactor, no feature changes.** The single-file HTML monolith (~14,500 lines, ~724KB) is approaching the point where splitting into proper ES modules is warranted for maintainability, testability, and AI session context limits. This is a structural refactor, not a rewrite — all logic stays identical; Vite bundles it back into a deployable artifact. Key outcomes: tree-shaking, proper npm imports (no CDN script tags), automatic minification/obfuscation as a build side-effect, and a foundation for Capacitor (OI-0136). `deploy.py` updated to run `vite build` before stamping and committing. `node --check` validation step replaced by `vite build` as the delivery gate (closes OI-0073 gap). Optional: `vite-plugin-singlefile` can preserve single-file output during transition.
+
+**Key constraint:** `_SB_ALLOWED_COLS` allowlist and all assembly-layer field aliasing patterns must survive unchanged. Acceptance criterion: app behaves identically before and after — no feature delta.
+
+**Depends on:** OI-0134 (repo private first is recommended but not strictly required)
+
+**Acceptance criteria:** `vite build` passes cleanly. Deployed app at getthehayout.com is functionally identical to pre-migration. All Supabase auth flows, realtime subscriptions, and sync queue behaviour verified.
+
+---
+
+### OI-0134
+**Source:** Claude observation — design session b20260401.0954
+**Area:** Infrastructure / Security
+**Severity:** Debt
+**Status:** ⚪ Open — Debt
+**Found:** b20260401.0954
+**Closed:** —
+
+**Private repo + edge-function auth gate — near-term IP protection.** Move the GitHub repo to private. Add a Cloudflare Worker (or Netlify Edge Function) that requires a valid session before serving `index.html` — so the source is not freely downloadable. The existing `push.command` + `deploy.py` workflow and GitHub Pages deployment are unchanged. This is a pure infrastructure change; no app code changes required. Note: Supabase RLS + Auth already protects all farm data — anyone who obtains the HTML gets a useless shell. This change closes the source code view-source exposure only.
+
+**Key constraint:** The edge-function gate must not interfere with Supabase OTP / magic-link auth flows, which use direct Supabase SDK calls that bypass the served HTML.
+
+**Acceptance criteria:** GitHub repo is private. `index.html` is not accessible without authentication at the CDN layer. Supabase OTP sign-in flow continues to work end-to-end.
+
+---
 
 ### OI-0133
 **Source:** Session regression — b20260401.0055

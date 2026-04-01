@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260401.0950`
+**Current build:** `b20260401.1017`
 **Last updated:** 2026-04-01
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -1262,10 +1262,16 @@ A stripped-down layout for focused phone use in the field. Activated by any of t
 
 **Routing on `?field=home` (OI-0006, b20260331.2335):** `applyFieldMode()` calls `nav('home',…)`. `renderHome()` detects `body.field-mode` and delegates to `renderFieldHome()`. Also triggers when `activate=true` but no specific `fieldParam` given (user-pref field mode with no URL action).
 
-**PWA manifest shortcuts:** Three shortcuts defined inline in `<link rel="manifest">`:
+**PWA manifest shortcuts:** Three shortcuts defined inline in `<link rel="manifest">` (line 5):
 - `/?field=home` → "Field Home" (⊞) — added OI-0006
 - `/?field=feed` → "Log Feed" (🌾)
 - `/?field=harvest` → "Log Harvest" (🚜) — added OI-0123
+
+**⚠️ Manifest encoding (OI-0137, b20260401.1011):** The manifest is a `data:` URI embedded in an HTML `href` attribute. All double-quote characters (`"`) in the JSON body **must be `%22`-encoded** or the HTML parser terminates the `href` at the first inner quote. The fix applied in b20260401.1011 re-encodes all `"` → `%22`. If the manifest line is ever regenerated or patched, this encoding must be preserved — raw `"` in the JSON will silently break all shortcuts again.
+
+**Re-install required:** PWA shortcuts are only registered at install time. After any manifest change, existing installs must remove and re-add the home screen icon to pick up the new manifest.
+
+**`<link rel="apple-touch-icon">`** (b20260401.1011): Added after the viewport meta tag. Uses the same SVG data URI as the manifest icon (`%3Csvg … 🌾 …`). Required for correct icon display on iOS home screen and in the shortcut context menu.
 
 **Field Home tile grid (OI-0006, b20260331.2335):** `renderFieldHome()` fully implemented. Replaces the stub that showed a single feed button.
 

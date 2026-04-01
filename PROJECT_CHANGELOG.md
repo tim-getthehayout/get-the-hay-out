@@ -3,6 +3,13 @@
 
 | Build | File | Change |
 |---|---|---|
+| b20260401.1011 | HTML | OI-0137 — PWA manifest encoding bug fix. `<link rel="manifest">` data URI had unescaped `"` characters in the JSON body, causing the HTML parser to truncate the `href` at the first inner quote. Browser received `data:application/manifest+json,{` — an invalid URI. All three PWA shortcuts (Field Home / Log Feed / Log Harvest) were non-functional since first added. Fix: all `"` in the JSON body replaced with `%22`. Also fixed: viewport meta tag missing `/>` (line 6); `<link rel="apple-touch-icon">` added (same SVG data URI as manifest icon) for correct iOS home screen icon. Re-install required on all devices. |
+| b20260401.1011 | ARCHITECTURE | PWA shortcuts section — encoding bug documented, re-install requirement noted, apple-touch-icon entry added. |
+| b20260401.1011 | OPEN_ITEMS | OI-0137 added and closed. Closed: 100→101. |
+|---|---|---|
+| b20260401.0954 | OPEN_ITEMS | Strategy session — OI-0134, OI-0135, OI-0136 added. Build evolution and IP protection strategy documented: (1) private repo + Cloudflare Worker auth gate, (2) Vite + ES modules migration, (3) Capacitor native wrapper. No HTML or ARCHITECTURE changes this session. |
+| b20260401.0954 | SESSION_BRIEF | SESSION_BRIEF_b20260401_0954.md generated — full design decisions, implementation notes, traps, and phase sequence for build evolution strategy. |
+|---|---|---|
 | b20260401.0946 | HTML | iOS wake / JWT-refresh resilience. (1) `_sbHasLoadedOnce` + `_sbLastLoadAt` module vars added. Auth handler skips load chain on SIGNED_IN if a successful load occurred within the last 10 min — eliminates redundant full reloads on every JWT refresh. Both flags reset on SIGNED_OUT. (2) Pre-flight probe loop added to top of `loadFromSupabase()` try block: single `.select('id').limit(1)` on `pastures`, retried up to 3× with 1.5s backoff. Absorbs "TypeError: Load failed" cascade when iOS wakes the PWA before the network stack is ready. All 3 probes failing → clean bail with sync-error status, zero cascade log entries. Supabase-level errors (have `.code`) pass straight through. |
 | b20260401.0946 | ARCHITECTURE | Load guard section updated: `_sbLoadInProgress` JWT frequency corrected (~5 min). New entries for `_sbHasLoadedOnce`/`_sbLastLoadAt` JWT-refresh skip guard and iOS wake pre-flight probe. |
 |---|---|---|
