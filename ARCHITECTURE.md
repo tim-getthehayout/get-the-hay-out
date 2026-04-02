@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260402.0925`
+**Current build:** `b20260402.0948`
 **Last updated:** 2026-04-02
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -131,7 +131,7 @@ All sheets are always in the DOM. Toggle: add/remove `.open` on the `-wrap` div.
 | Submit feedback / Get Help | `#fb-sheet-wrap` | `openFeedbackSheet()` | `closeFeedbackSheet()` |
 | Resolve feedback | `#resolve-sheet-wrap` | `openResolveSheet(id)` | `closeResolveSheet()` |
 | Edit submission | `#edit-sub-wrap` | `openEditSubmissionSheet(id)` | `closeEditSubmissionSheet()` |
-| To-do add/edit | `#todo-sheet-wrap` | `openTodoSheet(id)` | `closeTodoSheet()` |
+| To-do add/edit | `#todo-sheet-wrap` | `openTodoSheet(id)` | `closeTodoSheet()` / `deleteTodo()` |
 | Quick feed | `#quick-feed-wrap` | `openQuickFeedSheet(groupId)` | `closeQuickFeedSheet()` |
 | Feed types config | `#feed-types-wrap` | `openFeedTypesSheet()` | `closeFeedTypesSheet()` |
 | Feed day goal | `#feed-goal-wrap` | `openFeedGoalSheet()` | `closeFeedGoalSheet()` |
@@ -264,6 +264,7 @@ All sheets are always in the DOM. Toggle: add/remove `.open` on the `-wrap` div.
 | `sbSignOut()` | **M1** Calls `_sbClient.auth.signOut()`, clears `_sbSession`, calls `sbUpdateAuthUI()`. |
 | `sbUpdateAuthUI()` | **M1** Toggles `#sb-signed-out` / `#sb-signed-in` based on `_sbSession`. Populates `#sb-user-email`. Called from auth listener, `loadSettings()`, Settings nav handler, `sbSignOut()`. |
 | `openAnimalTodoSheet(animalId)` | **b20260328.0157** Opens the todo sheet pre-linked to a specific animal. Thin wrapper around `openTodoSheet(null, false, animalId)`. Called from the 📋 Todo button on each animal row in `renderAnimalsScreen()`. |
+| `deleteTodo()` | **b20260402.0940** Deletes the currently-editing todo (`todoEditId`). Confirmation prompt → removes from `S.todos` → direct Supabase delete on `todos` table → `save()`, `closeTodoSheet()`, `updateTodoBadge()`, re-renders. Delete button visible in edit mode only (`#todo-delete-wrap`). |
 | `openEeAnchorClose()` / `cancelEeAnchorClose()` | **b20260328.0140** Anchor close sequence. Reveals pre-flight checklist block (`#ee-anchor-close-wrap`) with step completion indicators. |
 | `saveAndCloseFromEdit()` | **b20260328.0140** Saves event edit then calls `moveAllGroupsInEvent(evId)` via 100ms timeout to launch Move Wizard for all active groups. |
 | `addEeGroup()` | Adds a group to `eeGroups[]` with `_isNew:true`. Calls `syncEeGroupTotals()`. |
@@ -1169,6 +1170,16 @@ Form layout reversed: create form at top, existing types list at bottom (was lis
 
 ### M7 complete + OI-0122/0123/0124/0125/0126 complete — b20260331.2224
 
+### animal_health_events — No queueWrite path (debt, b20260402.0940)
+
+Health events are loaded from the `animal_health_events` Supabase table via nested select on the animals fetch, but **no `queueWrite` path exists for writes**. `saveAnimalEvent()` calls `save()` (localStorage only) — changes never reach Supabase. Data in the table was populated by the initial migration script. This is a pre-existing gap that needs a dedicated session to wire up: `_healthEventRow()` shape function, `_SB_ALLOWED_COLS` entry, and `queueWrite` calls in `saveAnimalEvent()` and `deleteAnimalEvent()`.
+
+**BCS `likelyCull` field (OI-0022, b20260402.0940):** Added `evt.likelyCull` boolean to BCS health events. Stored on the in-memory event object and persisted to localStorage. The `animal_health_events` table needs `ALTER TABLE animal_health_events ADD COLUMN likely_cull boolean DEFAULT false;` when the write path is wired up. Badge shown in health event list: red "likely cull" pill on BCS rows where `e.likelyCull === true`.
+
+### Sub-move recovery section hidden (OI-0143, b20260402.0940)
+
+The recovery min/max input section in the sub-move sheet has been wrapped in `display:none`. Recovery estimates are only meaningful at survey time — showing them at move time implied the pre-filled values (from the destination paddock's last survey) were a decision aid, which they are not. DOM elements preserved for safe null reads in `saveSubMove()`. Recovery data continues to be set via the survey sheet.
+
 ---
 
 ## ⚠️ Dead Code — Removed (Do Not Re-Add)
@@ -1205,7 +1216,14 @@ GTHY captures two types of user input through a unified `submissions` Supabase t
 | `support` | 🆘 Get Help | User needs a response — threaded, has priority |
 
 ### Status lifecycle
-`open` → `resolved` (developer marks fix) → `closed` (user confirms) · or reopened as `regression` via `reopenIssue()`
+`open` → `planned` (imported to OPEN_ITEMS, OI number assigned) → `resolved` (developer marks fix) → `closed` (user confirms) · or reopened as `regression` via `reopenIssue()`
+
+| Status | Badge | Meaning |
+|---|---|---|
+| `open` | `ba` amber "open" | Submitted, not yet reviewed |
+| `planned` | `bg` green "📋 OI-XXXX" | Imported into OPEN_ITEMS, OI number assigned — shows `oiNumber` when present |
+| `resolved` | `bt` teal "awaiting" | Fix deployed, awaiting user confirmation |
+| `closed` | `bb` blue "closed" | Confirmed fixed, won't fix, duplicate, or out of scope |
 
 ### Categories (`f.cat`) — defined in `CAT` object
 | Key | Label | Badge | Dev brief priority |

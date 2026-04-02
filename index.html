@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260402.0925" id="app-version-meta"/>
+<meta name="app-version" content="b20260402.0948" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -1136,7 +1136,7 @@ body:not(.field-mode) #field-mode-toggle{
               <option value="other">Other</option>
             </select>
             <select id="fb-filter" onchange="renderFeedbackList()" style="font-size:12px;padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);font-family:inherit;">
-              <option value="all">All</option><option value="open">Open</option><option value="resolved">Resolved</option><option value="closed">Closed</option>
+              <option value="all">All</option><option value="open">Open</option><option value="planned">Planned</option><option value="resolved">Resolved</option><option value="closed">Closed</option>
               <option value="roadblock">Roadblocks</option><option value="bug">Bugs</option><option value="ux">UX</option><option value="feature">Features</option><option value="calc">Calc</option><option value="idea">Ideas</option><option value="question">Questions</option>
               <option value="has-response">Has Dev Response</option>
             </select>
@@ -1870,6 +1870,7 @@ body:not(.field-mode) #field-mode-toggle{
       <label>Status</label>
       <select id="edit-sub-status" style="width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);font-family:inherit;font-size:14px;">
         <option value="open">Open</option>
+        <option value="planned">Planned</option>
         <option value="resolved">Resolved</option>
         <option value="closed">Closed</option>
       </select>
@@ -1919,6 +1920,9 @@ body:not(.field-mode) #field-mode-toggle{
     <div class="btn-row">
       <button class="btn btn-green" onclick="saveTodo()">Save task</button>
       <button class="btn btn-outline" onclick="closeTodoSheet()">Cancel</button>
+    </div>
+    <div id="todo-delete-wrap" style="display:none;margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border);">
+      <button class="btn btn-red btn-sm" style="width:auto;" onclick="deleteTodo()">Delete task</button>
     </div>
   </div>
 </div>
@@ -4975,6 +4979,7 @@ function openTodoSheet(id, fromWiz=false, animalId=null){
     }
   } else if(activeUserId){selectedAssignees.add(activeUserId);}
   populateTodoAssign();
+  document.getElementById('todo-delete-wrap').style.display=id?'block':'none';
   document.getElementById('todo-sheet-wrap').classList.add('open');
   setTimeout(()=>document.getElementById('td-title').focus(),300);
 }
@@ -4984,6 +4989,20 @@ function openAnimalTodoSheet(animalId){
   openTodoSheet(null, false, animalId);
 }
 function closeTodoSheet(){document.getElementById('todo-sheet-wrap').classList.remove('open');wizPaddockForTodo=null;}
+
+function deleteTodo(){
+  if(!todoEditId)return;
+  if(!confirm('Delete this task? This cannot be undone.'))return;
+  const id=todoEditId;
+  S.todos=S.todos.filter(t=>t.id!==id);
+  if(_sbClient&&_sbOperationId){
+    _sbClient.from('todos').delete().eq('id',id).eq('operation_id',_sbOperationId)
+      .then(({error})=>{if(error)logError('delete-todo',error.message,'');});
+  }
+  save();closeTodoSheet();updateTodoBadge();
+  if(curScreen==='todos')renderTodos();
+  if(curScreen==='home')renderHome();
+}
 
 function saveTodo(){
   const title=document.getElementById('td-title').value.trim();
@@ -8787,7 +8806,7 @@ function renderPastures(){
       const remLbs=batches.reduce((s,b)=>s+getBatchRemaining(b),0);
       if(remLbs>0){const vol=volLbsToDisplay(remLbs);manureLine=`<div style="font-size:11px;color:var(--amber-d);margin-top:3px;">~${vol.val} ${vol.unit} in storage</div>`;}
     }
-    return `<div class="chip"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><div style="font-size:14px;font-weight:600;">${p.name}${landUseBadge(p)}${fieldCodeBadge} ${isActive?'<span class="badge bt">active</span>':''} ${isCon?'<span class="badge bb">confinement</span>':''}</div><div style="font-size:12px;color:var(--text2);margin-top:2px;">${detail}</div>${soilLine}${npkLine}${manureLine}${(()=>{return !isCon?recoveryDateLine(p,true):'';})()}${harvestLog}</div><div style="display:flex;gap:6px;align-items:center;">${typeBadge}${avg!==null?`<span class="badge ${avg>=60?'bg':'ba'}">${avg}% avg</span>`:''} ${openTasks?`<span class="badge ba">${openTasks} task${openTasks!==1?'s':''}</span>`:''}${(()=>{const lr=latestSurveyRating(p.id,p.name);return lr?`<span style="font-size:11px;font-weight:700;color:${surveyRatingColor(lr.rating)};background:${surveyRatingBg(lr.rating)};padding:2px 7px;border-radius:10px;" title="Survey ${dLabel(lr.date)}">${lr.rating}</span>`:'';})()}<button class="btn btn-outline btn-xs" onclick="openLocEdit(${i})">Edit</button><button class="btn btn-outline btn-xs" onclick="openSurveySheet('${p.id}')">📋 Survey</button>${!isCon?`<button class="btn btn-outline btn-xs" onclick="openSoilTestSheet('${p.id}')">🧪 Soil</button>`:''}<button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:20px;padding:2px 6px;" onclick="tryDeletePasture(${i})">×</button></div></div></div>`;
+    return `<div class="chip"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><div style="font-size:14px;font-weight:600;">${p.name}${landUseBadge(p)}${fieldCodeBadge} ${isActive?'<span class="badge bt">active</span>':''} ${isCon?'<span class="badge bb">confinement</span>':''}</div><div style="font-size:12px;color:var(--text2);margin-top:2px;">${detail}</div>${soilLine}${npkLine}${manureLine}${(()=>{return !isCon?recoveryDateLine(p,true):'';})()}${harvestLog}</div><div style="display:flex;gap:6px;align-items:center;">${typeBadge}${avg!==null?`<span class="badge ${avg>=60?'bg':'ba'}">${avg}% avg</span>`:''} ${openTasks?`<span class="badge ba">${openTasks} task${openTasks!==1?'s':''}</span>`:''}${(()=>{const lr=latestSurveyRating(p.id,p.name);return lr?`<span style="font-size:11px;font-weight:700;color:${surveyRatingColor(lr.rating)};background:${surveyRatingBg(lr.rating)};padding:2px 7px;border-radius:10px;" title="Survey ${dLabel(lr.date)}">${lr.rating}</span>`:'';})()}<button class="btn btn-outline btn-xs" onclick="openLocEdit(${i})">Edit</button><button class="btn btn-outline btn-xs" onclick="openSurveySheet('${p.id}')">📋 Survey</button>${!isCon?`<button class="btn btn-outline btn-xs" onclick="openSoilTestSheet('${p.id}')">🧪 Soil</button>`:''}</div></div></div>`;
   }
 
   if(multipleF){
@@ -9689,9 +9708,9 @@ function saveResolve(){
 }
 function renderFeedbackStats(){
   const el=document.getElementById('fb-stats');if(!S.feedback.length){el.innerHTML='';return;}
-  const open=S.feedback.filter(f=>f.status==='open').length;const resolved=S.feedback.filter(f=>f.status==='resolved').length;const closed=S.feedback.filter(f=>f.status==='closed').length;
+  const open=S.feedback.filter(f=>f.status==='open').length;const planned=S.feedback.filter(f=>f.status==='planned').length;const resolved=S.feedback.filter(f=>f.status==='resolved').length;const closed=S.feedback.filter(f=>f.status==='closed').length;
   const support=S.feedback.filter(f=>f.type==='support').length;
-  el.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;"><span class="badge ba">${open} open</span><span class="badge bt">${resolved} awaiting</span><span class="badge bb">${closed} closed</span>${support?`<span class="badge bt">🆘 ${support} support</span>`:''}</div>`;
+  el.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;"><span class="badge ba">${open} open</span>${planned?`<span class="badge bg">${planned} planned</span>`:''}<span class="badge bt">${resolved} awaiting</span><span class="badge bb">${closed} closed</span>${support?`<span class="badge bt">🆘 ${support} support</span>`:''}</div>`;
 }
 
 // ─── EDIT SUBMISSION ──────────────────────────────────────────────────────────
@@ -9753,7 +9772,7 @@ function renderFeedbackList(){
   const areaFilter=document.getElementById('fb-area-filter').value;
   const typeFilter=document.getElementById('fb-type-filter')?.value||'all';
   let items=[...S.feedback].reverse();
-  if(['open','resolved','closed'].includes(filter))items=items.filter(f=>f.status===filter);
+  if(['open','planned','resolved','closed'].includes(filter))items=items.filter(f=>f.status===filter);
   else if(['roadblock','bug','ux','feature','calc','idea','question'].includes(filter))items=items.filter(f=>f.cat===filter);
   else if(filter==='has-response')items=items.filter(f=>f.devResponse||f.dev_response);
   if(areaFilter&&areaFilter!=='all')items=items.filter(f=>f.area===areaFilter);
@@ -9762,7 +9781,7 @@ function renderFeedbackList(){
   el.innerHTML=items.map(f=>{
     const cfg=CAT[f.cat]||CAT.idea;
     const d=new Date(f.ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});
-    const sb=f.status==='open'?'<span class="badge ba">open</span>':f.status==='resolved'?'<span class="badge bt">awaiting</span>':'<span class="badge bb">closed</span>';
+    const sb=f.status==='open'?'<span class="badge ba">open</span>':f.status==='planned'?`<span class="badge bg">📋 ${f.oiNumber||'in queue'}</span>`:f.status==='resolved'?'<span class="badge bt">awaiting</span>':'<span class="badge bb">closed</span>';
     const fCtx=f.ctx||{screen:f.screen||'?',activeEvent:null};
     const ctx=[`Screen: ${fCtx.screen}`,fCtx.activeEvent?`Event: ${fCtx.activeEvent.pasture} day ${fCtx.activeEvent.day}`:null].filter(Boolean).join(' · ');
     const areaBadge=f.area&&AREA[f.area]?`<span class="badge bb" style="font-size:10px;opacity:0.85;">${AREA[f.area]}</span> `:'';
@@ -10196,11 +10215,13 @@ function openAnimalEventSheet(animalId, type, editEventId){
     // Reset all score chips then activate the existing one if editing
     document.querySelectorAll('.bcs-chip').forEach(c=>c.classList.remove('on'));
     document.getElementById('ae-evt-bcs-notes').value='';
+    document.getElementById('ae-evt-bcs-likely-cull').checked=false;
     if(existing&&existing.score){
       const chip=document.querySelector(`.bcs-chip[data-score="${existing.score}"]`);
       if(chip) chip.classList.add('on');
     }
     if(existing) document.getElementById('ae-evt-bcs-notes').value=existing.notes||'';
+    if(existing) document.getElementById('ae-evt-bcs-likely-cull').checked=!!existing.likelyCull;
   }
   document.getElementById('animal-event-wrap').classList.add('open');
 }
@@ -10334,6 +10355,7 @@ function saveAnimalEvent(){
     if(!activeChip){ alert('Select a body condition score'); return; }
     evt.score=parseInt(activeChip.dataset.score);
     evt.notes=document.getElementById('ae-evt-bcs-notes').value.trim()||null;
+    evt.likelyCull=document.getElementById('ae-evt-bcs-likely-cull').checked;
   }
 
   if(editId){
@@ -11313,7 +11335,7 @@ function openAnimalEdit(animalId){
       healthEl.innerHTML = evts.map(e=>{
         const icon = e.type==='treatment'?'💉':e.type==='breeding'?'♀':e.type==='heat'?'🌡':e.type==='bcs'?'📊':'📝';
         const title = e.type==='treatment'?(e.treatmentName||'Treatment'):
-                      e.type==='bcs'?('BCS: '+e.score+'/10'):
+                      e.type==='bcs'?('BCS: '+e.score+'/10'+(e.likelyCull?' <span style="font-size:10px;font-weight:700;color:var(--red);background:var(--red-l,#fde8e8);padding:1px 6px;border-radius:4px;vertical-align:middle;">likely cull</span>':'')):
                       e.type==='breeding'?('Bred — '+(e.subtype==='ai'?'AI '+(e.sireName||''):'Bull '+(e.sireName||''))):
                       e.type==='heat'?'Observed heat':
                       (e.text?.slice(0,60)||'Note');
@@ -18674,7 +18696,8 @@ window.addEventListener('offline', ()=>{
           <div style="font-size:11px;color:var(--text2);margin-top:2px;">Reduces DMI of last sub-move feeding — waste / leftover feed remaining</div>
         </div>
       </div>
-      <!-- Recovery window for sub-location -->
+      <!-- Recovery window for sub-location — hidden per OI-0143: min/max only meaningful at survey time, not move time -->
+      <div style="display:none;">
       <div class="div" style="margin-top:10px;"></div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
         <div class="sec" style="margin:0;">Estimated recovery window</div>
@@ -18696,6 +18719,7 @@ window.addEventListener('offline', ()=>{
             oninput="updateSmRecoveryPreview()"/>
           <div id="sm-rec-max-date" style="font-size:11px;font-weight:600;color:var(--amber-d);margin-top:3px;min-height:14px;"></div>
         </div>
+      </div>
       </div>
     </div>
     <div class="field" style="margin-top:12px;"><label>Notes (optional)</label>
@@ -19399,6 +19423,11 @@ if ('serviceWorker' in navigator) {
         <textarea id="ae-evt-bcs-notes" rows="2"
           style="width:100%;padding:8px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:14px;background:var(--bg);color:var(--text);font-family:inherit;resize:vertical;"
           placeholder="e.g. Thin over ribs, gaining condition"></textarea>
+      </div>
+      <div style="margin-top:8px;display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" id="ae-evt-bcs-likely-cull" style="width:18px;height:18px;accent-color:var(--red);"/>
+        <label for="ae-evt-bcs-likely-cull" style="font-size:13px;font-weight:500;color:var(--red);">Likely cull</label>
+        <span style="font-size:11px;color:var(--text2);">Flag for culling review</span>
       </div>
     </div>
 

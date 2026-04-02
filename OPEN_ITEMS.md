@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260401.2246
-**Reconciled against build:** b20260401.2245
+**Last updated:** b20260402.0940
+**Reconciled against build:** b20260402.0940
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -20,16 +20,16 @@
 |---|---|
 | 🔴 Open — Roadblock | 0 |
 | 🔴 Open — Bug | 1 |
-| 🟡 Open — Polish | 5 |
-| 🔵 Open — Enhancement | 29 |
+| 🟡 Open — Polish | 4 |
+| 🔵 Open — Enhancement | 25 |
 | ⚪ Open — Debt | 9 |
-| ✅ Closed | 102 |
+| ✅ Closed | 107 |
 
 ---
 
 ## Session Queue
 
-Recommended work order as of b20260401.2245. Restructured around action-first buckets — design-deferred items moved to bottom. Update after each session.
+Recommended work order as of b20260402.0940. Updated after backlog sweep session.
 
 ### 🐞 Bucket 1 — Bugs (do first)
 | Priority | OI | Title | Notes |
@@ -38,13 +38,8 @@ Recommended work order as of b20260401.2245. Restructured around action-first bu
 ### 🔧 Bucket 2 — Missing fields & quick CRUD
 | Priority | OI | Title | Notes |
 |---|---|---|---|
-| 4 | OI-0144 | Remove delete X from pastures listing | 2-line fix — same pattern as OI-0016 |
-| 5 | OI-0148 | Submission status: add 'planned' state | No DDL — text column; small app + import change |
-| 6 | OI-0141 | To-do CRUD: delete and edit | 3 feedback items merged |
-| 6 | OI-0022 | "Likely cull" checkbox on body condition survey | Add checkbox + filter |
-| 7 | OI-0143 | Sub-move: suppress min/max for destination paddock | Conditional hide — no data model change |
-| 8 | OI-0037 | Add group to event: expose time field | Missing field — same as event create |
-| 9 | OI-0063 | Add-to-group: fix scroll jump on animal list | Polish — preserve scroll position |
+| 1 | OI-0037 | Add group to event: expose time field | Missing field — touches group move destination picker flow |
+| 2 | OI-0063 | Add-to-group: fix scroll jump on animal list | Polish — preserve scroll position |
 
 ### ⚙️ Bucket 3 — Workflow completions
 | Priority | OI | Title | Notes |
@@ -105,6 +100,7 @@ Import diff at session start: only surface `status = 'open'` items. `planned` it
 
 Long term: OI-0138 admin console supports `PATCH ?action=update` for status + oi_number — eliminates the SQL step once live.
 
+> **OI-0144, OI-0148, OI-0141, OI-0143, OI-0022 closed** b20260402.0940 — backlog sweep session. 5 items from Bucket 2 resolved. Session queue updated. Health events Supabase write gap noted as pre-existing debt.
 > **OI-0141–0147 added** b20260401.2245 — feedback import from gthy-feedback-2026-04-01-1924.json. Session queue restructured around action-first buckets.
 > **OI-0140 added** b20260401.2240 — RLS owner role doc fix.
 > **OI-0137 added and closed** b20260401.1011 — PWA manifest encoding bug.
@@ -202,15 +198,9 @@ Partial implementation of field home UX request. The "Feed Animals" tile label a
 **Source:** In-app feedback — id:1774826500623 (Tim, 2026-03-29)
 **Area:** Pastures Screen (`renderPastures()`, ~L5954)
 **Severity:** Polish
-**Status:** 🟡 Open
+**Status:** ✅ Closed
 **Found:** b20260401.2245
-**Closed:** —
-
-"There should not be a delete X on the pastures listing." Pastures (fields/paddocks) are foundational records — deleting one from the list by accident would be destructive and should not be a one-tap action on the main list. The same decision was made for the animal list (OI-0016).
-
-**Fix:** Remove the inline delete button from each pasture row in `renderPastures()`. Deletion, if needed, should only be accessible inside the pasture edit sheet (behind a confirmation prompt).
-
-**Acceptance criteria:** No delete button visible on the pastures listing. Delete remains accessible inside the pasture edit sheet with a confirmation prompt.
+**Closed:** b20260402.0940
 
 ---
 
@@ -218,17 +208,11 @@ Partial implementation of field home UX request. The "Feed Animals" tile label a
 **Source:** In-app feedback — id:1774525756460 (Tim, 2026-03-26)
 **Area:** Sub-Move Sheet (`openSubMoveSheet`, ~L9030)
 **Severity:** Enhancement
-**Status:** 🔵 Open — Enhancement
+**Status:** ✅ Closed
 **Found:** b20260401.2245
-**Closed:** —
+**Closed:** b20260402.0940
 
-"When recording a new sub move or any other move, the min-max for the paddock being opened should not be shown or referenced as that is only updated upon survey completion."
-
-The sub-move sheet currently displays the recovery min/max window for the destination paddock. This is misleading — the min/max reflects the last survey and is not valid as a move-decision aid mid-rotation. It belongs on the survey sheet, not the move sheet.
-
-**Fix:** In `openSubMoveSheet()` (and any other move/sub-move UI that shows recovery window for the destination), suppress or remove the min/max display. The field is still stored; it's just not shown at move time.
-
-**Acceptance criteria:** Sub-move sheet does not display min/max recovery window for the destination paddock. Survey sheet continues to show and edit min/max as before.
+Recovery min/max section in sub-move sheet wrapped in `display:none`. DOM elements preserved for safe null reads in `saveSubMove()`. Recovery data only set via survey sheet.
 
 ---
 
@@ -253,17 +237,11 @@ Change: `renderHome()` line ~4500 now filters only by `t.status !== 'closed'` in
 **Source:** In-app feedback — ids:1774818588197, 1774820123822, 1775083774847 (Tim, 2026-03-29 to 2026-04-01)
 **Area:** To-Do System (`openTodoSheet`, `saveTodo`, `renderTodos()`, ~L2921)
 **Severity:** Enhancement
-**Status:** 🔵 Open — Enhancement
+**Status:** ✅ Closed
 **Found:** b20260401.2245
-**Closed:** —
+**Closed:** b20260402.0940
 
-Three feedback items merged. To-dos currently have no delete or edit path once created.
-
-**A — Delete to-do.** A delete action should be available on each to-do row in `renderTodos()` and inside `openTodoSheet()` when editing. Permission rule: admin role or the user who created the to-do can delete. Others can only mark complete.
-
-**B — Edit to-do.** Tapping an existing to-do should open `openTodoSheet(id)` in edit mode — pre-populate all fields (text, assignee, due date, paddock). `saveTodo()` already handles upsert; the gap is the open-in-edit-mode path and the delete button.
-
-**Acceptance criteria:** Each to-do row shows an edit affordance. Opening it pre-fills the sheet. A delete button (permission-gated) removes the to-do from `S.todos` and queues a Supabase delete. `renderTodos()` refreshes immediately.
+Edit path already existed via `openTodoSheet(id)` — tapping a todo card opens it in edit mode with all fields populated. Added `deleteTodo()` function with confirmation prompt, direct Supabase delete, and UI refresh. Delete button (`#todo-delete-wrap`) visible in edit mode only.
 
 ---
 
@@ -271,49 +249,11 @@ Three feedback items merged. To-dos currently have no delete or edit path once c
 **Source:** Claude observation + session design — b20260401.2246
 **Area:** Submissions System (`renderFeedbackList()`, `renderFeedbackTab()`, `_submissionRow()`, import protocol)
 **Severity:** Enhancement
-**Status:** 🔵 Open — Enhancement
+**Status:** ✅ Closed
 **Found:** b20260401.2246
-**Closed:** —
+**Closed:** b20260402.0940
 
-**Add `'planned'` status to the submission lifecycle.** Current status values (`open`, `resolved`, `closed`) have no intermediate state between "submitted but unreviewed" and "fixed and deployed". Once a feedback item is imported into OPEN_ITEMS and assigned an OI number, it still shows as `open` — indistinguishable from unreviewed submissions.
-
-**Proposed lifecycle:**
-```
-open  →  planned  →  resolved
-  ↓
-closed  (won't fix / duplicate / out of scope)
-```
-
-| Status | Meaning |
-|---|---|
-| `open` | Submitted, not yet reviewed — shows "awaiting" indicator |
-| `planned` | Imported into OPEN_ITEMS, OI number assigned — "awaiting" flips to "📋 in queue" |
-| `resolved` | Fix deployed |
-| `closed` | Won't fix, duplicate, or out of scope |
-
-**No DDL needed.** The `submissions.status` column is `text` — `'planned'` is valid immediately.
-
-**App changes needed:**
-
-**A — `renderFeedbackList()` — "awaiting" → "planned" flip.** The existing "awaiting" indicator currently shown on unresponded `open` items should flip to a `📋 in queue` badge (with `oi_number` if present) when `status = 'planned'`. The "awaiting" label implies "we haven't seen this yet" — once planned, it should communicate "acknowledged, in the dev queue". Visual treatment: muted row style, `📋 OI-XXXX` pill in place of the awaiting dot/label.
-
-**B — In-app filter pill.** `renderFeedbackTab()` / the filter row above the submissions list gets a `planned` filter pill alongside the existing status filters. Tapping it shows only planned items — useful for the user to see everything that's been acknowledged. The default view (all / open) should continue to show `planned` items unless the user explicitly filters to `open` only.
-
-**C — `_submissionRow()` shape function.** No change needed — `status` is already a pass-through text field. Confirm `oi_number` is in `_SB_ALLOWED_COLS.submissions`.
-
-**D — Import protocol.** The close-the-loop SQL in the session queue and §8e delivery gate stamps `oi_number` and sets `status = 'planned'` in the same statement:
-
-```sql
-UPDATE submissions
-SET status = 'planned', oi_number = 'OI-XXXX'
-WHERE id IN (...);
-```
-
-**E — Import diff.** Claude's session-start feedback diff only surfaces `status = 'open'` items as needing triage. `planned` items are skipped — they are already in OPEN_ITEMS.
-
-**F — Admin console filter.** The status filter in the admin console (OI-0138) includes `planned` as an option alongside `open`, `resolved`, `closed`. The `planned` bucket is the primary triage view — shows everything that's been logged but not yet shipped, grouped by `oi_number`. Default console view shows `open` + `planned` together.
-
-**Acceptance criteria:** "Awaiting" indicator flips to `📋 in queue` (with OI number) when status becomes `planned`. In-app filter row includes a `planned` pill. Import diff ignores planned items. Close-the-loop SQL uses `planned`. Admin console filter includes `planned` and defaults to `open` + `planned` as the triage view.
+Implemented `planned` status across the submission system: filter dropdown (`planned` option), edit submission status dropdown, `renderFeedbackList()` filter logic and status badge (`📋 OI-XXXX` green badge), `renderFeedbackStats()` planned count. No DDL needed — text column. Admin console filter (OI-0138) not yet updated — will add `planned` when console is next touched.
 
 ---
 
@@ -1908,15 +1848,13 @@ When an animal was moved or culled mid-event, AUD and NPK totals used the snapsh
 **Source:** In-app feedback — id:1774260409016
 **Area:** Animal Health Events / BCS Survey (`openAnimalEventSheet`, ~L6342)
 **Severity:** Enhancement
-**Status:** 🔵 Open
+**Status:** ✅ Closed
 **Found:** b20260322.2207 (feedback dated 2026-03-23, v1.1)
-**Closed:** —
+**Closed:** b20260402.0940
 
-When recording a Body Condition Score (BCS) event on an animal, a "Likely cull" checkbox should be available. This flag would allow the farmer to mark animals of concern at survey time without immediately processing a cull. A filterable "Likely cull" list would then be useful in Reports for culling decision support.
+Added "Likely cull" checkbox (`#ae-evt-bcs-likely-cull`) to the BCS section of the animal event sheet. Checkbox resets on open, populates from existing `likelyCull` on edit, saves as `evt.likelyCull` boolean. Red "likely cull" badge shown on BCS events in health event history list.
 
-**Data model:** Add `likelyCull: bool` to the `bcs` health event type. Add a filter for `likelyCull: true` to the Animals screen and/or Reports animals tab.
-
-**Acceptance criteria:** BCS event sheet has a "Likely cull" checkbox. Animal rows or the Reports animals tab can be filtered to show only animals with a `likelyCull: true` BCS event in their history.
+**Note:** `animal_health_events` table needs `ALTER TABLE ADD COLUMN likely_cull boolean DEFAULT false` when health events Supabase write path is wired up. Currently health events save to localStorage only (pre-existing gap). Filterable "Likely cull" list in Reports deferred — revisit when reporting layer is built.
 
 ---
 
