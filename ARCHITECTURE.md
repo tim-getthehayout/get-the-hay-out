@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260402.0948`
+**Current build:** `b20260402.1026`
 **Last updated:** 2026-04-02
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -446,7 +446,9 @@ When a group is removed from an event in the Event Edit sheet, the flow has thre
 Events now store optional `timeIn` and `timeOut` fields (HH:MM strings) captured from the wizard move-in and move-out steps. Sub-move records carry an optional `time` field from the sub-move sheet. All three are metadata only — no calculations use time values currently. Fields are `null` when not entered. Display functions can show them alongside dates where relevant.
 
 ### Multi-Group Events (`ev.groups[]`)
-Events now support multiple groups via `ev.groups[]`, parallel to `ev.paddocks[]`. Each entry carries `groupId`, `groupName` (snapshot), `dateAdded`, `dateRemoved`. The legacy `ev.groupId` scalar is kept pointing at `groups[0].groupId` for backward compat with any code that hasn't been updated.
+Events now support multiple groups via `ev.groups[]`, parallel to `ev.paddocks[]`. Each entry carries `groupId`, `groupName` (snapshot), `dateAdded`, `timeAdded`, `dateRemoved`, `timeRemoved`. The legacy `ev.groupId` scalar is kept pointing at `groups[0].groupId` for backward compat with any code that hasn't been updated.
+
+**Date/time fields (b20260402.1017):** `timeAdded` and `timeRemoved` are optional time strings (e.g. `"14:30"`). When a group is moved to an existing event, `dateAdded`/`timeAdded` on the destination are set from `dateRemoved`/`timeRemoved` on the source. The event edit group chip UI provides editable date + time pickers for new groups (`dateAdded` + `timeAdded`) and moved groups (`dateRemoved` + `timeRemoved`). Supabase columns: `event_group_memberships.time_added`, `event_group_memberships.time_removed`.
 
 **`getActiveEventForGroup(gId)`** checks `evGroups(e).some(g=>g.groupId===gId&&!g.dateRemoved)` — a group with `dateRemoved` set is no longer "active" in the event and won't block a new event being opened for it.
 
@@ -532,7 +534,7 @@ No other field stores sub-move state. `durationHours === 0` is the only "active"
 - `sm.date` — date animals moved to sub-location (date in)
 - `sm.time` — time in (optional)
 - `sm.timeOut` — time returned (optional; set at creation if same-day, or at close)
-- `sm.dateOut` — date returned (optional; set at close time if multi-day visit — new as of b20260324.0054)
+- `sm.dateOut` — date returned (optional; set at close time via `saveSmClose()`, OR at creation time via `saveSubMove()` add form using `sm-date-out` field — b20260402.1017)
 - `sm.durationHours` — total hours at sub-location; `0` = still active
 - `sm.locationName` — name of the supplemental paddock
 - `sm.noPasture` — `bool`; independent stored-feed flag for this sub-move; confinement = always `true`; non-confinement defaults `false` (grazing) unless user checks the toggle
@@ -549,8 +551,9 @@ No other field stores sub-move state. `durationHours === 0` is the only "active"
 - Also stamps recovery onto the location record for `getExpectedGrazeDates()`
 
 **Transition: None → Active (create)**
-- Triggered by: `saveSubMove()` — always creates with `durationHours: 0` if no hours entered
+- Triggered by: `saveSubMove()` — creates with `durationHours: 0` if no hours entered
 - UI path: Home → Sub-move button → "Add sub-move" form at bottom of sheet
+- `sm-date-out` field (b20260402.1017): allows recording return date at creation time for completed sub-moves; `calcSmDuration()` uses full date+time math to support multi-day sub-moves
 
 **Multiple sub-moves per event:**
 - `ev.subMoves[]` can hold any number of records

@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260402.0940
-**Reconciled against build:** b20260402.0940
+**Last updated:** b20260402.1017
+**Reconciled against build:** b20260402.1017
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -20,16 +20,16 @@
 |---|---|
 | 🔴 Open — Roadblock | 0 |
 | 🔴 Open — Bug | 1 |
-| 🟡 Open — Polish | 4 |
-| 🔵 Open — Enhancement | 25 |
+| 🟡 Open — Polish | 2 |
+| 🔵 Open — Enhancement | 24 |
 | ⚪ Open — Debt | 9 |
-| ✅ Closed | 107 |
+| ✅ Closed | 110 |
 
 ---
 
 ## Session Queue
 
-Recommended work order as of b20260402.0940. Updated after backlog sweep session.
+Recommended work order as of b20260402.1017. Updated after OI-0037, OI-0063, OI-0101 closed.
 
 ### 🐞 Bucket 1 — Bugs (do first)
 | Priority | OI | Title | Notes |
@@ -38,26 +38,24 @@ Recommended work order as of b20260402.0940. Updated after backlog sweep session
 ### 🔧 Bucket 2 — Missing fields & quick CRUD
 | Priority | OI | Title | Notes |
 |---|---|---|---|
-| 1 | OI-0037 | Add group to event: expose time field | Missing field — touches group move destination picker flow |
-| 2 | OI-0063 | Add-to-group: fix scroll jump on animal list | Polish — preserve scroll position |
 
 ### ⚙️ Bucket 3 — Workflow completions
 | Priority | OI | Title | Notes |
 |---|---|---|---|
-| 10 | OI-0036 | Append group to existing event in same location | Touches move wizard |
-| 11 | OI-0061 | Treatment system: multi-select + from edit form + type auto-populates | 3 sub-items — one session |
-| 12 | OI-0011 | Animal body condition survey (group + individual) | New survey type |
+| 1 | OI-0036 | Append group to existing event in same location | Touches move wizard |
+| 2 | OI-0061 | Treatment system: multi-select + from edit form + type auto-populates | 3 sub-items — one session |
+| 3 | OI-0011 | Animal body condition survey (group + individual) | New survey type |
 
 ### 📅 Bucket 4 — Rotation calendar
 | Priority | OI | Title | Notes |
 |---|---|---|---|
-| 13 | OI-0065 | Pasture status gradient (survey state as green fill) | Render-only, no data model change |
-| 14 | OI-0066 | "Today" vertical line on rotation calendar | Prerequisite for OI-0065 |
+| 4 | OI-0065 | Pasture status gradient (survey state as green fill) | Render-only, no data model change |
+| 5 | OI-0066 | "Today" vertical line on rotation calendar | Prerequisite for OI-0065 |
 
 ### 📱 Bucket 5 — Field mode quick wins
 | Priority | OI | Title | Notes |
 |---|---|---|---|
-| 15 | OI-0145 | Field home: To-Do list + simplified tile stats | Non-design parts of 1775002940235 only |
+| 6 | OI-0145 | Field home: To-Do list + simplified tile stats | Non-design parts of 1775002940235 only |
 
 ### 🔁 Parallel track — admin console (enables close-the-loop UI)
 | Priority | OI | Title | Notes |
@@ -100,6 +98,7 @@ Import diff at session start: only surface `status = 'open'` items. `planned` it
 
 Long term: OI-0138 admin console supports `PATCH ?action=update` for status + oi_number — eliminates the SQL step once live.
 
+> **OI-0037, OI-0063, OI-0101 closed** b20260402.1017 — Group date/time pickers, sub-move return date, scroll fix, todo delete confirmed implemented. Bucket 2 now empty. Session queue reprioritized.
 > **OI-0144, OI-0148, OI-0141, OI-0143, OI-0022 closed** b20260402.0940 — backlog sweep session. 5 items from Bucket 2 resolved. Session queue updated. Health events Supabase write gap noted as pre-existing debt.
 > **OI-0141–0147 added** b20260401.2245 — feedback import from gthy-feedback-2026-04-01-1924.json. Session queue restructured around action-first buckets.
 > **OI-0140 added** b20260401.2240 — RLS owner role doc fix.
@@ -825,12 +824,11 @@ No way to edit a feedback item after submission. Typos, wrong category, or incor
 **Source:** In-app feedback (id: 1774818588197) — b20260329.2156
 **Area:** To-do system — `renderTodos()`, `todoCardHtml()` (~L3650)
 **Severity:** Enhancement
-**Status:** 🔵 Open
+**Status:** ✅ Closed
 **Found:** b20260329.2156
+**Closed:** b20260402.1017 (implementation found in b20260402.0940 — `deleteTodo()` at ~L4993 with confirmation dialog, wired to `todo-delete-wrap` in HTML; was never closed in OPEN_ITEMS)
 
-No delete action on individual to-do items. Only state change available is open → closed. Users need to remove to-dos entered in error or no longer relevant.
-
-**Proposed:** Delete (×) button on each to-do card with confirmation. Hard-delete with confirm dialog is simplest given current data model.
+`deleteTodo()` function exists with `confirm()` prompt, Supabase direct delete via `_sbClient.from('todos').delete()`, and UI refresh. Delete button visible in todo sheet edit mode only (`todo-delete-wrap` shown when `id` is truthy).
 
 ---
 
@@ -1515,13 +1513,13 @@ Root cause: `openTodoSheet` called `getActive()` → `getAnyActiveEvent()` = `S.
 **Source:** In-app feedback — id:1774375315950 (Tim)
 **Area:** Animals Screen (`renderAnimalsScreen()`, ~L10830)
 **Severity:** Polish
-**Status:** 🟡 Open
+**Status:** ✅ Closed
 **Found:** b20260325.0013 (feedback dated 2026-03-24, v1.2)
-**Closed:** —
+**Closed:** b20260402.1017
 
-"When selecting animal from list the add to group question jumps the list ahead. Keep it still." Tapping an animal in the list causes a UI element (group assignment prompt) to expand inline, which shifts the scroll position and makes the user lose their place.
+"When selecting animal from list the add to group question jumps the list ahead." `toggleAnimalScreenSelect()` called `renderAnimalsScreen()` which re-rendered the entire list, causing scroll position to jump.
 
-**Fix:** When the group prompt expands on an animal row, preserve scroll position. Options: (a) expand below the tapped row without reflowing the list; (b) open the group prompt in a sheet instead of inline; (c) scroll the viewport to keep the tapped row at its original screen position after the DOM reflow.
+**Fixed:** Option (c) — `toggleAnimalScreenSelect()` now saves `.content` `scrollTop` before `renderAnimalsScreen()` and restores it after re-render.
 
 ---
 
@@ -2071,13 +2069,19 @@ When a group is moved to a location that already has one or more groups with an 
 **Source:** In-app feedback — id:1774289880099
 **Area:** Move Wizard / Event Edit (`applyEeGroupMoveActions`, ~L10320)
 **Severity:** Polish
-**Status:** 🟡 Open
+**Status:** ✅ Closed
 **Found:** b20260324.0955
-**Closed:** —
+**Closed:** b20260402.1017
 
-When adding a group to an existing event via the Event Edit sheet, no time field is offered. Farmers who catch up on record-keeping retroactively need to record the exact time a group joined an event, not just the date.
+When adding a group to an existing event via the Event Edit sheet, no time field was offered. Extended scope: date also defaulted to today with no way to override for past events.
 
-**Fix:** Add a time input to the "add group to event" flow in the Event Edit sheet.
+**Fixed (b20260402.1017) — three related gaps closed together:**
+
+**A — Group chips: date + time pickers.** `renderEeGroupChips()` now renders editable `dateAdded` + `timeAdded` inputs on new groups, and editable `dateRemoved` + `timeRemoved` inputs on moved groups. `addEeGroup()` initializes `timeAdded`/`timeRemoved` fields. `startMoveGroup()` initializes `timeRemoved`. `cancelGroupMove()`/`reopenGroup()` clear time fields. `applyEeGroupMoveActions()` passes departure date/time as arrival date/time at the destination event. Move wizard group creation includes time from `w-in-time`.
+
+**B — Supabase write path.** `queueEventWrite()` includes `time_added` and `time_removed` in `event_group_memberships` write. Requires `ALTER TABLE event_group_memberships ADD COLUMN time_added text, ADD COLUMN time_removed text`.
+
+**C — Sub-move return date.** Added `sm-date-out` field to sub-move ADD form. `calcSmDuration()` rewritten to use full date+time math (was same-day time diff with midnight wrap). Multi-day sub-moves (e.g. overnight barn) now calculate correctly. `saveSubMove()` stores `dateOut` in both add and edit modes. `renderSmExistingList()` shows return date when it differs from move-in date.
 
 ---
 

@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260402.0948" id="app-version-meta"/>
+<meta name="app-version" content="b20260402.1026" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -3529,7 +3529,8 @@ function queueEventWrite(ev){
       id: gId, eventId: ev.id, operationId: opId,
       groupId: g.groupId, groupName: g.groupName || null,
       headSnapshot: g.headSnapshot ?? g.head ?? ev.head ?? null, weightSnapshot: g.weightSnapshot ?? g.wt ?? ev.wt ?? null,
-      dateAdded: g.dateAdded, dateRemoved: g.dateRemoved || null,
+      dateAdded: g.dateAdded, timeAdded: g.timeAdded || null,
+      dateRemoved: g.dateRemoved || null, timeRemoved: g.timeRemoved || null,
     }));
   });
   // event_sub_moves (ev.subMoves[])
@@ -5950,7 +5951,7 @@ function wizSaveNew(){
       dateAdded:   inDate,
       locationType:isCon?'confinement':'pasture',
     }],
-    groups: wizGroupIds.map((gId,i)=>{ const gr=getGroupById(gId); return {groupId:gId,groupName:gr?gr.name:'',dateAdded:inDate,dateRemoved:null}; }),
+    groups: wizGroupIds.map((gId,i)=>{ const gr=getGroupById(gId); return {groupId:gId,groupName:gr?gr.name:'',dateAdded:inDate,timeAdded:document.getElementById('w-in-time')?.value||null,dateRemoved:null,timeRemoved:null}; }),
     groupId:wizGroupIds[0]||null, groupName:g?g.name:'',
     dateIn:inDate, timeIn:document.getElementById('w-in-time')?.value||null, noPasture:noPastureFlag,
     head:parseFloat(document.getElementById('w-new-head').value)||t.totalHead||0,
@@ -7679,7 +7680,9 @@ function addEeGroup(){
     groupId:   gId,
     groupName: g?g.name:'',
     dateAdded: todayStr(),
+    timeAdded: null,
     dateRemoved: null,
+    timeRemoved: null,
     _isNew: true,
   });
   sel.value='';
@@ -7701,6 +7704,7 @@ function removeEeGroup(gId){
 function startMoveGroup(idx){
   if(idx===0) return;
   eeGroups[idx].dateRemoved = eeGroups[idx].dateRemoved || todayStr();
+  eeGroups[idx].timeRemoved = eeGroups[idx].timeRemoved || null;
   eeGroups[idx]._moveAction = 'picking'; // shows the destination picker
   renderEeGroupChips();
   syncEeGroupTotals();
@@ -7723,6 +7727,7 @@ function setMoveGroupWizard(idx){
 // Cancel the move — clear departure date and move state.
 function cancelGroupMove(idx){
   eeGroups[idx].dateRemoved = null;
+  eeGroups[idx].timeRemoved = null;
   eeGroups[idx]._moveAction = null;
   eeGroups[idx]._moveTargetEventId = null;
   renderEeGroupChips();
@@ -7732,6 +7737,7 @@ function cancelGroupMove(idx){
 // Reopen a group that was previously moved/closed — clears all move state.
 function reopenGroup(idx){
   eeGroups[idx].dateRemoved = null;
+  eeGroups[idx].timeRemoved = null;
   eeGroups[idx]._moveAction = null;
   eeGroups[idx]._moveTargetEventId = null;
   renderEeGroupChips();
@@ -7790,7 +7796,49 @@ function renderEeGroupChips(){
     // Sub-line: joined date + head count
     const grpTotals = grp ? getGroupTotals(grp) : null;
     const headStr = grpTotals&&grpTotals.totalHead ? ` · ${grpTotals.totalHead} head` : '';
-    const joinedStr = g.dateAdded ? `Joined ${dLabel(g.dateAdded)}${headStr}` : `${headStr.slice(3)||''}`;
+
+    // Date/time panel for new groups (editable dateAdded + timeAdded)
+    let datePanel = '';
+    if(isNew){
+      datePanel = `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px;padding-left:16px;">
+        <div>
+          <div style="font-size:10px;color:var(--text2);margin-bottom:2px;">Date joined</div>
+          <input type="date" value="${g.dateAdded||todayStr()}"
+            oninput="eeGroups[${i}].dateAdded=this.value;renderEeGroupChips();"
+            style="padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);
+                   font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;"/>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--text2);margin-bottom:2px;">Time <span style="font-size:9px;">(optional)</span></div>
+          <input type="time" value="${g.timeAdded||''}"
+            oninput="eeGroups[${i}].timeAdded=this.value||null;"
+            style="padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);
+                   font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;"/>
+        </div>
+      </div>`;
+    }
+    const joinedStr = (!isNew && g.dateAdded) ? `Joined ${dLabel(g.dateAdded)}${headStr}` : (isNew ? headStr.slice(3)||'' : '');
+
+    // Departure date/time panel for moved groups
+    let departurePanel = '';
+    if(isMoved){
+      departurePanel = `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px;padding-left:16px;">
+        <div>
+          <div style="font-size:10px;color:var(--text2);margin-bottom:2px;">Departure date</div>
+          <input type="date" value="${g.dateRemoved||todayStr()}"
+            oninput="eeGroups[${i}].dateRemoved=this.value||null;renderEeGroupChips();"
+            style="padding:5px 8px;border:0.5px solid var(--amber);border-radius:var(--radius);
+                   font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;"/>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--text2);margin-bottom:2px;">Time <span style="font-size:9px;">(optional)</span></div>
+          <input type="time" value="${g.timeRemoved||''}"
+            oninput="eeGroups[${i}].timeRemoved=this.value||null;"
+            style="padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);
+                   font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;"/>
+        </div>
+      </div>`;
+    }
 
     // Right-side action button
     const actionBtn = isNew
@@ -7853,7 +7901,9 @@ function renderEeGroupChips(){
         </div>
         ${actionBtn}
       </div>
-      <div style="font-size:11px;color:var(--text2);margin-top:2px;padding-left:16px;">${joinedStr}</div>
+      ${joinedStr?`<div style="font-size:11px;color:var(--text2);margin-top:2px;padding-left:16px;">${joinedStr}</div>`:''}
+      ${datePanel}
+      ${departurePanel}
       ${destinationPanel}
     </div>`;
   }).join('');
@@ -7882,7 +7932,9 @@ function applyEeGroupMoveActions(){
             groupId:   g.groupId,
             groupName: g.groupName||(getGroupById(g.groupId)?.name)||'',
             dateAdded: g.dateRemoved||todayStr(),
+            timeAdded: g.timeRemoved||null,
             dateRemoved: null,
+            timeRemoved: null,
           });
           // Keep legacy groupId pointing at first entry
           targetEv.groupId = targetEv.groups[0].groupId;
@@ -12702,6 +12754,7 @@ function openSubMoveSheet(eventId){
   document.getElementById('sm-event-label').textContent =
     (grpNamesLabel||'Herd') + ' on ' + evDisplayName(ev) + ' — Day ' + daysBetween(ev.dateIn, todayStr());
   document.getElementById('sm-date').value = todayStr();
+  document.getElementById('sm-date-out').value = todayStr();
   document.getElementById('sm-time').value = '';
   const _smto=document.getElementById('sm-time-out');if(_smto)_smto.value='';
   document.getElementById('sm-hours').value = '';
@@ -12899,20 +12952,34 @@ function calcSmFeedTotal(){
 function calcSmDuration(){
   const timeIn  = document.getElementById('sm-time')?.value;
   const timeOut = document.getElementById('sm-time-out')?.value;
+  const dateIn  = document.getElementById('sm-date')?.value;
+  const dateOut = document.getElementById('sm-date-out')?.value;
   const hintEl  = document.getElementById('sm-duration-hint');
   const stdHint = 'Enter times above for auto-calculation, or type hours directly. Common: milking ~2\u20132.5h \u00b7 shade ~4h \u00b7 overnight ~10h';
   if(!timeIn || !timeOut){
     if(hintEl) hintEl.textContent = stdHint;
     return;
   }
-  const [inH,inM]   = timeIn.split(':').map(Number);
-  const [outH,outM] = timeOut.split(':').map(Number);
-  let diffMin = (outH*60+outM) - (inH*60+inM);
-  if(diffMin <= 0) diffMin += 24*60; // crossed midnight (e.g. overnight barn)
-  const hrs = Math.round(diffMin/60*4)/4; // round to nearest 0.25h
+  // Use full date+time for proper multi-day calculation
+  const dIn  = dateIn  || todayStr();
+  const dOut = dateOut || dIn;
+  const inMs  = new Date(dIn  + 'T' + timeIn  + ':00').getTime();
+  const outMs = new Date(dOut + 'T' + timeOut + ':00').getTime();
+  let diffMs = outMs - inMs;
+  if(diffMs <= 0 && dIn === dOut) diffMs += 24*60*60*1000; // crossed midnight same-day: assume +24h
+  if(diffMs <= 0){
+    if(hintEl){ hintEl.textContent = 'Return date/time is before move-in'; hintEl.style.color='var(--red-d)'; }
+    return;
+  }
+  const hrs = Math.round(diffMs / 3600000 * 4) / 4; // round to nearest 0.25h
   const hrsEl = document.getElementById('sm-hours');
   if(hrsEl) hrsEl.value = hrs;
-  if(hintEl) hintEl.textContent = '\u2192 ' + timeIn + ' to ' + timeOut + ' = ' + hrs + 'h';
+  const days = Math.floor(hrs/24);
+  const remHrs = Math.round((hrs%24)*4)/4;
+  const durationLabel = days > 0
+    ? `${days}d ${remHrs>0?remHrs+'h':''}`.trim()
+    : `${hrs}h`;
+  if(hintEl){ hintEl.textContent = '\u2192 ' + (dIn!==dOut ? dLabel(dIn)+' ':'') + timeIn + ' to ' + (dIn!==dOut ? dLabel(dOut)+' ':'') + timeOut + ' = ' + durationLabel; hintEl.style.color='var(--text2)'; }
   calcSubMovePreview();
 }
 
@@ -12985,6 +13052,7 @@ function renderSmExistingList(ev){
     const timeDetail = [
       sm.date ? dLabel(sm.date) : '',
       sm.time  ? 'in '+sm.time  : '',
+      (!isActive&&sm.dateOut&&sm.dateOut!==sm.date) ? dLabel(sm.dateOut) : '',
       (!isActive&&sm.timeOut) ? 'out '+sm.timeOut : '',
       sm.notes ? escHtml(sm.notes) : ''
     ].filter(Boolean).join(' · ');
@@ -13301,6 +13369,7 @@ function openSmEditForm(smId){
 
   // Dates / time / duration
   document.getElementById('sm-date').value  = sm.date||'';
+  const _smdo = document.getElementById('sm-date-out'); if(_smdo) _smdo.value = sm.dateOut||sm.date||'';
   const _sti = document.getElementById('sm-time'); if(_sti) _sti.value = sm.time||'';
   const _sto = document.getElementById('sm-time-out'); if(_sto) _sto.value = sm.timeOut||'';
   document.getElementById('sm-hours').value = sm.durationHours||'';
@@ -13388,6 +13457,7 @@ function resetSmForm(){
   smFeedLines = [];
   smFeedShown = false;
   document.getElementById('sm-date').value    = todayStr();
+  const _smdo2=document.getElementById('sm-date-out'); if(_smdo2) _smdo2.value=todayStr();
   const _sti=document.getElementById('sm-time');    if(_sti)  _sti.value='';
   const _sto=document.getElementById('sm-time-out');if(_sto)  _sto.value='';
   document.getElementById('sm-hours').value   = '';
@@ -13447,6 +13517,7 @@ function saveSubMove(){
     const existing = (ev.subMoves||[]).find(s=>String(s.id)===smEditingId);
     if(!existing){alert('Sub-move not found for editing');return;}
     existing.date          = document.getElementById('sm-date').value;
+    existing.dateOut       = document.getElementById('sm-date-out')?.value||null;
     existing.time          = document.getElementById('sm-time')?.value||null;
     existing.timeOut       = document.getElementById('sm-time-out')?.value||null;
     existing.durationHours = hrs;
@@ -13481,6 +13552,7 @@ function saveSubMove(){
   const sm = {
     id: Date.now()+1,
     date: document.getElementById('sm-date').value,
+    dateOut: document.getElementById('sm-date-out')?.value||null,
     time: timeInVal||null,
     timeOut: document.getElementById('sm-time-out')?.value||null,
     durationHours: hrs,
@@ -15810,7 +15882,11 @@ function renderAnimalsScreen(){
 function toggleAnimalScreenSelect(id){
   if(animalScreenSelected.has(id)) animalScreenSelected.delete(id);
   else animalScreenSelected.add(id);
+  // OI-0063: preserve scroll position across re-render
+  const scr = document.querySelector('.content');
+  const scrollY = scr ? scr.scrollTop : 0;
   renderAnimalsScreen();
+  if(scr) scr.scrollTop = scrollY;
 }
 
 
@@ -18575,8 +18651,11 @@ window.addEventListener('offline', ()=>{
         <input type="time" id="sm-time" oninput="calcSmDuration()"/></div>
     </div>
     <div class="two">
+      <div class="field"><label>Moved back — date</label>
+        <input type="date" id="sm-date-out" oninput="calcSmDuration()"/></div>
       <div class="field"><label>Moved back — time <span style="font-size:10px;color:var(--text2);">if returned</span></label>
         <input type="time" id="sm-time-out" oninput="calcSmDuration()"/></div>
+    </div>
       <div class="field"><label>Duration (hours) <span style="font-size:10px;color:var(--text2);">auto or enter</span></label>
         <input type="number" id="sm-hours" min="0.25" max="24" step="0.25" placeholder="e.g. 2.5"
                oninput="calcSubMovePreview()"/></div>
