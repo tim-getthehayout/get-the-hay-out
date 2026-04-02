@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260402.1026" id="app-version-meta"/>
+<meta name="app-version" content="b20260402.1058" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -5865,6 +5865,9 @@ function wizCloseEvent(){
   }
   document.getElementById('ws1-summary').innerHTML=`<div style="font-size:15px;font-weight:600;margin-bottom:10px;">Closed: ${evDisplayName(ae)} ${isCon?'<span class="badge bb">confinement</span>':''}</div><div class="m-grid"><div class="m-cell"><div class="ml">Days</div><div class="mv">${days}</div></div><div class="m-cell"><div class="ml">Feed cost</div><div class="mv" style="color:var(--amber);">$${cost.toFixed(2)}</div></div><div class="m-cell"><div class="ml">Stored DMI</div><div class="mv">${Math.round(sdmi).toLocaleString()} lbs</div></div><div class="m-cell"><div class="ml">${isCon?'Manure NPK':'Pasture DMI'}</div><div class="mv" style="color:${isCon?'var(--purple-d)':'var(--green)'};">${isCon?(ae.totals.capturedNPK?'N'+ae.totals.capturedNPK.n.toFixed(1):'not captured'):(pdmi!==null?Math.round(pdmi).toLocaleString()+' lbs':'--')}</div></div><div class="m-cell"><div class="ml">${isCon?'Capture %':'Pasture %'}</div><div class="mv" style="color:var(--teal);">${isCon?(ae.totals.capturePercent||0)+'%':(pct!==null?pct+'%':'--')}</div></div><div class="m-cell"><div class="ml">NPK fert value</div><div class="mv" style="color:var(--purple-d);">$${npkVal.toFixed(2)}</div></div></div>${summaryExtra}`;
   wizGo(1);
+  // Inherit departure date/time into step 2 arrival fields
+  const _winD=document.getElementById('w-in-date');if(_winD)_winD.value=outDate;
+  const _winT=document.getElementById('w-in-time');if(_winT)_winT.value=ae.timeOut||'';
   }catch(e){logError('wizCloseEvent summary','Failed to build summary: '+e.message,e.stack);wizGo(1);}
 }
 function populateNewPastureSelect(ev){
@@ -5930,6 +5933,27 @@ function wizSaveNew(){
   const locName=wizPaddocks.length?wizPaddocks[0].pastureName:document.getElementById('w-new-pasture').value;
   const inDate=document.getElementById('w-in-date').value;
   if(!locName){alert('Select a location');return;}if(!inDate){alert('Enter move-in date');return;}
+  const _wizInTime=document.getElementById('w-in-time')?.value||null;
+  // Auto-close group records in old events — handles multi-group events
+  // where wizCloseEvent() would wrongly close the entire event
+  wizGroupIds.forEach(_gId=>{
+    const _oldEv=getActiveEventForGroup(_gId);
+    if(!_oldEv) return;
+    const _grpRec=evGroups(_oldEv).find(_g=>_g.groupId===_gId&&!_g.dateRemoved);
+    if(!_grpRec) return;
+    _grpRec.dateRemoved=inDate;
+    _grpRec.timeRemoved=_wizInTime;
+    _oldEv.updatedAt=new Date().toISOString();
+    // Last-group-out: if no active groups remain, auto-close the event
+    const _remaining=evGroups(_oldEv).filter(_g=>!_g.dateRemoved);
+    if(_remaining.length===0){
+      _oldEv.status='closed';
+      _oldEv.dateOut=_oldEv.dateOut||inDate;
+      _oldEv.feedResidual=_oldEv.feedResidual||0;
+      recalcEventTotals(_oldEv);
+    }
+    queueEventWrite(_oldEv);
+  });
   const loc=S.pastures.find(p=>p.name===locName);
   const isCon=loc&&loc.locationType==='confinement';
   const feedEntries=[];
@@ -7797,10 +7821,8 @@ function renderEeGroupChips(){
     const grpTotals = grp ? getGroupTotals(grp) : null;
     const headStr = grpTotals&&grpTotals.totalHead ? ` · ${grpTotals.totalHead} head` : '';
 
-    // Date/time panel for new groups (editable dateAdded + timeAdded)
-    let datePanel = '';
-    if(isNew){
-      datePanel = `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px;padding-left:16px;">
+    // Date/time panel for group arrival (editable dateAdded + timeAdded) — all groups
+    const datePanel = `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px;padding-left:16px;">
         <div>
           <div style="font-size:10px;color:var(--text2);margin-bottom:2px;">Date joined</div>
           <input type="date" value="${g.dateAdded||todayStr()}"
@@ -7815,9 +7837,9 @@ function renderEeGroupChips(){
             style="padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);
                    font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;"/>
         </div>
+        ${headStr?`<div style="align-self:flex-end;font-size:11px;color:var(--text2);padding-bottom:6px;">${headStr.slice(3)}</div>`:''}
       </div>`;
-    }
-    const joinedStr = (!isNew && g.dateAdded) ? `Joined ${dLabel(g.dateAdded)}${headStr}` : (isNew ? headStr.slice(3)||'' : '');
+    const joinedStr = '';
 
     // Departure date/time panel for moved groups
     let departurePanel = '';

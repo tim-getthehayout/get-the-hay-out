@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260402.1017
-**Reconciled against build:** b20260402.1017
+**Last updated:** b20260402.1048
+**Reconciled against build:** b20260402.1048
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -23,13 +23,13 @@
 | 🟡 Open — Polish | 2 |
 | 🔵 Open — Enhancement | 24 |
 | ⚪ Open — Debt | 9 |
-| ✅ Closed | 110 |
+| ✅ Closed | 111 |
 
 ---
 
 ## Session Queue
 
-Recommended work order as of b20260402.1017. Updated after OI-0037, OI-0063, OI-0101 closed.
+Recommended work order as of b20260402.1048. Updated after OI-0037, OI-0063, OI-0101, OI-0149 closed.
 
 ### 🐞 Bucket 1 — Bugs (do first)
 | Priority | OI | Title | Notes |
@@ -2323,6 +2323,20 @@ Event Edit sheet shows the first group (index 0) as "primary" — locked green p
 ---
 
 ## Closed Items
+
+### OI-0149 — wizSaveNew does not close group record in old event (multi-group dual-location bug)
+**Source:** User report b20260402 — Bull Group appearing in both Corral and Pasture D
+**Area:** Move Wizard / wizSaveNew
+**Severity:** Bug
+**Status:** ✅ Closed b20260402.1048
+
+**Root cause:** `wizSaveNew()` created a new event with the group but never set `dateRemoved` on the group's record in the old event. In multi-group events (e.g. Corral with 4 groups), `wizCloseEvent()` closes the *entire* event which is wrong when other groups remain — so the user skips the close step, and the group ends up active in both events.
+
+**Fix:** `wizSaveNew()` now iterates `wizGroupIds` before creating the new event: finds each group's old active event via `getActiveEventForGroup()`, sets `dateRemoved`/`timeRemoved` to the new event's `inDate`/`inTime`, queues the old event for write. Includes last-group-out auto-close (matching `saveEventEdit()` pattern).
+
+**Additional fixes in same build:**
+- `renderEeGroupChips()`: `dateAdded`/`timeAdded` now editable on ALL saved group records (was new-only). Extends OI-0037.
+- `wizCloseEvent()`: departure date/time now inherited into step 2 arrival fields.
 
 ### OI-0115 — Supabase cascade failure: operations.name column does not exist (42703)
 **Source:** Session b20260331

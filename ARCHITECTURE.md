@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260402.1026`
+**Current build:** `b20260402.1058`
 **Last updated:** 2026-04-02
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -273,7 +273,7 @@ All sheets are always in the DOM. Toggle: add/remove `.open` on the `-wrap` div.
 | `setMoveGroupWizard(idx)` | Sets `_moveAction = 'wizard'` so the wizard opens for this group after event save. |
 | `cancelGroupMove(idx)` | Clears `dateRemoved` and all `_moveAction` state for a group in the edit sheet. |
 | `reopenGroup(idx)` | Clears `dateRemoved` and all move state on `eeGroups[idx]`. Parallel to `reopenPaddock`. |
-| `renderEeGroupChips()` | Renders group chips with four states: primary (locked), unsaved (×), saved-active (Remove Group button), saved-closed (Reopen button). |
+| `renderEeGroupChips()` | Renders group chips with four states: primary (locked), unsaved (×), saved-active (Move Group button), saved-closed (Undo button). All groups show editable `dateAdded`/`timeAdded` inputs. Moved groups additionally show editable `dateRemoved`/`timeRemoved`. (b20260402.1048: editable dates expanded from new-only to all groups.) |
 | `syncEeGroupTotals()` | Aggregates head count and weighted-average weight from all active `eeGroups` entries and writes them to the `ee-head` / `ee-wt` form fields. Implements Path B auto-sum. |
 | `applyEeGroupsToEvent(ev)` | Strips `_isNew`, writes `ev.groups[]`, updates legacy `ev.groupId` to `groups[0].groupId`. |
 | `toggleWizGroup(gId)` | Toggles a group in/out of `wizGroupIds[]` array; re-renders the group selector. |
@@ -617,6 +617,20 @@ New engine added in b20260324.1800. Three functions:
 
 ### wizSaveNew — Location Reading
 Reads the primary location from `wizPaddocks[0].pastureName` first, **not** from the dropdown element. The dropdown resets to blank after a chip is added, which was causing a false "select a location" error even when a paddock chip was visibly selected. Fixed in b20260320.1041.
+
+### wizSaveNew — Auto-Close Group Records in Old Events (b20260402.1048)
+Before creating the new event, `wizSaveNew()` iterates `wizGroupIds` and for each group:
+1. Finds the active event via `getActiveEventForGroup(gId)`
+2. Finds the group record with `dateRemoved === null`
+3. Sets `dateRemoved = inDate` and `timeRemoved = inTime` (the new event's arrival date/time)
+4. Queues the old event for Supabase write
+
+**Last-group-out rule:** If no active groups remain after the departures, the old event is auto-closed: `status='closed'`, `dateOut` set, `recalcEventTotals()` called. This mirrors the identical guard in `saveEventEdit()`.
+
+**Root cause:** Prior to this fix, `wizSaveNew()` created a new event without closing the group's record in the old event. In multi-group events (e.g. Corral with 4 groups), `wizCloseEvent()` would close the *entire* event which is wrong when other groups remain. The only safe path was Event Edit → Move Group, but the wizard "Place" button on the home screen bypassed that flow.
+
+### wizCloseEvent — Date/Time Inheritance to Step 2 (b20260402.1048)
+After building the close summary and calling `wizGo(1)`, the function now propagates `outDate` → `w-in-date` and `ae.timeOut` → `w-in-time`. When the user clicks "Open new grazing event" in step 1, the step 2 arrival fields already reflect the departure date/time (but remain user-editable).
 
 ### Animals Screen Layout (as of b20260323.2354)
 - Management buttons (Classes, Treatments, AI Sires) sit **above** the groups card
