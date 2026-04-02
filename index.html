@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260401.2245" id="app-version-meta"/>
+<meta name="app-version" content="b20260402.0925" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -117,6 +117,9 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 .fab{position:fixed;bottom:calc(72px + var(--safe-bottom) + 12px);right:16px;width:48px;height:48px;border-radius:50%;background:var(--green);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:90;box-shadow:0 2px 10px rgba(0,0,0,0.2);}
 .fab:active{background:var(--green-d);}
 body.field-mode .fab{display:none !important;}
+@media (max-width:899px){
+  .fab{display:none !important;} /* Hide FAB on mobile — use Tasks nav button instead */
+}
 /* Field-mode sheets: when already open, make inner sheet full-screen on mobile.
    The outer .sheet-wrap visibility is still controlled by .open class.
    Do NOT set display:flex on .field-mode-sheet itself — it would force the
@@ -4497,16 +4500,13 @@ function renderHome(){
     }
   }
 
-  // My open tasks — in Supabase world filter by Supabase user.id; fall back to all open tasks.
-  const _myUid = _sbSession?.user?.id || activeUserId;
-  const myTodos=_myUid
-    ? S.todos.filter(t=>t.status!=='closed'&&(t.assignedTo||[]).includes(_myUid))
-    : S.todos.filter(t=>t.status!=='closed');
-  const homeTodos=document.getElementById('home-todos');
+  // Home screen: show all open tasks (detailed filtering available on dedicated Todos screen)
+  const myTodos = S.todos.filter(t => t.status !== 'closed');
+  const homeTodos = document.getElementById('home-todos');
   if(!myTodos.length){
-    homeTodos.innerHTML='<div style="font-size:13px;color:var(--text2);">No open tasks assigned to you</div>';
+    homeTodos.innerHTML = '<div style="font-size:13px;color:var(--text2);">No open tasks</div>';
   } else {
-    homeTodos.innerHTML=myTodos.slice(0,4).map(t=>todoCardHtml(t,true)).join('');
+    homeTodos.innerHTML = myTodos.slice(0, 4).map(t => todoCardHtml(t, true)).join('');
   }
 
   // Season stats rendered via metric registry

@@ -1,8 +1,8 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260401.2245`
-**Last updated:** 2026-04-01
+**Current build:** `b20260402.0925`
+**Last updated:** 2026-04-02
 
 > This is the authoritative navigation guide for every AI coding session.
 > Update it at the end of every session using the SESSION_RULES.md protocol.
@@ -783,22 +783,28 @@ The schema in §3d of MIGRATION_PLAN has recursive policies that cause 500 error
 The working policy set for `operations` and `operation_members` is:
 
 ```sql
--- operation_members: simple direct user_id check (NOT self-referential)
+-- operation_members: own rows (direct user_id) + member access via helper
 create policy "own rows"        on operation_members for select using (user_id = auth.uid());
 create policy "own rows update" on operation_members for update using (user_id = auth.uid());
 create policy "self insert"     on operation_members for insert with check (user_id = auth.uid());
+create policy "operation_member_access" on operation_members for select using (
+  operation_id = get_my_operation_id()
+);
 
--- operations: owner-direct check (NOT via operation_members subquery for bootstrap)
+-- operations: owner-direct check + member-based access via get_my_operation_id() helper
 create policy "owner select"    on operations for select using (owner_id = auth.uid());
 create policy "owner insert"    on operations for insert with check (owner_id = auth.uid());
+create policy "operation_member_access" on operations for select using (
+  id = get_my_operation_id()
+);
 ```
 
-The member-based SELECT policy on `operations` (workers reading another owner's farm)
-was added in M6. The `operation_members` RLS policy was also updated to allow pending
-rows (user_id IS NULL) to be claimed via the `claim_pending_invite` SECURITY DEFINER function.
+**Pattern:** Both `operations` and `operation_members` include `operation_member_access` policy using the `get_my_operation_id()` SECURITY DEFINER helper (see RLS Policy Pattern section below). This allows:
+- Owners to read/insert their own operations (direct owner_id check)
+- Workers to read operations and members they belong to (via helper — avoids RLS recursion)
+- Pending invite rows (`user_id IS NULL`) to be claimed via `claim_pending_invite()` SECURITY DEFINER function
 
-All other tables retain the template `operation_members` subquery policy — the recursion
-only occurs when `operation_members` queries itself.
+All other tables retain the template `operation_members` subquery policy via `get_my_operation_id()` — the recursion only occurs when `operation_members` queries itself.
 
 **OTP rate limit note:** Supabase free tier allows 2 OTP emails per hour per address.
 Exceeded limit returns "email rate limit exceeded" from `sbSendCode`. Sessions persist

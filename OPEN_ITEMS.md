@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260401.2240
-**Reconciled against build:** b20260401.2240
+**Last updated:** b20260401.2246
+**Reconciled against build:** b20260401.2245
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -19,32 +19,100 @@
 | Status | Count |
 |---|---|
 | 🔴 Open — Roadblock | 0 |
-| 🔴 Open — Bug | 0 |
-| 🟡 Open — Polish | 0 |
-| 🔵 Open — Enhancement | 25 |
+| 🔴 Open — Bug | 1 |
+| 🟡 Open — Polish | 5 |
+| 🔵 Open — Enhancement | 29 |
 | ⚪ Open — Debt | 9 |
-| ✅ Closed | 101 |
+| ✅ Closed | 102 |
 
 ---
 
 ## Session Queue
 
-Recommended work order as of b20260401.2022. Update after each session.
+Recommended work order as of b20260401.2245. Restructured around action-first buckets — design-deferred items moved to bottom. Update after each session.
 
+### 🐞 Bucket 1 — Bugs (do first)
 | Priority | OI | Title | Notes |
 |---|---|---|---|
-| 1 | OI-0138 | Admin console artifact — submissions management | Edge Function deployed first, then open console artifact |
-| 2 | OI-0139 | Thread reply UI in-app | Users see dev_response but can't reply yet |
-| 3 | OI-0105 | Membership-weighted NPK for multi-group events | Design first — future enhancement |
-| 4 | OI-0129 | Field mode per-module streamlined UX | Design first — each module may need mobile-optimized sheet variant |
-| 5 | OI-0134 | Private repo + edge-function auth gate | Infrastructure only — no app code changes |
-| 6 | OI-0135 | Vite + ES modules migration | Structural refactor — no feature changes |
 
-> **OI-0137 added and closed** b20260401.1011 — PWA manifest encoding bug. Shortcuts were silently broken since first implementation.
-> **OI-0133 closed** b20260401.0055 — CSS regression fix: `field-mode-sheet` rule corrected to `.open .sheet` selector; harvest sheet switched to `.open` class.
+### 🔧 Bucket 2 — Missing fields & quick CRUD
+| Priority | OI | Title | Notes |
+|---|---|---|---|
+| 4 | OI-0144 | Remove delete X from pastures listing | 2-line fix — same pattern as OI-0016 |
+| 5 | OI-0148 | Submission status: add 'planned' state | No DDL — text column; small app + import change |
+| 6 | OI-0141 | To-do CRUD: delete and edit | 3 feedback items merged |
+| 6 | OI-0022 | "Likely cull" checkbox on body condition survey | Add checkbox + filter |
+| 7 | OI-0143 | Sub-move: suppress min/max for destination paddock | Conditional hide — no data model change |
+| 8 | OI-0037 | Add group to event: expose time field | Missing field — same as event create |
+| 9 | OI-0063 | Add-to-group: fix scroll jump on animal list | Polish — preserve scroll position |
+
+### ⚙️ Bucket 3 — Workflow completions
+| Priority | OI | Title | Notes |
+|---|---|---|---|
+| 10 | OI-0036 | Append group to existing event in same location | Touches move wizard |
+| 11 | OI-0061 | Treatment system: multi-select + from edit form + type auto-populates | 3 sub-items — one session |
+| 12 | OI-0011 | Animal body condition survey (group + individual) | New survey type |
+
+### 📅 Bucket 4 — Rotation calendar
+| Priority | OI | Title | Notes |
+|---|---|---|---|
+| 13 | OI-0065 | Pasture status gradient (survey state as green fill) | Render-only, no data model change |
+| 14 | OI-0066 | "Today" vertical line on rotation calendar | Prerequisite for OI-0065 |
+
+### 📱 Bucket 5 — Field mode quick wins
+| Priority | OI | Title | Notes |
+|---|---|---|---|
+| 15 | OI-0145 | Field home: To-Do list + simplified tile stats | Non-design parts of 1775002940235 only |
+
+### 🔁 Parallel track — admin console (enables close-the-loop UI)
+| Priority | OI | Title | Notes |
+|---|---|---|---|
+| — | OI-0138 | Admin console artifact — submissions management | One session; enables bulk-resolve via UI |
+| — | OI-0139 | Thread reply UI in-app | After OI-0138 |
+
+### 🔭 Deferred — design first
+| OI | Title |
+|---|---|
+| OI-0014 | Stage feed before moving group (suspended future event concept) |
+| OI-0038 | Confinement NPK as lost (data model change) |
+| OI-0045 | Fertility factors form in Settings |
+| OI-0059 | Audit all calculation functions |
+| OI-0129 | Field mode per-module streamlined UX |
+| OI-0146 | Field mode Move Animals wizard |
+| OI-0047 | Grass growth curve dashboard |
+| OI-0046 | NWS precipitation integration |
+| OI-0105 | Membership-weighted NPK for multi-group events |
+| OI-0134 | Private repo + edge-function auth gate |
+| OI-0135 | Vite + ES modules migration |
+
+---
+
+### Close-the-loop protocol (updated b20260401.2246)
+
+When OIs are created from feedback, stamp `oi_number` and set `status = 'planned'` in one statement:
+```sql
+UPDATE submissions
+SET status = 'planned', oi_number = 'OI-XXXX'
+WHERE id IN (...);
+```
+
+When OIs are closed in a session, the §8e delivery gate includes a "mark resolved" block:
+```sql
+UPDATE submissions SET status = 'resolved' WHERE id IN (...);
+```
+
+Import diff at session start: only surface `status = 'open'` items. `planned` items are already in OPEN_ITEMS — skip them.
+
+Long term: OI-0138 admin console supports `PATCH ?action=update` for status + oi_number — eliminates the SQL step once live.
+
+> **OI-0141–0147 added** b20260401.2245 — feedback import from gthy-feedback-2026-04-01-1924.json. Session queue restructured around action-first buckets.
+> **OI-0140 added** b20260401.2240 — RLS owner role doc fix.
+> **OI-0137 added and closed** b20260401.1011 — PWA manifest encoding bug.
+> **OI-0133 closed** b20260401.0055 — CSS regression fix.
 > **OI-0132 closed** b20260401.0044 — FAB, feedback nav, field mode full-screen sheets.
-> **OI-0134, OI-0135, OI-0136 added** b20260401.0954 — Build evolution and IP protection strategy documented. See SESSION_BRIEF_b20260401_0954.md for full context.
-> **Last updated:** b20260401.1011
+> **OI-0134, OI-0135, OI-0136 added** b20260401.0954 — Build evolution and IP protection.
+> **Status Summary corrected** b20260401.2245 — prior counts were stale; actual open bugs (OI-0070, OI-0071) and polish items (OI-0063 + others) were miscounted.
+> **Last updated:** b20260401.2245
 
 ---
 
@@ -57,6 +125,197 @@ Recommended work order as of b20260401.2022. Update after each session.
 ---
 
 ## Open Items
+
+### OI-0140
+**Source:** Claude observation — b20260401.2240
+**Area:** Developer Tooling / RLS / Documentation
+**Severity:** Debt
+**Status:** ✅ Closed
+**Found:** b20260401.2240
+**Closed:** b20260402.0913
+
+**RLS policy documentation for `operations` and `operation_members` was incomplete.** The original ARCHITECTURE section documented owner-direct checks but omitted the `operation_member_access` policy that allows workers to read operations via the `get_my_operation_id()` SECURITY DEFINER helper. The narrative mentioned this pattern was added in M6 but the SQL code block didn't show it.
+
+**Fixed:** Updated ARCHITECTURE lines 785–807 to show the complete working RLS policy set:
+- Both `operations` and `operation_members` tables now include the full policy triple (direct user/owner checks + helper-based member access)
+- Added detailed pattern note explaining why SECURITY DEFINER is needed and what each policy enables
+- Cross-referenced the RLS Policy Pattern section below for the `get_my_operation_id()` helper function
+
+This ensures future sessions have a single authoritative reference for the correct RLS pattern without having to infer it from scattered narrative notes.
+
+---
+
+### OI-0147
+### OI-0147
+**Source:** In-app feedback — id:1775003204664 (Tim, 2026-04-01)
+**Area:** Mobile Layout (`@media max-width:899px`)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260401.2245
+**Closed:** b20260402.0921
+
+"Strange feedback remnant on Home Screen on mobile." The red feedback badge ("72") was appearing in the bottom-left corner of the home screen on mobile instead of being hidden or positioned correctly.
+
+**Root cause:** The FAB feedback button (`.fab`) had `z-index:90;` while the mobile nav bar (`.bnav`) had `z-index:100;`. The FAB was positioned behind the nav. Additionally, the feedback badge (`#fb-badge`) is absolutely positioned inside the FAB, creating visual overflow and unexpected rendering on mobile where the FAB serves no purpose (feedback access is via the mobile nav Tasks button).
+
+**Fixed:** Added `@media (max-width:899px) { .fab { display:none !important; } }` to completely hide the FAB on mobile devices. Desktop (>900px) keeps the FAB as intended. Mobile users access feedback via the Tasks nav button instead, eliminating the z-index conflict and the orphaned badge element.
+
+---
+
+### OI-0146
+**Source:** In-app feedback — id:1775002527928 (Tim, 2026-04-01)
+**Area:** Field Mode (`applyFieldMode`, Move Wizard)
+**Severity:** Enhancement
+**Status:** 🔵 Open — Enhancement
+**Found:** b20260401.2245
+**Closed:** —
+
+"Field mode — Move Animals: launch a streamlined move wizard that includes pickers for open events and streamlined workflow."
+
+**Deferred — design first.** The move wizard is multi-step and field mode requires a full-screen, glove-friendly variant. Design session needed before implementation: step flow, back/cancel behaviour, event picker UX, and whether this folds into a single "log activity" workflow combining feed, move, and harvest.
+
+**Acceptance criteria:** Design doc produced. Streamlined move sheet opens from field home "Move" tile, guides user through picking a group, picking a destination event, confirming sub-move or new event, and returns to field home on save.
+
+---
+
+### OI-0145
+**Source:** In-app feedback — id:1775002940235 (Tim, 2026-04-01)
+**Area:** Field Mode / Home Screen (`renderFieldHome()`)
+**Severity:** Enhancement
+**Status:** 🔵 Open — Enhancement
+**Found:** b20260401.2245
+**Closed:** —
+
+Partial implementation of field home UX request. The "Feed Animals" tile label and 2-column tile grid were delivered in b20260401. Remaining actionable (non-design) items from the original feedback:
+
+**A — To-Do list section below action tiles.** Below the FIELD_MODULES tile grid, render a compact to-do list showing open todos assigned to the active user or unassigned. Include a quick-add button (opens `openTodoSheet()`). Matches the feedback: "At section below Field mode action buttons add To Do's list. And to do quick add button."
+
+**B — Simplified tile group info.** When field mode is active, group cards (if shown at all below tiles) should display only: group name, head count, current weight, and current location. Strip DMI, NPK, progress bars — too much detail for field use.
+
+**Deferred (design first):** "Move Animals" tile and "Start new grazing event" tile — these require the streamlined wizard design (OI-0146) before implementation.
+
+**Acceptance criteria:** Field home shows a to-do list section below the action tiles. Quick-add opens the todo sheet. Group info in field mode is stripped to the four essential fields.
+
+---
+
+### OI-0144
+**Source:** In-app feedback — id:1774826500623 (Tim, 2026-03-29)
+**Area:** Pastures Screen (`renderPastures()`, ~L5954)
+**Severity:** Polish
+**Status:** 🟡 Open
+**Found:** b20260401.2245
+**Closed:** —
+
+"There should not be a delete X on the pastures listing." Pastures (fields/paddocks) are foundational records — deleting one from the list by accident would be destructive and should not be a one-tap action on the main list. The same decision was made for the animal list (OI-0016).
+
+**Fix:** Remove the inline delete button from each pasture row in `renderPastures()`. Deletion, if needed, should only be accessible inside the pasture edit sheet (behind a confirmation prompt).
+
+**Acceptance criteria:** No delete button visible on the pastures listing. Delete remains accessible inside the pasture edit sheet with a confirmation prompt.
+
+---
+
+### OI-0143
+**Source:** In-app feedback — id:1774525756460 (Tim, 2026-03-26)
+**Area:** Sub-Move Sheet (`openSubMoveSheet`, ~L9030)
+**Severity:** Enhancement
+**Status:** 🔵 Open — Enhancement
+**Found:** b20260401.2245
+**Closed:** —
+
+"When recording a new sub move or any other move, the min-max for the paddock being opened should not be shown or referenced as that is only updated upon survey completion."
+
+The sub-move sheet currently displays the recovery min/max window for the destination paddock. This is misleading — the min/max reflects the last survey and is not valid as a move-decision aid mid-rotation. It belongs on the survey sheet, not the move sheet.
+
+**Fix:** In `openSubMoveSheet()` (and any other move/sub-move UI that shows recovery window for the destination), suppress or remove the min/max display. The field is still stored; it's just not shown at move time.
+
+**Acceptance criteria:** Sub-move sheet does not display min/max recovery window for the destination paddock. Survey sheet continues to show and edit min/max as before.
+
+---
+
+### OI-0142
+### OI-0142
+**Source:** In-app feedback — id:1775083774847 (Tim, 2026-04-01)
+**Area:** To-Do System (`renderHome()` at ~L4500)
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260401.2245
+**Closed:** b20260402.0927
+
+"To-dos not showing on home screen after sign-in." Root cause: `renderHome()` was filtering todos by `(t.assignedTo||[]).includes(_myUid)` — only showing todos assigned to the current user. If todos had empty `assignedTo` or weren't explicitly assigned to the logged-in user, they stayed hidden. This filter was overly restrictive for a home screen.
+
+**Fixed:** Removed user assignment filter from `renderHome()`. Home screen now shows all open todos (up to 4). Detailed filtering by user/location/status remains available on the dedicated Todos screen. This matches the intended behavior: home screen is an overview, todos screen is for filtering/management.
+
+Change: `renderHome()` line ~4500 now filters only by `t.status !== 'closed'` instead of requiring `(t.assignedTo||[]).includes(_myUid)`.
+
+---
+
+### OI-0141
+**Source:** In-app feedback — ids:1774818588197, 1774820123822, 1775083774847 (Tim, 2026-03-29 to 2026-04-01)
+**Area:** To-Do System (`openTodoSheet`, `saveTodo`, `renderTodos()`, ~L2921)
+**Severity:** Enhancement
+**Status:** 🔵 Open — Enhancement
+**Found:** b20260401.2245
+**Closed:** —
+
+Three feedback items merged. To-dos currently have no delete or edit path once created.
+
+**A — Delete to-do.** A delete action should be available on each to-do row in `renderTodos()` and inside `openTodoSheet()` when editing. Permission rule: admin role or the user who created the to-do can delete. Others can only mark complete.
+
+**B — Edit to-do.** Tapping an existing to-do should open `openTodoSheet(id)` in edit mode — pre-populate all fields (text, assignee, due date, paddock). `saveTodo()` already handles upsert; the gap is the open-in-edit-mode path and the delete button.
+
+**Acceptance criteria:** Each to-do row shows an edit affordance. Opening it pre-fills the sheet. A delete button (permission-gated) removes the to-do from `S.todos` and queues a Supabase delete. `renderTodos()` refreshes immediately.
+
+---
+
+### OI-0148
+**Source:** Claude observation + session design — b20260401.2246
+**Area:** Submissions System (`renderFeedbackList()`, `renderFeedbackTab()`, `_submissionRow()`, import protocol)
+**Severity:** Enhancement
+**Status:** 🔵 Open — Enhancement
+**Found:** b20260401.2246
+**Closed:** —
+
+**Add `'planned'` status to the submission lifecycle.** Current status values (`open`, `resolved`, `closed`) have no intermediate state between "submitted but unreviewed" and "fixed and deployed". Once a feedback item is imported into OPEN_ITEMS and assigned an OI number, it still shows as `open` — indistinguishable from unreviewed submissions.
+
+**Proposed lifecycle:**
+```
+open  →  planned  →  resolved
+  ↓
+closed  (won't fix / duplicate / out of scope)
+```
+
+| Status | Meaning |
+|---|---|
+| `open` | Submitted, not yet reviewed — shows "awaiting" indicator |
+| `planned` | Imported into OPEN_ITEMS, OI number assigned — "awaiting" flips to "📋 in queue" |
+| `resolved` | Fix deployed |
+| `closed` | Won't fix, duplicate, or out of scope |
+
+**No DDL needed.** The `submissions.status` column is `text` — `'planned'` is valid immediately.
+
+**App changes needed:**
+
+**A — `renderFeedbackList()` — "awaiting" → "planned" flip.** The existing "awaiting" indicator currently shown on unresponded `open` items should flip to a `📋 in queue` badge (with `oi_number` if present) when `status = 'planned'`. The "awaiting" label implies "we haven't seen this yet" — once planned, it should communicate "acknowledged, in the dev queue". Visual treatment: muted row style, `📋 OI-XXXX` pill in place of the awaiting dot/label.
+
+**B — In-app filter pill.** `renderFeedbackTab()` / the filter row above the submissions list gets a `planned` filter pill alongside the existing status filters. Tapping it shows only planned items — useful for the user to see everything that's been acknowledged. The default view (all / open) should continue to show `planned` items unless the user explicitly filters to `open` only.
+
+**C — `_submissionRow()` shape function.** No change needed — `status` is already a pass-through text field. Confirm `oi_number` is in `_SB_ALLOWED_COLS.submissions`.
+
+**D — Import protocol.** The close-the-loop SQL in the session queue and §8e delivery gate stamps `oi_number` and sets `status = 'planned'` in the same statement:
+
+```sql
+UPDATE submissions
+SET status = 'planned', oi_number = 'OI-XXXX'
+WHERE id IN (...);
+```
+
+**E — Import diff.** Claude's session-start feedback diff only surfaces `status = 'open'` items as needing triage. `planned` items are skipped — they are already in OPEN_ITEMS.
+
+**F — Admin console filter.** The status filter in the admin console (OI-0138) includes `planned` as an option alongside `open`, `resolved`, `closed`. The `planned` bucket is the primary triage view — shows everything that's been logged but not yet shipped, grouped by `oi_number`. Default console view shows `open` + `planned` together.
+
+**Acceptance criteria:** "Awaiting" indicator flips to `📋 in queue` (with OI number) when status becomes `planned`. In-app filter row includes a `planned` pill. Import diff ignores planned items. Close-the-loop SQL uses `planned`. Admin console filter includes `planned` and defaults to `open` + `planned` as the triage view.
+
+---
 
 ### OI-0139
 **Source:** Claude observation — b20260401.2022
@@ -111,7 +370,7 @@ React artifact (browser)
 Admin secret is pasted into the artifact's React state — never written to a file or committed.
 
 **Console features:**
-- Filter by: type, status, cat, priority, area, operation (cross-tenant)
+- Filter by: type, status (`open` / `planned` / `resolved` / `closed`), cat, priority, area, operation (cross-tenant). Default view shows `open` + `planned` together as the active triage queue. `planned` items display their `oi_number` badge.
 - Full thread view + dev reply input
 - Edit cat/type/status/area/priority inline
 - Link `oi_number` to any item
@@ -2458,3 +2717,19 @@ Upload `gthy-feedback-YYYY-MM-DD-HHMM.json` at session start for Claude to diff 
 | 1774349252541 | b20260324.1100 | OI-0052 | "Sub-move paddocks need to be allowed to be different from primary paddock." |
 | 1774349379893 | b20260324.1100 | OI-0053 | "In events there is not really a primary animal group..." |
 | 1774351616357 | b20260325.0013 | OI-0068 | "Look at feedback architecture to anticipate multiple instances..." |
+| 1774818588197 | b20260401.2245 | OI-0141 | "Need to be able to delete a to-do" (merged into OI-0141) |
+| 1774820123822 | b20260401.2245 | OI-0141 | "Need to be able to edit and delete an existing to do" (merged into OI-0141) |
+| 1775083774847 | b20260401.2245 | OI-0141 + OI-0142 | "To-do's need to be able to be deleted... To-do's are not showing up on my home screen" (CRUD → OI-0141; mobile bug → OI-0142) |
+| 1774525756460 | b20260401.2245 | OI-0143 | "when recording a new sub move... the min-max for the paddock being opened should not be shown" |
+| 1774826500623 | b20260401.2245 | OI-0144 | "There should not be a delete X on the pastures listing" |
+| 1775002940235 | b20260401.2245 | OI-0145 | "Field mode Home- remove all items except for action tiles and To Do's..." (partial; design parts → OI-0146) |
+| 1775002527928 | b20260401.2245 | OI-0146 | "Field mode- Move Animals- Launch a streamlined move wizard..." (deferred — design first) |
+| 1775003204664 | b20260401.2245 | OI-0147 | "Strange feedback remnant on Home Screen on mobile" |
+| 1774820167069 | b20260401.2245 | — | "Need to be able to edit existing feedback and track if it was changed since last import" — **closed at source, no OI** |
+| 1775053344478 | b20260401.2245 | — | "Capture inferred DMI from grazing..." — **resolved at source, no OI** |
+| 1774899846966 | b20260401.2245 | — | "Force update in settings does not work..." — **resolved at source, no OI** |
+| 1775002790303 | b20260401.2245 | — | "Add field mode and harvest to feedback areas" — **resolved at source, no OI** |
+| 1774961869662 | b20260401.2245 | — | "The feed batch should be first three of farm name, field number, cutting, and date" — **resolved at source, no OI** |
+| 1774899624820 | b20260401.2245 | — | "Display name not sticking in between sessions..." — **resolved at source, no OI** |
+| 1774899577986 | b20260401.2245 | — | "Feedback not available on settings screen" — **resolved at source, no OI** |
+| 1774818620446 | b20260401.2245 | — | "Need to be able to edit existing open feedback items" — **resolved at source, no OI** |

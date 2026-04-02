@@ -3,6 +3,15 @@
 
 | Build | File | Change |
 |---|---|---|
+| b20260402.0922 | HTML | OI-0142 — Home screen to-do rendering fixed. Removed overly restrictive user assignment filter (`(t.assignedTo||[]).includes(_myUid)`) from `renderHome()` line ~4500. Home screen now shows all open tasks (up to 4) instead of requiring assignment to current user. Detailed filtering by user/location/status remains on dedicated Todos screen. |
+| b20260402.0922 | HTML | OI-0147 — Feedback badge remnant on mobile fixed. Added `@media (max-width:899px) { .fab { display:none !important; } }` to hide FAB feedback button on mobile. Root cause: FAB z-index:90 was behind mobile nav z-index:100, and feedback badge was orphaned. Mobile users access feedback via Tasks nav button instead. Desktop (>900px) keeps FAB. |
+| b20260402.0922 | ARCHITECTURE | OI-0140 — RLS policy documentation completed. Updated lines 785–807 with complete working RLS policy set for both `operations` and `operation_members` tables. Added `operation_member_access` policy using `get_my_operation_id()` SECURITY DEFINER helper to both tables. Added pattern note explaining why SECURITY DEFINER is needed and what each policy enables. Cross-referenced RLS Policy Pattern section. |
+| b20260402.0922 | OPEN_ITEMS | Session summary: OI-0140, OI-0142, OI-0147 closed. Bug count 4→1. Closed count 99→102. Session queue restructured — Bucket 1 (bugs) now empty. Next: Bucket 2 (OI-0144, OI-0141, OI-0148) ready to proceed. |
+|---|---|---|
+| b20260401.2245 | (PRIOR SESSION — see below) |
+
+| Build | File | Change |
+|---|---|---|
 | b20260401.2240 | HTML | Added `harvest` and `field-mode` to all three area selects (feedback screen filter bar, feedback submission sheet, edit submission sheet). `AREA` JS object updated with both new keys. `has-response` filter option added to feedback screen filter dropdown and `renderFeedbackList()` filter logic. |
 | b20260401.2240 | CONSOLE | `gthy-admin-console.html` — debug triage alert cleaned up (shows meaningful error message only). `harvest` and `field-mode` added to both filter bar area options and edit panel area select. |
 |---|---|---| — replaced service-role-in-artifact approach with Edge Function + admin secret architecture. Service role key stays server-side in Supabase Edge Function env vars permanently. Console authenticates via a separately generated UUID secret (ADMIN_SECRET). Design rationale documented: service role bypasses all RLS; per-operation admin user is clunky at scale. Multi-app config array pattern unchanged. |
