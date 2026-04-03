@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260403.1052" id="app-version-meta"/>
+<meta name="app-version" content="b20260403.1127" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -130,7 +130,7 @@ body.field-mode .field-mode-sheet.open .sheet{
   overflow-y:auto;
 }
 .sheet-wrap{display:none;position:fixed;inset:0;z-index:200;}
-#move-wiz-wrap,#close-sub-paddock-wrap,#feed-check-wrap{z-index:210;}
+#move-wiz-wrap,#close-sub-paddock-wrap,#feed-check-wrap,#sm-sheet-wrap{z-index:210;}
 .sheet-wrap.open{display:flex;align-items:center;justify-content:center;}
 .sheet-backdrop{position:absolute;inset:0;background:rgba(0,0,0,0.4);}
 .sheet{position:relative;width:min(92vw,680px);background:var(--bg);border-radius:var(--radius-xl);padding:16px 16px 24px;max-height:90vh;overflow-y:auto;z-index:1;}
@@ -7878,7 +7878,11 @@ function renderEePaddockChips(){
   const el = document.getElementById('ee-paddock-chips');
   if(!el) return;
   const ev = S.events.find(e=>e.id===parseInt(document.getElementById('ee-id')?.value));
+  // Filter out paddock windows that have a corresponding sub-move record (active or closed)
+  const _smNames = new Set((ev?.subMoves||[]).map(sm=>sm.locationName));
   el.innerHTML = eePaddocks.map((p,i)=>{
+    // Skip non-anchor paddock windows that have sub-move records
+    if(i > 0 && _smNames.has(p.pastureName)) return '';
     // ── Primary paddock — locked, no action buttons ────────────────────────
     if(i===0){
       return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
@@ -15088,8 +15092,18 @@ function openEventEdit(eventId){
   // Core fields
   document.getElementById('ee-date-in').value=ev.dateIn||'';
   document.getElementById('ee-date-out').value=ev.dateOut||'';
-  document.getElementById('ee-head').value=ev.head||'';
-  document.getElementById('ee-wt').value=ev.wt||'';
+  // Head/weight: derive from active groups (read-only fields)
+  const _eeActiveGrps = evGroups(ev).filter(g=>!g.dateRemoved);
+  let _eeHead=0, _eeTotalMass=0;
+  _eeActiveGrps.forEach(g=>{
+    const grp=getGroupById(g.groupId);
+    if(!grp) return;
+    const t=getGroupTotals(grp);
+    _eeHead += t.totalHead||0;
+    _eeTotalMass += (t.totalHead||0)*(t.avgWeight||0);
+  });
+  document.getElementById('ee-head').value = _eeHead || ev.head || '';
+  document.getElementById('ee-wt').value = _eeHead>0 ? Math.round(_eeTotalMass/_eeHead) : ev.wt || '';
   document.getElementById('ee-ht-in').value=ev.heightIn||'';
   document.getElementById('ee-ht-out').value=ev.heightOut||'';
   // Forage cover — sync slider and number input together
@@ -15762,12 +15776,12 @@ function renderEeSubMoves(ev){
   const sms = ev.subMoves||[];
   if(!sms.length){ wrap.style.display='none'; return; }
   wrap.style.display = 'block';
-  // Sort: active first, then by date desc
+  // Sort: open first, then closed chronologically (oldest first)
   const sorted = [...sms].sort((a,b)=>{
     const aActive = !a.durationHours&&!a.dateOut;
     const bActive = !b.durationHours&&!b.dateOut;
     if(aActive!==bActive) return aActive?-1:1;
-    return (b.date||'').localeCompare(a.date||'');
+    return (a.date||'').localeCompare(b.date||'');
   });
   list.innerHTML = sorted.map(sm=>{
     const paddockClosed = (ev.paddocks||[]).some(p=>p.pastureName===sm.locationName && p.dateRemoved);
@@ -19398,8 +19412,8 @@ window.addEventListener('offline', ()=>{
       <div class="field"><label>Date out</label><input type="date" id="ee-date-out"/></div>
     </div>
     <div class="two">
-      <div class="field"><label>Head</label><input type="number" id="ee-head" step="1" min="1"/></div>
-      <div class="field"><label>Avg weight (lbs)</label><input type="number" id="ee-wt" step="1" min="1"/></div>
+      <div class="field"><label>Head <span style="font-size:10px;color:var(--text2);font-weight:400;">(from groups)</span></label><input type="number" id="ee-head" step="1" min="1" readonly style="background:var(--bg2);color:var(--text2);"/></div>
+      <div class="field"><label>Avg weight (lbs) <span style="font-size:10px;color:var(--text2);font-weight:400;">(from groups)</span></label><input type="number" id="ee-wt" step="1" min="1" readonly style="background:var(--bg2);color:var(--text2);"/></div>
     </div>
     <div class="two">
       <div class="field"><label>Pre-graze ht (in) <span style="font-size:10px;color:var(--text2);">opt</span></label>
