@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260403.1127" id="app-version-meta"/>
+<meta name="app-version" content="b20260403.1138" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -2647,23 +2647,27 @@ function assembleEvents(rows){
     // Note: Supabase column is `quantity`; render functions expect `qty`.
     const allDeliveries = (r.event_feed_deliveries || []);
     const anchorDels = allDeliveries.filter(d => !d.sub_move_id);
-    const feByDate = new Map();
+    // Group by entry ID (Math.floor(id/1000)) rather than date to prevent
+    // orphan Supabase rows from merging with new entries after delete+recreate
+    const feByEntry = new Map();
     for (const d of anchorDels) {
-      if (!feByDate.has(d.date)) feByDate.set(d.date, {id: d.id, date: d.date, lines: []});
-      feByDate.get(d.date).lines.push({batchId: d.batch_id, qty: d.quantity});
+      const entryKey = Math.floor(d.id / 1000);
+      if (!feByEntry.has(entryKey)) feByEntry.set(entryKey, {id: entryKey, date: d.date, lines: []});
+      feByEntry.get(entryKey).lines.push({batchId: d.batch_id, qty: d.quantity});
     }
-    ev.feedEntries = [...feByDate.values()];
+    ev.feedEntries = [...feByEntry.values()];
 
     // ── subMoves: same feedEntries reconstruction per sub-move ─────────────────
     ev.subMoves = (r.event_sub_moves || []).map(sm => {
       const smC = _sbToCamel(sm);
       const smDels = allDeliveries.filter(d => d.sub_move_id === sm.id);
-      const smFe = new Map();
+      const smFeByEntry = new Map();
       for (const d of smDels) {
-        if (!smFe.has(d.date)) smFe.set(d.date, {id: d.id, date: d.date, lines: []});
-        smFe.get(d.date).lines.push({batchId: d.batch_id, qty: d.quantity});
+        const smEntryKey = Math.floor(d.id / 1000);
+        if (!smFeByEntry.has(smEntryKey)) smFeByEntry.set(smEntryKey, {id: smEntryKey, date: d.date, lines: []});
+        smFeByEntry.get(smEntryKey).lines.push({batchId: d.batch_id, qty: d.quantity});
       }
-      smC.feedEntries = [...smFe.values()];
+      smC.feedEntries = [...smFeByEntry.values()];
       smC.feedResidualChecks = [];  // populated from top-level S.events[].feedResidualChecks
 
       // Sub-move field aliases: Supabase column names vs JS field names used by render code.
@@ -20367,6 +20371,25 @@ function _mwSave(){
 // ══════════════════════════════════════════════════════════════════════════════
 let _cspEvId = null;
 let _cspSmId = null;
+
+// bumpSetupUpdatedAt: queues pasture writes when recovery days are updated from close dialogs
+function bumpSetupUpdatedAt(){
+  // Queue all pastures for write (setup data has changed)
+  if(typeof queueWrite === 'function' && typeof _sbToSnake === 'function'){
+    (S.pastures||[]).forEach(p=>{
+      if(p.id && p.setupUpdatedAt){
+        queueWrite('pastures', _sbToSnake({
+          id: p.id, operationId: _sbOperationId,
+          name: p.name, locationType: p.locationType||'pasture',
+          acres: p.acres||null, recoveryMinDays: p.recoveryMin||p.recoveryMinDays||null,
+          recoveryMaxDays: p.recoveryMax||p.recoveryMaxDays||null,
+          setupUpdatedAt: p.setupUpdatedAt
+        }));
+      }
+    });
+  }
+  save();
+}
 
 function openCloseSubPaddockSheet(evId, smId){
   _cspEvId = evId;
