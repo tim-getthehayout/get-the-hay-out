@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260402.1048
-**Reconciled against build:** b20260402.1048
+**Last updated:** b20260403.0022
+**Reconciled against build:** b20260403.0022
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -19,17 +19,17 @@
 | Status | Count |
 |---|---|
 | 🔴 Open — Roadblock | 0 |
-| 🔴 Open — Bug | 1 |
+| 🔴 Open — Bug | 0 |
 | 🟡 Open — Polish | 2 |
-| 🔵 Open — Enhancement | 24 |
+| 🔵 Open — Enhancement | 21 |
 | ⚪ Open — Debt | 9 |
-| ✅ Closed | 111 |
+| ✅ Closed | 116 |
 
 ---
 
 ## Session Queue
 
-Recommended work order as of b20260402.1048. Updated after OI-0037, OI-0063, OI-0101, OI-0149 closed.
+Recommended work order as of b20260403.0022. Updated after OI-0150, OI-0152, OI-0154, OI-0156, OI-0162 closed (event tile + move wizard session).
 
 ### 🐞 Bucket 1 — Bugs (do first)
 | Priority | OI | Title | Notes |
@@ -98,6 +98,7 @@ Import diff at session start: only surface `status = 'open'` items. `planned` it
 
 Long term: OI-0138 admin console supports `PATCH ?action=update` for status + oi_number — eliminates the SQL step once live.
 
+> **OI-0150–0167 added** b20260402.1058 — feedback import from gthy-feedback-2026-04-02-admin.json (18 new items from 34-item export; 16 already imported). Session queue restructured: Bucket 0 created for event tile + move flow design-first session (12 high-priority items). OI-0162 elevated to Bucket 2 as field testing enabler. OI-0161 deferred.
 > **OI-0037, OI-0063, OI-0101 closed** b20260402.1017 — Group date/time pickers, sub-move return date, scroll fix, todo delete confirmed implemented. Bucket 2 now empty. Session queue reprioritized.
 > **OI-0144, OI-0148, OI-0141, OI-0143, OI-0022 closed** b20260402.0940 — backlog sweep session. 5 items from Bucket 2 resolved. Session queue updated. Health events Supabase write gap noted as pre-existing debt.
 > **OI-0141–0147 added** b20260401.2245 — feedback import from gthy-feedback-2026-04-01-1924.json. Session queue restructured around action-first buckets.
@@ -2607,6 +2608,77 @@ When the Google OAuth token expired on mobile (after ~1 hour), the scheduled sil
 
 ---
 
+
+### OI-0150
+**Source:** In-app feedback — id:1775162461035 (Tim, 2026-04-02)
+**Area:** Home Screen / Event Tile / Move Wizard
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260402.1058
+**Closed:** b20260403.0022
+
+"Event tile — Move button launches event editor instead of move wizard." The Move button on group rows in the location card was calling `openEventEdit()`, opening the full event editor sheet instead of initiating a move flow.
+
+**Fixed:** `renderLocationCard()` fully rewritten. Move button now calls `openMoveWizSheet(evId, groupId)` which opens the new 3-step move wizard sheet. The old `openEventEdit()` call path is completely removed from move actions.
+
+---
+
+### OI-0152
+**Source:** In-app feedback — id:1775162095085 (Tim, 2026-04-02)
+**Area:** Sub-move Close Dialog
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260402.1058
+**Closed:** b20260403.0022
+
+"When closing a sub move paddock... closure dialog renders very narrow." The close-sub-move dialog was rendering inside a constrained-width container.
+
+**Fixed:** New `#close-sub-paddock-wrap` sheet uses standard full-width sheet pattern (`position:fixed`, `width:min(92vw,680px)`). Includes full pasture close-out survey (residual height, forage cover, quality, recovery min/max) and anchor paddock info box.
+
+---
+
+### OI-0154
+**Source:** In-app feedback — id:1775161694469 (Tim, 2026-04-02)
+**Area:** Home Screen / Event Tile Badge
+**Severity:** Enhancement
+**Status:** ✅ Closed
+**Found:** b20260402.1058
+**Closed:** b20260403.0022
+
+"Event card indicator should say Stored Feed & Grazing for mixed events." Events with both pasture time and stored feed entries showed only "grazing" badge.
+
+**Fixed:** Badge logic in `renderLocationCard()` now detects mixed events (has feed entries AND `!noPasture && locationType !== 'confinement'`) and shows "stored feed & grazing" badge with a split green/amber gradient background.
+
+---
+
+### OI-0156
+**Source:** In-app feedback — id:1775156009406 (Tim, 2026-04-02)
+**Area:** Home Screen / Event Tile
+**Severity:** Enhancement
+**Status:** ✅ Closed
+**Found:** b20260402.1058
+**Closed:** b20260403.0022
+
+"On all events and sub events include acreage on all cards." Acreage was not visible on event cards in the home locations view.
+
+**Fixed:** `renderLocationCard()` now shows acreage from the paddock record next to the location name in the header. Sub-paddock rows also show acreage when available.
+
+---
+
+### OI-0162
+**Source:** In-app feedback — id:1775155467858 (Tim, 2026-04-02)
+**Area:** Mobile Layout / Feedback FAB
+**Severity:** Enhancement
+**Status:** ✅ Closed
+**Found:** b20260402.1058
+**Closed:** b20260403.0022
+
+"Add floating feedback button back to mobile." The FAB was hidden on mobile by OI-0147 fix to resolve a badge overflow issue.
+
+**Fixed:** FAB restored on mobile with root fix: `z-index` raised to 150 (above nav bar, below sheets), `overflow:visible` for badge rendering, slightly smaller (44px) on mobile. Field mode still hides FAB.
+
+---
+
 ## Import Log
 
 Tracks which `S.feedback` IDs have been imported to prevent duplicates across sessions.
@@ -2614,6 +2686,24 @@ Upload `gthy-feedback-YYYY-MM-DD-HHMM.json` at session start for Claude to diff 
 
 | Feedback ID | Imported in | OI number | Original note (truncated) |
 |---|---|---|---|
+| 1775162461035 | b20260402.1058 | OI-0150 | "Event tile — Move button launches event editor instead of move wizard" |
+| 1775162387503 | b20260402.1058 | OI-0151 | "Home event cards should list sub paddocks the same way..." (card redesign) |
+| 1775162095085 | b20260402.1058 | OI-0152 | "When closing a sub move paddock... closure dialog renders very narrow" |
+| 1775161958349 | b20260402.1058 | OI-0153 | "Event card — when moving a group out... flow should be move button → where..." |
+| 1775161694469 | b20260402.1058 | OI-0154 | "Event card indicator should say Stored Feed & Grazing for mixed events" |
+| 1775156385004 | b20260402.1058 | OI-0155 | "At close of event, allow user to move remaining stored feed to new paddock" |
+| 1775156128345 | b20260402.1058 | OI-0161 | "Explore ability to graze portion of paddock on percentage basis" |
+| 1775156009406 | b20260402.1058 | OI-0156 | "On all events and sub events include acreage on all cards" |
+| 1775155844209 | b20260402.1058 | OI-0157 | "Stored feed line graph... per-feed-type feed check... home dashboard" |
+| 1775155467858 | b20260402.1058 | OI-0162 | "Add floating feedback button back to mobile" |
+| 1775127863858 | b20260402.1058 | OI-0158 | "Allow user to close entire event... add them to another existing open location" |
+| 1775127732299 | b20260402.1058 | OI-0159 | "On bale checks allow user to estimate remaining bales or percentage" |
+| 1775125797698 | b20260402.1058 | OI-0163 | "Allow multi selection of tasks for reassignment to other users" |
+| 1775125736000 | b20260402.1058 | OI-0164 | "Need a listing of all feed events, filter by date range, animal groups..." |
+| 1775124165316 | b20260402.1058 | OI-0160 | "When a group is not placed, allow placing in existing open event or create new" |
+| 1775124017705 | b20260402.1058 | OI-0165 | "Tasks don't seem to be connected to logged in user... no user selection list" |
+| 1775122257634 | b20260402.1058 | OI-0166 | "Remove the x from animal group tiles" |
+| 1775086697793 | b20260402.1058 | OI-0167 | "Active events in rotation view — color too close to pasture grazing color" |
 | 1773704569336 | b20260322.1421 | — | "When saved to Home Screen data is not populating" — **closed at source, no OI** |
 | 1773766662491 | b20260322.1421 | — | "Pasture with open event is gone, and G-1..." — **closed at source, no OI** |
 | 1773766618290 | b20260322.1421 | OI-0010 | "Needs expected graze dates in survey dialogs..." (Tim 3/17 — merged with 3/22 duplicate) |

@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260402.1058" id="app-version-meta"/>
+<meta name="app-version" content="b20260403.0027" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -114,11 +114,11 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 .wiz-dot{width:8px;height:8px;border-radius:50%;background:var(--border2);}
 .wiz-dot.on{background:var(--green);}
 .wiz-step{display:none;}.wiz-step.on{display:block;}
-.fab{position:fixed;bottom:calc(72px + var(--safe-bottom) + 12px);right:16px;width:48px;height:48px;border-radius:50%;background:var(--green);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:90;box-shadow:0 2px 10px rgba(0,0,0,0.2);}
+.fab{position:fixed;bottom:calc(72px + var(--safe-bottom) + 12px);right:16px;width:48px;height:48px;border-radius:50%;background:var(--green);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:150;box-shadow:0 2px 10px rgba(0,0,0,0.2);overflow:visible;}
 .fab:active{background:var(--green-d);}
 body.field-mode .fab{display:none !important;}
 @media (max-width:899px){
-  .fab{display:none !important;} /* Hide FAB on mobile — use Tasks nav button instead */
+  .fab{bottom:calc(60px + var(--safe-bottom) + 10px);width:44px;height:44px;} /* OI-0162: restored on mobile — z-index 150 above nav, below sheets */
 }
 /* Field-mode sheets: when already open, make inner sheet full-screen on mobile.
    The outer .sheet-wrap visibility is still controlled by .open class.
@@ -4383,12 +4383,38 @@ function renderMobilePerformanceStrip(){
 // All available field modules. Future modules stub here with handler:null
 // to indicate "not yet implemented — tap does nothing beyond showing label".
 const FIELD_MODULES = [
-  { key:'feed',    icon:'🌾', label:'Feed Animals', handler:()=>{ nav('feed',document.getElementById('bn-feed')); setTimeout(openQuickFeedSheet,120); } },
-  { key:'harvest', icon:'🚜', label:'Log Harvest', handler:()=>{ nav('pastures',document.getElementById('bn-pastures')); setTimeout(openHarvestSheet,120); } },
-  { key:'survey',  icon:'📋', label:'Survey',      handler:()=>{ nav('pastures',document.getElementById('bn-pastures')); setTimeout(openBulkSurveySheet,120); } },
-  { key:'animals', icon:'🐄', label:'Animals',     handler:()=>{ nav('animals',document.getElementById('bn-animals')); } },
+  { key:'feed',      icon:'🥩', label:'Feed Animals',  handler:()=>{ nav('feed',document.getElementById('bn-feed')); setTimeout(openQuickFeedSheet,120); } },
+  { key:'move',      icon:'🚜', label:'Move Animals',  handler:()=>{ _fieldModeMoveHandler(); } },
+  { key:'harvest',   icon:'🌾', label:'Harvest',       handler:()=>{ nav('pastures',document.getElementById('bn-pastures')); setTimeout(openHarvestSheet,120); } },
+  { key:'feedcheck', icon:'📋', label:'Feed Check',    handler:()=>{ _fieldModeFeedCheckHandler(); } },
+  { key:'survey',    icon:'📋', label:'Survey',        handler:()=>{ nav('pastures',document.getElementById('bn-pastures')); setTimeout(openBulkSurveySheet,120); } },
+  { key:'animals',   icon:'🐄', label:'Animals',       handler:()=>{ nav('animals',document.getElementById('bn-animals')); } },
 ];
 const FIELD_MODULES_DEFAULT = ['feed','harvest','survey','animals'];
+
+// ── Field mode move handler: pick event to move from, then launch wizard ──────
+function _fieldModeMoveHandler(){
+  const openEvs = S.events.filter(e=>e.status==='open');
+  if(!openEvs.length){ alert('No open events to move from.'); return; }
+  if(openEvs.length === 1){
+    const ev = openEvs[0];
+    const grps = evGroups(ev).filter(g=>!g.dateRemoved);
+    if(grps.length === 1) openMoveWizSheet(ev.id, grps[0].groupId);
+    else openMoveWizSheet(ev.id, null, true);
+    return;
+  }
+  // Multiple events — open the first one's move-all for now (future: event picker)
+  openMoveWizSheet(openEvs[0].id, null, true);
+}
+
+// ── Field mode feed check handler: open first event with stored feed ──────────
+function _fieldModeFeedCheckHandler(){
+  const openEvs = S.events.filter(e=>e.status==='open');
+  const withFeed = openEvs.find(e=>allFeedEntries(e).length > 0);
+  if(withFeed) openFeedCheckSheet(withFeed.id);
+  else if(openEvs.length) openFeedCheckSheet(openEvs[0].id);
+  else alert('No open events.');
+}
 
 function _getUserFieldModules(){
   // Read directly from gthy-identity cache — getActiveUser() returns a fresh object
@@ -4574,124 +4600,249 @@ function renderLocationsView(grpsEl, groups){
   grpsEl.innerHTML=html;
 }
 
-function renderLocationCard(ev){
-  const isCon=ev.locationType==='confinement';
-  const isNoP=ev.noPasture;
-  const locIcon=isCon?'🏚':'🌿';
-  const locBadge=isCon
-    ?'<span class="badge bb" style="font-size:10px;">confinement</span>'
-    :isNoP?'<span class="badge ba" style="font-size:10px;">stored feed</span>'
-    :'<span class="badge bg" style="font-size:10px;">grazing</span>';
-  const locName=evDisplayName(ev);
-  const days=daysBetween(ev.dateIn,todayStr());
-  const allEntries=allFeedEntries(ev);
-  const subMoves=ev.subMoves||[];
-  const costAll=calcEntryCost(ev.feedEntries||[])+subMoves.reduce((s,sm)=>s+calcEntryCost(sm.feedEntries||[]),0);
-  const subHrsTotal=subMoves.reduce((s,sm)=>s+(sm.durationHours||0),0);
-  const totalHrs=eventTotalHours(ev);
-  const pastureHrsPct=totalHrs>0?Math.round(((totalHrs-subHrsTotal)/totalHrs)*100):100;
+function renderLocationCard(ev, opts){
+  // opts: { compact:bool } — compact mode for field mode expanded cards
+  const compact = opts?.compact || false;
+  const isCon = ev.locationType==='confinement';
+  const isNoP = ev.noPasture;
+  const locIcon = isCon ? '\U0001f3da' : '\U0001f33f';
+  const locName = evDisplayName(ev);
+  const days = daysBetween(ev.dateIn, todayStr());
+  const entries = allFeedEntries(ev);
+  const subMoves = ev.subMoves || [];
+  const costAll = calcEntryCost(ev.feedEntries||[]) + subMoves.reduce((s,sm)=>s+calcEntryCost(sm.feedEntries||[]),0);
+  const activeEvGroups = evGroups(ev).filter(g=>!g.dateRemoved);
+  const loc = (S.pastures||[]).find(p=>String(p.id)===String(ev.paddocks?.[0]?.pastureId));
+  const acres = loc?.acres || ev.paddocks?.[0]?.acres || '';
 
-  // Active groups in this event
-  const activeEvGroups=evGroups(ev).filter(g=>!g.dateRemoved);
+  // Badge logic: grazing / stored feed / stored feed & grazing
+  const hasStoredFeed = entries.length > 0;
+  const isPasture = !isCon && !isNoP;
+  let badgeHtml;
+  if(isCon || isNoP) badgeHtml = '<span class="badge" style="background:var(--amber-l);color:var(--amber-d);font-size:10px;">stored feed</span>';
+  else if(hasStoredFeed) badgeHtml = '<span class="badge" style="background:linear-gradient(90deg,var(--green-l) 50%,var(--amber-l) 50%);color:var(--green-d);border:0.5px solid var(--border);font-size:10px;">stored feed &amp; grazing</span>';
+  else badgeHtml = '<span class="badge" style="background:var(--green-l);color:var(--green-d);font-size:10px;">grazing</span>';
 
-  // Aggregate BW and DMI from group-level totals (not event-level stamped head/wt which is
-  // an aggregate snapshot and would be double-counted per group in multi-group events)
+  // Aggregate BW and DMI from group-level totals
   let totalBW=0, totalDMITarget=0;
   activeEvGroups.forEach(egi=>{
     const grpObj=getGroupById(egi.groupId);
-    if(grpObj){
-      const gt=getGroupTotals(grpObj);
-      totalBW+=(gt.totalHead||0)*(gt.avgWeight||0);
-      totalDMITarget+=(gt.dmiTarget||0);
-    }
+    if(grpObj){ const gt=getGroupTotals(grpObj); totalBW+=(gt.totalHead||0)*(gt.avgWeight||0); totalDMITarget+=(gt.dmiTarget||0); }
   });
 
-  // Running NPK — uses correct aggregated BW
-  const st=S.settings;
-  const pFrac=pastureFraction(ev);
-  const runNPK={
-    n:totalBW/1000*(st.nExc||0.32)*days*pFrac,
-    p:totalBW/1000*(st.pExc||0.09)*days*pFrac,
-    k:totalBW/1000*(st.kExc||0.30)*days*pFrac,
-  };
-  const runNPKVal=runNPK.n*(st.nPrice||0.55)+runNPK.p*(st.pPrice||0.65)+runNPK.k*(st.kPrice||0.42);
-  const npkLine=totalBW>0
-    ?`<div style="font-size:11px;color:var(--purple-d);margin-top:3px;">NPK deposited: N${runNPK.n.toFixed(1)} / P${runNPK.p.toFixed(1)} / K${runNPK.k.toFixed(1)} lbs`
-     +(pFrac<1?` (${Math.round(pFrac*100)}% pasture time)`:'')
-     +` · <strong>$${runNPKVal.toFixed(2)}</strong> fert value</div>`
-    :'';
-
-  // OI-0049: event-level DMI summary across all groups
-  let dmiEventLine='';
-  if(totalDMITarget>0){
-    const storedDMI=calcConsumedDMI(allEntries,getEffectiveFeedResidual(ev));
-    const totalTarget=totalDMITarget*days;
-    const fill=totalTarget>0?Math.min(100,Math.round((storedDMI/totalTarget)*100)):0;
-    const pasturePct=ev.noPasture?0:Math.max(0,100-fill);
-    const storedLabel=ev.noPasture
-      ?'<span style="color:var(--amber-d);">100% stored feed</span>'
-      :`${fill}% stored · ${pasturePct}% est. pasture`;
-    dmiEventLine=`<div style="font-size:12px;color:var(--text2);padding:6px 0 2px;">
-      <strong style="color:var(--text);">DMI ${Math.round(totalDMITarget).toLocaleString()} lbs/day</strong> · ${storedLabel}`
-      +(totalTarget>0&&!ev.noPasture
-        ?`<div class="prog" style="margin-top:4px;"><div class="prog-fill" style="width:${fill}%;background:var(--amber);"></div></div>`
-        :'')
-      +'</div>';
-  }
-
-  // Per-group rows — identity + weights; Move opens Event Edit for single-group departure
-  const groupRows=activeEvGroups.map(egi=>{
-    const g=getGroupById(egi.groupId);
-    if(!g) return '';
-    const gt=getGroupTotals(g);
-    const color=g.color||'#639922';
-    const moveBtn=`<button class="btn btn-teal btn-sm" onclick="openEventEdit(${ev.id})">Move</button>`;
-    const wtBtn=`<button class="btn btn-outline btn-sm" onclick="openWtSheet(${g.id})">⚖</button>`;
-    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-top:0.5px solid var(--border);">
-      <div style="width:6px;height:6px;border-radius:50%;background:${color};flex-shrink:0;"></div>
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:13px;font-weight:600;">${escHtml(g.name)}</div>
-        <div style="font-size:11px;color:var(--text2);">${gt.totalHead} head · avg ${gt.avgWeight} lbs</div>
+  // ── HEADER ──────────────────────────────────────────────────
+  const editBtn = `<button class="btn btn-outline btn-sm" style="padding:3px 8px;" onclick="event.stopPropagation();openEventEdit(${ev.id})">Edit</button>`;
+  const moveAllBtn = activeEvGroups.length >= 2 ? `<button class="btn btn-teal btn-sm" style="padding:3px 8px;" onclick="event.stopPropagation();openMoveWizSheet(${ev.id},null,true)">Move all</button>` : '';
+  const headerBtns = compact ? '' : `<div style="display:flex;gap:4px;flex-shrink:0;">${editBtn}${moveAllBtn}</div>`;
+  const header = `<div style="display:flex;gap:10px;padding:12px 14px 0;align-items:flex-start;">
+    <div style="width:4px;border-radius:2px;flex-shrink:0;align-self:stretch;min-height:56px;background:${isCon?'#888':'var(--green)'};"></div>
+    <div style="flex:1;min-width:0;">
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+        <span style="font-size:15px;font-weight:600;">${locIcon} ${escHtml(locName)}</span>
+        ${acres ? `<span style="font-size:11px;color:var(--text2);">${acres} ac</span>` : ''}
       </div>
-      <div style="display:flex;gap:4px;flex-shrink:0;">${moveBtn}${wtBtn}</div>
-    </div>`;
-  }).join('');
-
-  // Card-level buttons — Feed and Move All apply to the whole event
-  const feedBtn=activeEvGroups.length?`<button class="btn btn-green btn-sm" onclick="goFeedEvent(${ev.id})">Feed</button>`:'';
-  const moveAllBtn=activeEvGroups.length?`<button class="btn btn-teal btn-sm" onclick="moveAllGroupsInEvent(${ev.id})">Move All</button>`:'';
-  const subMoveBtn=`<button class="btn btn-outline btn-sm" onclick="openSubMoveSheet(${ev.id})">Sub-move</button>`;
-  const editBtn=`<button class="btn btn-outline btn-sm" onclick="openEventEdit(${ev.id})">Edit event</button>`;
-
-  // Active sub-move — the paddock the animals are physically in right now
-  const activeSubMove = subMoves.find(sm=>!sm.durationHours);
-  const currentAtLine = activeSubMove
-    ? `<div style="font-size:11px;font-weight:600;color:var(--teal-d);margin-top:3px;">
-        📍 Currently at: ${escHtml(activeSubMove.locationName)}
-        <span style="font-weight:400;color:var(--text2);"> · sub-move since ${dLabel(activeSubMove.date)}</span>
-      </div>`
-    : '';
-
-  return `<div class="grp-card expanded" id="loc-card-${ev.id}">
-    <div class="grp-card-hdr" style="cursor:default;">
-      <div class="grp-color-bar" style="background:${isCon?'#888':'var(--green)'};"></div>
-      <div style="flex:1;min-width:0;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:3px;">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-          <span style="font-size:15px;font-weight:700;">${locIcon} ${escHtml(locName)}</span>
-          ${locBadge}
+          ${badgeHtml}
+          <span style="font-size:11px;color:var(--text2);">Day ${days} \u00b7 In ${dLabel(ev.dateIn)} \u00b7 $${costAll.toFixed(2)}</span>
         </div>
-        <div style="font-size:11px;color:var(--text2);margin-top:2px;">Day ${days} · In ${dLabel(ev.dateIn)} · ${allEntries.length} feeding${allEntries.length!==1?'s':''} · $${costAll.toFixed(2)}${subMoves.length?' · '+subMoves.length+' sub-move'+(subMoves.length!==1?'s':'')+' · '+subHrsTotal.toFixed(1)+'h off-paddock · '+pastureHrsPct+'% on pasture':''}</div>
-        ${currentAtLine}
+        ${headerBtns}
       </div>
-    </div>
-    <div class="grp-card-body">
-      ${groupRows||'<div style="font-size:12px;color:var(--text2);padding:6px 0;">No groups currently assigned</div>'}
-      ${dmiEventLine}
-      ${npkLine?`<div style="margin-top:2px;">${npkLine}</div>`:''}
-      <div class="grp-actions" style="margin-top:8px;">${feedBtn}${moveAllBtn}${subMoveBtn}${editBtn}</div>
     </div>
   </div>`;
+
+  // ── SUB-PADDOCKS (conditional) ──────────────────────────────
+  let subPaddocksHtml = '';
+  if(subMoves.length){
+    const smRows = subMoves.map(sm=>{
+      const isActive = !sm.durationHours;
+      const smLoc = (S.pastures||[]).find(p=>String(p.id)===String(sm.pastureId));
+      const smAcres = smLoc?.acres || sm.acres || '';
+      if(isActive){
+        return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;">
+          <div style="width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 2px var(--green-l);flex-shrink:0;"></div>
+          <div style="flex:1;"><span style="font-size:12px;font-weight:500;">${escHtml(sm.locationName)}</span><span style="font-size:11px;color:var(--text2);"> \u00b7 ${smAcres?smAcres+' ac \u00b7 ':''}since ${dLabel(sm.date)}</span> <span style="font-size:10px;color:var(--green);font-weight:500;">active</span></div>
+          <button class="btn btn-outline btn-sm" style="padding:3px 8px;" onclick="event.stopPropagation();openCloseSubPaddockSheet(${ev.id},'${sm.id}')">Close</button>
+        </div>`;
+      } else {
+        const dur = sm.durationHours ? Math.round(sm.durationHours/24)+'d' : '';
+        const endDate = sm.dateOut || '';
+        return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;">
+          <div style="width:8px;height:8px;border-radius:50%;background:var(--border2);flex-shrink:0;"></div>
+          <div style="flex:1;"><span style="font-size:12px;color:var(--text2);">${escHtml(sm.locationName)}</span><span style="font-size:11px;color:var(--text3);"> \u00b7 ${smAcres?smAcres+' ac \u00b7 ':''}${dLabel(sm.date)}\u2013${dLabel(endDate)}${dur?' \u00b7 '+dur:''}</span></div>
+        </div>`;
+      }
+    }).join('');
+    subPaddocksHtml = `<div style="padding:8px 14px 0;margin-left:14px;">
+      <div style="font-size:11px;font-weight:600;color:var(--text2);letter-spacing:0.03em;padding:8px 0 4px;border-top:0.5px solid var(--border);">SUB-PADDOCKS</div>
+      ${smRows}
+      <button style="padding:4px 0;font-size:12px;border:none;background:transparent;color:var(--teal);cursor:pointer;font-weight:500;font-family:inherit;margin-top:2px;" onclick="event.stopPropagation();openSubMoveSheet(${ev.id})">+ Add sub-move</button>
+    </div>`;
+  }
+
+  // ── GROUPS ──────────────────────────────────────────────────
+  const groupRows = activeEvGroups.map(egi=>{
+    const g = getGroupById(egi.groupId);
+    if(!g) return '';
+    const gt = getGroupTotals(g);
+    const color = g.color || '#639922';
+    // OI-0150: Move launches move wizard, NOT openEventEdit
+    const moveBtn = `<button class="btn btn-teal btn-sm" style="padding:3px 8px;" onclick="event.stopPropagation();openMoveWizSheet(${ev.id},${g.id})">Move</button>`;
+    const wtBtn = compact ? '' : `<button class="btn btn-outline btn-sm" style="padding:3px 8px;" onclick="event.stopPropagation();openWtSheet(${g.id})">&#9878;</button>`;
+    return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;">
+      <div style="width:6px;height:6px;border-radius:50%;background:${color};flex-shrink:0;"></div>
+      <div style="flex:1;">
+        <div style="font-size:13px;font-weight:500;">${escHtml(g.name)}</div>
+        <div style="font-size:11px;color:var(--text2);">${gt.totalHead} head \u00b7 avg ${gt.avgWeight} lbs</div>
+      </div>
+      <div style="display:flex;gap:4px;">${moveBtn}${wtBtn}</div>
+    </div>`;
+  }).join('');
+  const groupsHtml = `<div style="padding:6px 14px 0;margin-left:14px;">
+    <div style="font-size:11px;font-weight:600;color:var(--text2);letter-spacing:0.03em;padding:8px 0 4px;border-top:0.5px solid var(--border);">GROUPS</div>
+    ${groupRows || '<div style="font-size:12px;color:var(--text2);padding:5px 0;">No groups currently assigned</div>'}
+    <button style="padding:4px 0;font-size:12px;border:none;background:transparent;color:var(--teal);cursor:pointer;font-weight:500;font-family:inherit;margin-top:2px;" onclick="event.stopPropagation();openEventEdit(${ev.id})">+ Add group</button>
+  </div>`;
+
+  // ── STACKED DMI BARS (always present) ───────────────────────
+  const dmiBarHtml = _renderDMIBars(ev, totalDMITarget, entries, days, compact);
+
+  // ── FEED CHECK BUTTON (only when stored feed) ───────────────
+  const feedCheckBtn = hasStoredFeed
+    ? `<button style="width:100%;padding:7px 12px;font-size:12px;border-radius:6px;margin-top:8px;border:0.5px solid var(--amber);background:var(--amber-l);color:var(--amber-d);cursor:pointer;font-weight:500;font-family:inherit;" onclick="event.stopPropagation();openFeedCheckSheet(${ev.id})">Feed check</button>`
+    : '';
+
+  // ── DMI SUMMARY + NPK ──────────────────────────────────────
+  let metricsHtml = '';
+  if(totalDMITarget > 0){
+    const storedDMI = calcConsumedDMI(entries, getEffectiveFeedResidual(ev));
+    const totalTarget = totalDMITarget * days;
+    const fill = totalTarget > 0 ? Math.min(100, Math.round((storedDMI/totalTarget)*100)) : 0;
+    const storedLabel = (isCon||isNoP) ? '<span style="color:var(--amber-d);">100% stored feed</span>' : `${fill}% stored \u00b7 ${Math.max(0,100-fill)}% est. pasture`;
+    const progBar = (totalTarget>0 && isPasture) ? `<div style="height:5px;border-radius:3px;background:var(--bg3);margin-top:4px;overflow:hidden;"><div style="width:${fill}%;height:100%;border-radius:3px;background:var(--amber);"></div></div>` : '';
+    const st = S.settings;
+    const pFrac = pastureFraction(ev);
+    const runNPK = {
+      n:totalBW/1000*(st.nExc||0.32)*days*pFrac,
+      p:totalBW/1000*(st.pExc||0.09)*days*pFrac,
+      k:totalBW/1000*(st.kExc||0.30)*days*pFrac,
+    };
+    const runNPKVal = runNPK.n*(st.nPrice||0.55)+runNPK.p*(st.pPrice||0.65)+runNPK.k*(st.kPrice||0.42);
+    const npkLine = (totalBW>0 && isPasture && !compact) ? `<div style="font-size:11px;color:var(--purple-d);margin-top:5px;">NPK: N${runNPK.n.toFixed(1)} / P${runNPK.p.toFixed(1)} / K${runNPK.k.toFixed(1)} lbs \u00b7 <strong>$${runNPKVal.toFixed(2)}</strong> value</div>` : '';
+    metricsHtml = `<div style="padding:8px 14px 0;margin-left:14px;"><div style="border-top:0.5px solid var(--border);padding-top:8px;">
+      <div style="font-size:12px;color:var(--text2);"><strong style="color:var(--text);">DMI ${Math.round(totalDMITarget).toLocaleString()} lbs/day</strong> \u00b7 ${storedLabel}${progBar}</div>
+      ${npkLine}
+    </div></div>`;
+  }
+
+  // ── BOTTOM ACTIONS ──────────────────────────────────────────
+  let bottomActions;
+  if(compact){
+    // compact (field mode): Feed + Feed check + Edit row
+    const fcBtn2 = hasStoredFeed ? `<button style="flex:1;padding:6px 0;font-size:12px;border-radius:6px;border:0.5px solid var(--amber);background:var(--amber-l);color:var(--amber-d);cursor:pointer;font-weight:500;font-family:inherit;" onclick="event.stopPropagation();openFeedCheckSheet(${ev.id})">Feed check</button>` : '';
+    bottomActions = `<div style="display:flex;gap:6px;margin-top:10px;">
+      <button style="flex:1;padding:6px 0;font-size:12px;border-radius:6px;border:none;background:var(--green);color:white;cursor:pointer;font-weight:500;font-family:inherit;" onclick="event.stopPropagation();goFeedEvent(${ev.id})">Feed</button>
+      ${fcBtn2}
+      <button style="padding:6px 10px;font-size:12px;border-radius:6px;border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;" onclick="event.stopPropagation();openEventEdit(${ev.id})">Edit</button>
+    </div>`;
+  } else {
+    bottomActions = `<div style="padding:10px 14px 12px;margin-left:14px;">
+      <button style="padding:6px 16px;font-size:12px;border-radius:6px;cursor:pointer;font-weight:500;font-family:inherit;background:var(--green);color:white;border:none;" onclick="event.stopPropagation();goFeedEvent(${ev.id})">Feed</button>
+    </div>`;
+  }
+
+  return `<div class="card" id="loc-card-${ev.id}" style="margin-bottom:12px;overflow:hidden;">
+    ${header}
+    ${subPaddocksHtml}
+    ${groupsHtml}
+    <div style="padding:6px 14px 0;margin-left:14px;">
+      ${dmiBarHtml}
+      ${compact ? '' : feedCheckBtn}
+    </div>
+    ${metricsHtml}
+    ${compact ? `<div style="padding:0 12px 12px;margin-left:14px;">${bottomActions}</div>` : bottomActions}
+  </div>`;
 }
+
+// ── Stacked DMI bar chart (3-day) ─────────────────────────────────────────────
+function _renderDMIBars(ev, totalDMITarget, entries, days, compact){
+  if(totalDMITarget <= 0) return '';
+  const isCon = ev.locationType==='confinement';
+  const isNoP = ev.noPasture;
+  const storedDMI = calcConsumedDMI(entries, getEffectiveFeedResidual(ev));
+  const avgStoredPerDay = days > 0 ? storedDMI / days : 0;
+  const grazingPerDay = (isCon||isNoP) ? 0 : Math.max(0, totalDMITarget - avgStoredPerDay);
+  const totalPerDay = avgStoredPerDay + grazingPerDay;
+  const isMixed = grazingPerDay > 0 && avgStoredPerDay > 0;
+  const hasStoredFeed = entries.length > 0;
+
+  // Feed check days
+  const checkDates = new Set((ev.feedResidualChecks||[]).map(c=>c.date));
+  const today = new Date(); today.setHours(12,0,0,0);
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const barDays = [];
+  for(let i=2;i>=0;i--){
+    const d = new Date(today); d.setDate(d.getDate()-i);
+    const ds = d.toISOString().slice(0,10);
+    const hasCheck = checkDates.has(ds);
+    const label = dayNames[d.getDay()] + (hasCheck ? ' \u2713' : (i<2 ? ' (est.)' : ''));
+    barDays.push({ ds, label, hasCheck });
+  }
+
+  const maxH = compact ? 36 : 50;
+  const grazePct = totalPerDay > 0 ? grazingPerDay / totalPerDay : 0;
+  const storedPct = totalPerDay > 0 ? avgStoredPerDay / totalPerDay : 0;
+
+  const bars = barDays.map((bd,idx)=>{
+    const h = maxH - 2 + (idx===1?-2:idx===2?-1:0);
+    const dmiVal = Math.round(totalPerDay);
+    const topLabel = compact ? '' : `<div style="font-size:9px;color:var(--text3);">${dmiVal.toLocaleString()}</div>`;
+    let barContent;
+    if(isCon||isNoP){
+      const dashed = !bd.hasCheck ? '<div style="position:absolute;top:0;left:0;right:0;border-top:1.5px dashed rgba(255,255,255,0.6);"></div>' : '';
+      barContent = `<div style="width:100%;background:var(--amber);border-radius:2px 2px 0 0;height:${h}px;position:relative;">${dashed}</div>`;
+    } else if(avgStoredPerDay > 0){
+      const gPct = Math.max(1,Math.round(grazePct*100));
+      const sPct = Math.max(1,Math.round(storedPct*100));
+      const dashed = !bd.hasCheck ? '<div style="position:absolute;top:0;left:0;right:0;border-top:1.5px dashed rgba(255,255,255,0.6);"></div>' : '';
+      barContent = `<div style="width:100%;display:flex;flex-direction:column;height:${h}px;">
+        <div style="flex:${gPct};background:var(--green);border-radius:2px 2px 0 0;opacity:0.7;"></div>
+        <div style="flex:${sPct};background:var(--amber);position:relative;">${dashed}</div>
+      </div>`;
+    } else {
+      barContent = `<div style="width:100%;background:var(--green);border-radius:2px 2px 0 0;height:${h}px;opacity:0.7;"></div>`;
+    }
+    return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;">${topLabel}${barContent}</div>`;
+  }).join('');
+
+  const dayLabels = compact ? '' : `<div style="display:flex;justify-content:space-around;font-size:9px;color:var(--text3);margin-top:3px;">${barDays.map(bd=>`<span>${bd.label}</span>`).join('')}</div>`;
+
+  const todayDMI = Math.round(totalPerDay);
+  const dmiColor = (isCon||isNoP) ? 'var(--amber)' : 'var(--text)';
+  const ftLabel = entries.length ? (()=>{ const ll=entries[entries.length-1]?.lines?.[0]; const b=ll?S.batches.find(x=>x.id===ll.batchId):null; const ft=b?(S.feedTypes||[]).find(f=>f.id===b.feedTypeId):null; return ft?ft.name:''; })() : '';
+  const legend = isMixed ? `<div style="display:flex;gap:6px;justify-content:flex-end;margin-top:6px;">
+    <div style="display:flex;align-items:center;gap:3px;"><div style="width:8px;height:8px;border-radius:2px;background:var(--green);opacity:0.7;"></div><span style="font-size:9px;color:var(--text2);">grazing</span></div>
+    <div style="display:flex;align-items:center;gap:3px;"><div style="width:8px;height:8px;border-radius:2px;background:var(--amber);"></div><span style="font-size:9px;color:var(--text2);">stored</span></div>
+  </div>` : '';
+  const ftLine = (isCon||isNoP) && ftLabel ? `<div style="font-size:10px;color:var(--text3);margin-top:4px;">${escHtml(ftLabel)}</div>` : '';
+  const pureGrazeLine = (!isCon && !isNoP && !hasStoredFeed) ? `<div style="font-size:10px;color:var(--text3);margin-top:4px;">est. from grazing</div>` : '';
+
+  const rightSide = `<div style="text-align:right;flex-shrink:0;padding-bottom:16px;min-width:${compact?'60':'80'}px;">
+    <div style="font-size:${compact?'12':'14'}px;font-weight:500;color:${dmiColor};">${todayDMI.toLocaleString()}</div>
+    <div style="font-size:10px;color:var(--text2);">lbs DMI today</div>
+    ${ftLine}${pureGrazeLine}${legend}
+  </div>`;
+
+  return `<div style="font-size:11px;font-weight:600;color:var(--text2);letter-spacing:0.03em;padding:8px 0 4px;border-top:0.5px solid var(--border);">DMI \u2014 LAST 3 DAYS</div>
+    <div style="display:flex;gap:12px;align-items:flex-end;">
+      <div style="flex:1;">
+        <div style="display:flex;align-items:flex-end;gap:3px;height:${maxH}px;">${bars}</div>
+        ${dayLabels}
+      </div>
+      ${rightSide}
+    </div>`;
+}
+
 
 function renderUnplacedGroupsSection(unplaced){
   const rows=unplaced.map(g=>{
@@ -4837,20 +4988,15 @@ function toggleGroupCard(gId){
 
 
 function moveGroup(gId){
-  wizGroupIds=[gId];
-  nav('move',document.getElementById('bn-home'));
-  initWizFromGroups();
+  // Check if group is placed — if so, open wizard from that event; else unplaced flow
+  const ae = getActiveEventForGroup(gId);
+  if(ae) openMoveWizSheet(ae.id, gId);
+  else openMoveWizSheet(null, gId); // unplaced → skip close-out sections
 }
 
-// Move all active groups in an event together — launches close-event wizard with full group set
+// Move all active groups in an event together — launches move wizard sheet with full group set
 function moveAllGroupsInEvent(evId){
-  const ev=S.events.find(e=>e.id===evId&&e.status==='open');
-  if(!ev){alert('Event not found or already closed.');return;}
-  const gids=evGroups(ev).filter(g=>!g.dateRemoved).map(g=>g.groupId);
-  if(!gids.length){alert('No active groups in this event.');return;}
-  wizGroupIds=gids;
-  nav('move',document.getElementById('bn-home')||document.getElementById('dbn-home'));
-  initWizFromGroups();
+  openMoveWizSheet(evId, null, true);
 }
 
 
@@ -19363,6 +19509,606 @@ if ('serviceWorker' in navigator) {
   });
 }
 // ─── END SERVICE WORKER REGISTRATION ─────────────────────────────────────────
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── MOVE WIZARD — 3-step sheet (OI-0150 / OI-0153) ──────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+let _mwStep = 1;
+let _mwSourceEvId = null;
+let _mwGroupIds = [];
+let _mwMoveAll = false;
+let _mwDestType = null; // 'new' | 'existing'
+let _mwDestPaddockId = null;
+let _mwDestEventId = null;
+let _mwCloseOutData = {}; // pasture close-out survey fields
+
+function openMoveWizSheet(evId, groupId, moveAll){
+  _mwSourceEvId = evId;
+  _mwMoveAll = !!moveAll;
+  _mwDestType = null;
+  _mwDestPaddockId = null;
+  _mwDestEventId = null;
+  _mwCloseOutData = {};
+  const ev = S.events.find(e=>e.id===evId && e.status==='open');
+  if(moveAll && ev){
+    _mwGroupIds = evGroups(ev).filter(g=>!g.dateRemoved).map(g=>g.groupId);
+  } else if(groupId){
+    _mwGroupIds = [groupId];
+  } else {
+    _mwGroupIds = [];
+  }
+  _mwStep = 1;
+  _renderMoveWizStep();
+  document.getElementById('move-wiz-wrap').classList.add('open');
+}
+
+function closeMoveWizSheet(){
+  document.getElementById('move-wiz-wrap').classList.remove('open');
+}
+
+function _mwBack(){
+  if(_mwStep === 3) _mwStep = 2;
+  else if(_mwStep === 2) _mwStep = 1;
+  _renderMoveWizStep();
+}
+
+function _renderMoveWizStep(){
+  const el = document.getElementById('mw-content');
+  if(!el) return;
+  if(_mwStep === 1) el.innerHTML = _mwRenderStep1();
+  else if(_mwStep === 2) el.innerHTML = _mwDestType==='new' ? _mwRenderStep2a() : _mwRenderStep2b();
+  else if(_mwStep === 3) el.innerHTML = _mwRenderStep3();
+}
+
+// ── Step 1: Where are they going? ────────────────────────────────────────────
+function _mwRenderStep1(){
+  const ev = _mwSourceEvId ? S.events.find(e=>e.id===_mwSourceEvId) : null;
+  const groupLabel = _mwGroupIds.map(id=>{const g=getGroupById(id);return g?g.name:'';}).filter(Boolean).join(' + ');
+  const locLine = ev ? evDisplayName(ev) : 'Not placed';
+  const activeSm = ev ? (ev.subMoves||[]).find(sm=>!sm.durationHours) : null;
+  const smLine = activeSm ? ' \u00b7 '+activeSm.locationName+' (sub-move)' : '';
+  const isPlace = !ev; // placing unplaced group
+  const titleText = _mwMoveAll ? 'Move all groups' : ('Move '+groupLabel);
+  return `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+    <div style="font-size:11px;color:var(--text3);">STEP 1 OF 3</div>
+    <button style="font-size:12px;color:var(--text2);background:none;border:none;cursor:pointer;font-family:inherit;" onclick="closeMoveWizSheet()">Cancel</button>
+  </div>
+  <div style="font-size:17px;font-weight:600;margin-bottom:4px;">${escHtml(titleText)}</div>
+  ${ev ? `<div style="font-size:12px;color:var(--text2);margin-bottom:16px;">Currently at ${(ev.locationType==='confinement'?'\U0001f3da':'\U0001f33f')} ${escHtml(locLine)}${smLine}</div>` : '<div style="font-size:12px;color:var(--text2);margin-bottom:16px;">Not currently placed</div>'}
+  <div style="font-size:13px;font-weight:500;color:var(--text2);margin-bottom:10px;">Where are they going?</div>
+  <div style="display:flex;align-items:center;gap:12px;padding:16px;background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;margin-bottom:8px;cursor:pointer;" onclick="_mwPickDestType('new')">
+    <div style="width:40px;height:40px;border-radius:10px;background:var(--green-l);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">\U0001f195</div>
+    <div style="flex:1;"><div style="font-size:14px;font-weight:500;">New location</div><div style="font-size:11px;color:var(--text2);margin-top:2px;">Start a new event at a different paddock</div></div>
+    <div style="font-size:16px;color:var(--text3);">\u203a</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;padding:16px;background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;cursor:pointer;" onclick="_mwPickDestType('existing')">
+    <div style="width:40px;height:40px;border-radius:10px;background:var(--teal-l);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">\U0001f4cd</div>
+    <div style="flex:1;"><div style="font-size:14px;font-weight:500;">Existing event</div><div style="font-size:11px;color:var(--text2);margin-top:2px;">Join another group already at a location</div></div>
+    <div style="font-size:16px;color:var(--text3);">\u203a</div>
+  </div>`;
+}
+
+function _mwPickDestType(type){
+  _mwDestType = type;
+  _mwStep = 2;
+  _renderMoveWizStep();
+}
+
+// ── Step 2a: Paddock picker ──────────────────────────────────────────────────
+function _mwRenderStep2a(){
+  const ev = _mwSourceEvId ? S.events.find(e=>e.id===_mwSourceEvId) : null;
+  const groupLabel = _mwGroupIds.map(id=>{const g=getGroupById(id);return g?g.name:'';}).filter(Boolean).join(' + ');
+  const currentPastureId = ev?.paddocks?.[0]?.pastureId || null;
+  const pastures = (S.pastures||[]).filter(p=>!p.archived);
+  const openEvs = S.events.filter(e=>e.status==='open');
+  const inUsePIds = new Set();
+  openEvs.forEach(e=>(e.paddocks||[]).forEach(pp=>inUsePIds.add(String(pp.pastureId))));
+
+  // Find current paddock index in list for "nearby" nudge
+  const currentIdx = currentPastureId ? pastures.findIndex(p=>String(p.id)===String(currentPastureId)) : -1;
+
+  // Classify paddocks
+  const nearby = [];
+  const ready = [];
+  const recovering = [];
+  const inUse = [];
+  const confinement = [];
+
+  pastures.forEach((p,idx)=>{
+    const pId = String(p.id);
+    const isCon = p.locationType==='confinement';
+    const isInUse = inUsePIds.has(pId);
+    const lastSurvey = (p.surveys||[]).sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];
+    const recMin = lastSurvey?.recoveryMin || p.recoveryMin || 30;
+    const lastClose = lastSurvey?.date || null;
+    let daysSinceClose = lastClose ? daysBetween(lastClose, todayStr()) : 999;
+    const recoveryPct = Math.min(100, Math.round((daysSinceClose/recMin)*100));
+    const isReady = daysSinceClose >= recMin && !isInUse;
+    const isNearby = currentIdx >= 0 && Math.abs(idx - currentIdx) <= 4 && Math.abs(idx - currentIdx) > 0;
+
+    const item = { p, idx, isCon, isInUse, isReady, recoveryPct, daysSinceClose, recMin, isNearby };
+    if(isCon) confinement.push(item);
+    else if(isNearby) nearby.push(item);
+    else if(isInUse) inUse.push(item);
+    else if(isReady) ready.push(item);
+    else recovering.push(item);
+  });
+
+  function renderPRow(item){
+    const p = item.p;
+    const icon = item.isCon ? '\U0001f3da' : '\U0001f33f';
+    const acTxt = p.acres ? p.acres+' ac' : '';
+    let statusLine = '';
+    let opacity = '1';
+    if(item.isInUse){ statusLine = '<div style="font-size:11px;color:var(--text3);margin-top:2px;">In use</div>'; opacity = '0.55'; }
+    else if(item.isReady){ statusLine = `<div style="font-size:11px;color:var(--green);font-weight:500;margin-top:2px;">Ready \u2014 ${item.daysSinceClose} days recovered</div><div style="height:4px;border-radius:2px;background:var(--bg3);margin-top:3px;overflow:hidden;width:60px;"><div style="width:100%;height:100%;border-radius:2px;background:var(--green);"></div></div>`; }
+    else if(item.recoveryPct < 100){ statusLine = `<div style="font-size:11px;color:var(--text2);margin-top:2px;">Last grazed ${item.daysSinceClose}d ago \u00b7 ${item.recMin} day recovery</div><div style="height:4px;border-radius:2px;background:var(--bg3);margin-top:3px;overflow:hidden;width:60px;"><div style="width:${item.recoveryPct}%;height:100%;border-radius:2px;background:var(--green);"></div></div>`; }
+    const isSelf = String(p.id) === String(currentPastureId);
+    if(isSelf) return `<div style="display:flex;gap:10px;padding:10px 12px;background:var(--bg);border:0.5px solid var(--border);border-radius:10px;margin-bottom:6px;">
+      <div style="width:4px;border-radius:2px;flex-shrink:0;align-self:stretch;background:var(--green);"></div>
+      <div style="flex:1;"><div style="font-size:13px;font-weight:500;color:var(--teal);">${icon} ${escHtml(p.name)} \u2190 you are here <span style="font-size:10px;color:var(--text2);font-weight:400;">${acTxt}</span></div></div>
+    </div>`;
+    const clickable = !item.isInUse && !isSelf;
+    return `<div style="display:flex;gap:10px;padding:10px 12px;background:var(--bg);border:0.5px solid var(--border);border-radius:10px;margin-bottom:6px;opacity:${opacity};${clickable?'cursor:pointer;':''}" ${clickable?`onclick="_mwPickPaddock(${p.id})"`:''}>
+      <div style="width:4px;border-radius:2px;flex-shrink:0;align-self:stretch;background:${item.isCon?'#888':'var(--green)'};"></div>
+      <div style="flex:1;"><div style="font-size:13px;font-weight:500;">${icon} ${escHtml(p.name)} <span style="font-size:10px;color:var(--text2);font-weight:400;">${acTxt}</span></div>${statusLine}</div>
+      ${clickable ? '<div style="font-size:14px;color:var(--text3);align-self:center;">\u203a</div>' : ''}
+    </div>`;
+  }
+
+  let sections = '';
+  if(nearby.length){
+    sections += '<div style="font-size:11px;font-weight:600;color:var(--text2);letter-spacing:0.03em;margin-bottom:8px;">NEARBY IN ROTATION</div>';
+    sections += nearby.map(renderPRow).join('');
+    sections += '<div style="font-size:11px;color:var(--text3);text-align:center;margin:4px 0 12px;">Showing \u00b14 from current position in paddock list</div>';
+    sections += '<div style="font-size:11px;font-weight:600;color:var(--text2);letter-spacing:0.03em;margin-bottom:8px;">ALL PADDOCKS \u2014 READY</div>';
+  }
+  if(ready.length) sections += ready.map(renderPRow).join('');
+  if(recovering.length){
+    sections += '<div style="font-size:11px;font-weight:600;color:var(--text2);letter-spacing:0.03em;margin:12px 0 8px;">RECOVERING</div>';
+    sections += recovering.map(renderPRow).join('');
+  }
+  if(inUse.length){
+    sections += '<div style="font-size:11px;font-weight:600;color:var(--text2);letter-spacing:0.03em;margin:12px 0 8px;">IN USE</div>';
+    sections += inUse.map(renderPRow).join('');
+  }
+  if(confinement.length){
+    sections += '<div style="font-size:11px;font-weight:600;color:var(--text2);letter-spacing:0.03em;margin:12px 0 8px;">CONFINEMENT</div>';
+    sections += confinement.map(renderPRow).join('');
+  }
+
+  // Search + filter pills
+  const farms = (S.farms||[]).filter(f=>!f.archived);
+  const farmPills = farms.length > 1 ? farms.map(f=>`<span style="padding:4px 12px;font-size:11px;border-radius:20px;border:0.5px solid var(--border2);color:var(--text2);cursor:pointer;" onclick="_mwFilterFarm('${f.id}')">${escHtml(f.name)}</span>`).join('') : '';
+
+  return `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <button style="font-size:12px;color:var(--teal);background:none;border:none;cursor:pointer;font-weight:500;font-family:inherit;" onclick="_mwBack()">\u2190 Back</button>
+      <div style="font-size:11px;color:var(--text3);">STEP 2 OF 3</div>
+    </div>
+    <button style="font-size:12px;color:var(--text2);background:none;border:none;cursor:pointer;font-family:inherit;" onclick="closeMoveWizSheet()">Cancel</button>
+  </div>
+  <div style="font-size:17px;font-weight:600;margin-bottom:4px;">Pick a paddock</div>
+  <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Moving ${escHtml(_mwGroupIds.map(id=>{const g=getGroupById(id);return g?g.name:'';}).filter(Boolean).join(' + '))} to a new location</div>
+  <input type="text" id="mw-paddock-search" placeholder="Search paddocks..." oninput="_mwFilterPaddocks()" style="width:100%;padding:10px 12px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;margin-bottom:12px;font-family:inherit;">
+  <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;">
+    <span style="padding:4px 12px;font-size:11px;border-radius:20px;background:var(--green);color:white;font-weight:500;">All</span>
+    ${farmPills}
+  </div>
+  <div id="mw-paddock-list">${sections}</div>`;
+}
+
+function _mwPickPaddock(pastureId){
+  _mwDestPaddockId = pastureId;
+  _mwStep = 3;
+  _renderMoveWizStep();
+}
+
+function _mwFilterPaddocks(){
+  // Simple search filter — re-render step 2a (could optimize later)
+  const q = (document.getElementById('mw-paddock-search')?.value||'').toLowerCase();
+  if(!q){ _renderMoveWizStep(); return; }
+  // For now just re-render; a future enhancement could filter the list in-place
+  _renderMoveWizStep();
+}
+function _mwFilterFarm(fId){ /* placeholder for farm pill filter */ }
+
+// ── Step 2b: Event picker ────────────────────────────────────────────────────
+function _mwRenderStep2b(){
+  const openEvs = S.events.filter(e=>e.status==='open' && e.id !== _mwSourceEvId);
+  const groupLabel = _mwGroupIds.map(id=>{const g=getGroupById(id);return g?g.name:'';}).filter(Boolean).join(' + ');
+  const srcEv = _mwSourceEvId ? S.events.find(e=>e.id===_mwSourceEvId) : null;
+  const srcName = srcEv ? evDisplayName(srcEv) : '';
+
+  const evRows = openEvs.map(e=>{
+    const isCon = e.locationType==='confinement';
+    const icon = isCon ? '\U0001f3da' : '\U0001f33f';
+    const loc = (S.pastures||[]).find(p=>String(p.id)===String(e.paddocks?.[0]?.pastureId));
+    const acres = loc?.acres || '';
+    const badge = isCon ? '<span class="badge" style="background:var(--amber-l);color:var(--amber-d);font-size:9px;padding:1px 6px;">stored feed</span>'
+      : e.noPasture ? '<span class="badge" style="background:var(--amber-l);color:var(--amber-d);font-size:9px;padding:1px 6px;">stored feed</span>'
+      : '<span class="badge" style="background:var(--green-l);color:var(--green-d);font-size:9px;padding:1px 6px;">grazing</span>';
+    const grpNames = evGroups(e).filter(g=>!g.dateRemoved).map(g=>{const gg=getGroupById(g.groupId);return gg?gg.name:'';}).filter(Boolean).join(' + ');
+    const grpCount = evGroups(e).filter(g=>!g.dateRemoved).length;
+    const d = daysBetween(e.dateIn, todayStr());
+    const selected = _mwDestEventId === e.id;
+    return `<div style="display:flex;gap:10px;padding:12px;background:var(--bg);border:${selected?'2px solid var(--teal)':'0.5px solid var(--border)'};border-radius:12px;margin-bottom:8px;cursor:pointer;" onclick="_mwPickEvent(${e.id})">
+      <div style="width:4px;border-radius:2px;flex-shrink:0;align-self:stretch;background:${isCon?'#888':'var(--green)'};"></div>
+      <div style="flex:1;">
+        <div style="display:flex;align-items:center;gap:6px;"><span style="font-size:14px;font-weight:500;">${icon} ${escHtml(evDisplayName(e))}</span><span style="font-size:11px;color:var(--text2);">${acres?acres+' ac':''}</span>${badge}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:3px;">${escHtml(grpNames)} \u00b7 ${grpCount} head</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:1px;">Day ${d} \u00b7 In ${dLabel(e.dateIn)}</div>
+      </div>
+      ${selected ? '<div style="display:flex;align-items:center;"><div style="width:20px;height:20px;border-radius:50%;background:var(--teal);display:flex;align-items:center;justify-content:center;"><div style="width:8px;height:5px;border-left:2px solid white;border-bottom:2px solid white;transform:rotate(-45deg);margin-top:-2px;"></div></div></div>' : '<div style="font-size:16px;color:var(--text3);align-self:center;">\u203a</div>'}
+    </div>`;
+  }).join('');
+
+  return `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <button style="font-size:12px;color:var(--teal);background:none;border:none;cursor:pointer;font-weight:500;font-family:inherit;" onclick="_mwBack()">\u2190 Back</button>
+      <div style="font-size:11px;color:var(--text3);">STEP 2 OF 3</div>
+    </div>
+    <button style="font-size:12px;color:var(--text2);background:none;border:none;cursor:pointer;font-family:inherit;" onclick="closeMoveWizSheet()">Cancel</button>
+  </div>
+  <div style="font-size:17px;font-weight:600;margin-bottom:4px;">Pick a destination</div>
+  <div style="font-size:12px;color:var(--text2);margin-bottom:16px;">Moving ${escHtml(groupLabel)} from ${escHtml(srcName)}</div>
+  ${evRows || '<div style="font-size:13px;color:var(--text2);text-align:center;padding:20px 0;">No other open events</div>'}
+  <div style="font-size:11px;color:var(--text3);text-align:center;margin-top:8px;">Showing ${openEvs.length} open event${openEvs.length!==1?'s':''} (excluding current)</div>`;
+}
+
+function _mwPickEvent(evId){
+  _mwDestEventId = evId;
+  _mwStep = 3;
+  _renderMoveWizStep();
+}
+
+// ── Step 3: Confirm ──────────────────────────────────────────────────────────
+function _mwRenderStep3(){
+  const srcEv = _mwSourceEvId ? S.events.find(e=>e.id===_mwSourceEvId) : null;
+  const srcName = srcEv ? evDisplayName(srcEv) : 'Not placed';
+  const srcIcon = srcEv ? (srcEv.locationType==='confinement'?'\U0001f3da':'\U0001f33f') : '';
+  const srcAcres = srcEv ? ((S.pastures||[]).find(p=>String(p.id)===String(srcEv.paddocks?.[0]?.pastureId))?.acres || '') : '';
+  const days = srcEv ? daysBetween(srcEv.dateIn, todayStr()) : 0;
+
+  // Destination info
+  let destName='', destIcon='', destAcres='', destSubLine='';
+  if(_mwDestType==='existing' && _mwDestEventId){
+    const de = S.events.find(e=>e.id===_mwDestEventId);
+    if(de){ destName=evDisplayName(de); destIcon=de.locationType==='confinement'?'\U0001f3da':'\U0001f33f'; destAcres=((S.pastures||[]).find(p=>String(p.id)===String(de.paddocks?.[0]?.pastureId))?.acres||'');
+      const dGrps = evGroups(de).filter(g=>!g.dateRemoved).map(g=>{const gg=getGroupById(g.groupId);return gg?gg.name:'';}).filter(Boolean).join(', ');
+      destSubLine = dGrps; }
+  } else if(_mwDestType==='new' && _mwDestPaddockId){
+    const dp = (S.pastures||[]).find(p=>p.id===_mwDestPaddockId);
+    if(dp){ destName=dp.name; destIcon=dp.locationType==='confinement'?'\U0001f3da':'\U0001f33f'; destAcres=dp.acres||''; destSubLine='New event \u00b7 '+(destAcres?destAcres+' ac':''); }
+  }
+
+  // Is this the last group leaving? → event will close
+  const allActiveGids = srcEv ? evGroups(srcEv).filter(g=>!g.dateRemoved).map(g=>g.groupId) : [];
+  const isLastGroup = srcEv && _mwGroupIds.length >= allActiveGids.length;
+  const remainingGroups = allActiveGids.filter(id=>!_mwGroupIds.includes(id));
+  const remainingNames = remainingGroups.map(id=>{const g=getGroupById(id);return g?g.name:'';}).filter(Boolean).join(', ');
+  const isPastureClose = isLastGroup && srcEv && srcEv.locationType!=='confinement' && !srcEv.noPasture;
+  const hasStoredFeed = srcEv && allFeedEntries(srcEv).length > 0;
+
+  // Group list
+  const groupListHtml = _mwGroupIds.map(gId=>{
+    const g = getGroupById(gId); if(!g) return '';
+    const gt = getGroupTotals(g);
+    return `<div style="display:flex;align-items:center;gap:6px;padding:3px 0;">
+      <div style="width:6px;height:6px;border-radius:50%;background:${g.color||'#639922'};flex-shrink:0;"></div>
+      <span style="font-size:13px;font-weight:500;">${escHtml(g.name)}</span>
+      <span style="font-size:11px;color:var(--text2);">\u00b7 ${gt.totalHead} head</span>
+    </div>`;
+  }).join('');
+  const groupCard = _mwMoveAll
+    ? `<div class="card" style="padding:12px;margin-bottom:14px;"><div style="font-size:11px;font-weight:600;color:var(--text2);letter-spacing:0.03em;margin-bottom:6px;">ALL GROUPS</div>${groupListHtml}</div>`
+    : `<div class="card" style="padding:12px;margin-bottom:14px;">${groupListHtml}</div>`;
+
+  // Info boxes
+  let infoBoxes = '';
+  if(!isLastGroup && remainingNames){
+    infoBoxes += `<div style="border-radius:12px;padding:10px 12px;margin-bottom:14px;background:var(--amber-l);border:0.5px solid var(--amber);">
+      <div style="font-size:12px;font-weight:500;color:var(--amber-d);">${escHtml(remainingNames)} will remain at ${escHtml(srcName)}</div>
+      <div style="font-size:11px;color:var(--amber-d);margin-top:2px;">The event stays open with ${remainingGroups.length} group${remainingGroups.length!==1?'s':''}.</div>
+    </div>`;
+  }
+  if(isLastGroup && srcEv){
+    infoBoxes += `<div style="border-radius:12px;padding:10px 12px;margin-bottom:14px;background:var(--red-l);border:0.5px solid var(--red);">
+      <div style="font-size:12px;font-weight:500;color:var(--red-d);">${escHtml(srcName)} event will close</div>
+      <div style="font-size:11px;color:var(--red-d);margin-top:2px;">${days} days grazed \u00b7 event totals finalized</div>
+    </div>`;
+  }
+
+  // Pasture close-out survey (if last group + pasture location)
+  let closeOutHtml = '';
+  if(isPastureClose){
+    const surveyLoc = (S.pastures||[]).find(p=>String(p.id)===String(srcEv.paddocks?.[0]?.pastureId));
+    const lastSrv = surveyLoc ? (surveyLoc.surveys||[]).sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0] : null;
+    const defRecMin = lastSrv?.recoveryMin || surveyLoc?.recoveryMin || '';
+    const defRecMax = lastSrv?.recoveryMax || surveyLoc?.recoveryMax || '';
+    closeOutHtml = `<div class="card" style="padding:12px;margin-bottom:14px;">
+      <div style="font-size:11px;font-weight:600;color:var(--text2);letter-spacing:0.03em;margin-bottom:10px;">PASTURE CLOSE-OUT \u2014 ${escHtml(srcName.toUpperCase())}</div>
+      <div style="display:flex;gap:10px;margin-bottom:10px;">
+        <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Residual height (in)</label><input type="number" id="mw-co-height" placeholder="e.g. 3.5" style="width:100%;padding:9px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+        <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Forage cover (%)</label><input type="number" id="mw-co-cover" placeholder="e.g. 65" style="width:100%;padding:9px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+      </div>
+      <div style="margin-bottom:10px;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Forage quality</label>
+        <div style="display:flex;gap:4px;" id="mw-co-quality-row">
+          <button style="flex:1;padding:7px 0;font-size:12px;border-radius:6px;border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;" onclick="_mwSetQuality(this,'Poor')">Poor</button>
+          <button style="flex:1;padding:7px 0;font-size:12px;border-radius:6px;border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;" onclick="_mwSetQuality(this,'Fair')">Fair</button>
+          <button style="flex:1;padding:7px 0;font-size:12px;border-radius:6px;border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;" onclick="_mwSetQuality(this,'Good')">Good</button>
+          <button style="flex:1;padding:7px 0;font-size:12px;border-radius:6px;border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;" onclick="_mwSetQuality(this,'Excellent')">Exc.</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;margin-bottom:6px;">
+        <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Recovery min (days)</label><input type="number" id="mw-co-rec-min" value="${defRecMin}" style="width:100%;padding:9px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+        <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Recovery max (days)</label><input type="number" id="mw-co-rec-max" value="${defRecMax}" style="width:100%;padding:9px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+      </div>
+      <div style="font-size:11px;color:var(--text3);padding-top:4px;" id="mw-co-est-return">Est. return: select recovery days</div>
+    </div>`;
+  }
+
+  const saveLabel = isLastGroup ? 'Save move & close event' : 'Save move';
+  const todayD = todayStr();
+
+  return `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <button style="font-size:12px;color:var(--teal);background:none;border:none;cursor:pointer;font-weight:500;font-family:inherit;" onclick="_mwBack()">\u2190 Back</button>
+      <div style="font-size:11px;color:var(--text3);">STEP 3 OF 3</div>
+    </div>
+    <button style="font-size:12px;color:var(--text2);background:none;border:none;cursor:pointer;font-family:inherit;" onclick="closeMoveWizSheet()">Cancel</button>
+  </div>
+  <div style="font-size:17px;font-weight:600;margin-bottom:14px;">${isLastGroup ? 'Confirm move & close' : 'Confirm move'}</div>
+  <div class="card" style="padding:12px;margin-bottom:14px;">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div style="flex:1;text-align:center;">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">FROM</div>
+        <div style="font-size:13px;font-weight:500;">${srcIcon} ${escHtml(srcName)}</div>
+        ${srcAcres ? `<div style="font-size:11px;color:var(--text2);">${srcAcres} ac</div>` : ''}
+      </div>
+      <div style="font-size:18px;color:var(--text3);">\u2192</div>
+      <div style="flex:1;text-align:center;">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">TO</div>
+        <div style="font-size:13px;font-weight:500;">${destIcon} ${escHtml(destName)}</div>
+        <div style="font-size:11px;color:${_mwDestType==='new'?'var(--green)':'var(--text2)'};">${escHtml(destSubLine)}</div>
+      </div>
+    </div>
+  </div>
+  ${groupCard}
+  <div style="display:flex;gap:10px;margin-bottom:14px;">
+    <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Date</label><input type="date" id="mw-date" value="${todayD}" style="width:100%;padding:9px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+    <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Time</label><input type="time" id="mw-time" style="width:100%;padding:9px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+  </div>
+  ${infoBoxes}
+  ${closeOutHtml}
+  <button style="width:100%;padding:12px;font-size:14px;font-weight:600;border-radius:8px;border:none;background:var(--teal);color:white;cursor:pointer;font-family:inherit;" onclick="_mwSave()">${saveLabel}</button>`;
+}
+
+function _mwSetQuality(btn, val){
+  _mwCloseOutData.quality = val;
+  const row = document.getElementById('mw-co-quality-row');
+  if(row) row.querySelectorAll('button').forEach(b=>{
+    const isActive = b.textContent.trim().startsWith(val.substring(0,3));
+    b.style.background = isActive ? 'var(--green-l)' : 'transparent';
+    b.style.borderColor = isActive ? 'var(--green)' : 'var(--border2)';
+    b.style.color = isActive ? 'var(--green-d)' : 'var(--text2)';
+    b.style.fontWeight = isActive ? '500' : '400';
+  });
+}
+
+function _mwSave(){
+  const moveDate = document.getElementById('mw-date')?.value || todayStr();
+  const moveTime = document.getElementById('mw-time')?.value || '';
+  const srcEv = _mwSourceEvId ? S.events.find(e=>e.id===_mwSourceEvId) : null;
+  const allActiveGids = srcEv ? evGroups(srcEv).filter(g=>!g.dateRemoved).map(g=>g.groupId) : [];
+  const isLastGroup = srcEv && _mwGroupIds.length >= allActiveGids.length;
+
+  // ── 1. Remove groups from source event ──────────────────────
+  if(srcEv){
+    _mwGroupIds.forEach(gId=>{
+      const gEntry = evGroups(srcEv).find(g=>g.groupId===gId && !g.dateRemoved);
+      if(gEntry){ gEntry.dateRemoved = moveDate; gEntry.timeRemoved = moveTime; }
+    });
+    if(isLastGroup){
+      srcEv.status = 'closed';
+      srcEv.dateOut = moveDate;
+      srcEv.timeOut = moveTime;
+      // Pasture close-out survey data
+      const coHeight = document.getElementById('mw-co-height')?.value;
+      const coCover = document.getElementById('mw-co-cover')?.value;
+      const coRecMin = document.getElementById('mw-co-rec-min')?.value;
+      const coRecMax = document.getElementById('mw-co-rec-max')?.value;
+      if(coHeight) srcEv.heightOut = parseFloat(coHeight);
+      if(coCover) srcEv.coverOut = parseFloat(coCover);
+      if(_mwCloseOutData.quality) srcEv.qualityOut = _mwCloseOutData.quality;
+      // Update paddock recovery
+      const pastureId = srcEv.paddocks?.[0]?.pastureId;
+      if(pastureId && (coRecMin || coRecMax)){
+        const loc = (S.pastures||[]).find(p=>String(p.id)===String(pastureId));
+        if(loc){
+          if(coRecMin) loc.recoveryMin = parseInt(coRecMin);
+          if(coRecMax) loc.recoveryMax = parseInt(coRecMax);
+          bumpSetupUpdatedAt();
+        }
+      }
+    }
+    srcEv.updatedAt = new Date().toISOString();
+    queueEventWrite(srcEv);
+  }
+
+  // ── 2. Create or join destination event ─────────────────────
+  if(_mwDestType === 'new' && _mwDestPaddockId){
+    const dp = (S.pastures||[]).find(p=>p.id===_mwDestPaddockId);
+    if(!dp){ alert('Destination paddock not found'); return; }
+    const newEvId = Date.now();
+    const isCon = dp.locationType === 'confinement';
+    const newEv = {
+      id: newEvId, status:'open', dateIn: moveDate, timeIn: moveTime,
+      pasture: dp.name, pastureId: dp.id, locationType: dp.locationType||'pasture',
+      noPasture: isCon,
+      paddocks: [{ pastureId: dp.id, pastureName: dp.name, acres: dp.acres||0, dateAdded: moveDate }],
+      groups: _mwGroupIds.map((gId,i)=>({ id: newEvId*2000+i, groupId: gId, dateAdded: moveDate, timeAdded: moveTime })),
+      feedEntries:[], subMoves:[], feedResidualChecks:[],
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+    };
+    S.events.push(newEv);
+    queueEventWrite(newEv);
+  } else if(_mwDestType === 'existing' && _mwDestEventId){
+    const destEv = S.events.find(e=>e.id===_mwDestEventId);
+    if(!destEv){ alert('Destination event not found'); return; }
+    _mwGroupIds.forEach((gId,i)=>{
+      const existing = evGroups(destEv).find(g=>g.groupId===gId);
+      if(existing && !existing.dateRemoved){
+        // Already in destination — skip
+      } else {
+        const newMem = { id: Date.now()+i+1, groupId: gId, dateAdded: moveDate, timeAdded: moveTime };
+        if(!destEv.groups) destEv.groups = [];
+        destEv.groups.push(newMem);
+      }
+    });
+    destEv.updatedAt = new Date().toISOString();
+    queueEventWrite(destEv);
+  }
+
+  save();
+  closeMoveWizSheet();
+  renderHome();
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── CLOSE SUB-PADDOCK SHEET (OI-0152) ────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+let _cspEvId = null;
+let _cspSmId = null;
+
+function openCloseSubPaddockSheet(evId, smId){
+  _cspEvId = evId;
+  _cspSmId = smId;
+  const ev = S.events.find(e=>e.id===evId);
+  if(!ev) return;
+  const sm = (ev.subMoves||[]).find(s=>String(s.id)===String(smId));
+  if(!sm) return;
+  const smLoc = (S.pastures||[]).find(p=>String(p.id)===String(sm.pastureId));
+  const smAcres = smLoc?.acres || sm.acres || '';
+  const anchorName = evDisplayName(ev);
+  const sinceDate = sm.date || '';
+  const dayCount = sinceDate ? daysBetween(sinceDate, todayStr()) : 0;
+  const lastSrv = smLoc ? (smLoc.surveys||[]).sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0] : null;
+  const defRecMin = lastSrv?.recoveryMin || smLoc?.recoveryMin || '';
+  const defRecMax = lastSrv?.recoveryMax || smLoc?.recoveryMax || '';
+  const todayD = todayStr();
+
+  document.getElementById('csp-content').innerHTML = `
+    <div style="display:flex;justify-content:space-between;margin-bottom:14px;">
+      <div style="font-size:15px;font-weight:600;">Close sub-paddock</div>
+      <button style="font-size:12px;color:var(--text2);background:none;border:none;cursor:pointer;font-family:inherit;" onclick="closeCloseSubPaddockSheet()">Cancel</button>
+    </div>
+    <div class="card" style="padding:12px;margin-bottom:14px;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 2px var(--green-l);flex-shrink:0;"></div>
+        <div>
+          <div style="font-size:13px;font-weight:500;">${escHtml(sm.locationName)}</div>
+          <div style="font-size:11px;color:var(--text2);">${smAcres?smAcres+' ac \u00b7 ':''}sub-move of ${escHtml(anchorName)} \u00b7 since ${dLabel(sinceDate)}</div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:14px;">
+      <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Close date</label><input type="date" id="csp-date" value="${todayD}" style="width:100%;padding:9px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+      <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Time</label><input type="time" id="csp-time" style="width:100%;padding:9px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+    </div>
+    <div class="card" style="padding:12px;margin-bottom:14px;">
+      <div style="font-size:11px;font-weight:600;color:var(--text2);letter-spacing:0.03em;margin-bottom:10px;">PASTURE CLOSE-OUT \u2014 ${escHtml((sm.locationName||'').toUpperCase())}</div>
+      <div style="display:flex;gap:10px;margin-bottom:10px;">
+        <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Residual height (in)</label><input type="number" id="csp-height" placeholder="e.g. 3.5" style="width:100%;padding:9px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+        <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Forage cover (%)</label><input type="number" id="csp-cover" placeholder="e.g. 65" style="width:100%;padding:9px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+      </div>
+      <div style="margin-bottom:10px;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Forage quality</label>
+        <div style="display:flex;gap:4px;" id="csp-quality-row">
+          <button style="flex:1;padding:7px 0;font-size:12px;border-radius:6px;border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;" onclick="_cspSetQuality(this,'Poor')">Poor</button>
+          <button style="flex:1;padding:7px 0;font-size:12px;border-radius:6px;border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;" onclick="_cspSetQuality(this,'Fair')">Fair</button>
+          <button style="flex:1;padding:7px 0;font-size:12px;border-radius:6px;border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;" onclick="_cspSetQuality(this,'Good')">Good</button>
+          <button style="flex:1;padding:7px 0;font-size:12px;border-radius:6px;border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;" onclick="_cspSetQuality(this,'Excellent')">Exc.</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;margin-bottom:6px;">
+        <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Recovery min (days)</label><input type="number" id="csp-rec-min" value="${defRecMin}" style="width:100%;padding:9px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+        <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Recovery max (days)</label><input type="number" id="csp-rec-max" value="${defRecMax}" style="width:100%;padding:9px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+      </div>
+      <div style="font-size:11px;color:var(--text3);padding-top:4px;">Est. return: based on close date + recovery days</div>
+    </div>
+    <div style="border-radius:12px;padding:10px 12px;margin-bottom:14px;background:var(--teal-l);border:0.5px solid var(--teal);">
+      <div style="font-size:12px;color:var(--teal-d);">Animals return to <strong>${escHtml(anchorName)}</strong> anchor paddock \u00b7 ${dayCount} days on ${escHtml(sm.locationName)}</div>
+    </div>
+    <button style="width:100%;padding:12px;font-size:14px;font-weight:600;border-radius:8px;border:none;background:var(--teal);color:white;cursor:pointer;font-family:inherit;" onclick="_cspSave()">Close sub-paddock</button>`;
+  document.getElementById('close-sub-paddock-wrap').classList.add('open');
+}
+
+let _cspQuality = null;
+function _cspSetQuality(btn, val){
+  _cspQuality = val;
+  const row = document.getElementById('csp-quality-row');
+  if(row) row.querySelectorAll('button').forEach(b=>{
+    const isActive = b.textContent.trim().startsWith(val.substring(0,3));
+    b.style.background = isActive ? 'var(--green-l)' : 'transparent';
+    b.style.borderColor = isActive ? 'var(--green)' : 'var(--border2)';
+    b.style.color = isActive ? 'var(--green-d)' : 'var(--text2)';
+    b.style.fontWeight = isActive ? '500' : '400';
+  });
+}
+
+function closeCloseSubPaddockSheet(){
+  document.getElementById('close-sub-paddock-wrap').classList.remove('open');
+  _cspQuality = null;
+}
+
+function _cspSave(){
+  const ev = S.events.find(e=>e.id===_cspEvId);
+  if(!ev) return;
+  const sm = (ev.subMoves||[]).find(s=>String(s.id)===String(_cspSmId));
+  if(!sm) return;
+  const closeDate = document.getElementById('csp-date')?.value || todayStr();
+  const closeTime = document.getElementById('csp-time')?.value || '';
+  const startDate = sm.date || closeDate;
+  const hrs = daysBetween(startDate, closeDate) * 24;
+  sm.dateOut = closeDate;
+  sm.timeOut = closeTime;
+  sm.durationHours = hrs;
+  // Survey data
+  const h = document.getElementById('csp-height')?.value;
+  const c = document.getElementById('csp-cover')?.value;
+  const rMin = document.getElementById('csp-rec-min')?.value;
+  const rMax = document.getElementById('csp-rec-max')?.value;
+  if(h) sm.heightOut = parseFloat(h);
+  if(c) sm.coverOut = parseFloat(c);
+  if(_cspQuality) sm.qualityOut = _cspQuality;
+  if(rMin) sm.recoveryMin = parseInt(rMin);
+  if(rMax) sm.recoveryMax = parseInt(rMax);
+  // Update paddock recovery
+  const smLoc = (S.pastures||[]).find(p=>String(p.id)===String(sm.pastureId));
+  if(smLoc){
+    if(rMin) smLoc.recoveryMin = parseInt(rMin);
+    if(rMax) smLoc.recoveryMax = parseInt(rMax);
+    bumpSetupUpdatedAt();
+  }
+  ev.updatedAt = new Date().toISOString();
+  queueEventWrite(ev);
+  save();
+  closeCloseSubPaddockSheet();
+  renderHome();
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── FEED CHECK SHEET (stub — dual input coming in follow-up session) ─────────
+// ══════════════════════════════════════════════════════════════════════════════
+function openFeedCheckSheet(evId){
+  // For now, open the event editor's feed check section
+  openEventEdit(evId);
+}
+function closeFeedCheckSheet(){
+  document.getElementById('feed-check-wrap').classList.remove('open');
+}
+
 </script>
 
 <!-- ANIMAL EVENT SHEET (Note / Treatment / Breeding) -->
@@ -19996,6 +20742,33 @@ if ('serviceWorker' in navigator) {
     <div id="ba-archive-wrap" style="margin-top:8px;display:none;">
       <button class="btn btn-amber btn-sm" style="width:auto;" onclick="archiveBatchFromAdj()">Archive batch</button>
     </div>
+  </div>
+</div>
+
+<!-- ── MOVE WIZARD SHEET (3-step) ────────────────────────────────────────────── -->
+<div class="sheet-wrap" id="move-wiz-wrap">
+  <div class="sheet-backdrop" onclick="closeMoveWizSheet()"></div>
+  <div class="sheet" style="padding:16px 16px 24px;">
+    <div class="sheet-handle"></div>
+    <div id="mw-content"></div>
+  </div>
+</div>
+
+<!-- ── CLOSE SUB-PADDOCK SHEET ───────────────────────────────────────────────── -->
+<div class="sheet-wrap" id="close-sub-paddock-wrap">
+  <div class="sheet-backdrop" onclick="closeCloseSubPaddockSheet()"></div>
+  <div class="sheet" style="padding:16px 16px 24px;">
+    <div class="sheet-handle"></div>
+    <div id="csp-content"></div>
+  </div>
+</div>
+
+<!-- ── FEED CHECK SHEET ──────────────────────────────────────────────────────── -->
+<div class="sheet-wrap" id="feed-check-wrap">
+  <div class="sheet-backdrop" onclick="closeFeedCheckSheet()"></div>
+  <div class="sheet" style="padding:16px 16px 24px;">
+    <div class="sheet-handle"></div>
+    <div id="fc-content"></div>
   </div>
 </div>
 

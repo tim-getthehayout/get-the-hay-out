@@ -1,8 +1,8 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260402.1058`
-**Last updated:** 2026-04-02
+**Current build:** `b20260403.0027`
+**Last updated:** 2026-04-03
 
 > This is the authoritative navigation guide for every AI coding session.
 > Update it at the end of every session using the SESSION_RULES.md protocol.
@@ -48,11 +48,12 @@ build = 'b' + datetime.now().strftime('%Y%m%d') + '.' + datetime.now().strftime(
 > **Header layout (b20260324.1030):** Mobile uses `flex-direction:column` — title/op-name on row 1, sync/build/field/avatar on row 2. Desktop overrides back to single-row via `body.desktop .hdr`. Op name in `updateHeader()` shows operation name only — head count removed.
 | ~2532 | Home screen + group cards + `renderFieldHome()` stub (field mode) |
 | ~2627 | Home view toggle (`renderHomeViewToggle`, `setHomeViewMode`) + Locations view (`renderLocationsView`, `renderLocationCard`, `renderUnplacedGroupsSection`) |
-> **Home card DMI/NPK (b20260324.1730):** `renderLocationCard()` now shows event-level DMI total across all groups (sum of `getGroupTotals().dmiTarget`) + stored-vs-pasture split + progress bar + NPK. BW aggregation corrected — uses `getGroupTotals()` per group, not `ae.head * ae.wt` (event snapshot). `renderGroupCard()` NPK fixed — uses group's own `getGroupTotals()` head/weight (`grpBW`), not `ae.head * ae.wt` which was the whole-event aggregate.
+> **Event tile redesign (b20260403.0022):** `renderLocationCard(ev, opts)` fully rewritten — section-based layout: header (color bar, name + acreage, badge, day/date/cost, Edit + Move All buttons) → SUB-PADDOCKS (conditional, active = green dot with halo) → GROUPS (per-group Move → move wizard + ⚖ weigh) → stacked DMI bars (`_renderDMIBars()`, 3-day, green grazing / amber stored) → Feed check button (amber, conditional on stored feed) → DMI summary + progress bar → NPK (pasture only) → Feed button. `opts.compact` mode for field mode expanded cards (no ⚖, no NPK, compact action row). Badge logic: "grazing" (pure pasture), "stored feed" (noPasture/confinement), "stored feed & grazing" (has feed entries + pasture time, split gradient). Move buttons call `openMoveWizSheet()` not `openEventEdit()` (OI-0150 fix).
+> **FIELD_MODULES (b20260403.0022):** Added `move` (Move Animals 🚜, `_fieldModeMoveHandler`) and `feedcheck` (Feed Check 📋, `_fieldModeFeedCheckHandler`). Default active set unchanged (`['feed','harvest','survey','animals']`).
 > **Quick Feed picker (b20260324.1730):** `qfShowEventStep()` is now location-centric — shows location name + type badge as primary, group names as secondary. Cancel button (`#qf-step1-cancel`) added to step-1 picker, hidden on step-2.
 | ~2921 | To-Do system |
 | ~3070 | Feed screen + Quick Feed sheet + Feed Types + Feed Goal + goFeedGroup |
-| ~3417 | Move Wizard (including `wizCloseEvent` TDZ fix, `wizSaveNew` location fix, no-pasture checkbox, dynamic recovery label) |
+| ~3417 | Move Wizard (legacy full-page nav-based wizard — retained for nav-bar "Move" button; card-level moves now use `openMoveWizSheet()` sheet overlay) |
 | ~3549 | Events section header + `switchEventsView()` + Rotation Calendar engine |
 | ~4212 | Pasture Survey |
 > **Pasture Survey (b20260325.1918):** Both multi-pasture and single-pasture survey modes now render all fields consolidated per card — forage quality slider, veg height (inches), forage cover (%), and recovery min/max with live graze window preview. Multi-pasture previously split rating cards and recovery windows into separate scrollable sections; these are now a single per-paddock card. Two new state dicts: `surveyVegHeight`, `surveyForageCover`. Data model: each rating entry in `S.surveys[].ratings[]` now includes optional `vegHeight` (inches, float) and `forageCover` (%, float). The separate `#survey-recovery-list` DOM element and `#survey-recovery-section-hdr` are retained in HTML but set to empty/hidden at render time. OI-0010 (expected graze dates) resolved — the live `rec-preview-` block in each card supersedes the old static `gdHtml` approach.
@@ -154,6 +155,9 @@ All sheets are always in the DOM. Toggle: add/remove `.open` on the `-wrap` div.
 | Sub-move | `#sm-sheet-wrap` | `openSubMoveSheet(eventId)` | `closeSubMoveSheet()` |
 | Cull animal | `#cull-sheet-wrap` | `openCullSheet(animalId)` | `closeCullSheet()` |
 | Reset data | `#reset-sheet-wrap` | `openResetSheet(mode)` | `closeResetSheet()` |
+| **Move wizard (3-step)** | `#move-wiz-wrap` | **`openMoveWizSheet(evId, groupId, moveAll)`** | **`closeMoveWizSheet()`** | **b20260403.0022.** 3-step flow: Step 1 Where? → Step 2a paddock picker / 2b event picker → Step 3 confirm with FROM→TO, close-out survey, save. State: `_mwStep`, `_mwSourceEvId`, `_mwGroupIds`, `_mwMoveAll`, `_mwDestType`, `_mwDestPaddockId`, `_mwDestEventId`. Replaces old nav-based wizard for card-level moves. |
+| **Close sub-paddock** | `#close-sub-paddock-wrap` | **`openCloseSubPaddockSheet(evId, smId)`** | **`closeCloseSubPaddockSheet()`** | **b20260403.0022.** Single-screen: sub-paddock info, close date/time, pasture close-out survey (height, cover, quality, recovery min/max), anchor paddock info box. Fixes OI-0152 width. |
+| **Feed check** | `#feed-check-wrap` | **`openFeedCheckSheet(evId)`** | **`closeFeedCheckSheet()`** | **b20260403.0022.** Stub — currently delegates to `openEventEdit(evId)`. Full dual-input redesign (stepper + slider) deferred to follow-up session. |
 
 ---
 
@@ -1196,6 +1200,20 @@ Health events are loaded from the `animal_health_events` Supabase table via nest
 ### Sub-move recovery section hidden (OI-0143, b20260402.0940)
 
 The recovery min/max input section in the sub-move sheet has been wrapped in `display:none`. Recovery estimates are only meaningful at survey time — showing them at move time implied the pre-filled values (from the destination paddock's last survey) were a decision aid, which they are not. DOM elements preserved for safe null reads in `saveSubMove()`. Recovery data continues to be set via the survey sheet.
+
+### Move wizard sheet — two move systems coexist (b20260403.0022)
+
+**Card-level moves** (Move button on group row, Move All in header, Place for unplaced groups) now open `#move-wiz-wrap` — a 3-step sheet overlay. **Nav-bar moves** (bottom nav "Move" button) still use the legacy full-page wizard (`nav('move')` → `initWiz()`). Both systems coexist. `moveGroup()` and `moveAllGroupsInEvent()` have been rewired to call `openMoveWizSheet()`.
+
+**Move wizard state:** `_mwStep` (1/2/3), `_mwSourceEvId`, `_mwGroupIds[]`, `_mwMoveAll`, `_mwDestType` ('new'|'existing'), `_mwDestPaddockId`, `_mwDestEventId`, `_mwCloseOutData`. All state is reset on open.
+
+**Close-out at move:** When the move wizard closes an event (last group leaving a pasture location), it writes close-out survey data (`heightOut`, `coverOut`, `qualityOut`) to the source event and updates the paddock's `recoveryMin`/`recoveryMax`. Same fields used by the survey sheet — no duplication.
+
+**Paddock picker (Step 2a):** Classifies paddocks into Nearby (±4 from current in pasture list), Ready, Recovering (with progress bar), In Use (dimmed), Confinement. Tapping a ready paddock auto-advances to Step 3.
+
+### Floating feedback FAB restored on mobile (OI-0162, b20260403.0022)
+
+The FAB was hidden on mobile by OI-0147 to fix a badge z-index/overflow issue. Root fix: `z-index` raised to 150 (above nav bar's ~100, below sheets at 200), `overflow:visible` added so badge renders properly, slightly smaller on mobile (44px vs 48px desktop). Field mode still hides FAB via `body.field-mode .fab{display:none !important}`.
 
 ---
 
