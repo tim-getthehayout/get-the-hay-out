@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260403.1554" id="app-version-meta"/>
+<meta name="app-version" content="b20260403.1619" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -4895,7 +4895,11 @@ function renderLocationCard(ev, opts){
       <button style="padding:6px 10px;font-size:12px;border-radius:6px;border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;" onclick="event.stopPropagation();openEventEdit(${ev.id})">Edit</button>
     </div>`;
   } else {
-    bottomActions = `<div style="padding:10px 14px 12px;margin-left:14px;">
+    const _fcBtnNormal = hasStoredFeed
+      ? `<button style="padding:6px 16px;font-size:12px;border-radius:6px;cursor:pointer;font-weight:500;font-family:inherit;border:0.5px solid var(--amber);background:var(--amber-l);color:var(--amber-d);" onclick="event.stopPropagation();openFeedCheckSheet(${ev.id})">Feed check</button>`
+      : `<button style="padding:6px 16px;font-size:12px;border-radius:6px;cursor:pointer;font-weight:500;font-family:inherit;border:0.5px solid var(--border2);background:transparent;color:var(--text3);" onclick="event.stopPropagation();alert('No stored feed in this event')">Feed check</button>`;
+    bottomActions = `<div style="padding:10px 14px 12px;margin-left:14px;display:flex;gap:8px;">
+      ${_fcBtnNormal}
       <button style="padding:6px 16px;font-size:12px;border-radius:6px;cursor:pointer;font-weight:500;font-family:inherit;background:var(--green);color:white;border:none;" onclick="event.stopPropagation();goFeedEvent(${ev.id})">Feed</button>
     </div>`;
   }
@@ -11156,7 +11160,7 @@ function renderSplitPreview(){
     const wt  = animals.reduce((s,a)=>s+(a.weightLbs||0),0);
     const avg = animals.length ? Math.round(wt/animals.length) : 0;
     let dmi=0;
-    animals.forEach(a=>{ const cls=S.animalClasses.find(c=>c.id===a.classId); dmi+=(a.weightLbs||0)*((cls?cls.dmiPct:2.5)/100); });
+    animals.forEach(a=>{ const cls=S.animalClasses.find(c=>c.id===a.classId); dmi+=(a.weightLbs||0)*(((cls&&cls.dmiPct!=null)?cls.dmiPct:2.5)/100); });
     return `<div style="padding:8px 10px;background:var(--bg2);border-radius:var(--radius);
         border-left:3px solid ${color||'var(--green)'};">
       <div style="font-size:12px;font-weight:600;">${name}</div>
@@ -11513,7 +11517,7 @@ function getGroupTotals(group){
     animals.forEach(a=>{
       const cls=S.animalClasses.find(c=>c.id===a.classId);
       const wt=a.weightLbs||1000;
-      const dmiPct=(cls?cls.dmiPct:2.5)/100;
+      const dmiPct=((cls&&cls.dmiPct!=null)?cls.dmiPct:2.5)/100;
       liveWt+=wt;dmi+=wt*dmiPct;
     });
     return{totalHead:animals.length,totalLiveWeight:liveWt,avgWeight:Math.round(liveWt/animals.length),dmiTarget:dmi};
@@ -11524,7 +11528,7 @@ function getGroupTotals(group){
     group.classes.forEach(c=>{
       const cls=S.animalClasses.find(x=>x.id===c.classId);
       const wt=c.avgWeightLbs||(cls?cls.defaultWeightLbs:1000);
-      const d=(cls?cls.dmiPct:2.5)/100;
+      const d=((cls&&cls.dmiPct!=null)?cls.dmiPct:2.5)/100;
       head+=c.count;liveWt+=c.count*wt;dmi+=c.count*wt*d;
     });
     return{totalHead:head,totalLiveWeight:liveWt,avgWeight:head>0?Math.round(liveWt/head):0,dmiTarget:dmi};
@@ -15269,11 +15273,25 @@ function openEeFeedCheck(){
 function editEeFeedCheck(ckId){
   const evId=parseInt(document.getElementById('ee-id').value);
   if(!evId) return;
+  const ev=S.events.find(e=>e.id===evId);
+  if(!ev) return;
+  // Find the check being edited — capture its date/time before opening dialog
+  const editCk = (ev.feedResidualChecks||[]).find(c=>String(c.id)===String(ckId));
+  const editDate = editCk?.date || null;
+  const editTime = editCk?.time || null;
   _fcOnCloseCallback = ()=>{
-    const ev=S.events.find(e=>e.id===evId);
     if(ev){ renderEeFeedChecks(ev); updateEventEditPreview(ev); }
   };
   openFeedCheckSheet(evId);
+  // Pre-fill with the edited check's date/time (after dialog renders)
+  if(editDate){
+    setTimeout(()=>{
+      const dateEl = document.getElementById('fc-date');
+      const timeEl = document.getElementById('fc-time');
+      if(dateEl) dateEl.value = editDate;
+      if(timeEl && editTime) timeEl.value = editTime;
+    }, 80);
+  }
 }
 
 function closeEeFeedCheck(){
