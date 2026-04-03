@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260403.1002`
+**Current build:** `b20260403.1025`
 **Last updated:** 2026-04-03
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -158,6 +158,7 @@ All sheets are always in the DOM. Toggle: add/remove `.open` on the `-wrap` div.
 | **Move wizard (3-step)** | `#move-wiz-wrap` | **`openMoveWizSheet(evId, groupId, moveAll)`** | **`closeMoveWizSheet()`** | **b20260403.0022.** 3-step flow: Step 1 Where? → Step 2a paddock picker / 2b event picker → Step 3 confirm with FROM→TO, close-out survey, save. State: `_mwStep`, `_mwSourceEvId`, `_mwGroupIds`, `_mwMoveAll`, `_mwDestType`, `_mwDestPaddockId`, `_mwDestEventId`. Replaces old nav-based wizard for card-level moves. |
 | **Close sub-paddock** | `#close-sub-paddock-wrap` | **`openCloseSubPaddockSheet(evId, smId)`** | **`closeCloseSubPaddockSheet()`** | **b20260403.0022.** Single-screen: sub-paddock info, close date/time, pasture close-out survey (height, cover, quality, recovery min/max), anchor paddock info box. Fixes OI-0152 width. |
 | **Feed check** | `#feed-check-wrap` | **`openFeedCheckSheet(evId)`** | **`closeFeedCheckSheet()`** | **b20260403.0038.** Per-feed-type dual-input dialog: stepper (−/+/direct, 2dp) + percentage + slider, all bidirectionally linked. Groups entries by feedTypeId. "Consumed since last check" amber summary. Saves `typeChecks[]` on check record + backward-compat `balesRemainingPct`. State: `_fcEvId`, `_fcTypeData[]`. |
+| **Add group to event** | `#add-grp-ev-wrap` | **`openAddGroupToEventSheet(evId)`** | **`closeAddGroupToEventSheet()`** | **b20260403.1018.** Group picker launched from "+ Add group" on home event card. Shows all groups with status (already here / at location / not placed). Handles source-event removal + close-if-last. z-index:210. State: `_ageTargetEvId`. |
 
 ---
 
@@ -1225,9 +1226,9 @@ The recovery min/max input section in the sub-move sheet has been wrapped in `di
 
 Pasture IDs from Supabase are strings (`"34"`) but template-literal interpolation in `onclick="_mwPickPaddock(${p.id})"` converts to number (`34`). Strict equality `p.id === _mwDestPaddockId` then fails (`"34" !== 34`), causing "Destination paddock not found" on the move wizard confirm step. **Fix:** All `_mwDestPaddockId` lookups now use `String(p.id)===String(_mwDestPaddockId)`, and the paddock picker onclick quotes the ID: `_mwPickPaddock('${p.id}')`. **Pattern reminder:** any ID passed through a template-literal onclick must be quoted to preserve its type, or the find must use String coercion.
 
-### iOS button activation in dynamic innerHTML (b20260403.0958)
+### iOS button activation in dynamic innerHTML / z-index stacking (b20260403.0958, b20260403.1008)
 
-Buttons rendered via `innerHTML` inside sheet overlays (`#csp-content`, `#mw-content`, `#fc-content`) need explicit `type="button"` to prevent iOS Safari from treating them as implicit submit buttons. Without it, taps may not fire the onclick reliably. Applied to all buttons in the close-sub-paddock sheet (save, cancel, quality selectors). This is a general pattern for any button rendered into dynamic innerHTML in a PWA context.
+Buttons rendered via `innerHTML` inside sheet overlays need explicit `type="button"`. Additionally, when a sheet opens ON TOP of another open sheet (e.g. close-sub-paddock over event-edit), both at `z-index:200`, iOS Safari's scrollable container in the underlying sheet intercepts touch events from the sheet layered on top. **Fix:** `#move-wiz-wrap`, `#close-sub-paddock-wrap`, `#feed-check-wrap` elevated to `z-index:210` — they can all open while event-edit is open. **Belt-and-suspenders:** `_cspSave` button also gets `addEventListener('click')` attached after innerHTML render (50ms setTimeout), and the function is wrapped in try/catch with `closeCloseSubPaddockSheet()` guaranteed outside the try block.
 
 ### Move wizard — TO tile re-pick (b20260403.0958)
 
@@ -1237,11 +1238,15 @@ The TO card on step 3 is now clickable — tapping it calls `_mwChangeDest()` wh
 
 The FAB was hidden on mobile by OI-0147 to fix a badge z-index/overflow issue. Root fix: `z-index` raised to 150 (above nav bar's ~100, below sheets at 200), `overflow:visible` added so badge renders properly, slightly smaller on mobile (44px vs 48px desktop). Field mode still hides FAB via `body.field-mode .fab{display:none !important}`.
 
-### Feed check dialog — per-type tracking with backward compat (OI-0159, b20260403.0038)
+### Feed check dialog — per-type tracking with backward compat (OI-0159, b20260403.0038, b20260403.1023)
 
 `openFeedCheckSheet(evId)` groups all feed entries by feedTypeId (via batch lookup) and renders one card per feed type. Each card has a stepper (−/+/direct entry, 2 decimal places), a percentage display, and a horizontal slider — all three bidirectionally linked. "Consumed since last check" amber bar shows units consumed + estimated DMI in lbs.
 
+**Date + time (b20260403.1023):** Form includes date picker (default today) and time picker (default now). Allows backdating or recording exact check time for chronological tracking. Saved as `date` + `time` on the check record. Last check display shows time when available.
+
 **Data model bridge:** The existing `feedResidualChecks[]` model stores a single `balesRemainingPct` per check. The new dialog saves both the backward-compatible overall percentage (weighted by lbs value across types) AND a `typeChecks[]` array on the check record with per-type `{feedTypeId, remaining, total}`. This allows the existing `calcConsumedDMI()` to continue working unchanged while per-type data is available for future use.
+
+**Supabase schema (b20260403.1023):** `event_feed_residual_checks` table has `check_date` (text), `check_time` (text, nullable), `residual_pct`, `bales_remaining_pct`, `is_close_reading`, `notes`, and `type_checks_json` (jsonb, nullable). The `type_checks_json` column stores the per-type breakdown as a JSON array. Assembly layer parses it back via `JSON.parse()`. **SQL migration required:** `ALTER TABLE event_feed_residual_checks ADD COLUMN IF NOT EXISTS check_time text; ALTER TABLE event_feed_residual_checks ADD COLUMN IF NOT EXISTS type_checks_json jsonb;`
 
 **Last check seeding:** If a prior check has `typeChecks[]`, per-type remaining values are restored. Otherwise, the overall `balesRemainingPct` is apportioned equally across types. This handles pre-migration checks gracefully.
 

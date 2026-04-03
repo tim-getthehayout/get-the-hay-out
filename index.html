@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260403.1002" id="app-version-meta"/>
+<meta name="app-version" content="b20260403.1025" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -130,6 +130,7 @@ body.field-mode .field-mode-sheet.open .sheet{
   overflow-y:auto;
 }
 .sheet-wrap{display:none;position:fixed;inset:0;z-index:200;}
+#move-wiz-wrap,#close-sub-paddock-wrap,#feed-check-wrap{z-index:210;}
 .sheet-wrap.open{display:flex;align-items:center;justify-content:center;}
 .sheet-backdrop{position:absolute;inset:0;background:rgba(0,0,0,0.4);}
 .sheet{position:relative;width:min(92vw,680px);background:var(--bg);border-radius:var(--radius-xl);padding:16px 16px 24px;max-height:90vh;overflow-y:auto;z-index:1;}
@@ -2679,7 +2680,17 @@ function assembleEvents(rows){
       return smC;
     });
 
-    ev.feedResidualChecks = (r.event_feed_residual_checks  || []).map(_sbToCamel);
+    ev.feedResidualChecks = (r.event_feed_residual_checks  || []).map(rc => {
+      const c = _sbToCamel(rc);
+      // Alias: checkDate → date, checkTime → time (JS render uses .date/.time)
+      if(!c.date && c.checkDate) c.date = c.checkDate;
+      if(!c.time && c.checkTime) c.time = c.checkTime;
+      // Parse typeChecksJson back to array
+      if(c.typeChecksJson && typeof c.typeChecksJson === 'string'){
+        try { c.typeChecks = JSON.parse(c.typeChecksJson); } catch(e) { c.typeChecks = null; }
+      }
+      return c;
+    });
     ev.npkLedger          = (r.event_npk_deposits          || []).map(_sbToCamel);
     ev.groups             = (r.event_group_memberships     || []).map(_sbToCamel);
 
@@ -3565,9 +3576,11 @@ function queueEventWrite(ev){
     queueWrite('event_feed_residual_checks', _sbToSnake({
       id: rc.id, eventId: ev.id, operationId: opId,
       subMoveId: null,
-      checkDate: rc.date, residualPct: rc.residualPct || null,
+      checkDate: rc.date, checkTime: rc.time || null,
+      residualPct: rc.residualPct || null,
       balesRemainingPct: rc.balesRemainingPct || null,
       isCloseReading: rc.isCloseReading || false, notes: rc.notes || null,
+      typeChecksJson: rc.typeChecks ? JSON.stringify(rc.typeChecks) : null,
     }));
   });
   // event_npk_deposits (ev.npkLedger[])
@@ -4800,7 +4813,7 @@ function renderLocationCard(ev, opts){
   const groupsHtml = `<div style="padding:6px 14px 0;margin-left:14px;">
     <div style="font-size:11px;font-weight:600;color:var(--text2);letter-spacing:0.03em;padding:8px 0 4px;border-top:0.5px solid var(--border);">GROUPS</div>
     ${groupRows || '<div style="font-size:12px;color:var(--text2);padding:5px 0;">No groups currently assigned</div>'}
-    <button style="padding:4px 0;font-size:12px;border:none;background:transparent;color:var(--teal);cursor:pointer;font-weight:500;font-family:inherit;margin-top:2px;" onclick="event.stopPropagation();openEventEdit(${ev.id})">+ Add group</button>
+    <button style="padding:4px 0;font-size:12px;border:none;background:transparent;color:var(--teal);cursor:pointer;font-weight:500;font-family:inherit;margin-top:2px;" onclick="event.stopPropagation();openAddGroupToEventSheet(${ev.id})">+ Add group</button>
   </div>`;
 
   // ── STACKED DMI BARS (always present) ───────────────────────
@@ -7998,7 +8011,12 @@ let eeGroups = []; // working copy for event edit sheet
 
 function initEeGroups(ev){
   // Loaded entries have no _isNew — Remove Group / Reopen apply
-  eeGroups = evGroups(ev).map(g=>({...g}));
+  // Resolve groupName from actual group record if missing
+  eeGroups = evGroups(ev).map(g=>{
+    const copy = {...g};
+    if(!copy.groupName){ const grp=getGroupById(copy.groupId); if(grp) copy.groupName=grp.name; }
+    return copy;
+  });
   renderEeGroupChips();
   syncEeGroupTotals();
 }
@@ -8226,7 +8244,7 @@ function renderEeGroupChips(){
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
         <div style="display:flex;align-items:center;gap:7px;min-width:0;flex:1;">
           <span style="width:9px;height:9px;border-radius:50%;background:${dot};display:inline-block;flex-shrink:0;"></span>
-          <span style="font-size:13px;font-weight:600;">${g.groupName}</span>
+          <span style="font-size:13px;font-weight:600;">${g.groupName||getGroupById(g.groupId)?.name||'Unknown'}</span>
           ${statusPill}
         </div>
         ${actionBtn}
@@ -20370,8 +20388,13 @@ function openCloseSubPaddockSheet(evId, smId){
     <div style="border-radius:12px;padding:10px 12px;margin-bottom:14px;background:var(--teal-l);border:0.5px solid var(--teal);">
       <div style="font-size:12px;color:var(--teal-d);">Animals return to <strong>${escHtml(anchorName)}</strong> anchor paddock \u00b7 ${dayCount} days on ${escHtml(sm.locationName)}</div>
     </div>
-    <button style="width:100%;padding:12px;font-size:14px;font-weight:600;border-radius:8px;border:none;background:var(--teal);color:white;cursor:pointer;font-family:inherit;" type="button" onclick="_cspSave()">Close sub-paddock</button>`;
+    <button style="width:100%;padding:12px;font-size:14px;font-weight:600;border-radius:8px;border:none;background:var(--teal);color:white;cursor:pointer;font-family:inherit;" type="button" data-action="csp-save" onclick="_cspSave()">Close sub-paddock</button>`;
   document.getElementById('close-sub-paddock-wrap').classList.add('open');
+  // Belt-and-suspenders: attach click listener directly (iOS innerHTML onclick can fail)
+  setTimeout(()=>{
+    const saveBtn = document.querySelector('#csp-content button[data-action="csp-save"]');
+    if(saveBtn) saveBtn.addEventListener('click', _cspSave, {once:true});
+  }, 50);
 }
 
 let _cspQuality = null;
@@ -20393,6 +20416,7 @@ function closeCloseSubPaddockSheet(){
 }
 
 function _cspSave(){
+  try{
   const ev = S.events.find(e=>String(e.id)===String(_cspEvId));
   if(!ev){ closeCloseSubPaddockSheet(); return; }
   const sm = (ev.subMoves||[]).find(s=>String(s.id)===String(_cspSmId));
@@ -20424,6 +20448,7 @@ function _cspSave(){
   ev.updatedAt = new Date().toISOString();
   queueEventWrite(ev);
   save();
+  }catch(err){ console.error('_cspSave error:', err); }
   closeCloseSubPaddockSheet();
   renderHome();
 }
@@ -20487,6 +20512,7 @@ function openFeedCheckSheet(evId){
       lastCheckUnits: parseFloat(lastUnits.toFixed(2)),
       lastCheckDate: lastDate,
       remaining: parseFloat(lastUnits.toFixed(2)),
+      lastCheckTime: lastCheck?.time || null,
     };
   });
 
@@ -20514,7 +20540,7 @@ function _fcRender(){
     const consumedDMI = consumed * t.lbsPerUnit * (t.dmPct/100);
     const unitLabel = _fcUnitLabel(t.unit);
     const lastInfo = t.lastCheckDate
-      ? `Last check: ${t.lastCheckUnits.toFixed(2)} ${unitLabel} (${new Date(t.lastCheckDate+'T12:00:00').toLocaleDateString('en-US',{weekday:'short'})})`
+      ? `Last check: ${t.lastCheckUnits.toFixed(2)} ${unitLabel} (${new Date(t.lastCheckDate+'T12:00:00').toLocaleDateString('en-US',{weekday:'short'})}${t.lastCheckTime?' '+t.lastCheckTime:''})`
       : 'No prior check';
     return `<div class="card" style="padding:14px;margin-bottom:10px;">
       <div style="margin-bottom:10px;">
@@ -20549,13 +20575,18 @@ function _fcRender(){
     </div>`;
   }).join('');
 
+  const nowTime = new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
   el.innerHTML = `<div style="display:flex;justify-content:space-between;margin-bottom:14px;">
     <div style="font-size:15px;font-weight:600;">Feed check</div>
-    <button style="font-size:12px;color:var(--text2);background:none;border:none;cursor:pointer;font-family:inherit;" onclick="closeFeedCheckSheet()">Cancel</button>
+    <button style="font-size:12px;color:var(--text2);background:none;border:none;cursor:pointer;font-family:inherit;" type="button" onclick="closeFeedCheckSheet()">Cancel</button>
   </div>
-  <div style="font-size:12px;color:var(--text2);margin-bottom:14px;">${locIcon} ${escHtml(evDisplayName(ev))} \u00b7 ${escHtml(grpNames)}</div>
+  <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">${locIcon} ${escHtml(evDisplayName(ev))} \u00b7 ${escHtml(grpNames)}</div>
+  <div style="display:flex;gap:10px;margin-bottom:14px;">
+    <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Date</label><input type="date" id="fc-date" value="${todayStr()}" style="width:100%;padding:9px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+    <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Time</label><input type="time" id="fc-time" value="${nowTime}" style="width:100%;padding:9px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+  </div>
   ${cards}
-  <button style="width:100%;padding:12px;font-size:14px;font-weight:600;border-radius:8px;border:none;background:var(--amber);color:white;cursor:pointer;font-family:inherit;" onclick="_fcSave()">Save feed check</button>`;
+  <button style="width:100%;padding:12px;font-size:14px;font-weight:600;border-radius:8px;border:none;background:var(--amber);color:white;cursor:pointer;font-family:inherit;" type="button" onclick="_fcSave()">Save feed check</button>`;
 }
 
 function _fcUnitLabel(unit){
@@ -20621,10 +20652,13 @@ function _fcSave(){
   });
   const overallPct = totalValue > 0 ? parseFloat((remainingValue / totalValue * 100).toFixed(2)) : 0;
 
+  const fcDate = document.getElementById('fc-date')?.value || todayStr();
+  const fcTime = document.getElementById('fc-time')?.value || null;
   if(!ev.feedResidualChecks) ev.feedResidualChecks = [];
   ev.feedResidualChecks.push({
     id: Date.now(),
-    date: todayStr(),
+    date: fcDate,
+    time: fcTime,
     balesRemainingPct: overallPct,
     residualPct: overallPct,
     typeChecks: typeChecks,
@@ -20635,6 +20669,118 @@ function _fcSave(){
   queueEventWrite(ev);
   save();
   closeFeedCheckSheet();
+  renderHome();
+}
+
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── ADD GROUP TO EVENT — group picker sheet ──────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+let _ageTargetEvId = null;
+
+function openAddGroupToEventSheet(evId){
+  _ageTargetEvId = evId;
+  const ev = S.events.find(e=>String(e.id)===String(evId));
+  if(!ev){ return; }
+  const targetName = evDisplayName(ev);
+  const targetGroups = evGroups(ev).filter(g=>!g.dateRemoved).map(g=>g.groupId);
+  const allGroups = S.animalGroups || [];
+
+  const rows = allGroups.map(g=>{
+    const gt = getGroupTotals(g);
+    const color = g.color || '#639922';
+    const isAlreadyHere = targetGroups.includes(g.id);
+    const otherEv = S.events.find(e=>e.status==='open' && String(e.id)!==String(evId) && evGroups(e).some(eg=>eg.groupId===g.id && !eg.dateRemoved));
+    const otherEvName = otherEv ? evDisplayName(otherEv) : null;
+    const otherEvGroupCount = otherEv ? evGroups(otherEv).filter(eg=>!eg.dateRemoved).length : 0;
+    const isLastInOther = otherEv && otherEvGroupCount <= 1;
+
+    let statusLine = '';
+    let actionBtn = '';
+    if(isAlreadyHere){
+      statusLine = '<span style="font-size:11px;color:var(--green);font-weight:500;">Already here</span>';
+      actionBtn = '';
+    } else if(otherEv){
+      statusLine = `<span style="font-size:11px;color:var(--text2);">At ${escHtml(otherEvName)}</span>`;
+      if(isLastInOther){
+        actionBtn = `<button style="padding:5px 10px;font-size:11px;border-radius:6px;border:0.5px solid var(--amber);background:var(--amber-l);color:var(--amber-d);cursor:pointer;font-weight:500;font-family:inherit;" type="button" onclick="_ageAddGroup(${g.id})">Move here<br><span style="font-size:9px;font-weight:400;">closes ${escHtml(otherEvName)}</span></button>`;
+      } else {
+        actionBtn = `<button style="padding:5px 10px;font-size:11px;border-radius:6px;border:0.5px solid var(--teal);background:transparent;color:var(--teal-d);cursor:pointer;font-weight:500;font-family:inherit;" type="button" onclick="_ageAddGroup(${g.id})">Move here</button>`;
+      }
+    } else {
+      statusLine = '<span style="font-size:11px;color:var(--text3);">Not placed</span>';
+      actionBtn = `<button style="padding:5px 10px;font-size:11px;border-radius:6px;border:none;background:var(--teal);color:white;cursor:pointer;font-weight:500;font-family:inherit;" type="button" onclick="_ageAddGroup(${g.id})">Add</button>`;
+    }
+
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:0.5px solid var(--border);">
+      <div style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0;"></div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:14px;font-weight:500;">${escHtml(g.name)}</div>
+        <div style="font-size:11px;color:var(--text2);">${gt.totalHead} head \u00b7 avg ${gt.avgWeight} lbs</div>
+        ${statusLine}
+      </div>
+      ${actionBtn}
+    </div>`;
+  }).join('');
+
+  document.getElementById('age-content').innerHTML = `
+    <div style="display:flex;justify-content:space-between;margin-bottom:14px;">
+      <div style="font-size:15px;font-weight:600;">Add group to ${escHtml(targetName)}</div>
+      <button style="font-size:12px;color:var(--text2);background:none;border:none;cursor:pointer;font-family:inherit;" type="button" onclick="closeAddGroupToEventSheet()">Cancel</button>
+    </div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Select a group to add. Groups at other locations will be moved.</div>
+    ${rows || '<div style="font-size:13px;color:var(--text2);padding:16px 0;">No animal groups defined</div>'}`;
+  document.getElementById('add-grp-ev-wrap').classList.add('open');
+}
+
+function closeAddGroupToEventSheet(){
+  document.getElementById('add-grp-ev-wrap').classList.remove('open');
+  _ageTargetEvId = null;
+}
+
+function _ageAddGroup(groupId){
+  const targetEv = S.events.find(e=>String(e.id)===String(_ageTargetEvId));
+  if(!targetEv) return;
+  const grp = getGroupById(groupId);
+  if(!grp) return;
+  const today = todayStr();
+
+  // 1. Remove from source event if in one
+  const sourceEv = S.events.find(e=>e.status==='open' && String(e.id)!==String(_ageTargetEvId) && evGroups(e).some(eg=>eg.groupId===groupId && !eg.dateRemoved));
+  if(sourceEv){
+    const sourceGrps = evGroups(sourceEv).filter(g=>!g.dateRemoved);
+    const isLast = sourceGrps.length <= 1;
+    // Mark group as removed from source
+    const gEntry = evGroups(sourceEv).find(g=>g.groupId===groupId && !g.dateRemoved);
+    if(gEntry){ gEntry.dateRemoved = today; gEntry.timeRemoved = null; }
+    if(isLast){
+      // Close source event
+      sourceEv.status = 'closed';
+      sourceEv.dateOut = today;
+    }
+    sourceEv.updatedAt = new Date().toISOString();
+    queueEventWrite(sourceEv);
+  }
+
+  // 2. Add to target event
+  if(!targetEv.groups) targetEv.groups = [];
+  // Check not already there
+  const existing = evGroups(targetEv).find(g=>g.groupId===groupId && !g.dateRemoved);
+  if(!existing){
+    targetEv.groups.push({
+      id: Date.now(),
+      groupId: groupId,
+      groupName: grp.name,
+      dateAdded: today,
+      timeAdded: null
+    });
+  }
+  targetEv.updatedAt = new Date().toISOString();
+  queueEventWrite(targetEv);
+
+  save();
+  closeAddGroupToEventSheet();
   renderHome();
 }
 
@@ -21298,6 +21444,15 @@ function _fcSave(){
   <div class="sheet" style="padding:16px 16px 24px;">
     <div class="sheet-handle"></div>
     <div id="fc-content"></div>
+  </div>
+</div>
+
+<!-- ── ADD GROUP TO EVENT SHEET (group picker) ───────────────────────────────── -->
+<div class="sheet-wrap" id="add-grp-ev-wrap" style="z-index:210;">
+  <div class="sheet-backdrop" onclick="closeAddGroupToEventSheet()"></div>
+  <div class="sheet" style="padding:16px 16px 24px;">
+    <div class="sheet-handle"></div>
+    <div id="age-content"></div>
   </div>
 </div>
 
