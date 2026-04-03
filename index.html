@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260403.1025" id="app-version-meta"/>
+<meta name="app-version" content="b20260403.1052" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -15341,10 +15341,10 @@ function renderEeActivePaddocks(){
   const activeSms=isOpen?(ev?.subMoves||[]).filter(sm=>!sm.durationHours&&!sm.dateOut):[];
   let h='';
 
-  // Filter out paddock windows that have a matching active sub-move
-  // (sub-move card is the user-facing representation; paddock window is for NPK only)
-  const activeSMNames = new Set(activeSms.map(sm=>sm.locationName));
-  const filteredActive = active.filter((p,i)=>i===0 || !activeSMNames.has(p.pastureName));
+  // Filter out paddock windows that have ANY sub-move record (active or closed)
+  // Sub-move cards are the user-facing representation; paddock window is for NPK only
+  const allSMNames = new Set((ev?.subMoves||[]).map(sm=>sm.locationName));
+  const filteredActive = active.filter((p,i)=>i===0 || !allSMNames.has(p.pastureName));
 
   filteredActive.forEach(p=>{
     const i=eePaddocks.indexOf(p);
@@ -15546,14 +15546,24 @@ function openEeFeedEntry(){
   document.getElementById('ee-feed-form').style.display='block';
 }
 function closeEeFeedEntry(){
-  // If editing was in progress and cancelled, we need to restore the entry
-  if(eeEditingEntryId){
+  // If editing was in progress and cancelled, restore the entry + inventory
+  if(eeEditingEntryId && _eeEditingEntryBackup){
     const evId=parseInt(document.getElementById('ee-id').value);
     const ev=S.events.find(e=>e.id===evId);
-    // Entry was already restored to inventory in editEeFeedEntry, nothing else to do
-    eeEditingEntryId=null;
-    if(ev){renderEeFeedList(ev);updateEventEditPreview(ev);}
+    if(ev){
+      // Restore the entry to feedEntries (it was spliced during edit)
+      if(!ev.feedEntries) ev.feedEntries=[];
+      ev.feedEntries.push(_eeEditingEntryBackup);
+      // Re-decrement inventory (was restored in editEeFeedEntry)
+      _eeEditingEntryBackup.lines.forEach(l=>{
+        const b=S.batches.find(x=>x.id===l.batchId);
+        if(b&&l.qty>0) b.remaining=Math.max(0,+(b.remaining-l.qty).toFixed(2));
+      });
+      renderEeFeedList(ev);updateEventEditPreview(ev);
+    }
   }
+  eeEditingEntryId=null;
+  _eeEditingEntryBackup=null;
   document.getElementById('ee-feed-form').style.display='none';
   eeFeedLines=[];
 }
@@ -15605,6 +15615,7 @@ function saveEeFeedEntry(){
   if(date<ev.dateIn){alert('Feed date is before event start date ('+ev.dateIn+')');return;}
   const entry={id:eeEditingEntryId?parseInt(eeEditingEntryId):Date.now(),date,lines:eeFeedLines.filter(l=>l.qty>0).map(l=>({...l}))};
   eeEditingEntryId=null;
+  _eeEditingEntryBackup=null;
   if(!ev.feedEntries)ev.feedEntries=[];
   ev.feedEntries.push(entry);
   // Decrement inventory
@@ -15651,6 +15662,7 @@ function deleteEeFeedEntry(entryId){
 }
 
 let eeEditingEntryId=null;
+let _eeEditingEntryBackup=null; // backup of entry spliced during edit — restored on cancel or main save
 
 function editEeFeedEntry(entryId){
   const evId=parseInt(document.getElementById('ee-id').value);
@@ -15675,7 +15687,8 @@ function editEeFeedEntry(entryId){
   eeFeedLines=entry.lines.map(l=>({...l}));
   renderEeFeedBatches();
   document.getElementById('ee-feed-form').style.display='block';
-  // Temporarily remove entry so it doesn't show as duplicate
+  // Temporarily remove entry so it doesn't show as duplicate — store backup for restore
+  _eeEditingEntryBackup = JSON.parse(JSON.stringify(entry)); // deep copy
   const mainIdx=(ev.feedEntries||[]).findIndex(e=>String(e.id)===String(entryId));
   if(mainIdx>=0)ev.feedEntries.splice(mainIdx,1);
   else{
@@ -15809,6 +15822,17 @@ function openSubMoveSheetFromEdit(smId){
 function saveEventEdit(){
   const id=parseInt(document.getElementById('ee-id').value);
   const ev=S.events.find(e=>e.id===id);if(!ev)return;
+  // If a feed entry was being edited (spliced out), restore it before saving
+  if(eeEditingEntryId && _eeEditingEntryBackup){
+    if(!ev.feedEntries) ev.feedEntries=[];
+    ev.feedEntries.push(_eeEditingEntryBackup);
+    // Re-decrement inventory
+    _eeEditingEntryBackup.lines.forEach(l=>{
+      const b=S.batches.find(x=>x.id===l.batchId);
+      if(b&&l.qty>0) b.remaining=Math.max(0,+(b.remaining-l.qty).toFixed(2));
+    });
+    eeEditingEntryId=null; _eeEditingEntryBackup=null;
+  }
   const dateIn=document.getElementById('ee-date-in').value;
   const dateOut=document.getElementById('ee-date-out').value;
   const head=parseFloat(document.getElementById('ee-head').value)||ev.head;
