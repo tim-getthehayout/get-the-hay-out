@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260403.0050`
+**Current build:** `b20260403.0058`
 **Last updated:** 2026-04-03
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -1230,6 +1230,14 @@ When the move wizard closes an event (last group leaving) and stored feed is pre
 **FINAL FEED CHECK** — same per-feed-type stepper+slider cards as standalone feed check, rendered inline via `_mwRenderInlineFeedCheck()`. Reuses `_fcTypeData[]` and all `_fc*` interaction handlers (wizard and standalone never open simultaneously).
 
 **FEED DISPOSITION** — per-feed-type prompt: "X units remaining — move feed?" with two buttons: "Record as residual" (default) or "Move to destination". State: `_mwFeedDisposition{}` (feedTypeId → 'residual'|'move'). On save: close-reading feed check saved to source event; for each type with disposition 'move', a new feedEntry is created on the destination event with the remaining quantity. **NPK note:** feed transfer is inventory movement only — no NPK deposit. The existing livestock excretion path handles NPK.
+
+### DMI interpolation — getDailyStoredDMI (b20260403.0054)
+
+`getDailyStoredDMI(ev, dateStr)` replaces the flat event-average approach for the 3-day DMI bar chart. It builds a chronological timeline of data points: first delivery date at 100%, plus each `feedResidualCheck` with its remaining percentage. Between two consecutive points, daily consumption is linearly distributed. After the last check, the most recent rate is carried forward. If no checks exist, total DM is spread evenly across event days.
+
+Returns `{storedDMI: number, hasCheck: boolean}` — the stored DMI consumed that day (lbs DM) and whether an actual feed check was recorded on that date.
+
+`_renderDMIBars()` calls `getDailyStoredDMI()` for each of the 3 bar days, producing per-day grazing/stored splits. Bars scale relative to each other (`maxTotal` normalization) so consumption changes are visually apparent. The `isMixed` flag and `todayDMI` now reflect actual per-day values rather than event averages.
 
 ---
 

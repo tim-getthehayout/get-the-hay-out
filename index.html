@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260403.0050" id="app-version-meta"/>
+<meta name="app-version" content="b20260403.0058" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -4864,45 +4864,109 @@ function renderLocationCard(ev, opts){
 }
 
 // ── Stacked DMI bar chart (3-day) ─────────────────────────────────────────────
+// ── getDailyStoredDMI: interpolate stored feed DMI for a specific date ─────────
+// Returns {storedDMI: number, hasCheck: boolean} for the given date.
+// Between two feed checks, consumption is allocated equally across days.
+// Before first check: spread from first delivery. After last check: carry forward rate.
+function getDailyStoredDMI(ev, dateStr){
+  const entries = allFeedEntries(ev);
+  if(!entries.length) return {storedDMI:0, hasCheck:false};
+
+  // Total DM lbs delivered
+  let totalDMLbs = 0;
+  entries.forEach(e=>(e.lines||[]).forEach(l=>{
+    const b=S.batches.find(x=>x.id===l.batchId);
+    if(b){ const af=b.wt?l.qty*b.wt:l.qty; totalDMLbs+=af*(b.dm/100); }
+  }));
+  if(totalDMLbs<=0) return {storedDMI:0, hasCheck:false};
+
+  // Build sorted timeline: [{date, pct}]
+  // Start: first delivery date at 100%
+  const deliveryDates = entries.map(e=>e.date).filter(Boolean).sort();
+  const startDate = deliveryDates[0] || ev.dateIn;
+
+  const checks = (ev.feedResidualChecks||[])
+    .filter(c=>c.date && !c.isCloseReading)
+    .map(c=>({date:c.date, pct: c.balesRemainingPct ?? c.residualPct ?? 100}))
+    .sort((a,b)=>a.date.localeCompare(b.date));
+
+  // Full timeline: start point + all checks
+  const timeline = [{date:startDate, pct:100}, ...checks];
+
+  // Check if target date has an actual check
+  const hasCheck = checks.some(c=>c.date===dateStr);
+
+  // If target is before start: no stored feed yet
+  if(dateStr < startDate) return {storedDMI:0, hasCheck:false};
+
+  // Find which segment the target date falls in
+  let segStart = timeline[0];
+  let segEnd = null;
+  let lastRate = 0; // daily DM lbs consumed (for carry-forward after last check)
+
+  for(let i=1; i<timeline.length; i++){
+    segEnd = timeline[i];
+    const segDays = Math.max(1, daysBetween(segStart.date, segEnd.date));
+    const pctConsumed = segStart.pct - segEnd.pct;
+    const dailyDMLbs = (pctConsumed / 100 * totalDMLbs) / segDays;
+    lastRate = dailyDMLbs;
+
+    if(dateStr <= segEnd.date){
+      // Target is in this segment
+      return {storedDMI: Math.max(0, dailyDMLbs), hasCheck};
+    }
+    segStart = segEnd;
+  }
+
+  // Target is after the last checkpoint — carry forward last known rate
+  // If no checks exist, spread total evenly across event duration
+  if(!checks.length){
+    const eventDays = Math.max(1, daysBetween(ev.dateIn, todayStr()));
+    return {storedDMI: totalDMLbs / eventDays, hasCheck:false};
+  }
+
+  return {storedDMI: Math.max(0, lastRate), hasCheck};
+}
+
 function _renderDMIBars(ev, totalDMITarget, entries, days, compact){
   if(totalDMITarget <= 0) return '';
   const isCon = ev.locationType==='confinement';
   const isNoP = ev.noPasture;
-  const storedDMI = calcConsumedDMI(entries, getEffectiveFeedResidual(ev));
-  const avgStoredPerDay = days > 0 ? storedDMI / days : 0;
-  const grazingPerDay = (isCon||isNoP) ? 0 : Math.max(0, totalDMITarget - avgStoredPerDay);
-  const totalPerDay = avgStoredPerDay + grazingPerDay;
-  const isMixed = grazingPerDay > 0 && avgStoredPerDay > 0;
   const hasStoredFeed = entries.length > 0;
 
-  // Feed check days
-  const checkDates = new Set((ev.feedResidualChecks||[]).map(c=>c.date));
+  // Build per-day data using interpolation
   const today = new Date(); today.setHours(12,0,0,0);
   const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const barDays = [];
+  let anyMixed = false;
   for(let i=2;i>=0;i--){
     const d = new Date(today); d.setDate(d.getDate()-i);
     const ds = d.toISOString().slice(0,10);
-    const hasCheck = checkDates.has(ds);
-    const label = dayNames[d.getDay()] + (hasCheck ? ' \u2713' : (i<2 ? ' (est.)' : ''));
-    barDays.push({ ds, label, hasCheck });
+    const dmi = hasStoredFeed ? getDailyStoredDMI(ev, ds) : {storedDMI:0, hasCheck:false};
+    const storedForDay = dmi.storedDMI;
+    const grazingForDay = (isCon||isNoP) ? 0 : Math.max(0, totalDMITarget - storedForDay);
+    const totalForDay = storedForDay + grazingForDay;
+    const label = dayNames[d.getDay()] + (dmi.hasCheck ? ' \u2713' : (hasStoredFeed && i<2 ? ' (est.)' : ''));
+    if(grazingForDay > 0 && storedForDay > 0) anyMixed = true;
+    barDays.push({ ds, label, hasCheck:dmi.hasCheck, stored:storedForDay, grazing:grazingForDay, total:totalForDay });
   }
 
+  const todayData = barDays[barDays.length-1];
   const maxH = compact ? 36 : 50;
-  const grazePct = totalPerDay > 0 ? grazingPerDay / totalPerDay : 0;
-  const storedPct = totalPerDay > 0 ? avgStoredPerDay / totalPerDay : 0;
+  // Find max total for scaling bars relative to each other
+  const maxTotal = Math.max(...barDays.map(bd=>bd.total), 1);
 
   const bars = barDays.map((bd,idx)=>{
-    const h = maxH - 2 + (idx===1?-2:idx===2?-1:0);
-    const dmiVal = Math.round(totalPerDay);
+    const h = Math.max(8, Math.round((bd.total / maxTotal) * maxH));
+    const dmiVal = Math.round(bd.total);
     const topLabel = compact ? '' : `<div style="font-size:9px;color:var(--text3);">${dmiVal.toLocaleString()}</div>`;
+    const gPct = bd.total > 0 ? Math.max(1, Math.round(bd.grazing / bd.total * 100)) : 0;
+    const sPct = bd.total > 0 ? Math.max(1, Math.round(bd.stored / bd.total * 100)) : 0;
     let barContent;
     if(isCon||isNoP){
       const dashed = !bd.hasCheck ? '<div style="position:absolute;top:0;left:0;right:0;border-top:1.5px dashed rgba(255,255,255,0.6);"></div>' : '';
       barContent = `<div style="width:100%;background:var(--amber);border-radius:2px 2px 0 0;height:${h}px;position:relative;">${dashed}</div>`;
-    } else if(avgStoredPerDay > 0){
-      const gPct = Math.max(1,Math.round(grazePct*100));
-      const sPct = Math.max(1,Math.round(storedPct*100));
+    } else if(bd.stored > 0){
       const dashed = !bd.hasCheck ? '<div style="position:absolute;top:0;left:0;right:0;border-top:1.5px dashed rgba(255,255,255,0.6);"></div>' : '';
       barContent = `<div style="width:100%;display:flex;flex-direction:column;height:${h}px;">
         <div style="flex:${gPct};background:var(--green);border-radius:2px 2px 0 0;opacity:0.7;"></div>
@@ -4916,7 +4980,8 @@ function _renderDMIBars(ev, totalDMITarget, entries, days, compact){
 
   const dayLabels = compact ? '' : `<div style="display:flex;justify-content:space-around;font-size:9px;color:var(--text3);margin-top:3px;">${barDays.map(bd=>`<span>${bd.label}</span>`).join('')}</div>`;
 
-  const todayDMI = Math.round(totalPerDay);
+  const todayDMI = Math.round(todayData.total);
+  const isMixed = anyMixed;
   const dmiColor = (isCon||isNoP) ? 'var(--amber)' : 'var(--text)';
   const ftLabel = entries.length ? (()=>{ const ll=entries[entries.length-1]?.lines?.[0]; const b=ll?S.batches.find(x=>x.id===ll.batchId):null; const ft=b?(S.feedTypes||[]).find(f=>f.id===b.feedTypeId):null; return ft?ft.name:''; })() : '';
   const legend = isMixed ? `<div style="display:flex;gap:6px;justify-content:flex-end;margin-top:6px;">
