@@ -3,6 +3,7 @@
 
 | Build | File | Change |
 |---|---|---|
+| b20260403.1138 | HTML | Cleanup: Removed `addEventListener('click', _cspSave)` fallback from `openCloseSubPaddockSheet`. With `bumpSetupUpdatedAt` defined and try/catch in place, the fallback caused `_cspSave` to fire twice per click (both onclick and addEventListener fire on the same event). Retained: z-index:210, type="button", try/catch — all safe. |
 | b20260403.1118 | HTML | Bug fix: K-5 paddock chips section — `renderEePaddockChips()` now filters non-anchor paddock windows that have any sub-move record. |
 | b20260403.1118 | HTML | Bug fix: Sub-move history ordering — open first, then closed chronologically ascending. |
 | b20260403.1118 | HTML | Bug fix: Head/weight fields in event edit now read-only and derived from active groups via `getGroupTotals()`. |

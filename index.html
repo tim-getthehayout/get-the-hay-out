@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260403.1138" id="app-version-meta"/>
+<meta name="app-version" content="b20260403.1141" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -20449,13 +20449,8 @@ function openCloseSubPaddockSheet(evId, smId){
     <div style="border-radius:12px;padding:10px 12px;margin-bottom:14px;background:var(--teal-l);border:0.5px solid var(--teal);">
       <div style="font-size:12px;color:var(--teal-d);">Animals return to <strong>${escHtml(anchorName)}</strong> anchor paddock \u00b7 ${dayCount} days on ${escHtml(sm.locationName)}</div>
     </div>
-    <button style="width:100%;padding:12px;font-size:14px;font-weight:600;border-radius:8px;border:none;background:var(--teal);color:white;cursor:pointer;font-family:inherit;" type="button" data-action="csp-save" onclick="_cspSave()">Close sub-paddock</button>`;
+    <button style="width:100%;padding:12px;font-size:14px;font-weight:600;border-radius:8px;border:none;background:var(--teal);color:white;cursor:pointer;font-family:inherit;" type="button" onclick="_cspSave()">Close sub-paddock</button>`;
   document.getElementById('close-sub-paddock-wrap').classList.add('open');
-  // Belt-and-suspenders: attach click listener directly (iOS innerHTML onclick can fail)
-  setTimeout(()=>{
-    const saveBtn = document.querySelector('#csp-content button[data-action="csp-save"]');
-    if(saveBtn) saveBtn.addEventListener('click', _cspSave, {once:true});
-  }, 50);
 }
 
 let _cspQuality = null;
