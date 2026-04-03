@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260403.1619" id="app-version-meta"/>
+<meta name="app-version" content="b20260403.1646" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -13461,7 +13461,7 @@ function renderSmExistingList(ev){
     const closeBtn = isActive
       ? `<button class="btn btn-teal btn-xs" onclick="event.stopPropagation();openCloseSubPaddockSheet(parseInt(document.getElementById('sm-event-id').value),'${sm.id}')">Record return</button>`
       : '';
-    const editBtn = `<button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openSmEditForm('${sm.id}')" title="Edit sub-move">Edit</button>`;
+    const editBtn = `<button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openEditSubMoveSheet(parseInt(document.getElementById('sm-event-id').value),'${sm.id}')">Edit</button>`;
     const delBtn = `<button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;padding:0 2px;" onclick="event.stopPropagation();deleteSubMove(${ev.id},'${sm.id}')" title="Remove sub-move">×</button>`;
     return `<div style="padding:6px 0;border-bottom:0.5px solid var(--border);">
       <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -15869,7 +15869,7 @@ function renderEeSubMoves(ev){
       ? `<button class="btn btn-outline btn-xs" style="color:var(--teal-d);border-color:var(--teal-d);white-space:nowrap;"
            onclick="event.stopPropagation();openCloseSubPaddockSheet(${evId},'${sm.id}')">Close</button>`
       : '';
-    const editBtnHtml = `<button class="btn btn-outline btn-xs" onclick="openSubMoveSheetFromEdit('${sm.id}')">Edit</button>`;
+    const editBtnHtml = `<button class="btn btn-outline btn-xs" onclick="openEditSubMoveSheet(${evId},'${sm.id}')">Edit</button>`;
     return `<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:8px 0;border-bottom:0.5px solid var(--border);gap:8px;${isActive?'':'opacity:0.75;'}">
       <div style="min-width:0;flex:1;">
         <div style="font-size:13px;font-weight:600;display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
@@ -19835,7 +19835,9 @@ let _mwDestPaddockId = null;
 let _mwDestEventId = null;
 let _mwCloseOutData = {}; // pasture close-out survey fields
 let _mwFeedDisposition = {}; // feedTypeId → 'residual' | 'move'
-let _mwSubMoveMode = false; // true when wizard is creating a sub-move, not a full move
+let _mwSubMoveMode = false;
+let _mwSubMovePreDate = null; // pre-fill date from prior close
+let _mwSubMovePreTime = null; // pre-fill time from prior close // true when wizard is creating a sub-move, not a full move
 
 function openMoveWizSheet(evId, groupId, moveAll){
   _mwSourceEvId = evId;
@@ -20324,8 +20326,8 @@ function _mwRenderSubMoveConfirm(){
   if(!srcEv || !dp) return '<div>Error: source or destination not found</div>';
   const srcName = evDisplayName(srcEv);
   const destIcon = dp.locationType==='confinement' ? '\u{1F3DA}' : '\u{1F33F}';
-  const todayD = todayStr();
-  const nowTime = new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+  const todayD = _mwSubMovePreDate || todayStr();
+  const nowTime = _mwSubMovePreTime || new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
 
   return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
     <button style="border:none;background:transparent;font-size:18px;cursor:pointer;color:var(--text2);padding:0 4px;" onclick="_mwBack()">\u2190</button>
@@ -20404,6 +20406,8 @@ function _mwSaveSubMove(){
   srcEv.updatedAt = new Date().toISOString();
   queueEventWrite(srcEv);
   save();
+  _mwSubMovePreDate = null;
+  _mwSubMovePreTime = null;
   closeMoveWizSheet();
   renderHome();
 }
@@ -20728,14 +20732,10 @@ function _cspOfferNewSubPaddock(evId, closeDate, closeTime){
 
 function _cspOpenNewSub(evId, closeDate, closeTime){
   closeCloseSubPaddockSheet();
-  // Open sub-move sheet with pre-populated date from prior close
-  openSubMoveSheet(evId);
-  setTimeout(()=>{
-    const dateEl = document.getElementById('sm-date');
-    const timeEl = document.getElementById('sm-time');
-    if(dateEl && closeDate) dateEl.value = closeDate;
-    if(timeEl && closeTime) timeEl.value = closeTime;
-  }, 80);
+  // Open sub-move wizard (paddock picker) with pre-populated date from prior close
+  _mwSubMovePreDate = closeDate || null;
+  _mwSubMovePreTime = closeTime || null;
+  openSubMoveWiz(evId);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -21078,6 +21078,137 @@ function _ageAddGroup(groupId){
   save();
   closeAddGroupToEventSheet();
   renderHome();
+}
+
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── EDIT SUB-MOVE SHEET ─────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+let _esmEvId = null;
+let _esmSmId = null;
+
+function openEditSubMoveSheet(evId, smId){
+  _esmEvId = evId;
+  _esmSmId = smId;
+  const ev = S.events.find(e=>String(e.id)===String(evId));
+  if(!ev) return;
+  const sm = (ev.subMoves||[]).find(s=>String(s.id)===String(smId));
+  if(!sm) return;
+  const loc = (S.pastures||[]).find(p=>p.name===sm.locationName);
+  const isCon = loc?.locationType==='confinement';
+  const isNoPasture = sm.noPasture || isCon;
+  const showGrazing = !isNoPasture;
+  const anchorName = evDisplayName(ev);
+  const acresTxt = loc?.acres ? loc.acres+' ac' : '';
+
+  const grazingSection = showGrazing ? `
+    <div style="border:0.5px solid var(--border2);border-radius:10px;padding:10px 12px;margin-bottom:14px;">
+      <div style="font-size:11px;font-weight:500;color:var(--text2);letter-spacing:0.03em;margin-bottom:8px;">PASTURE SURVEY</div>
+      <div style="display:flex;gap:10px;margin-bottom:8px;">
+        <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px;">Height in (in)</label><input type="number" id="esm-height-in" value="${sm.heightIn||''}" placeholder="e.g. 7" style="width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+        <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px;">Height out (in)</label><input type="number" id="esm-height-out" value="${sm.heightOut||''}" placeholder="e.g. 3.5" style="width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px;">Recovery min (days)</label><input type="number" id="esm-rec-min" value="${sm.recoveryMinDays||loc?.recoveryMin||''}" style="width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+        <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px;">Recovery max (days)</label><input type="number" id="esm-rec-max" value="${sm.recoveryMaxDays||loc?.recoveryMax||''}" style="width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+      </div>
+    </div>` : '';
+
+  document.getElementById('esm-content').innerHTML = `
+    <div style="display:flex;justify-content:space-between;margin-bottom:14px;">
+      <div style="font-size:15px;font-weight:600;">Edit sub-move</div>
+      <button style="font-size:12px;color:var(--text2);background:none;border:none;cursor:pointer;font-family:inherit;" type="button" onclick="closeEditSubMoveSheet()">Cancel</button>
+    </div>
+    <div class="card" style="padding:10px 12px;margin-bottom:14px;display:flex;align-items:center;gap:8px;">
+      <div style="width:8px;height:8px;border-radius:50%;background:${isNoPasture?'var(--amber)':'var(--green)'};flex-shrink:0;"></div>
+      <div>
+        <div style="font-size:13px;font-weight:500;">${escHtml(sm.locationName)}</div>
+        <div style="font-size:11px;color:var(--text2);">${acresTxt?acresTxt+' \u00b7 ':''}sub-move of ${escHtml(anchorName)}</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:10px;">
+      <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px;">Date in</label><input type="date" id="esm-date-in" value="${sm.date||''}" style="width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+      <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px;">Time in</label><input type="time" id="esm-time-in" value="${sm.time||''}" style="width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:10px;">
+      <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px;">Date out</label><input type="date" id="esm-date-out" value="${sm.dateOut||''}" style="width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+      <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px;">Time out</label><input type="time" id="esm-time-out" value="${sm.timeOut||''}" style="width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+    </div>
+    ${grazingSection}
+    <div style="margin-bottom:14px;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px;">Notes</label><input type="text" id="esm-notes" value="${escHtml(sm.notes||'')}" placeholder="optional" style="width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+    <div style="display:flex;gap:8px;">
+      <button style="flex:2;padding:12px;font-size:14px;font-weight:600;border-radius:8px;border:none;background:var(--teal);color:white;cursor:pointer;font-family:inherit;" type="button" onclick="saveEditSubMove()">Save changes</button>
+      <button style="flex:1;padding:12px;font-size:14px;font-weight:500;border-radius:8px;border:0.5px solid var(--border2);background:var(--bg);color:var(--text2);cursor:pointer;font-family:inherit;" type="button" onclick="closeEditSubMoveSheet()">Cancel</button>
+    </div>`;
+  document.getElementById('edit-sm-wrap').classList.add('open');
+}
+
+function closeEditSubMoveSheet(){
+  document.getElementById('edit-sm-wrap').classList.remove('open');
+  _esmEvId = null;
+  _esmSmId = null;
+}
+
+function saveEditSubMove(){
+  const ev = S.events.find(e=>String(e.id)===String(_esmEvId));
+  if(!ev){ closeEditSubMoveSheet(); return; }
+  const sm = (ev.subMoves||[]).find(s=>String(s.id)===String(_esmSmId));
+  if(!sm){ closeEditSubMoveSheet(); return; }
+
+  // Read form values
+  const dateIn = document.getElementById('esm-date-in')?.value || sm.date;
+  const timeIn = document.getElementById('esm-time-in')?.value || '';
+  const dateOut = document.getElementById('esm-date-out')?.value || '';
+  const timeOut = document.getElementById('esm-time-out')?.value || '';
+  const notes = document.getElementById('esm-notes')?.value?.trim() || '';
+  const heightIn = document.getElementById('esm-height-in')?.value;
+  const heightOut = document.getElementById('esm-height-out')?.value;
+  const recMin = document.getElementById('esm-rec-min')?.value;
+  const recMax = document.getElementById('esm-rec-max')?.value;
+
+  // Update sub-move record
+  sm.date = dateIn;
+  sm.time = timeIn || null;
+  sm.dateOut = dateOut || null;
+  sm.timeOut = timeOut || null;
+
+  // Auto-calculate duration from dates
+  if(dateIn && dateOut){
+    const dIn = new Date(dateIn+'T'+(timeIn||'12:00'));
+    const dOut = new Date(dateOut+'T'+(timeOut||'12:00'));
+    sm.durationHours = Math.max(0, Math.round((dOut - dIn) / 3600000 * 10) / 10);
+  } else if(!dateOut){
+    sm.durationHours = 0; // still active
+  }
+
+  sm.notes = notes || null;
+  if(heightIn) sm.heightIn = parseFloat(heightIn);
+  else sm.heightIn = null;
+  if(heightOut) sm.heightOut = parseFloat(heightOut);
+  else sm.heightOut = null;
+  if(recMin) sm.recoveryMinDays = parseInt(recMin);
+  if(recMax) sm.recoveryMaxDays = parseInt(recMax);
+
+  // Update pasture recovery days
+  const loc = (S.pastures||[]).find(p=>p.name===sm.locationName);
+  if(loc){
+    if(recMin) loc.recoveryMin = parseInt(recMin);
+    if(recMax) loc.recoveryMax = parseInt(recMax);
+    bumpSetupUpdatedAt();
+  }
+
+  ev.updatedAt = new Date().toISOString();
+  queueEventWrite(ev);
+  save();
+  closeEditSubMoveSheet();
+  renderHome();
+  // If event edit is open, refresh it
+  const eeId = document.getElementById('ee-id')?.value;
+  if(eeId && parseInt(eeId) === ev.id){
+    renderEeSubMoves(ev);
+    renderEeActivePaddocks();
+  }
 }
 
 </script>
@@ -21749,6 +21880,15 @@ function _ageAddGroup(groupId){
   <div class="sheet" style="padding:16px 16px 24px;">
     <div class="sheet-handle"></div>
     <div id="age-content"></div>
+  </div>
+</div>
+
+<!-- ── EDIT SUB-MOVE SHEET ───────────────────────────────────────────────────── -->
+<div class="sheet-wrap" id="edit-sm-wrap" style="z-index:210;">
+  <div class="sheet-backdrop" onclick="closeEditSubMoveSheet()"></div>
+  <div class="sheet" style="padding:16px 16px 24px;">
+    <div class="sheet-handle"></div>
+    <div id="esm-content"></div>
   </div>
 </div>
 
