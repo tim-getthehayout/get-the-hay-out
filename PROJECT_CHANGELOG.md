@@ -3,6 +3,12 @@
 
 | Build | File | Change |
 |---|---|---|
+| b20260403.1200 | HTML | Feature: Event edit sub-move section overhauled — removed "Manage" button. Section header simplified to "Sub-moves". `renderEeSubMoves` rewritten: always shows section (even when empty), active sub-moves have "Close" button using `openCloseSubPaddockSheet`, all sub-moves have "Edit" button. Duration shows rounded hours. "+ Add sub-move" link at bottom opens sub-move sheet in add-only mode. |
+| b20260403.1200 | HTML | Feature: `openSubMoveSheet(eventId, addOnly)` — new `addOnly` parameter hides the existing sub-moves list (`#sm-existing-wrap`) when opening for creation only. Used by home card "+ Add sub-move" and event edit "+ Add sub-move". |
+| b20260403.1200 | HTML | Feature: `openAddSubMoveFromEdit()` — closes event edit, then opens sub-move sheet in add-only mode. Called from the "+ Add sub-move" link in the event edit sub-move section. |
+| b20260403.1153 | HTML | Feature: Feed check "consumed since last check" bar now updates live when user adjusts remaining units. `_fcUpdateUI()` recalculates consumed units and DMI and updates `#fc-consumed-{idx}` element. Previously the bar was static from initial render. |
+| b20260403.1153 | HTML | Feature: Feed check edit/add from event edit form now launches the full standalone feed check dialog (`openFeedCheckSheet`) instead of the old inline slider form. `_fcOnCloseCallback` fires on close to refresh the event edit's feed check list. Both "+ Add check" and "Edit" buttons rewired. |
+| b20260403.1153 | HTML | Feature: After closing a sub-paddock, dialog shows "Open a new sub-paddock?" prompt with Yes/No. If Yes, launches sub-move sheet with close date/time pre-populated as the new move-in date. If No, closes and returns. `_cspOfferNewSubPaddock()` renders the prompt; `_cspOpenNewSub()` opens sub-move sheet with pre-filled dates. |
 | b20260403.1138 | HTML | Cleanup: Removed `addEventListener('click', _cspSave)` fallback from `openCloseSubPaddockSheet`. With `bumpSetupUpdatedAt` defined and try/catch in place, the fallback caused `_cspSave` to fire twice per click (both onclick and addEventListener fire on the same event). Retained: z-index:210, type="button", try/catch — all safe. |
 | b20260403.1118 | HTML | Bug fix: K-5 paddock chips section — `renderEePaddockChips()` now filters non-anchor paddock windows that have any sub-move record. |
 | b20260403.1118 | HTML | Bug fix: Sub-move history ordering — open first, then closed chronologically ascending. |

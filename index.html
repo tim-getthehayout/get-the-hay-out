@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260403.1141" id="app-version-meta"/>
+<meta name="app-version" content="b20260403.1204" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -4792,7 +4792,7 @@ function renderLocationCard(ev, opts){
     subPaddocksHtml = `<div style="padding:8px 14px 0;margin-left:14px;">
       <div style="font-size:11px;font-weight:600;color:var(--text2);letter-spacing:0.03em;padding:8px 0 4px;border-top:0.5px solid var(--border);">SUB-PADDOCKS</div>
       ${smRows}
-      <button style="padding:4px 0;font-size:12px;border:none;background:transparent;color:var(--teal);cursor:pointer;font-weight:500;font-family:inherit;margin-top:2px;" onclick="event.stopPropagation();openSubMoveSheet(${ev.id})">+ Add sub-move</button>
+      <button style="padding:4px 0;font-size:12px;border:none;background:transparent;color:var(--teal);cursor:pointer;font-weight:500;font-family:inherit;margin-top:2px;" onclick="event.stopPropagation();openSubMoveSheet(${ev.id},true)">+ Add sub-move</button>
     </div>`;
   }
 
@@ -13100,7 +13100,7 @@ let smFeedShown = false;
 let smEditingId = null; // null = add mode; string = editing existing sub-move by id
 let smFromEventEdit = false; // true when sheet was opened via openSubMoveSheetFromEdit
 
-function openSubMoveSheet(eventId){
+function openSubMoveSheet(eventId, addOnly){
   const ev = S.events.find(e=>e.id===eventId);
   if(!ev){alert('Event not found');return;}
   document.getElementById('sm-event-id').value = eventId;
@@ -13159,8 +13159,12 @@ function openSubMoveSheet(eventId){
     '<option value="__new__">+ Add new location…</option>';
 
   renderSmBatches();
-  // Show existing sub-moves at top; reset close form
-  renderSmExistingList(ev);
+  // Show existing sub-moves at top (unless addOnly mode); reset close form
+  if(addOnly){
+    document.getElementById('sm-existing-wrap').style.display = 'none';
+  } else {
+    renderSmExistingList(ev);
+  }
   cancelSmClose();
   document.getElementById('sm-sheet-wrap').classList.add('open');
 }
@@ -15214,26 +15218,23 @@ function renderEeFeedChecks(ev){
 }
 
 function openEeFeedCheck(){
-  document.getElementById('ee-fck-date').value = todayStr();
-  document.getElementById('ee-fck-pct-slider').value = 50;
-  document.getElementById('ee-fck-pct').value = 50;
-  document.getElementById('ee-fck-notes').value = '';
-  document.getElementById('ee-fck-edit-id').value = '';
-  document.getElementById('ee-feed-check-form').style.display = 'block';
+  const evId=parseInt(document.getElementById('ee-id').value);
+  if(!evId) return;
+  _fcOnCloseCallback = ()=>{
+    const ev=S.events.find(e=>e.id===evId);
+    if(ev){ renderEeFeedChecks(ev); updateEventEditPreview(ev); }
+  };
+  openFeedCheckSheet(evId);
 }
 
 function editEeFeedCheck(ckId){
   const evId=parseInt(document.getElementById('ee-id').value);
-  const ev=S.events.find(e=>e.id===evId); if(!ev) return;
-  const ck=(ev.feedResidualChecks||[]).find(c=>String(c.id)===String(ckId));
-  if(!ck) return;
-  document.getElementById('ee-fck-date').value = ck.date||todayStr();
-  const pct = ck.balesRemainingPct!=null ? ck.balesRemainingPct : (ck.residualPct||50);
-  document.getElementById('ee-fck-pct-slider').value = pct;
-  document.getElementById('ee-fck-pct').value = pct;
-  document.getElementById('ee-fck-notes').value = ck.notes||'';
-  document.getElementById('ee-fck-edit-id').value = ckId;
-  document.getElementById('ee-feed-check-form').style.display = 'block';
+  if(!evId) return;
+  _fcOnCloseCallback = ()=>{
+    const ev=S.events.find(e=>e.id===evId);
+    if(ev){ renderEeFeedChecks(ev); updateEventEditPreview(ev); }
+  };
+  openFeedCheckSheet(evId);
 }
 
 function closeEeFeedCheck(){
@@ -15778,8 +15779,9 @@ function renderEeSubMoves(ev){
   const list = document.getElementById('ee-submoves-list');
   if(!wrap||!list) return;
   const sms = ev.subMoves||[];
-  if(!sms.length){ wrap.style.display='none'; return; }
+  // Always show section (for + Add sub-move link)
   wrap.style.display = 'block';
+  const evId = ev.id;
   // Sort: open first, then closed chronologically (oldest first)
   const sorted = [...sms].sort((a,b)=>{
     const aActive = !a.durationHours&&!a.dateOut;
@@ -15787,7 +15789,7 @@ function renderEeSubMoves(ev){
     if(aActive!==bActive) return aActive?-1:1;
     return (a.date||'').localeCompare(b.date||'');
   });
-  list.innerHTML = sorted.map(sm=>{
+  const rows = sorted.map(sm=>{
     const paddockClosed = (ev.paddocks||[]).some(p=>p.pastureName===sm.locationName && p.dateRemoved);
     const isActive = !sm.durationHours && !sm.dateOut && !paddockClosed;
     const loc = S.pastures.find(p=>p.name===sm.locationName);
@@ -15795,7 +15797,7 @@ function renderEeSubMoves(ev){
     const isNoPasture = sm.noPasture || isCon;
     const statusBadge = isActive
       ? `<span class="badge bt" style="font-size:10px;">active</span>`
-      : `<span class="badge bb" style="font-size:10px;">${sm.durationHours?sm.durationHours+'h':'returned'}</span>`;
+      : `<span class="badge bb" style="font-size:10px;">${sm.durationHours?Math.round(sm.durationHours)+'h':'returned'}</span>`;
     const typeBadge = isNoPasture
       ? `<span class="badge ba" style="font-size:10px;">stored feed</span>`
       : `<span class="badge bg" style="font-size:10px;">grazing</span>`;
@@ -15807,8 +15809,9 @@ function renderEeSubMoves(ev){
       ? ` · recovery ${sm.recoveryMinDays||'?'}–${sm.recoveryMaxDays||'?'}d` : '';
     const closeBtnHtml = ev.status==='open' && isActive
       ? `<button class="btn btn-outline btn-xs" style="color:var(--teal-d);border-color:var(--teal-d);white-space:nowrap;"
-           onclick="openSubMoveSheetFromEdit('${sm.id}')">Close paddock</button>`
+           onclick="event.stopPropagation();openCloseSubPaddockSheet(${evId},'${sm.id}')">Close</button>`
       : '';
+    const editBtnHtml = `<button class="btn btn-outline btn-xs" onclick="openSubMoveSheetFromEdit('${sm.id}')">Edit</button>`;
     return `<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:8px 0;border-bottom:0.5px solid var(--border);gap:8px;${isActive?'':'opacity:0.75;'}">
       <div style="min-width:0;flex:1;">
         <div style="font-size:13px;font-weight:600;display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
@@ -15818,10 +15821,22 @@ function renderEeSubMoves(ev){
       </div>
       <div style="display:flex;gap:5px;flex-shrink:0;align-items:center;">
         ${closeBtnHtml}
-        <button class="btn btn-outline btn-xs" onclick="openSubMoveSheetFromEdit('${sm.id}')">Edit</button>
+        ${editBtnHtml}
       </div>
     </div>`;
   }).join('');
+  // + Add sub-move link (only for open events)
+  const addLink = ev.status==='open'
+    ? `<button style="padding:4px 0;font-size:12px;border:none;background:transparent;color:var(--teal);cursor:pointer;font-weight:500;font-family:inherit;margin-top:6px;" onclick="openAddSubMoveFromEdit()">+ Add sub-move</button>`
+    : '';
+  list.innerHTML = rows + addLink;
+}
+
+function openAddSubMoveFromEdit(){
+  const evId = parseInt(document.getElementById('ee-id').value);
+  if(!evId) return;
+  closeEventEdit();
+  openSubMoveSheet(evId, true);
 }
 
 // Bridge: open sub-move sheet from within Event Edit, optionally pre-loading a specific sub-move for editing
@@ -20505,14 +20520,58 @@ function _cspSave(){
   queueEventWrite(ev);
   save();
   }catch(err){ console.error('_cspSave error:', err); }
+  const _cspClosedEvId = _cspEvId;
+  const _cspCloseDate = document.getElementById('csp-date')?.value || todayStr();
+  const _cspCloseTime = document.getElementById('csp-time')?.value || '';
   closeCloseSubPaddockSheet();
   renderHome();
+  // Offer to open a new sub-paddock
+  setTimeout(()=>{
+    _cspOfferNewSubPaddock(_cspClosedEvId, _cspCloseDate, _cspCloseTime);
+  }, 200);
+}
+
+function _cspOfferNewSubPaddock(evId, closeDate, closeTime){
+  const ev = S.events.find(e=>String(e.id)===String(evId));
+  if(!ev || ev.status!=='open') return;
+  const el = document.getElementById('csp-content');
+  const wrap = document.getElementById('close-sub-paddock-wrap');
+  if(!el || !wrap) return;
+  el.innerHTML = `
+    <div style="text-align:center;padding:20px 0;">
+      <div style="font-size:32px;margin-bottom:8px;">✓</div>
+      <div style="font-size:15px;font-weight:600;margin-bottom:6px;">Sub-paddock closed</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:20px;">
+        ${closeDate ? dLabel(closeDate) : 'Today'}${closeTime ? ' at '+closeTime : ''}
+      </div>
+      <div style="font-size:14px;font-weight:500;margin-bottom:16px;">Open a new sub-paddock?</div>
+      <div style="display:flex;gap:10px;justify-content:center;">
+        <button style="flex:1;max-width:140px;padding:12px;font-size:14px;font-weight:600;border-radius:8px;border:none;background:var(--teal);color:white;cursor:pointer;font-family:inherit;" type="button"
+          onclick="_cspOpenNewSub(${evId},'${closeDate}','${closeTime}')">Yes</button>
+        <button style="flex:1;max-width:140px;padding:12px;font-size:14px;font-weight:600;border-radius:8px;border:0.5px solid var(--border2);background:var(--bg);color:var(--text2);cursor:pointer;font-family:inherit;" type="button"
+          onclick="closeCloseSubPaddockSheet()">No thanks</button>
+      </div>
+    </div>`;
+  wrap.classList.add('open');
+}
+
+function _cspOpenNewSub(evId, closeDate, closeTime){
+  closeCloseSubPaddockSheet();
+  // Open sub-move sheet with pre-populated date from prior close
+  openSubMoveSheet(evId);
+  setTimeout(()=>{
+    const dateEl = document.getElementById('sm-date');
+    const timeEl = document.getElementById('sm-time');
+    if(dateEl && closeDate) dateEl.value = closeDate;
+    if(timeEl && closeTime) timeEl.value = closeTime;
+  }, 80);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ── FEED CHECK SHEET — dual input per feed type (OI-0159) ────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
 let _fcEvId = null;
+let _fcOnCloseCallback = null;
 let _fcTypeData = []; // [{feedTypeId, feedTypeName, unit, startedUnits, lastCheckUnits, lastCheckDate, lbsPerUnit, dmPct, remaining}]
 
 function openFeedCheckSheet(evId){
@@ -20580,6 +20639,7 @@ function closeFeedCheckSheet(){
   document.getElementById('feed-check-wrap').classList.remove('open');
   _fcEvId = null;
   _fcTypeData = [];
+  if(_fcOnCloseCallback){ const cb=_fcOnCloseCallback; _fcOnCloseCallback=null; cb(); }
 }
 
 function _fcRender(){
@@ -20626,7 +20686,7 @@ function _fcRender(){
       </div>
       <div style="background:var(--amber-l);border-radius:8px;padding:8px 10px;display:flex;justify-content:space-between;align-items:center;">
         <span style="font-size:11px;color:var(--amber-d);">Consumed since last check</span>
-        <span style="font-size:13px;font-weight:500;color:var(--amber-d);">${consumed.toFixed(2)} ${unitLabel} \u00b7 ~${Math.round(consumedDMI).toLocaleString()} lbs DMI</span>
+        <span id="fc-consumed-${idx}" style="font-size:13px;font-weight:500;color:var(--amber-d);">${consumed.toFixed(2)} ${unitLabel} \u00b7 ~${Math.round(consumedDMI).toLocaleString()} lbs DMI</span>
       </div>
     </div>`;
   }).join('');
@@ -20687,6 +20747,14 @@ function _fcUpdateUI(idx, skipUnits){
   if(pctEl) pctEl.textContent = pct.toFixed(2) + '%';
   const sliderEl = document.getElementById('fc-slider-'+idx);
   if(sliderEl) sliderEl.value = pct.toFixed(1);
+  // Update consumed bar
+  const consumedEl = document.getElementById('fc-consumed-'+idx);
+  if(consumedEl){
+    const consumed = Math.max(0, t.lastCheckUnits - t.remaining);
+    const consumedDMI = consumed * t.lbsPerUnit * (t.dmPct/100);
+    const unitLabel = _fcUnitLabel(t.unit);
+    consumedEl.textContent = consumed.toFixed(2)+' '+unitLabel+' \u00b7 ~'+Math.round(consumedDMI).toLocaleString()+' lbs DMI';
+  }
   // If inside move wizard step 3, refresh the disposition section
   if(_mwStep === 3){
     const dispEl = document.getElementById('mw-feed-disposition');
@@ -20724,6 +20792,7 @@ function _fcSave(){
   ev.updatedAt = new Date().toISOString();
   queueEventWrite(ev);
   save();
+  // Close and render — callback (if set) fires inside closeFeedCheckSheet
   closeFeedCheckSheet();
   renderHome();
 }
