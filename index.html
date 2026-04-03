@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260403.1734" id="app-version-meta"/>
+<meta name="app-version" content="b20260403.1757" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -4933,59 +4933,77 @@ function getDailyStoredDMI(ev, dateStr){
   const entries = allFeedEntries(ev);
   if(!entries.length) return {storedDMI:0, hasCheck:false};
 
-  // Total DM lbs delivered
-  let totalDMLbs = 0;
-  entries.forEach(e=>(e.lines||[]).forEach(l=>{
-    const b=S.batches.find(x=>x.id===l.batchId);
-    if(b){ const af=b.wt?l.qty*b.wt:l.qty; totalDMLbs+=af*(b.dm/100); }
-  }));
-  if(totalDMLbs<=0) return {storedDMI:0, hasCheck:false};
+  // Build per-delivery DM amounts with dates (supports mid-event deliveries)
+  const deliveries = [];
+  entries.forEach(e=>{
+    let dmLbs = 0;
+    (e.lines||[]).forEach(l=>{
+      const b = S.batches.find(x=>x.id===l.batchId);
+      if(b){ dmLbs += (b.wt ? l.qty*b.wt : l.qty) * ((b.dm||100)/100); }
+    });
+    if(dmLbs > 0) deliveries.push({date: e.date||ev.dateIn, dmLbs});
+  });
+  if(!deliveries.length) return {storedDMI:0, hasCheck:false};
+  deliveries.sort((a,b)=>a.date.localeCompare(b.date));
 
-  // Build sorted timeline: [{date, pct}]
-  // Start: first delivery date at 100%
-  const deliveryDates = entries.map(e=>e.date).filter(Boolean).sort();
-  const startDate = deliveryDates[0] || ev.dateIn;
-
-  const checks = (ev.feedResidualChecks||[])
-    .filter(c=>c.date && !c.isCloseReading)
-    .map(c=>({date:c.date, pct: c.balesRemainingPct ?? c.residualPct ?? 100}))
-    .sort((a,b)=>a.date.localeCompare(b.date));
-
-  // Full timeline: start point + all checks
-  const timeline = [{date:startDate, pct:100}, ...checks];
-
-  // Check if target date has an actual check
-  const hasCheck = checks.some(c=>c.date===dateStr);
-
-  // If target is before start: no stored feed yet
+  const startDate = deliveries[0].date;
   if(dateStr < startDate) return {storedDMI:0, hasCheck:false};
 
-  // Find which segment the target date falls in
-  let segStart = timeline[0];
-  let segEnd = null;
-  let lastRate = 0; // daily DM lbs consumed (for carry-forward after last check)
+  // Cumulative DM delivered up to and including a given date
+  const cumDMAt = d => deliveries.filter(x=>x.date<=d).reduce((s,x)=>s+x.dmLbs, 0);
+  const totalDMLbs = cumDMAt('9999-12-31');
+  if(totalDMLbs <= 0) return {storedDMI:0, hasCheck:false};
 
-  for(let i=1; i<timeline.length; i++){
-    segEnd = timeline[i];
-    const segDays = Math.max(1, daysBetween(segStart.date, segEnd.date));
-    const pctConsumed = segStart.pct - segEnd.pct;
-    const dailyDMLbs = (pctConsumed / 100 * totalDMLbs) / segDays;
-    lastRate = dailyDMLbs;
+  // Feed checks → convert percentage to actual remaining lbs
+  // Each check's % is relative to cumulative DM delivered at time of check
+  const rawChecks = (ev.feedResidualChecks||[])
+    .filter(c=>c.date && !c.isCloseReading)
+    .sort((a,b)=>a.date.localeCompare(b.date));
+  const hasCheck = rawChecks.some(c=>c.date===dateStr);
 
-    if(dateStr <= segEnd.date){
-      // Target is in this segment
-      return {storedDMI: Math.max(0, dailyDMLbs), hasCheck};
+  if(!rawChecks.length){
+    // No checks — spread total evenly from first delivery to today
+    const days = Math.max(1, daysBetween(startDate, todayStr()));
+    return {storedDMI: totalDMLbs / days, hasCheck:false};
+  }
+
+  // Build anchor points: [{date, remainingLbs}]
+  // Start anchor: everything delivered up to start is 100% remaining
+  const anchors = [{date: startDate, remainingLbs: cumDMAt(startDate)}];
+  rawChecks.forEach(c=>{
+    const pct = c.balesRemainingPct ?? c.residualPct ?? 100;
+    anchors.push({date: c.date, remainingLbs: (pct/100) * cumDMAt(c.date)});
+  });
+
+  // Walk segments and compute daily consumption rate per segment
+  // Account for mid-segment deliveries: consumed = startRemaining + delivered - endRemaining
+  let lastRate = 0;
+  let overallConsumed = 0, overallDays = 0;
+  for(let i=1; i<anchors.length; i++){
+    const a = anchors[i-1], b = anchors[i];
+    const segDays = Math.max(1, daysBetween(a.date, b.date));
+    const addedInSeg = deliveries
+      .filter(d=>d.date > a.date && d.date <= b.date)
+      .reduce((s,d)=>s+d.dmLbs, 0);
+    const consumed = Math.max(0, a.remainingLbs + addedInSeg - b.remainingLbs);
+    const rate = consumed / segDays;
+    overallConsumed += consumed;
+    overallDays += segDays;
+
+    if(dateStr <= b.date){
+      // If this segment's rate is 0 but overall consumption exists, use overall average
+      if(rate === 0 && overallConsumed > 0){
+        return {storedDMI: overallConsumed / overallDays, hasCheck};
+      }
+      return {storedDMI: Math.max(0, rate), hasCheck};
     }
-    segStart = segEnd;
+    lastRate = rate;
   }
 
-  // Target is after the last checkpoint — carry forward last known rate
-  // If no checks exist, spread total evenly across event duration
-  if(!checks.length){
-    const eventDays = Math.max(1, daysBetween(ev.dateIn, todayStr()));
-    return {storedDMI: totalDMLbs / eventDays, hasCheck:false};
+  // After last check — carry forward rate (fall back to overall average if 0)
+  if(lastRate === 0 && overallConsumed > 0){
+    lastRate = overallConsumed / overallDays;
   }
-
   return {storedDMI: Math.max(0, lastRate), hasCheck};
 }
 
@@ -15506,6 +15524,20 @@ function renderEeActivePaddocks(){
         <div>
           <div style="font-size:14px;font-weight:600;">${escHtml(p.pastureName)}${anchorLabel}</div>
           <div style="font-size:11px;color:var(--text2);margin-top:3px;">${typeBadge}${acresTxt}</div>
+          ${(()=>{
+            let hi,fci,qi;
+            if(isAnchor){ hi=ev?.heightIn; fci=ev?.forageCoverIn; qi=ev?.qualityIn; }
+            else {
+              const obs=(S.paddockObservations||[]).find(o=>o.sourceId===evId&&String(o.pastureId)===String(loc?.id)&&o.type==='open');
+              if(obs){ hi=obs.vegHeight; fci=obs.forageCoverPct; qi=obs.forageQuality; }
+            }
+            if(!hi&&!fci&&!qi) return '';
+            const parts=[];
+            if(hi) parts.push(hi+' in');
+            if(fci!=null) parts.push(fci+'% cover');
+            if(qi) parts.push(qi);
+            return '<div style="font-size:11px;color:var(--text3);margin-top:3px;">📏 '+parts.join(' · ')+'</div>';
+          })()}
         </div>
         <span style="font-size:11px;font-weight:600;color:var(--green-d);">● Active</span>
       </div>
@@ -15553,6 +15585,15 @@ function renderEeActivePaddocks(){
           <div style="font-size:11px;color:var(--text2);margin-top:3px;">
             ${typeBadge} sub-move · in ${dLabel(sm.date)}${sm.time?' at '+sm.time:''}
           </div>
+          ${(()=>{
+            const hi=sm.heightIn, fci=sm.forageCoverIn, qi=sm.qualityIn;
+            if(!hi&&!fci&&!qi) return '';
+            const parts=[];
+            if(hi) parts.push(hi+' in');
+            if(fci!=null) parts.push(fci+'% cover');
+            if(qi) parts.push(qi);
+            return '<div style="font-size:11px;color:var(--text3);margin-top:3px;">📏 '+parts.join(' · ')+'</div>';
+          })()}
         </div>
         <button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openCloseSubPaddockSheet(${evId},'${sm.id}')">
           Close paddock
@@ -19848,6 +19889,7 @@ let _mwDestType = null; // 'new' | 'existing'
 let _mwDestPaddockId = null;
 let _mwDestEventId = null;
 let _mwCloseOutData = {}; // pasture close-out survey fields
+let _mwArrQuality = null; // arrival pasture survey quality for new destination
 let _mwFeedDisposition = {}; // feedTypeId → 'residual' | 'move'
 let _mwSubMoveMode = false;
 let _mwSubMovePreDate = null; // pre-fill date from prior close
@@ -19860,6 +19902,7 @@ function openMoveWizSheet(evId, groupId, moveAll){
   _mwDestPaddockId = null;
   _mwDestEventId = null;
   _mwCloseOutData = {};
+  _mwArrQuality = null;
   _mwFeedDisposition = {};
   _mwSubMoveMode = false;
   const ev = S.events.find(e=>e.id===evId && e.status==='open');
@@ -19883,6 +19926,7 @@ function openSubMoveWiz(evId){
   _mwDestPaddockId = null;
   _mwDestEventId = null;
   _mwCloseOutData = {};
+  _mwArrQuality = null;
   _mwFeedDisposition = {};
   _mwSubMoveMode = true;
   _mwSmQuality = null;
@@ -20200,6 +20244,30 @@ function _mwRenderStep3(){
     </div>`;
   }
 
+  // Arrival pasture survey (new destination + pasture only)
+  let arrivalSurveyHtml = '';
+  if(_mwDestType==='new' && _mwDestPaddockId){
+    const arrDp = (S.pastures||[]).find(p=>String(p.id)===String(_mwDestPaddockId));
+    const isArrCon = arrDp && arrDp.locationType==='confinement';
+    if(arrDp && !isArrCon){
+      arrivalSurveyHtml = `<div style="border:0.5px solid var(--border2);border-radius:10px;padding:10px 12px;margin-bottom:14px;">
+      <div style="font-size:11px;font-weight:500;color:var(--text2);letter-spacing:0.03em;margin-bottom:8px;">ARRIVAL PASTURE SURVEY \u2014 ${escHtml(arrDp.name.toUpperCase())}</div>
+      <div style="display:flex;gap:10px;margin-bottom:8px;">
+        <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px;">Forage height (in)</label><input type="number" id="mw-arr-height" placeholder="e.g. 7" style="width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+        <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px;">Forage cover (%)</label><input type="number" id="mw-arr-cover" placeholder="e.g. 65" min="0" max="100" style="width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+      </div>
+      <div><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Forage condition</label>
+        <div style="display:flex;gap:4px;" id="mw-arr-quality-row">
+          <button style="flex:1;padding:6px 0;font-size:12px;border-radius:6px;border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;" type="button" onclick="_mwArrSetQuality(this,'Poor')">Poor</button>
+          <button style="flex:1;padding:6px 0;font-size:12px;border-radius:6px;border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;" type="button" onclick="_mwArrSetQuality(this,'Fair')">Fair</button>
+          <button style="flex:1;padding:6px 0;font-size:12px;border-radius:6px;border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;" type="button" onclick="_mwArrSetQuality(this,'Good')">Good</button>
+          <button style="flex:1;padding:6px 0;font-size:12px;border-radius:6px;border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;" type="button" onclick="_mwArrSetQuality(this,'Excellent')">Exc.</button>
+        </div>
+      </div>
+    </div>`;
+    }
+  }
+
   const saveLabel = isLastGroup ? 'Save move & close event' : 'Save move';
   const todayD = todayStr();
 
@@ -20232,6 +20300,7 @@ function _mwRenderStep3(){
     <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Time</label><input type="time" id="mw-time" style="width:100%;padding:9px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
   </div>
   ${infoBoxes}
+  ${arrivalSurveyHtml}
   ${closeOutHtml}
   ${_mwRenderInlineFeedCheck(srcEv, isLastGroup, hasStoredFeed)}
   <button style="width:100%;padding:12px;font-size:14px;font-weight:600;border-radius:8px;border:none;background:var(--teal);color:white;cursor:pointer;font-family:inherit;" onclick="_mwSave()">${saveLabel}</button>`;
@@ -20472,6 +20541,18 @@ function _mwSetQuality(btn, val){
   });
 }
 
+function _mwArrSetQuality(btn, val){
+  _mwArrQuality = val;
+  const row = document.getElementById('mw-arr-quality-row');
+  if(row) row.querySelectorAll('button').forEach(b=>{
+    const isActive = b.textContent.trim().startsWith(val.substring(0,3));
+    b.style.background = isActive ? 'var(--green-l)' : 'transparent';
+    b.style.borderColor = isActive ? 'var(--green)' : 'var(--border2)';
+    b.style.color = isActive ? 'var(--green-d)' : 'var(--text2)';
+    b.style.fontWeight = isActive ? '500' : '400';
+  });
+}
+
 function _mwSave(){
   const moveDate = document.getElementById('mw-date')?.value || todayStr();
   const moveTime = document.getElementById('mw-time')?.value || '';
@@ -20548,15 +20629,29 @@ function _mwSave(){
     if(!dp){ alert('Destination paddock not found'); return; }
     const newEvId = Date.now();
     const isCon = dp.locationType === 'confinement';
+    // Read arrival pasture survey fields
+    const arrHeight = !isCon ? parseFloat(document.getElementById('mw-arr-height')?.value) || null : null;
+    const arrCover = !isCon ? parseFloat(document.getElementById('mw-arr-cover')?.value) || null : null;
+    const arrQuality = !isCon ? (_mwArrQuality || null) : null;
     const newEv = {
       id: newEvId, status:'open', dateIn: moveDate, timeIn: moveTime,
       pasture: dp.name, pastureId: dp.id, locationType: dp.locationType||'pasture',
       noPasture: isCon,
+      heightIn: arrHeight, forageCoverIn: arrCover, qualityIn: arrQuality,
       paddocks: [{ pastureId: dp.id, pastureName: dp.name, acres: dp.acres||0, dateAdded: moveDate }],
       groups: _mwGroupIds.map((gId,i)=>({ id: newEvId*2000+i, groupId: gId, dateAdded: moveDate, timeAdded: moveTime })),
       feedEntries:[], subMoves:[], feedResidualChecks:[],
       createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
     };
+    // Write paddock observation for arrival survey
+    if(arrHeight && !isCon){
+      if(!S.paddockObservations) S.paddockObservations = [];
+      S.paddockObservations.push({
+        id: Date.now()+99, pastureId: dp.id, date: moveDate, type:'open',
+        sourceId: newEvId, confidenceRank:1, vegHeight: arrHeight,
+        forageCoverPct: arrCover || null, forageQuality: arrQuality || null,
+      });
+    }
     S.events.push(newEv);
     queueEventWrite(newEv);
   } else if(_mwDestType === 'existing' && _mwDestEventId){

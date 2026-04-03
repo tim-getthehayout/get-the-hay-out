@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260403.1734`
+**Current build:** `b20260403.1757`
 **Last updated:** 2026-04-03
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -1260,11 +1260,21 @@ When the move wizard closes an event (last group leaving) and stored feed is pre
 
 **Live refresh (b20260403.0934):** Disposition cards now update in real-time when the inline feed check stepper/slider values change. `_fcUpdateUI()` detects `_mwStep===3` and calls `_mwRenderDispositionCards()` to refresh `#mw-feed-disposition`. The `_mwSetDisposition()` handler also uses targeted DOM update instead of full step re-render, preserving stepper/slider input state.
 
-### DMI interpolation — getDailyStoredDMI (b20260403.0054)
+### DMI interpolation — getDailyStoredDMI (b20260403.1749)
 
-`getDailyStoredDMI(ev, dateStr)` replaces the flat event-average approach for the 3-day DMI bar chart. It builds a chronological timeline of data points: first delivery date at 100%, plus each `feedResidualCheck` with its remaining percentage. Between two consecutive points, daily consumption is linearly distributed. After the last check, the most recent rate is carried forward. If no checks exist, total DM is spread evenly across event days.
+`getDailyStoredDMI(ev, dateStr)` computes the estimated daily stored-feed DM consumption for a given date using a cumulative delivery timeline approach.
 
-Returns `{storedDMI: number, hasCheck: boolean}` — the stored DMI consumed that day (lbs DM) and whether an actual feed check was recorded on that date.
+**Algorithm:**
+1. Builds per-delivery DM amounts with dates from `allFeedEntries(ev)`. Each delivery's DM = `qty × wt × (dm/100)`.
+2. `cumDMAt(date)` — helper returning cumulative DM delivered up to and including a given date. This allows mid-event deliveries (e.g. feed transferred from another event) to be correctly accounted for.
+3. Feed checks are converted from percentages to actual remaining lbs: `remainingLbs = (pct/100) × cumDMAt(checkDate)`. This prevents the baseline inflation bug where a new delivery changed `totalDMLbs` retroactively.
+4. Anchor points: `[{date: startDate, remainingLbs: cumDMAt(startDate)}, ...checkPoints]`
+5. Per-segment rate: `consumed = startRemaining + midSegDeliveries − endRemaining; rate = consumed / segDays`
+6. **Same-% fallback:** If a segment's rate is 0 (e.g. two consecutive checks with identical remaining %) but overall consumption across all segments is positive, the function returns the overall average rate instead of 0.
+7. After the last check, the last computed segment rate is carried forward. If it was 0, the overall average is used.
+8. No checks path: total DM spread evenly from first delivery to today.
+
+Returns `{storedDMI: number, hasCheck: boolean}`.
 
 `_renderDMIBars()` calls `getDailyStoredDMI()` for each of the 3 bar days, producing per-day grazing/stored splits. Bars scale relative to each other (`maxTotal` normalization) so consumption changes are visually apparent. The `isMixed` flag and `todayDMI` now reflect actual per-day values rather than event averages.
 

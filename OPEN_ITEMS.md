@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260403.1729
-**Reconciled against build:** b20260403.1729
+**Last updated:** b20260403.1749
+**Reconciled against build:** b20260403.1749
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -23,7 +23,7 @@
 | 🟡 Open — Polish | 2 |
 | 🔵 Open — Enhancement | 18 |
 | ⚪ Open — Debt | 9 |
-| ✅ Closed | 119 |
+| ✅ Closed | 122 |
 
 ---
 
@@ -2719,6 +2719,42 @@ When the Google OAuth token expired on mobile (after ~1 hour), the scheduled sil
 "At close of event, allow user to move remaining stored feed to new paddock." No mechanism existed to transfer unconsumed stored feed when closing an event.
 
 **Fixed:** Move wizard step 3 now shows inline feed check + feed disposition when last group is leaving and stored feed is present. Per-feed-type "move feed?" prompt with "Record as residual" / "Move to destination" buttons. When "Move to destination" is selected, remaining feed quantity is transferred as a new feedEntry on the destination event. Feed check is saved as a close-reading on the source event.
+
+### OI-0168 — Move wizard step 3 missing arrival pasture survey for destination
+**Source:** Testing session brief b20260403.1729 (Item 2)
+**Area:** Move Wizard
+**Severity:** Enhancement
+**Status:** ✅ Closed
+**Found:** b20260403.1729
+**Closed:** b20260403.1749
+
+Move wizard full move (step 3) had close-out survey for source pasture but no arrival survey for the destination. Sub-move wizard already had this.
+
+**Fixed:** Added "ARRIVAL PASTURE SURVEY" section to `_mwRenderStep3()` — forage height, forage cover %, forage condition buttons. Only shows for `_mwDestType==='new'` + non-confinement destination. New module var `_mwArrQuality`, handler `_mwArrSetQuality()`. `_mwSave()` writes `heightIn`, `forageCoverIn`, `qualityIn` on new event + creates paddock observation with `type:'open'`.
+
+### OI-0169 — Edit pasture card should show full starting survey data
+**Source:** Testing session brief b20260403.1729 (Item 4)
+**Area:** Event Edit
+**Severity:** Enhancement
+**Status:** ✅ Closed
+**Found:** b20260403.1729
+**Closed:** b20260403.1749
+
+Active paddock cards in event edit only showed name, type badge, acreage, and close button. No display of starting survey data.
+
+**Fixed:** `renderEeActivePaddocks()` now shows compact read-only survey line (`📏 7.5 in · 65% cover · Good`) on anchor paddock (from `ev.heightIn`/`forageCoverIn`/`qualityIn`), non-anchor paddocks (from `S.paddockObservations` lookup), and sub-move cards (from `sm.heightIn`/`forageCoverIn`/`qualityIn`). Only renders when at least one value exists.
+
+### OI-0170 — getDailyStoredDMI breaks on same-% consecutive checks and mid-event deliveries
+**Source:** Testing session brief b20260403.1729 (Items 1+3)
+**Area:** DMI Calculation
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260403.1729
+**Closed:** b20260403.1749
+
+Two related bugs: (1) Two consecutive feed checks with the same remaining % produced a 0 daily consumption rate, making DMI bars show empty. Rate carried forward as 0 after last check too. (2) Feed transferred mid-event + new bale delivery inflated `totalDMLbs` retroactively — the 100% baseline jumped, making all interpolated rates spike.
+
+**Fixed:** `getDailyStoredDMI()` fully rewritten with cumulative delivery timeline. Per-delivery DM tracked with dates via `cumDMAt(date)`. Check percentages converted to actual remaining lbs relative to cumulative delivered at check time. Per-segment consumption accounts for mid-segment deliveries. Same-% fallback: when segment rate is 0 but overall consumption exists, uses overall average rate instead of returning 0.
 
 ---
 
