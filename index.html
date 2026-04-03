@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260403.1204" id="app-version-meta"/>
+<meta name="app-version" content="b20260403.1554" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -3525,6 +3525,12 @@ function queueEventWrite(ev){
     noPasture: ev.noPasture || false,
     notes: ev.notes || null, updatedAt: ev.updatedAt || null,
   }));
+  // Delete orphan child rows before re-inserting current ones (all 6 child tables)
+  // Without this, locally-deleted records persist as orphan rows in Supabase
+  // and get reconstructed as ghost records on next load
+  const _childTables = ['event_paddock_windows','event_group_memberships','event_sub_moves',
+    'event_feed_deliveries','event_feed_residual_checks','event_npk_deposits'];
+  _childTables.forEach(t=>queueWrite('_delete:'+t, {event_id: ev.id, operation_id: opId}));
   // event_paddock_windows (ev.paddocks[])
   (ev.paddocks || []).forEach((p, i) => {
     const padId = p.id || (ev.id * 1000 + i);
@@ -3623,13 +3629,31 @@ const _SB_ALLOWED_COLS = {
   manure_batch_transactions: new Set(['id','operation_id','batch_id','type','date','volume_lbs','n_lbs','p_lbs','k_lbs','source_event_id','application_id','pasture_names','notes','recorded_at']),
   // harvest_event_fields: child table — no operation_id column; harvest_event_id FK suffices.
   // This entry strips the operation_id auto-injected by queueWrite() before it reaches Supabase.
+  pastures:             new Set(['id','operation_id','name','type','acres','min_days','max_days','archived','setup_updated_at','farm_id','land_use','field_code']),
   harvest_event_fields: new Set(['id','harvest_event_id','land_id','land_name','acres','feed_type_id','batch_unit','quantity','weight_per_unit_kg','dm_pct','n_per_tonne_dm','p_per_tonne_dm','k_per_tonne_dm','batch_id','notes','created_at']),
 };
+// Column aliases: maps wrong-but-meaningful column names to correct Supabase names.
+// Handles queue entries written by old code paths (e.g. location_type → type for pastures).
+const _SB_COL_ALIASES = {
+  pastures: { location_type: 'type', recovery_min_days: 'min_days', recovery_max_days: 'max_days' },
+};
+
 function _sanitizeQueueRecord(table, record){
   const allowed = _SB_ALLOWED_COLS[table];
   if(!allowed) return record; // unknown table — pass through unchanged
+  // Apply column aliases first (rename before filtering)
+  const aliases = _SB_COL_ALIASES[table];
+  const aliased = aliases ? {...record} : record;
+  if(aliases){
+    for(const [wrong, right] of Object.entries(aliases)){
+      if(aliased[wrong] != null && aliased[right] == null){
+        aliased[right] = aliased[wrong];
+      }
+      delete aliased[wrong];
+    }
+  }
   const clean = {};
-  for(const [k,v] of Object.entries(record)){
+  for(const [k,v] of Object.entries(aliased)){
     if(allowed.has(k)) clean[k] = v;
   }
   return clean;
@@ -3671,10 +3695,19 @@ async function flushToSupabase(){
   const failed = [];
   for(const op of queue){
     try{
-      // Sanitize record against known schema — strips extra fields from pre-fix queue items
-      const record = _sanitizeQueueRecord(op.table, op.record);
-      const { error } = await _sbClient.from(op.table).upsert(record, { onConflict: op.conflictKey || 'id' });
-      if(error){ failed.push(op); logError('supabase-flush', op.table+': '+error.message, ''); }
+      if(op.table.startsWith('_delete:')){
+        // Delete operation: match all fields in record
+        const realTable = op.table.slice(8);
+        let q = _sbClient.from(realTable).delete();
+        for(const [k,v] of Object.entries(op.record)){ if(v!=null) q = q.eq(k,v); }
+        const { error } = await q;
+        if(error){ failed.push(op); logError('supabase-flush', 'delete '+realTable+': '+error.message, ''); }
+      } else {
+        // Sanitize record against known schema — strips extra fields from pre-fix queue items
+        const record = _sanitizeQueueRecord(op.table, op.record);
+        const { error } = await _sbClient.from(op.table).upsert(record, { onConflict: op.conflictKey || 'id' });
+        if(error){ failed.push(op); logError('supabase-flush', op.table+': '+error.message, ''); }
+      }
     } catch(e){
       failed.push(op);
       logError('supabase-flush', op.table + ': ' + e.message, '');
@@ -4792,7 +4825,7 @@ function renderLocationCard(ev, opts){
     subPaddocksHtml = `<div style="padding:8px 14px 0;margin-left:14px;">
       <div style="font-size:11px;font-weight:600;color:var(--text2);letter-spacing:0.03em;padding:8px 0 4px;border-top:0.5px solid var(--border);">SUB-PADDOCKS</div>
       ${smRows}
-      <button style="padding:4px 0;font-size:12px;border:none;background:transparent;color:var(--teal);cursor:pointer;font-weight:500;font-family:inherit;margin-top:2px;" onclick="event.stopPropagation();openSubMoveSheet(${ev.id},true)">+ Add sub-move</button>
+      <button style="padding:4px 0;font-size:12px;border:none;background:transparent;color:var(--teal);cursor:pointer;font-weight:500;font-family:inherit;margin-top:2px;" onclick="event.stopPropagation();openSubMoveWiz(${ev.id})">+ Add sub-move</button>
     </div>`;
   }
 
@@ -9841,6 +9874,8 @@ function tryDeleteForageType(idx){
   const inUse=(S.feedTypes||[]).some(t=>t.forageTypeId===ft.id);
   if(inUse){alert(`Cannot delete "${ft.name}" — it is linked to one or more feed types. Remove the link first.`);return;}
   if(!confirm(`Delete forage type "${ft.name}"?`)) return;
+  const _delFtId = S.forageTypes[idx]?.id;
+  if(_delFtId) queueWrite('_delete:forage_types', {id: _delFtId, operation_id: _sbOperationId});
   S.forageTypes.splice(idx,1); stampSetup(); save(); renderForageTypes();
 }
 
@@ -9915,6 +9950,8 @@ function tryDeleteFarm(idx){
   const fieldCount=(S.pastures||[]).filter(p=>p.farmId===f.id).length;
   if(fieldCount>0){alert(`Cannot delete "${f.name}" — it has ${fieldCount} field${fieldCount!==1?'s':''} assigned. Reassign them first.`);return;}
   if(!confirm(`Delete farm "${f.name}"?`)) return;
+  const _delFarmId = S.farms[idx]?.id;
+  if(_delFarmId) queueWrite('_delete:farms', {id: _delFarmId, operation_id: _sbOperationId});
   S.farms.splice(idx,1); stampSetup(); save(); renderFarms();
 }
 // Populate farm selector in loc-edit sheet
@@ -11909,6 +11946,7 @@ function deleteAnimal(){
       g.animalIds=g.animalIds.filter(x=>x!==id);
     }
   });
+  queueWrite('_delete:animals', {id: id, operation_id: _sbOperationId});
   S.animals=S.animals.filter(x=>x.id!==id);
   save();closeAnimalEdit();renderGroupsList();
 }
@@ -13663,6 +13701,7 @@ function deleteSubMove(evId, smId){
   const ev = S.events.find(e=>e.id===evId);
   if(!ev) return;
   if(!confirm('Remove this sub-move record?')) return;
+  queueWrite('_delete:event_sub_moves', {id: smId, operation_id: _sbOperationId});
   ev.subMoves = (ev.subMoves||[]).filter(s=>String(s.id)!==String(smId));
   ev.updatedAt=new Date().toISOString();
   queueEventWrite(ev); // M3
@@ -15274,6 +15313,7 @@ function saveEeFeedCheck(){
 function deleteEeFeedCheck(ckId){
   const evId=parseInt(document.getElementById('ee-id').value);
   const ev=S.events.find(e=>e.id===evId); if(!ev) return;
+  queueWrite('_delete:event_feed_residual_checks', {id: ckId, operation_id: _sbOperationId});
   ev.feedResidualChecks=(ev.feedResidualChecks||[]).filter(c=>String(c.id)!==String(ckId));
   ev.updatedAt=new Date().toISOString();
   save();
@@ -15836,7 +15876,7 @@ function openAddSubMoveFromEdit(){
   const evId = parseInt(document.getElementById('ee-id').value);
   if(!evId) return;
   closeEventEdit();
-  openSubMoveSheet(evId, true);
+  openSubMoveWiz(evId);
 }
 
 // Bridge: open sub-move sheet from within Event Edit, optionally pre-loading a specific sub-move for editing
@@ -15934,6 +15974,11 @@ function deleteEvent(){
   const ev=S.events.find(e=>e.id===id);if(!ev)return;
   const label=ev.pasture+(ev.dateIn?' · '+dLabel(ev.dateIn):'');
   if(!confirm('Delete event: '+label+'?\n\nThis cannot be undone. NPK credits for this event will be removed.'))return;
+  // Delete from Supabase: parent event + all 6 child tables
+  const _delChildTables = ['event_paddock_windows','event_group_memberships','event_sub_moves',
+    'event_feed_deliveries','event_feed_residual_checks','event_npk_deposits'];
+  _delChildTables.forEach(t=>queueWrite('_delete:'+t, {event_id: id, operation_id: _sbOperationId}));
+  queueWrite('_delete:events', {id: id, operation_id: _sbOperationId});
   S.events=S.events.filter(e=>e.id!==id);
   save();closeEventEdit();renderEventsLog();renderHome();
 }
@@ -16481,6 +16526,7 @@ function deleteAnimalFromScreen(animalId){
       g.animalIds=g.animalIds.filter(x=>x!==animalId);
     }
   });
+  queueWrite('_delete:animals', {id: animalId, operation_id: _sbOperationId});
   S.animals = S.animals.filter(x=>x.id!==animalId);
   save(); renderAnimalsScreen(); renderGroupsList();
 }
@@ -16783,6 +16829,7 @@ function tryDeletePasture(idx){
   } else {
     if(!confirm(`Delete "${p.name}"? This cannot be undone.`))return;
   }
+  queueWrite('_delete:pastures', {id: p.id, operation_id: _sbOperationId});
   S.pastures.splice(idx,1);stampSetup();save();renderPastures();
 }
 
@@ -16799,6 +16846,7 @@ function tryDeleteFeedType(idx){
   } else {
     if(!confirm(`Delete "${ft.name}"?`))return;
   }
+  queueWrite('_delete:feed_types', {id: ft.id, operation_id: _sbOperationId});
   S.feedTypes.splice(idx,1);stampSetup();save();renderFeedTypes();
 }
 
@@ -16817,6 +16865,7 @@ function tryDeleteAnimalClass(idx){
   } else {
     if(!confirm(`Delete class "${c.name}"?`))return;
   }
+  queueWrite('_delete:animal_classes', {id: c.id, operation_id: _sbOperationId});
   S.animalClasses.splice(idx,1);stampSetup();save();renderClassesList();
 }
 
@@ -16832,6 +16881,7 @@ function tryDeleteAnimalGroup(idx){
   } else {
     if(!confirm(`Delete group "${g.name}"? Animals will become unassigned.`))return;
   }
+  queueWrite('_delete:animal_groups', {id: g.id, operation_id: _sbOperationId});
   S.animalGroups.splice(idx,1);stampSetup();save();renderGroupsList();renderHome();
 }
 
@@ -16845,6 +16895,7 @@ function tryDeleteInputProduct(idx){
   } else {
     if(!confirm(`Delete "${p.name}"?`))return;
   }
+  queueWrite('_delete:input_products', {id: p.id, operation_id: _sbOperationId});
   S.inputProducts.splice(idx,1);stampSetup();save();renderInputProductsList();
 }
 
@@ -16859,6 +16910,7 @@ function tryDeleteBatch(idx){
   } else {
     if(!confirm(`Delete batch "${b.label}"?`))return;
   }
+  queueWrite('_delete:batches', {id: b.id, operation_id: _sbOperationId});
   S.batches.splice(idx,1);stampSetup();save();renderBatchListS();
 }
 
@@ -19765,6 +19817,7 @@ let _mwDestPaddockId = null;
 let _mwDestEventId = null;
 let _mwCloseOutData = {}; // pasture close-out survey fields
 let _mwFeedDisposition = {}; // feedTypeId → 'residual' | 'move'
+let _mwSubMoveMode = false; // true when wizard is creating a sub-move, not a full move
 
 function openMoveWizSheet(evId, groupId, moveAll){
   _mwSourceEvId = evId;
@@ -19774,6 +19827,7 @@ function openMoveWizSheet(evId, groupId, moveAll){
   _mwDestEventId = null;
   _mwCloseOutData = {};
   _mwFeedDisposition = {};
+  _mwSubMoveMode = false;
   const ev = S.events.find(e=>e.id===evId && e.status==='open');
   if(moveAll && ev){
     _mwGroupIds = evGroups(ev).filter(g=>!g.dateRemoved).map(g=>g.groupId);
@@ -19787,13 +19841,31 @@ function openMoveWizSheet(evId, groupId, moveAll){
   document.getElementById('move-wiz-wrap').classList.add('open');
 }
 
+function openSubMoveWiz(evId){
+  _mwSourceEvId = evId;
+  _mwMoveAll = false;
+  _mwGroupIds = [];
+  _mwDestType = 'new';
+  _mwDestPaddockId = null;
+  _mwDestEventId = null;
+  _mwCloseOutData = {};
+  _mwFeedDisposition = {};
+  _mwSubMoveMode = true;
+  _mwStep = 2; // skip step 1 — go straight to paddock picker
+  _renderMoveWizStep();
+  document.getElementById('move-wiz-wrap').classList.add('open');
+}
+
 function closeMoveWizSheet(){
   document.getElementById('move-wiz-wrap').classList.remove('open');
 }
 
 function _mwBack(){
   if(_mwStep === 3) _mwStep = 2;
-  else if(_mwStep === 2) _mwStep = 1;
+  else if(_mwStep === 2){
+    if(_mwSubMoveMode){ closeMoveWizSheet(); return; }
+    _mwStep = 1;
+  }
   _renderMoveWizStep();
 }
 
@@ -19802,7 +19874,7 @@ function _renderMoveWizStep(){
   if(!el) return;
   if(_mwStep === 1) el.innerHTML = _mwRenderStep1();
   else if(_mwStep === 2) el.innerHTML = _mwDestType==='new' ? _mwRenderStep2a() : _mwRenderStep2b();
-  else if(_mwStep === 3) el.innerHTML = _mwRenderStep3();
+  else if(_mwStep === 3) el.innerHTML = _mwSubMoveMode ? _mwRenderSubMoveConfirm() : _mwRenderStep3();
 }
 
 // ── Step 1: Where are they going? ────────────────────────────────────────────
@@ -20228,6 +20300,96 @@ function _mwChangeDest(){
   _renderMoveWizStep();
 }
 
+function _mwRenderSubMoveConfirm(){
+  const srcEv = _mwSourceEvId ? S.events.find(e=>e.id===_mwSourceEvId) : null;
+  const dp = _mwDestPaddockId ? (S.pastures||[]).find(p=>String(p.id)===String(_mwDestPaddockId)) : null;
+  if(!srcEv || !dp) return '<div>Error: source or destination not found</div>';
+  const srcName = evDisplayName(srcEv);
+  const destIcon = dp.locationType==='confinement' ? '\u{1F3DA}' : '\u{1F33F}';
+  const todayD = todayStr();
+  const nowTime = new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+
+  return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+    <button style="border:none;background:transparent;font-size:18px;cursor:pointer;color:var(--text2);padding:0 4px;" onclick="_mwBack()">\u2190</button>
+    <div style="font-size:15px;font-weight:600;">Add sub-move</div>
+  </div>
+  <div class="card" style="padding:12px;margin-bottom:14px;">
+    <div style="display:flex;gap:16px;align-items:center;">
+      <div style="text-align:center;flex:1;">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">FROM</div>
+        <div style="font-size:13px;font-weight:500;">\u{1F33F} ${escHtml(srcName)}</div>
+        <div style="font-size:11px;color:var(--text2);">anchor paddock</div>
+      </div>
+      <div style="font-size:18px;color:var(--text3);">\u2192</div>
+      <div style="text-align:center;flex:1;cursor:pointer;border-radius:8px;padding:4px;transition:background 0.15s;" onclick="_mwChangeDest()" title="Tap to change">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">TO <span style="font-size:9px;">\u270E</span></div>
+        <div style="font-size:13px;font-weight:500;">${destIcon} ${escHtml(dp.name)}</div>
+        <div style="font-size:11px;color:var(--green);">${dp.acres?dp.acres+' ac':''} sub-move</div>
+      </div>
+    </div>
+  </div>
+  <div style="border-radius:12px;padding:10px 12px;margin-bottom:14px;background:var(--teal-l);border:0.5px solid var(--teal);">
+    <div style="font-size:12px;color:var(--teal-d);">Animals temporarily move to <strong>${escHtml(dp.name)}</strong> and will return to <strong>${escHtml(srcName)}</strong> anchor paddock</div>
+  </div>
+  <div style="display:flex;gap:10px;margin-bottom:14px;">
+    <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Move date</label><input type="date" id="mw-sm-date" value="${todayD}" style="width:100%;padding:9px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+    <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Time</label><input type="time" id="mw-sm-time" value="${nowTime}" style="width:100%;padding:9px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+  </div>
+  <div style="margin-bottom:14px;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Notes (optional)</label><input type="text" id="mw-sm-notes" placeholder="e.g. milking, shade break" style="width:100%;padding:9px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+  <button style="width:100%;padding:12px;font-size:14px;font-weight:600;border-radius:8px;border:none;background:var(--teal);color:white;cursor:pointer;font-family:inherit;" type="button" onclick="_mwSaveSubMove()">Record sub-move</button>`;
+}
+
+function _mwSaveSubMove(){
+  const srcEv = _mwSourceEvId ? S.events.find(e=>e.id===_mwSourceEvId) : null;
+  const dp = _mwDestPaddockId ? (S.pastures||[]).find(p=>String(p.id)===String(_mwDestPaddockId)) : null;
+  if(!srcEv || !dp){ alert('Source or destination not found'); return; }
+  const moveDate = document.getElementById('mw-sm-date')?.value || todayStr();
+  const moveTime = document.getElementById('mw-sm-time')?.value || '';
+  const notes = document.getElementById('mw-sm-notes')?.value?.trim() || '';
+
+  // Create sub-move record on source event
+  if(!srcEv.subMoves) srcEv.subMoves = [];
+  const smId = Date.now();
+  srcEv.subMoves.push({
+    id: smId,
+    locationName: dp.name,
+    pastureId: dp.id,
+    date: moveDate,
+    time: moveTime,
+    dateOut: null,
+    timeOut: null,
+    durationHours: 0,
+    noPasture: dp.locationType==='confinement',
+    notes: notes || null,
+    feedEntries: [],
+    feedResidualChecks: [],
+    heightIn: null,
+    heightOut: null,
+    recoveryMinDays: dp.recoveryMin || dp.recoveryMinDays || null,
+    recoveryMaxDays: dp.recoveryMax || dp.recoveryMaxDays || null,
+  });
+
+  // Also add paddock window for NPK tracking if not already present
+  if(!srcEv.paddocks) srcEv.paddocks = [];
+  const hasPaddockWindow = srcEv.paddocks.some(p=>p.pastureName===dp.name && !p.dateRemoved);
+  if(!hasPaddockWindow){
+    srcEv.paddocks.push({
+      id: Date.now()+1,
+      pastureId: dp.id,
+      pastureName: dp.name,
+      acres: dp.acres ? parseFloat(dp.acres) : null,
+      dateAdded: moveDate,
+      locationType: dp.locationType || 'pasture',
+    });
+  }
+
+  srcEv.updatedAt = new Date().toISOString();
+  queueEventWrite(srcEv);
+  save();
+  closeMoveWizSheet();
+  renderHome();
+}
+
 function _mwSetQuality(btn, val){
   _mwCloseOutData.quality = val;
   const row = document.getElementById('mw-co-quality-row');
@@ -20389,20 +20551,11 @@ let _cspSmId = null;
 
 // bumpSetupUpdatedAt: queues pasture writes when recovery days are updated from close dialogs
 function bumpSetupUpdatedAt(){
-  // Queue all pastures for write (setup data has changed)
-  if(typeof queueWrite === 'function' && typeof _sbToSnake === 'function'){
-    (S.pastures||[]).forEach(p=>{
-      if(p.id && p.setupUpdatedAt){
-        queueWrite('pastures', _sbToSnake({
-          id: p.id, operationId: _sbOperationId,
-          name: p.name, locationType: p.locationType||'pasture',
-          acres: p.acres||null, recoveryMinDays: p.recoveryMin||p.recoveryMinDays||null,
-          recoveryMaxDays: p.recoveryMax||p.recoveryMaxDays||null,
-          setupUpdatedAt: p.setupUpdatedAt
-        }));
-      }
-    });
-  }
+  // Mark setup as changed — the periodic sync and save() will handle persistence.
+  // The setupUpdatedAt timestamp on each pasture drives the merge strategy.
+  // Previously this function wrote ALL pastures on every call, flooding the queue.
+  const ts = new Date().toISOString();
+  (S.pastures||[]).forEach(p=>{ if(!p.setupUpdatedAt || p.setupUpdatedAt < ts) p.setupUpdatedAt = ts; });
   save();
 }
 
