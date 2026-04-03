@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260403.0058" id="app-version-meta"/>
+<meta name="app-version" content="b20260403.0942" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -8036,12 +8036,10 @@ function removeEeGroup(gId){
 // Mark a saved additional group as departed (sets dateRemoved to today).
 // Begin move flow for a saved-active group: set departure date + show destination picker.
 function startMoveGroup(idx){
-  if(idx===0) return;
-  eeGroups[idx].dateRemoved = eeGroups[idx].dateRemoved || todayStr();
-  eeGroups[idx].timeRemoved = eeGroups[idx].timeRemoved || null;
-  eeGroups[idx]._moveAction = 'picking'; // shows the destination picker
-  renderEeGroupChips();
-  syncEeGroupTotals();
+  const g = eeGroups[idx]; if(!g) return;
+  const evId = parseInt(document.getElementById('ee-id').value);
+  closeEventEdit();
+  setTimeout(()=>openMoveWizSheet(evId, g.groupId), 120);
 }
 
 // User chose to attach this group to an existing open event.
@@ -13389,7 +13387,7 @@ function renderSmExistingList(ev){
       sm.notes ? escHtml(sm.notes) : ''
     ].filter(Boolean).join(' · ');
     const closeBtn = isActive
-      ? `<button class="btn btn-teal btn-xs" onclick="event.stopPropagation();openSmCloseForm('${sm.id}')">Record return</button>`
+      ? `<button class="btn btn-teal btn-xs" onclick="event.stopPropagation();openCloseSubPaddockSheet(parseInt(document.getElementById('sm-event-id').value),'${sm.id}')">Record return</button>`
       : '';
     const editBtn = `<button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openSmEditForm('${sm.id}')" title="Edit sub-move">Edit</button>`;
     const delBtn = `<button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;padding:0 2px;" onclick="event.stopPropagation();deleteSubMove(${ev.id},'${sm.id}')" title="Remove sub-move">×</button>`;
@@ -15325,7 +15323,12 @@ function renderEeActivePaddocks(){
   const activeSms=isOpen?(ev?.subMoves||[]).filter(sm=>!sm.durationHours&&!sm.dateOut):[];
   let h='';
 
-  active.forEach(p=>{
+  // Filter out paddock windows that have a matching active sub-move
+  // (sub-move card is the user-facing representation; paddock window is for NPK only)
+  const activeSMNames = new Set(activeSms.map(sm=>sm.locationName));
+  const filteredActive = active.filter((p,i)=>i===0 || !activeSMNames.has(p.pastureName));
+
+  filteredActive.forEach(p=>{
     const i=eePaddocks.indexOf(p);
     const isAnchor=i===0;
     const loc=S.pastures.find(x=>x.name===p.pastureName);
@@ -15449,7 +15452,7 @@ function renderEeActivePaddocks(){
             ${typeBadge} sub-move · in ${dLabel(sm.date)}${sm.time?' at '+sm.time:''}
           </div>
         </div>
-        <button class="btn btn-outline btn-xs" onclick="openSubMoveSheetFromEdit('${sm.id}')">
+        <button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openCloseSubPaddockSheet(${evId},'${sm.id}')">
           Close paddock
         </button>
       </div>
@@ -20112,32 +20115,36 @@ function _mwRenderInlineFeedCheck(srcEv, isLastGroup, hasStoredFeed){
     </div>`;
   }).join('');
 
-  // Disposition section — shows per-type "move or residual" choices
-  const dispCards = _fcTypeData.map((t,idx)=>{
-    const unitLabel = _fcUnitLabel(t.unit);
-    if(t.remaining <= 0){
-      return `<div style="border-radius:8px;padding:8px 10px;margin-bottom:8px;background:var(--green-l);border:0.5px solid var(--green);font-size:12px;color:var(--green-d);">All ${escHtml(t.feedTypeName)} consumed — nothing to transfer</div>`;
-    }
-    const choice = _mwFeedDisposition[t.feedTypeId] || 'residual';
-    return `<div style="border-radius:12px;padding:10px 12px;margin-bottom:8px;background:var(--amber-l);border:0.5px solid var(--amber);">
-      <div style="font-size:12px;font-weight:500;color:var(--amber-d);margin-bottom:6px;">${t.remaining.toFixed(2)} ${unitLabel} of ${escHtml(t.feedTypeName)} remaining — move feed?</div>
-      <div style="display:flex;gap:8px;">
-        <button style="flex:1;padding:8px;font-size:12px;border-radius:6px;border:0.5px solid var(--amber);background:${choice==='residual'?'var(--amber)':'white'};color:${choice==='residual'?'white':'var(--amber-d)'};cursor:pointer;font-weight:500;font-family:inherit;" onclick="_mwSetDisposition('${t.feedTypeId}','residual')">Record as residual</button>
-        <button style="flex:1;padding:8px;font-size:12px;border-radius:6px;border:none;background:${choice==='move'?'var(--amber)':'white'};color:${choice==='move'?'white':'var(--amber-d)'};cursor:pointer;font-weight:500;font-family:inherit;border:0.5px solid var(--amber);" onclick="_mwSetDisposition('${t.feedTypeId}','move')">Move to destination</button>
-      </div>
-    </div>`;
-  }).join('');
+  // Disposition section — rendered by _mwRenderDispositionCards (shared with live updates)
+  const dispCards = _mwRenderDispositionCards();
 
   return `<div style="font-size:11px;font-weight:600;color:var(--text2);letter-spacing:0.03em;margin-bottom:8px;">FINAL FEED CHECK</div>
     ${cards}
     <div style="font-size:11px;font-weight:600;color:var(--text2);letter-spacing:0.03em;margin-bottom:8px;margin-top:14px;">FEED DISPOSITION</div>
-    ${dispCards}`;
+    <div id="mw-feed-disposition">${dispCards}</div>`;
+}
+
+function _mwRenderDispositionCards(){
+  return _fcTypeData.map((t,idx)=>{
+    const unitLabel = _fcUnitLabel(t.unit);
+    if(t.remaining <= 0){
+      return `<div style="border-radius:8px;padding:8px 10px;margin-bottom:8px;background:var(--green-l);border:0.5px solid var(--green);font-size:12px;color:var(--green-d);">All ${escHtml(t.feedTypeName)} consumed \u2014 nothing to transfer</div>`;
+    }
+    const choice = _mwFeedDisposition[t.feedTypeId] || 'residual';
+    return `<div style="border-radius:12px;padding:10px 12px;margin-bottom:8px;background:var(--amber-l);border:0.5px solid var(--amber);">
+      <div style="font-size:12px;font-weight:500;color:var(--amber-d);margin-bottom:6px;">${t.remaining.toFixed(2)} ${unitLabel} of ${escHtml(t.feedTypeName)} remaining \u2014 move feed?</div>
+      <div style="display:flex;gap:8px;">
+        <button style="flex:1;padding:8px;font-size:12px;border-radius:6px;border:0.5px solid var(--amber);background:${choice==='residual'?'var(--amber)':'white'};color:${choice==='residual'?'white':'var(--amber-d)'};cursor:pointer;font-weight:500;font-family:inherit;" onclick="_mwSetDisposition('${t.feedTypeId}','residual')">Record as residual</button>
+        <button style="flex:1;padding:8px;font-size:12px;border-radius:6px;border:0.5px solid var(--amber);background:${choice==='move'?'var(--amber)':'white'};color:${choice==='move'?'white':'var(--amber-d)'};cursor:pointer;font-weight:500;font-family:inherit;" onclick="_mwSetDisposition('${t.feedTypeId}','move')">Move to destination</button>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 function _mwSetDisposition(ftId, choice){
   _mwFeedDisposition[ftId] = choice;
-  // Re-render step 3 to update button states
-  _renderMoveWizStep();
+  const dispEl = document.getElementById('mw-feed-disposition');
+  if(dispEl) dispEl.innerHTML = _mwRenderDispositionCards();
 }
 
 function _mwSetQuality(btn, val){
@@ -20302,7 +20309,7 @@ let _cspSmId = null;
 function openCloseSubPaddockSheet(evId, smId){
   _cspEvId = evId;
   _cspSmId = smId;
-  const ev = S.events.find(e=>e.id===evId);
+  const ev = S.events.find(e=>String(e.id)===String(evId));
   if(!ev) return;
   const sm = (ev.subMoves||[]).find(s=>String(s.id)===String(smId));
   if(!sm) return;
@@ -20380,10 +20387,10 @@ function closeCloseSubPaddockSheet(){
 }
 
 function _cspSave(){
-  const ev = S.events.find(e=>e.id===_cspEvId);
-  if(!ev) return;
+  const ev = S.events.find(e=>String(e.id)===String(_cspEvId));
+  if(!ev){ closeCloseSubPaddockSheet(); return; }
   const sm = (ev.subMoves||[]).find(s=>String(s.id)===String(_cspSmId));
-  if(!sm) return;
+  if(!sm){ closeCloseSubPaddockSheet(); return; }
   const closeDate = document.getElementById('csp-date')?.value || todayStr();
   const closeTime = document.getElementById('csp-time')?.value || '';
   const startDate = sm.date || closeDate;
@@ -20587,10 +20594,11 @@ function _fcUpdateUI(idx, skipUnits){
   if(pctEl) pctEl.textContent = pct.toFixed(2) + '%';
   const sliderEl = document.getElementById('fc-slider-'+idx);
   if(sliderEl) sliderEl.value = pct.toFixed(1);
-  // Re-render consumed bar — just update the parent card
-  // For simplicity, re-render the whole sheet (cards are lightweight)
-  // Actually, let's just update the consumed bar directly
-  // We'd need an id for that — for now the full re-render on save is fine
+  // If inside move wizard step 3, refresh the disposition section
+  if(_mwStep === 3){
+    const dispEl = document.getElementById('mw-feed-disposition');
+    if(dispEl) dispEl.innerHTML = _mwRenderDispositionCards();
+  }
 }
 
 function _fcSave(){

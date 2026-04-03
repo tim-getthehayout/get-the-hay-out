@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260403.0058`
+**Current build:** `b20260403.0942`
 **Last updated:** 2026-04-03
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -1211,6 +1211,16 @@ The recovery min/max input section in the sub-move sheet has been wrapped in `di
 
 **Paddock picker (Step 2a):** Classifies paddocks into Nearby (±4 from current in pasture list), Ready, Recovering (with progress bar), In Use (dimmed), Confinement. Tapping a ready paddock auto-advances to Step 3.
 
+**Event edit integration (b20260403.0934):** "Move group" button in event edit (`startMoveGroup`) now closes the editor and launches `openMoveWizSheet(evId, groupId)`. Sub-move "Close paddock" / "Record return" buttons in event edit and sub-move sheet both rewired to `openCloseSubPaddockSheet()`. The old inline `openSmCloseForm()` and `startMoveGroup` destination-picker flows are no longer reachable from any button.
+
+### Sub-paddock close — ID type coercion (b20260403.0934)
+
+`_cspSave()` and `openCloseSubPaddockSheet()` now use `String()` coercion on all event/sub-move ID comparisons. Root cause of dialog-won't-close bug: `e.id===_cspEvId` used strict equality between number and string — the find returned `undefined`, the function bailed before reaching `closeCloseSubPaddockSheet()`. Data was saved (by the onclick propagating to a parent save path) but the dialog stayed open. Fix: `String(e.id)===String(_cspEvId)` + dialog always closes on bail-out paths.
+
+### Event edit paddock deduplication (b20260403.0934)
+
+`renderEeActivePaddocks()` now filters out paddock windows whose `pastureName` matches an active sub-move's `locationName`. Without this, a sub-move to paddock K-5 would render K-5 three times: once as a paddock window card, once as a sub-move card, and once in the bottom chips section. The anchor paddock (index 0) always renders regardless. The paddock window entry still exists for NPK acreage-split accounting — only the visual rendering is filtered.
+
 ### Floating feedback FAB restored on mobile (OI-0162, b20260403.0022)
 
 The FAB was hidden on mobile by OI-0147 to fix a badge z-index/overflow issue. Root fix: `z-index` raised to 150 (above nav bar's ~100, below sheets at 200), `overflow:visible` added so badge renders properly, slightly smaller on mobile (44px vs 48px desktop). Field mode still hides FAB via `body.field-mode .fab{display:none !important}`.
@@ -1230,6 +1240,8 @@ When the move wizard closes an event (last group leaving) and stored feed is pre
 **FINAL FEED CHECK** — same per-feed-type stepper+slider cards as standalone feed check, rendered inline via `_mwRenderInlineFeedCheck()`. Reuses `_fcTypeData[]` and all `_fc*` interaction handlers (wizard and standalone never open simultaneously).
 
 **FEED DISPOSITION** — per-feed-type prompt: "X units remaining — move feed?" with two buttons: "Record as residual" (default) or "Move to destination". State: `_mwFeedDisposition{}` (feedTypeId → 'residual'|'move'). On save: close-reading feed check saved to source event; for each type with disposition 'move', a new feedEntry is created on the destination event with the remaining quantity. **NPK note:** feed transfer is inventory movement only — no NPK deposit. The existing livestock excretion path handles NPK.
+
+**Live refresh (b20260403.0934):** Disposition cards now update in real-time when the inline feed check stepper/slider values change. `_fcUpdateUI()` detects `_mwStep===3` and calls `_mwRenderDispositionCards()` to refresh `#mw-feed-disposition`. The `_mwSetDisposition()` handler also uses targeted DOM update instead of full step re-render, preserving stepper/slider input state.
 
 ### DMI interpolation — getDailyStoredDMI (b20260403.0054)
 
