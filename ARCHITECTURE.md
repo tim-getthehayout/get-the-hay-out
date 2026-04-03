@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260403.0942`
+**Current build:** `b20260403.1002`
 **Last updated:** 2026-04-03
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -1220,6 +1220,18 @@ The recovery min/max input section in the sub-move sheet has been wrapped in `di
 ### Event edit paddock deduplication (b20260403.0934)
 
 `renderEeActivePaddocks()` now filters out paddock windows whose `pastureName` matches an active sub-move's `locationName`. Without this, a sub-move to paddock K-5 would render K-5 three times: once as a paddock window card, once as a sub-move card, and once in the bottom chips section. The anchor paddock (index 0) always renders regardless. The paddock window entry still exists for NPK acreage-split accounting — only the visual rendering is filtered.
+
+### Pasture ID type mismatch — String coercion required everywhere (b20260403.0958)
+
+Pasture IDs from Supabase are strings (`"34"`) but template-literal interpolation in `onclick="_mwPickPaddock(${p.id})"` converts to number (`34`). Strict equality `p.id === _mwDestPaddockId` then fails (`"34" !== 34`), causing "Destination paddock not found" on the move wizard confirm step. **Fix:** All `_mwDestPaddockId` lookups now use `String(p.id)===String(_mwDestPaddockId)`, and the paddock picker onclick quotes the ID: `_mwPickPaddock('${p.id}')`. **Pattern reminder:** any ID passed through a template-literal onclick must be quoted to preserve its type, or the find must use String coercion.
+
+### iOS button activation in dynamic innerHTML (b20260403.0958)
+
+Buttons rendered via `innerHTML` inside sheet overlays (`#csp-content`, `#mw-content`, `#fc-content`) need explicit `type="button"` to prevent iOS Safari from treating them as implicit submit buttons. Without it, taps may not fire the onclick reliably. Applied to all buttons in the close-sub-paddock sheet (save, cancel, quality selectors). This is a general pattern for any button rendered into dynamic innerHTML in a PWA context.
+
+### Move wizard — TO tile re-pick (b20260403.0958)
+
+The TO card on step 3 is now clickable — tapping it calls `_mwChangeDest()` which sets `_mwStep=2` and re-renders, returning the user to the paddock picker (step 2a) or event picker (step 2b) with their prior `_mwDestType` preserved. A pencil icon (✎) next to the "TO" label signals editability.
 
 ### Floating feedback FAB restored on mobile (OI-0162, b20260403.0022)
 
