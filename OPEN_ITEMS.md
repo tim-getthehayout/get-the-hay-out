@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260403.0022
-**Reconciled against build:** b20260403.0022
+**Last updated:** b20260403.0047
+**Reconciled against build:** b20260403.0047
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -21,15 +21,15 @@
 | 🔴 Open — Roadblock | 0 |
 | 🔴 Open — Bug | 0 |
 | 🟡 Open — Polish | 2 |
-| 🔵 Open — Enhancement | 21 |
+| 🔵 Open — Enhancement | 18 |
 | ⚪ Open — Debt | 9 |
-| ✅ Closed | 116 |
+| ✅ Closed | 119 |
 
 ---
 
 ## Session Queue
 
-Recommended work order as of b20260403.0022. Updated after OI-0150, OI-0152, OI-0154, OI-0156, OI-0162 closed (event tile + move wizard session).
+Recommended work order as of b20260403.0047. Updated after OI-0145, OI-0159 closed + feed disposition + emoji bug fix.
 
 ### 🐞 Bucket 1 — Bugs (do first)
 | Priority | OI | Title | Notes |
@@ -55,7 +55,6 @@ Recommended work order as of b20260403.0022. Updated after OI-0150, OI-0152, OI-
 ### 📱 Bucket 5 — Field mode quick wins
 | Priority | OI | Title | Notes |
 |---|---|---|---|
-| 6 | OI-0145 | Field home: To-Do list + simplified tile stats | Non-design parts of 1775002940235 only |
 
 ### 🔁 Parallel track — admin console (enables close-the-loop UI)
 | Priority | OI | Title | Notes |
@@ -2676,6 +2675,50 @@ When the Google OAuth token expired on mobile (after ~1 hour), the scheduled sil
 "Add floating feedback button back to mobile." The FAB was hidden on mobile by OI-0147 fix to resolve a badge overflow issue.
 
 **Fixed:** FAB restored on mobile with root fix: `z-index` raised to 150 (above nav bar, below sheets), `overflow:visible` for badge rendering, slightly smaller (44px) on mobile. Field mode still hides FAB.
+
+---
+
+
+### OI-0159
+**Source:** In-app feedback — id:1775127732299 (Tim, 2026-04-02)
+**Area:** Feed Management / Feed Check Dialog
+**Severity:** Enhancement
+**Status:** ✅ Closed
+**Found:** b20260402.1058
+**Closed:** b20260403.0038
+
+"On bale checks allow user to estimate remaining bales or percentage." The old feed check was a single percentage slider with no unit-level precision.
+
+**Fixed:** New `openFeedCheckSheet(evId)` renders per-feed-type cards with: stepper control (−/+/direct entry, 2 decimal places), percentage display, and horizontal slider (0-100%) — all three bidirectionally linked. "Consumed since last check" amber bar shows units consumed + estimated DMI lbs. Saves `typeChecks[]` per-type breakdown alongside backward-compatible overall `balesRemainingPct`.
+
+---
+
+### OI-0145
+**Source:** In-app feedback — id:1775002940235 (Tim, 2026-04-01)
+**Area:** Field Mode / Home Screen
+**Severity:** Enhancement
+**Status:** ✅ Closed
+**Found:** b20260401.2245
+**Closed:** b20260403.0038
+
+"Field mode Home — remove all items except for action tiles and To Do's. At section below Field mode action buttons add To Do's list and To Do quick add button."
+
+**Fixed:** `renderFieldHome()` fully rewritten with three sections: (1) Quick-launch tiles (2-col grid, white bg), (2) Tasks section with compact todo list (inline checkbox completion, due date/overdue labels, + Add button, max 4 shown), (3) Events section with collapsed event cards that expand on tap to show full compact location card with teal border and ⌃ collapse handle.
+
+---
+
+
+### OI-0155
+**Source:** In-app feedback — id:1775156385004 (Tim, 2026-04-02)
+**Area:** Move Wizard / Feed Management
+**Severity:** Enhancement
+**Status:** ✅ Closed
+**Found:** b20260402.1058
+**Closed:** b20260403.0047
+
+"At close of event, allow user to move remaining stored feed to new paddock." No mechanism existed to transfer unconsumed stored feed when closing an event.
+
+**Fixed:** Move wizard step 3 now shows inline feed check + feed disposition when last group is leaving and stored feed is present. Per-feed-type "move feed?" prompt with "Record as residual" / "Move to destination" buttons. When "Move to destination" is selected, remaining feed quantity is transferred as a new feedEntry on the destination event. Feed check is saved as a close-reading on the source event.
 
 ---
 

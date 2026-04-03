@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260403.0027" id="app-version-meta"/>
+<meta name="app-version" content="b20260403.0050" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -4451,35 +4451,134 @@ function renderFieldModules(){
     </div>`;
   }).join('');
 }
+// ── Field mode expanded event tracking ─────────────────────────────────────────
+let _fhExpandedEvId = null; // only one expanded at a time
+
 function renderFieldHome(){
   const grpsEl = document.getElementById('home-groups');
   const noneEl = document.getElementById('home-no-groups');
   if(noneEl) noneEl.style.display = 'none';
   if(!grpsEl) return;
+
+  // ── 1. TILES ────────────────────────────────────────────────
   const activeKeys = _getUserFieldModules();
   const tiles = FIELD_MODULES.filter(m => activeKeys.includes(m.key));
   const tileHTML = tiles.length
     ? tiles.map(m=>`
         <button onclick="(${m.handler.toString()})()"
           style="display:flex;flex-direction:column;align-items:center;justify-content:center;
-                 gap:10px;min-height:100px;border-radius:12px;
-                 border:1.5px solid var(--border2);background:var(--bg2);
-                 cursor:pointer;font-family:inherit;padding:16px 8px;
-                 transition:background 0.15s,border-color 0.15s;
+                 gap:8px;min-height:88px;border-radius:12px;
+                 border:1.5px solid var(--border);background:var(--bg);
+                 cursor:pointer;font-family:inherit;padding:14px 8px;
                  -webkit-tap-highlight-color:transparent;"
           ontouchstart="this.style.background='var(--green-l)';this.style.borderColor='var(--green)';"
-          ontouchend="this.style.background='var(--bg2)';this.style.borderColor='var(--border2)';">
-          <span style="font-size:36px;line-height:1;">${m.icon}</span>
-          <span style="font-size:14px;font-weight:700;color:var(--text);">${m.label}</span>
+          ontouchend="this.style.background='var(--bg)';this.style.borderColor='var(--border)';">
+          <span style="font-size:32px;line-height:1;">${m.icon}</span>
+          <span style="font-size:13px;font-weight:500;color:var(--text);">${m.label}</span>
         </button>`).join('')
-    : `<div style="font-size:13px;color:var(--text2);padding:16px 0;">No modules active — go to Settings → Field mode to add tiles.</div>`;
+    : `<div style="font-size:13px;color:var(--text2);padding:16px 0;">No modules active \u2014 go to Settings \u2192 Field mode to add tiles.</div>`;
+
+  // ── 2. TASKS ────────────────────────────────────────────────
+  const myTodos = (S.todos||[]).filter(t => t.status !== 'closed').slice(0, 4);
+  let tasksHTML = '';
+  if(myTodos.length || true){ // always show section with + Add
+    const todoRows = myTodos.map(t=>{
+      const isOverdue = t.dueDate && t.dueDate < todayStr();
+      const dueLabel = t.dueDate
+        ? (t.dueDate === todayStr() ? 'Due today'
+          : isOverdue ? `Overdue \u00b7 ${dLabel(t.dueDate)}`
+          : `Due ${dLabel(t.dueDate)}`)
+        : '';
+      const dueColor = isOverdue ? 'var(--red)' : 'var(--text3)';
+      return `<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--bg);border:0.5px solid var(--border);border-radius:10px;margin-bottom:6px;">
+        <div style="width:18px;height:18px;border-radius:4px;border:1.5px solid var(--border2);flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;"
+          onclick="event.stopPropagation();_fhCompleteTodo(${t.id})"></div>
+        <div style="flex:1;cursor:pointer;" onclick="openTodoSheet(${t.id})">
+          <div style="font-size:13px;">${escHtml(t.title)}</div>
+          ${dueLabel ? `<div style="font-size:11px;color:${dueColor};">${dueLabel}</div>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+    tasksHTML = `<div style="margin-top:18px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div style="font-size:13px;font-weight:500;">Tasks</div>
+        <button style="padding:4px 0;font-size:12px;border:none;background:transparent;color:var(--teal);cursor:pointer;font-weight:500;font-family:inherit;" onclick="openTodoSheet()">+ Add</button>
+      </div>
+      ${todoRows || '<div style="font-size:12px;color:var(--text2);padding:4px 0;">No open tasks</div>'}
+    </div>`;
+  }
+
+  // ── 3. EVENTS (collapsed / expandable) ──────────────────────
+  const openEvs = S.events.filter(e=>e.status==='open');
+  let eventsHTML = '';
+  if(openEvs.length){
+    const evCards = openEvs.map(ev=>{
+      const isExpanded = _fhExpandedEvId === ev.id;
+      const isCon = ev.locationType === 'confinement';
+      const locIcon = isCon ? '🏚' : '🌿';
+      const locName = evDisplayName(ev);
+      const loc = (S.pastures||[]).find(p=>String(p.id)===String(ev.paddocks?.[0]?.pastureId));
+      const acres = loc?.acres || '';
+      const activeGrps = evGroups(ev).filter(g=>!g.dateRemoved);
+      const grpNames = activeGrps.map(g=>{const gg=getGroupById(g.groupId);return gg?gg.name:'';}).filter(Boolean).join(' + ');
+      const days = daysBetween(ev.dateIn, todayStr());
+      const activeSm = (ev.subMoves||[]).find(sm=>!sm.durationHours);
+      const smLine = activeSm ? ` \u00b7 📍 ${activeSm.locationName}` : '';
+
+      if(isExpanded){
+        // Full compact card wrapped in teal border — card has its own header
+        const cardHtml = renderLocationCard(ev, {compact:true});
+        // Wrap in teal border container with collapse handle
+        return `<div style="border:2px solid var(--teal);border-radius:12px;overflow:hidden;margin-bottom:6px;position:relative;">
+          <div style="position:absolute;top:8px;right:10px;z-index:2;cursor:pointer;padding:4px 8px;font-size:14px;color:var(--text3);" onclick="event.stopPropagation();_fhToggleEvent(${ev.id})">\u2303</div>
+          ${cardHtml}
+        </div>`;
+      } else {
+        // Collapsed card
+        return `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg);border:0.5px solid var(--border);border-radius:10px;margin-bottom:6px;cursor:pointer;" onclick="_fhToggleEvent(${ev.id})">
+          <div style="width:4px;border-radius:2px;flex-shrink:0;align-self:stretch;background:${isCon?'#888':'var(--green)'};height:36px;"></div>
+          <div style="flex:1;">
+            <div style="display:flex;gap:6px;">
+              <span style="font-size:13px;font-weight:500;">${locIcon} ${escHtml(locName)}</span>
+              <span style="font-size:10px;color:var(--text2);">${acres?acres+' ac':''}</span>
+            </div>
+            <div style="font-size:11px;color:var(--text2);margin-top:2px;">${escHtml(grpNames)} \u00b7 Day ${days}${smLine}</div>
+          </div>
+          <div style="font-size:14px;color:var(--text3);">\u203a</div>
+        </div>`;
+      }
+    }).join('');
+
+    eventsHTML = `<div style="margin-top:18px;">
+      <div style="font-size:13px;font-weight:500;margin-bottom:8px;">Events</div>
+      ${evCards}
+    </div>`;
+  }
 
   grpsEl.innerHTML = `
     <div style="padding:16px 0 8px;">
-      <div style="font-size:18px;font-weight:700;margin-bottom:2px;">Field Mode</div>
-      <div style="font-size:12px;color:var(--text2);margin-bottom:16px;">Tap to log. Use <strong>← Detail</strong> in the header to return to the full app.</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">${tileHTML}</div>
+      <div style="font-size:18px;font-weight:600;margin-bottom:2px;">Field mode</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:14px;">Tap to log. Use <strong>\u2190 Detail</strong> in the header to return to the full app.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">${tileHTML}</div>
+      ${tasksHTML}
+      ${eventsHTML}
     </div>`;
+}
+
+function _fhToggleEvent(evId){
+  _fhExpandedEvId = (_fhExpandedEvId === evId) ? null : evId;
+  renderFieldHome();
+}
+
+function _fhCompleteTodo(id){
+  const t = (S.todos||[]).find(x=>x.id===id);
+  if(!t) return;
+  t.status = 'closed';
+  t.closedAt = new Date().toISOString();
+  t.updatedAt = new Date().toISOString();
+  queueWrite('todos', _todoRow(t, _sbOperationId));
+  save();
+  renderFieldHome();
 }
 // ─── END FIELD HOME ───────────────────────────────────────────────────────────
 
@@ -4605,7 +4704,7 @@ function renderLocationCard(ev, opts){
   const compact = opts?.compact || false;
   const isCon = ev.locationType==='confinement';
   const isNoP = ev.noPasture;
-  const locIcon = isCon ? '\U0001f3da' : '\U0001f33f';
+  const locIcon = isCon ? '🏚' : '🌿';
   const locName = evDisplayName(ev);
   const days = daysBetween(ev.dateIn, todayStr());
   const entries = allFeedEntries(ev);
@@ -19522,6 +19621,7 @@ let _mwDestType = null; // 'new' | 'existing'
 let _mwDestPaddockId = null;
 let _mwDestEventId = null;
 let _mwCloseOutData = {}; // pasture close-out survey fields
+let _mwFeedDisposition = {}; // feedTypeId → 'residual' | 'move'
 
 function openMoveWizSheet(evId, groupId, moveAll){
   _mwSourceEvId = evId;
@@ -19530,6 +19630,7 @@ function openMoveWizSheet(evId, groupId, moveAll){
   _mwDestPaddockId = null;
   _mwDestEventId = null;
   _mwCloseOutData = {};
+  _mwFeedDisposition = {};
   const ev = S.events.find(e=>e.id===evId && e.status==='open');
   if(moveAll && ev){
     _mwGroupIds = evGroups(ev).filter(g=>!g.dateRemoved).map(g=>g.groupId);
@@ -19575,15 +19676,15 @@ function _mwRenderStep1(){
     <button style="font-size:12px;color:var(--text2);background:none;border:none;cursor:pointer;font-family:inherit;" onclick="closeMoveWizSheet()">Cancel</button>
   </div>
   <div style="font-size:17px;font-weight:600;margin-bottom:4px;">${escHtml(titleText)}</div>
-  ${ev ? `<div style="font-size:12px;color:var(--text2);margin-bottom:16px;">Currently at ${(ev.locationType==='confinement'?'\U0001f3da':'\U0001f33f')} ${escHtml(locLine)}${smLine}</div>` : '<div style="font-size:12px;color:var(--text2);margin-bottom:16px;">Not currently placed</div>'}
+  ${ev ? `<div style="font-size:12px;color:var(--text2);margin-bottom:16px;">Currently at ${(ev.locationType==='confinement'?'🏚':'🌿')} ${escHtml(locLine)}${smLine}</div>` : '<div style="font-size:12px;color:var(--text2);margin-bottom:16px;">Not currently placed</div>'}
   <div style="font-size:13px;font-weight:500;color:var(--text2);margin-bottom:10px;">Where are they going?</div>
   <div style="display:flex;align-items:center;gap:12px;padding:16px;background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;margin-bottom:8px;cursor:pointer;" onclick="_mwPickDestType('new')">
-    <div style="width:40px;height:40px;border-radius:10px;background:var(--green-l);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">\U0001f195</div>
+    <div style="width:40px;height:40px;border-radius:10px;background:var(--green-l);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🆕</div>
     <div style="flex:1;"><div style="font-size:14px;font-weight:500;">New location</div><div style="font-size:11px;color:var(--text2);margin-top:2px;">Start a new event at a different paddock</div></div>
     <div style="font-size:16px;color:var(--text3);">\u203a</div>
   </div>
   <div style="display:flex;align-items:center;gap:12px;padding:16px;background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;cursor:pointer;" onclick="_mwPickDestType('existing')">
-    <div style="width:40px;height:40px;border-radius:10px;background:var(--teal-l);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">\U0001f4cd</div>
+    <div style="width:40px;height:40px;border-radius:10px;background:var(--teal-l);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">📍</div>
     <div style="flex:1;"><div style="font-size:14px;font-weight:500;">Existing event</div><div style="font-size:11px;color:var(--text2);margin-top:2px;">Join another group already at a location</div></div>
     <div style="font-size:16px;color:var(--text3);">\u203a</div>
   </div>`;
@@ -19637,7 +19738,7 @@ function _mwRenderStep2a(){
 
   function renderPRow(item){
     const p = item.p;
-    const icon = item.isCon ? '\U0001f3da' : '\U0001f33f';
+    const icon = item.isCon ? '🏚' : '🌿';
     const acTxt = p.acres ? p.acres+' ac' : '';
     let statusLine = '';
     let opacity = '1';
@@ -19723,7 +19824,7 @@ function _mwRenderStep2b(){
 
   const evRows = openEvs.map(e=>{
     const isCon = e.locationType==='confinement';
-    const icon = isCon ? '\U0001f3da' : '\U0001f33f';
+    const icon = isCon ? '🏚' : '🌿';
     const loc = (S.pastures||[]).find(p=>String(p.id)===String(e.paddocks?.[0]?.pastureId));
     const acres = loc?.acres || '';
     const badge = isCon ? '<span class="badge" style="background:var(--amber-l);color:var(--amber-d);font-size:9px;padding:1px 6px;">stored feed</span>'
@@ -19767,7 +19868,7 @@ function _mwPickEvent(evId){
 function _mwRenderStep3(){
   const srcEv = _mwSourceEvId ? S.events.find(e=>e.id===_mwSourceEvId) : null;
   const srcName = srcEv ? evDisplayName(srcEv) : 'Not placed';
-  const srcIcon = srcEv ? (srcEv.locationType==='confinement'?'\U0001f3da':'\U0001f33f') : '';
+  const srcIcon = srcEv ? (srcEv.locationType==='confinement'?'🏚':'🌿') : '';
   const srcAcres = srcEv ? ((S.pastures||[]).find(p=>String(p.id)===String(srcEv.paddocks?.[0]?.pastureId))?.acres || '') : '';
   const days = srcEv ? daysBetween(srcEv.dateIn, todayStr()) : 0;
 
@@ -19775,12 +19876,12 @@ function _mwRenderStep3(){
   let destName='', destIcon='', destAcres='', destSubLine='';
   if(_mwDestType==='existing' && _mwDestEventId){
     const de = S.events.find(e=>e.id===_mwDestEventId);
-    if(de){ destName=evDisplayName(de); destIcon=de.locationType==='confinement'?'\U0001f3da':'\U0001f33f'; destAcres=((S.pastures||[]).find(p=>String(p.id)===String(de.paddocks?.[0]?.pastureId))?.acres||'');
+    if(de){ destName=evDisplayName(de); destIcon=de.locationType==='confinement'?'🏚':'🌿'; destAcres=((S.pastures||[]).find(p=>String(p.id)===String(de.paddocks?.[0]?.pastureId))?.acres||'');
       const dGrps = evGroups(de).filter(g=>!g.dateRemoved).map(g=>{const gg=getGroupById(g.groupId);return gg?gg.name:'';}).filter(Boolean).join(', ');
       destSubLine = dGrps; }
   } else if(_mwDestType==='new' && _mwDestPaddockId){
     const dp = (S.pastures||[]).find(p=>p.id===_mwDestPaddockId);
-    if(dp){ destName=dp.name; destIcon=dp.locationType==='confinement'?'\U0001f3da':'\U0001f33f'; destAcres=dp.acres||''; destSubLine='New event \u00b7 '+(destAcres?destAcres+' ac':''); }
+    if(dp){ destName=dp.name; destIcon=dp.locationType==='confinement'?'🏚':'🌿'; destAcres=dp.acres||''; destSubLine='New event \u00b7 '+(destAcres?destAcres+' ac':''); }
   }
 
   // Is this the last group leaving? → event will close
@@ -19882,7 +19983,96 @@ function _mwRenderStep3(){
   </div>
   ${infoBoxes}
   ${closeOutHtml}
+  ${_mwRenderInlineFeedCheck(srcEv, isLastGroup, hasStoredFeed)}
   <button style="width:100%;padding:12px;font-size:14px;font-weight:600;border-radius:8px;border:none;background:var(--teal);color:white;cursor:pointer;font-family:inherit;" onclick="_mwSave()">${saveLabel}</button>`;
+}
+
+// ── Inline feed check + disposition for step 3 ──────────────────────────────
+function _mwRenderInlineFeedCheck(srcEv, isLastGroup, hasStoredFeed){
+  if(!isLastGroup || !hasStoredFeed || !srcEv) return '';
+
+  // Initialize _fcTypeData if not already set for this wizard session
+  if(!_fcTypeData.length){
+    const entries = allFeedEntries(srcEv);
+    const typeMap = {};
+    entries.forEach(entry=>{
+      (entry.lines||[]).forEach(line=>{
+        const batch = S.batches.find(b=>b.id===line.batchId);
+        if(!batch) return;
+        const ftId = batch.feedTypeId || batch.typeId;
+        if(!ftId) return;
+        if(!typeMap[ftId]){
+          const ft = (S.feedTypes||[]).find(f=>f.id===ftId);
+          typeMap[ftId] = { feedTypeId:ftId, feedTypeName:ft?ft.name:(batch.label||'Feed'), unit:ft?ft.unit:(batch.unit||'unit'), totalUnits:0, lbsPerUnit:batch.wt||0, dmPct:batch.dm||85 };
+        }
+        typeMap[ftId].totalUnits += (line.qty||0);
+      });
+    });
+    const lastCheck = (srcEv.feedResidualChecks||[]).filter(c=>!c.isCloseReading).sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];
+    const lastPct = lastCheck ? (lastCheck.balesRemainingPct ?? lastCheck.residualPct ?? 100) : 100;
+    const lastDate = lastCheck?.date || null;
+    const lastTypeChecks = lastCheck?.typeChecks || null;
+    _fcTypeData = Object.values(typeMap).map(t=>{
+      let lastUnits;
+      if(lastTypeChecks){ const tc=lastTypeChecks.find(c=>String(c.feedTypeId)===String(t.feedTypeId)); lastUnits=tc?tc.remaining:t.totalUnits*(lastPct/100); }
+      else { lastUnits=t.totalUnits*(lastPct/100); }
+      return { ...t, startedUnits:t.totalUnits, lastCheckUnits:parseFloat(lastUnits.toFixed(2)), lastCheckDate:lastDate, remaining:parseFloat(lastUnits.toFixed(2)) };
+    });
+  }
+
+  if(!_fcTypeData.length) return '';
+
+  // Build per-type feed check cards (reuse fc- IDs — wizard and standalone never open simultaneously)
+  const cards = _fcTypeData.map((t,idx)=>{
+    const pct = t.startedUnits > 0 ? (t.remaining / t.startedUnits * 100) : 0;
+    const consumed = Math.max(0, t.lastCheckUnits - t.remaining);
+    const consumedDMI = consumed * t.lbsPerUnit * (t.dmPct/100);
+    const unitLabel = _fcUnitLabel(t.unit);
+    return `<div class="card" style="padding:14px;margin-bottom:10px;">
+      <div style="margin-bottom:10px;"><div style="font-size:13px;font-weight:500;">${escHtml(t.feedTypeName)} (${escHtml(unitLabel)})</div>
+        <div style="font-size:11px;color:var(--text2);">Last check: ${t.lastCheckUnits.toFixed(2)} ${unitLabel}</div></div>
+      <div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:12px;">
+        <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Remaining ${unitLabel}</label>
+          <div style="display:flex;align-items:center;border:0.5px solid var(--amber);border-radius:8px;overflow:hidden;background:var(--bg);">
+            <button style="width:36px;height:38px;border:none;background:var(--amber-l);color:var(--amber-d);font-size:18px;cursor:pointer;font-weight:500;font-family:inherit;" onclick="_fcAdj(${idx},-0.25)">−</button>
+            <input type="number" id="fc-units-${idx}" value="${t.remaining.toFixed(2)}" step="0.01" min="0" max="${t.startedUnits}"
+              style="flex:1;text-align:center;border:none;font-size:16px;font-weight:500;padding:8px 0;background:transparent;color:var(--text);outline:none;width:50px;font-family:inherit;"
+              oninput="_fcUnitsChanged(${idx})">
+            <button style="width:36px;height:38px;border:none;background:var(--amber-l);color:var(--amber-d);font-size:18px;cursor:pointer;font-weight:500;font-family:inherit;" onclick="_fcAdj(${idx},0.25)">+</button>
+          </div></div>
+        <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Remaining %</label>
+          <div style="padding:10px 12px;border:0.5px solid var(--border2);border-radius:8px;font-size:16px;font-weight:500;background:var(--bg);text-align:center;" id="fc-pct-${idx}">${pct.toFixed(2)}%</div></div>
+      </div>
+      <input type="range" id="fc-slider-${idx}" min="0" max="100" value="${pct.toFixed(1)}" step="0.5" style="width:100%;accent-color:#BA7517;" oninput="_fcSliderChanged(${idx})">
+    </div>`;
+  }).join('');
+
+  // Disposition section — shows per-type "move or residual" choices
+  const dispCards = _fcTypeData.map((t,idx)=>{
+    const unitLabel = _fcUnitLabel(t.unit);
+    if(t.remaining <= 0){
+      return `<div style="border-radius:8px;padding:8px 10px;margin-bottom:8px;background:var(--green-l);border:0.5px solid var(--green);font-size:12px;color:var(--green-d);">All ${escHtml(t.feedTypeName)} consumed — nothing to transfer</div>`;
+    }
+    const choice = _mwFeedDisposition[t.feedTypeId] || 'residual';
+    return `<div style="border-radius:12px;padding:10px 12px;margin-bottom:8px;background:var(--amber-l);border:0.5px solid var(--amber);">
+      <div style="font-size:12px;font-weight:500;color:var(--amber-d);margin-bottom:6px;">${t.remaining.toFixed(2)} ${unitLabel} of ${escHtml(t.feedTypeName)} remaining — move feed?</div>
+      <div style="display:flex;gap:8px;">
+        <button style="flex:1;padding:8px;font-size:12px;border-radius:6px;border:0.5px solid var(--amber);background:${choice==='residual'?'var(--amber)':'white'};color:${choice==='residual'?'white':'var(--amber-d)'};cursor:pointer;font-weight:500;font-family:inherit;" onclick="_mwSetDisposition('${t.feedTypeId}','residual')">Record as residual</button>
+        <button style="flex:1;padding:8px;font-size:12px;border-radius:6px;border:none;background:${choice==='move'?'var(--amber)':'white'};color:${choice==='move'?'white':'var(--amber-d)'};cursor:pointer;font-weight:500;font-family:inherit;border:0.5px solid var(--amber);" onclick="_mwSetDisposition('${t.feedTypeId}','move')">Move to destination</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  return `<div style="font-size:11px;font-weight:600;color:var(--text2);letter-spacing:0.03em;margin-bottom:8px;">FINAL FEED CHECK</div>
+    ${cards}
+    <div style="font-size:11px;font-weight:600;color:var(--text2);letter-spacing:0.03em;margin-bottom:8px;margin-top:14px;">FEED DISPOSITION</div>
+    ${dispCards}`;
+}
+
+function _mwSetDisposition(ftId, choice){
+  _mwFeedDisposition[ftId] = choice;
+  // Re-render step 3 to update button states
+  _renderMoveWizStep();
 }
 
 function _mwSetQuality(btn, val){
@@ -19935,6 +20125,29 @@ function _mwSave(){
     }
     srcEv.updatedAt = new Date().toISOString();
     queueEventWrite(srcEv);
+
+    // ── 1b. Save inline feed check if shown ─────────────────────
+    if(isLastGroup && _fcTypeData.length){
+      // Read latest values from DOM inputs (user may have adjusted since render)
+      _fcTypeData.forEach((t,idx)=>{
+        const unitsEl = document.getElementById('fc-units-'+idx);
+        if(unitsEl){ const v=parseFloat(unitsEl.value); if(!isNaN(v)) t.remaining=Math.max(0,parseFloat(v.toFixed(2))); }
+      });
+      let totalValue=0, remainingValue=0;
+      const typeChecks = _fcTypeData.map(t=>{
+        totalValue += t.startedUnits * t.lbsPerUnit;
+        remainingValue += t.remaining * t.lbsPerUnit;
+        return { feedTypeId:t.feedTypeId, remaining:t.remaining, total:t.startedUnits };
+      });
+      const overallPct = totalValue>0 ? parseFloat((remainingValue/totalValue*100).toFixed(2)) : 0;
+      if(!srcEv.feedResidualChecks) srcEv.feedResidualChecks=[];
+      srcEv.feedResidualChecks.push({
+        id:Date.now(), date:moveDate, balesRemainingPct:overallPct, residualPct:overallPct,
+        typeChecks, notes:'move_close', isCloseReading:true
+      });
+      srcEv.updatedAt = new Date().toISOString();
+      queueEventWrite(srcEv);
+    }
   }
 
   // ── 2. Create or join destination event ─────────────────────
@@ -19970,6 +20183,45 @@ function _mwSave(){
     destEv.updatedAt = new Date().toISOString();
     queueEventWrite(destEv);
   }
+
+  // ── 3. Transfer feed to destination if disposition = 'move' ──
+  if(isLastGroup && _fcTypeData.length){
+    const destEvForFeed = _mwDestType==='new'
+      ? S.events[S.events.length-1] // the one we just pushed
+      : (_mwDestEventId ? S.events.find(e=>e.id===_mwDestEventId) : null);
+    if(destEvForFeed){
+      _fcTypeData.forEach(t=>{
+        if(_mwFeedDisposition[t.feedTypeId]==='move' && t.remaining > 0){
+          // Find the batch used in the source event for this feed type
+          const srcEntries = allFeedEntries(srcEv);
+          let batchId = null;
+          for(const entry of srcEntries){
+            for(const line of (entry.lines||[])){
+              const batch = S.batches.find(b=>b.id===line.batchId);
+              if(batch && (batch.feedTypeId===t.feedTypeId || batch.typeId===t.feedTypeId)){
+                batchId = batch.id; break;
+              }
+            }
+            if(batchId) break;
+          }
+          if(batchId){
+            if(!destEvForFeed.feedEntries) destEvForFeed.feedEntries=[];
+            destEvForFeed.feedEntries.push({
+              id: Date.now() + Math.floor(Math.random()*1000),
+              date: moveDate,
+              lines: [{ batchId, qty: t.remaining, unit: t.unit }],
+              notes: 'Transferred from ' + (srcEv ? evDisplayName(srcEv) : 'closed event'),
+              updatedAt: new Date().toISOString()
+            });
+          }
+        }
+      });
+      destEvForFeed.updatedAt = new Date().toISOString();
+      queueEventWrite(destEvForFeed);
+    }
+  }
+
+  _fcTypeData = []; // clear feed check state
 
   save();
   closeMoveWizSheet();
@@ -20099,14 +20351,212 @@ function _cspSave(){
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// ── FEED CHECK SHEET (stub — dual input coming in follow-up session) ─────────
+// ── FEED CHECK SHEET — dual input per feed type (OI-0159) ────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
+let _fcEvId = null;
+let _fcTypeData = []; // [{feedTypeId, feedTypeName, unit, startedUnits, lastCheckUnits, lastCheckDate, lbsPerUnit, dmPct, remaining}]
+
 function openFeedCheckSheet(evId){
-  // For now, open the event editor's feed check section
-  openEventEdit(evId);
+  _fcEvId = evId;
+  const ev = S.events.find(e=>e.id===evId);
+  if(!ev){ openEventEdit(evId); return; } // fallback
+
+  // Group feed entries by feed type
+  const entries = allFeedEntries(ev);
+  const typeMap = {}; // feedTypeId → {totalUnits, feedTypeName, unit, lbsPerUnit, dmPct}
+  entries.forEach(entry=>{
+    (entry.lines||[]).forEach(line=>{
+      const batch = S.batches.find(b=>b.id===line.batchId);
+      if(!batch) return;
+      const ftId = batch.feedTypeId || batch.typeId;
+      if(!ftId) return;
+      if(!typeMap[ftId]){
+        const ft = (S.feedTypes||[]).find(f=>f.id===ftId);
+        typeMap[ftId] = {
+          feedTypeId: ftId,
+          feedTypeName: ft ? ft.name : (batch.label||'Feed'),
+          unit: ft ? ft.unit : (batch.unit||'unit'),
+          totalUnits: 0,
+          lbsPerUnit: batch.wt || 0,
+          dmPct: batch.dm || 85,
+        };
+      }
+      typeMap[ftId].totalUnits += (line.qty||0);
+    });
+  });
+
+  if(!Object.keys(typeMap).length){ openEventEdit(evId); return; } // no feed → fallback
+
+  // Build type data with last check info
+  const lastCheck = (ev.feedResidualChecks||[]).filter(c=>!c.isCloseReading).sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];
+  const lastPct = lastCheck ? (lastCheck.balesRemainingPct ?? lastCheck.residualPct ?? 100) : 100;
+  const lastDate = lastCheck ? lastCheck.date : null;
+  // Per-type checks if stored
+  const lastTypeChecks = lastCheck?.typeChecks || null;
+
+  _fcTypeData = Object.values(typeMap).map(t=>{
+    // If we have per-type data from last check, use it; otherwise apportion by overall pct
+    let lastUnits;
+    if(lastTypeChecks){
+      const tc = lastTypeChecks.find(c=>String(c.feedTypeId)===String(t.feedTypeId));
+      lastUnits = tc ? tc.remaining : t.totalUnits * (lastPct/100);
+    } else {
+      lastUnits = t.totalUnits * (lastPct/100);
+    }
+    return {
+      ...t,
+      startedUnits: t.totalUnits,
+      lastCheckUnits: parseFloat(lastUnits.toFixed(2)),
+      lastCheckDate: lastDate,
+      remaining: parseFloat(lastUnits.toFixed(2)),
+    };
+  });
+
+  _fcRender();
+  document.getElementById('feed-check-wrap').classList.add('open');
 }
+
 function closeFeedCheckSheet(){
   document.getElementById('feed-check-wrap').classList.remove('open');
+  _fcEvId = null;
+  _fcTypeData = [];
+}
+
+function _fcRender(){
+  const el = document.getElementById('fc-content');
+  if(!el) return;
+  const ev = S.events.find(e=>e.id===_fcEvId);
+  if(!ev){ el.innerHTML=''; return; }
+  const locIcon = ev.locationType==='confinement' ? '🏚' : '🌿';
+  const grpNames = evGroups(ev).filter(g=>!g.dateRemoved).map(g=>{const gg=getGroupById(g.groupId);return gg?gg.name:'';}).filter(Boolean).join(' + ');
+
+  const cards = _fcTypeData.map((t,idx)=>{
+    const pct = t.startedUnits > 0 ? (t.remaining / t.startedUnits * 100) : 0;
+    const consumed = Math.max(0, t.lastCheckUnits - t.remaining);
+    const consumedDMI = consumed * t.lbsPerUnit * (t.dmPct/100);
+    const unitLabel = _fcUnitLabel(t.unit);
+    const lastInfo = t.lastCheckDate
+      ? `Last check: ${t.lastCheckUnits.toFixed(2)} ${unitLabel} (${new Date(t.lastCheckDate+'T12:00:00').toLocaleDateString('en-US',{weekday:'short'})})`
+      : 'No prior check';
+    return `<div class="card" style="padding:14px;margin-bottom:10px;">
+      <div style="margin-bottom:10px;">
+        <div style="font-size:13px;font-weight:500;">${escHtml(t.feedTypeName)} (${escHtml(unitLabel)})</div>
+        <div style="font-size:11px;color:var(--text2);">Started: ${t.startedUnits.toFixed(0)} ${unitLabel} \u00b7 ${lastInfo}</div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:12px;">
+        <div style="flex:1;">
+          <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Remaining ${unitLabel}</label>
+          <div style="display:flex;align-items:center;border:0.5px solid var(--amber);border-radius:8px;overflow:hidden;background:var(--bg);">
+            <button style="width:36px;height:38px;border:none;background:var(--amber-l);color:var(--amber-d);font-size:18px;cursor:pointer;font-weight:500;font-family:inherit;" onclick="_fcAdj(${idx},-0.25)">\u2212</button>
+            <input type="number" id="fc-units-${idx}" value="${t.remaining.toFixed(2)}" step="0.01" min="0" max="${t.startedUnits}"
+              style="flex:1;text-align:center;border:none;font-size:16px;font-weight:500;padding:8px 0;background:transparent;color:var(--text);outline:none;width:50px;font-family:inherit;"
+              oninput="_fcUnitsChanged(${idx})">
+            <button style="width:36px;height:38px;border:none;background:var(--amber-l);color:var(--amber-d);font-size:18px;cursor:pointer;font-weight:500;font-family:inherit;" onclick="_fcAdj(${idx},0.25)">+</button>
+          </div>
+        </div>
+        <div style="flex:1;">
+          <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Remaining %</label>
+          <div style="padding:10px 12px;border:0.5px solid var(--border2);border-radius:8px;font-size:16px;font-weight:500;background:var(--bg);text-align:center;" id="fc-pct-${idx}">${pct.toFixed(2)}%</div>
+        </div>
+      </div>
+      <div style="margin-bottom:8px;">
+        <input type="range" id="fc-slider-${idx}" min="0" max="100" value="${pct.toFixed(1)}" step="0.5"
+          style="width:100%;accent-color:#BA7517;" oninput="_fcSliderChanged(${idx})">
+        <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text3);margin-top:2px;"><span>0%</span><span>50%</span><span>100%</span></div>
+      </div>
+      <div style="background:var(--amber-l);border-radius:8px;padding:8px 10px;display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:11px;color:var(--amber-d);">Consumed since last check</span>
+        <span style="font-size:13px;font-weight:500;color:var(--amber-d);">${consumed.toFixed(2)} ${unitLabel} \u00b7 ~${Math.round(consumedDMI).toLocaleString()} lbs DMI</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `<div style="display:flex;justify-content:space-between;margin-bottom:14px;">
+    <div style="font-size:15px;font-weight:600;">Feed check</div>
+    <button style="font-size:12px;color:var(--text2);background:none;border:none;cursor:pointer;font-family:inherit;" onclick="closeFeedCheckSheet()">Cancel</button>
+  </div>
+  <div style="font-size:12px;color:var(--text2);margin-bottom:14px;">${locIcon} ${escHtml(evDisplayName(ev))} \u00b7 ${escHtml(grpNames)}</div>
+  ${cards}
+  <button style="width:100%;padding:12px;font-size:14px;font-weight:600;border-radius:8px;border:none;background:var(--amber);color:white;cursor:pointer;font-family:inherit;" onclick="_fcSave()">Save feed check</button>`;
+}
+
+function _fcUnitLabel(unit){
+  if(!unit) return 'units';
+  const map = {'round-bale':'bales','square-bale':'bales','bale':'bales','tub':'tubs','bag':'bags','ton':'tons','lb':'lbs','kg':'kg'};
+  return map[unit] || unit + 's';
+}
+
+function _fcAdj(idx, delta){
+  const t = _fcTypeData[idx]; if(!t) return;
+  t.remaining = Math.max(0, Math.min(t.startedUnits, parseFloat((t.remaining + delta).toFixed(2))));
+  _fcUpdateUI(idx);
+}
+
+function _fcUnitsChanged(idx){
+  const t = _fcTypeData[idx]; if(!t) return;
+  const input = document.getElementById('fc-units-'+idx);
+  if(!input) return;
+  let v = parseFloat(input.value);
+  if(isNaN(v)) v = 0;
+  t.remaining = Math.max(0, Math.min(t.startedUnits, parseFloat(v.toFixed(2))));
+  _fcUpdateUI(idx, true); // skip units input update — user is typing
+}
+
+function _fcSliderChanged(idx){
+  const t = _fcTypeData[idx]; if(!t) return;
+  const slider = document.getElementById('fc-slider-'+idx);
+  if(!slider) return;
+  const pct = parseFloat(slider.value);
+  t.remaining = parseFloat((t.startedUnits * pct / 100).toFixed(2));
+  _fcUpdateUI(idx);
+}
+
+function _fcUpdateUI(idx, skipUnits){
+  const t = _fcTypeData[idx]; if(!t) return;
+  const pct = t.startedUnits > 0 ? (t.remaining / t.startedUnits * 100) : 0;
+  if(!skipUnits){
+    const unitsEl = document.getElementById('fc-units-'+idx);
+    if(unitsEl) unitsEl.value = t.remaining.toFixed(2);
+  }
+  const pctEl = document.getElementById('fc-pct-'+idx);
+  if(pctEl) pctEl.textContent = pct.toFixed(2) + '%';
+  const sliderEl = document.getElementById('fc-slider-'+idx);
+  if(sliderEl) sliderEl.value = pct.toFixed(1);
+  // Re-render consumed bar — just update the parent card
+  // For simplicity, re-render the whole sheet (cards are lightweight)
+  // Actually, let's just update the consumed bar directly
+  // We'd need an id for that — for now the full re-render on save is fine
+}
+
+function _fcSave(){
+  const ev = S.events.find(e=>e.id===_fcEvId);
+  if(!ev) return;
+  // Compute overall weighted percentage
+  let totalValue = 0, remainingValue = 0;
+  const typeChecks = _fcTypeData.map(t=>{
+    const lbsTotal = t.startedUnits * t.lbsPerUnit;
+    const lbsRemaining = t.remaining * t.lbsPerUnit;
+    totalValue += lbsTotal;
+    remainingValue += lbsRemaining;
+    return { feedTypeId: t.feedTypeId, remaining: t.remaining, total: t.startedUnits };
+  });
+  const overallPct = totalValue > 0 ? parseFloat((remainingValue / totalValue * 100).toFixed(2)) : 0;
+
+  if(!ev.feedResidualChecks) ev.feedResidualChecks = [];
+  ev.feedResidualChecks.push({
+    id: Date.now(),
+    date: todayStr(),
+    balesRemainingPct: overallPct,
+    residualPct: overallPct,
+    typeChecks: typeChecks,
+    notes: null,
+    isCloseReading: false
+  });
+  ev.updatedAt = new Date().toISOString();
+  queueEventWrite(ev);
+  save();
+  closeFeedCheckSheet();
+  renderHome();
 }
 
 </script>

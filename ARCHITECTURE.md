@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260403.0027`
+**Current build:** `b20260403.0050`
 **Last updated:** 2026-04-03
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -46,7 +46,7 @@ build = 'b' + datetime.now().strftime('%Y%m%d') + '.' + datetime.now().strftime(
 | ~2164 | User system |
 | ~2238 | Desktop dashboard header + Mobile perf strip |
 > **Header layout (b20260324.1030):** Mobile uses `flex-direction:column` — title/op-name on row 1, sync/build/field/avatar on row 2. Desktop overrides back to single-row via `body.desktop .hdr`. Op name in `updateHeader()` shows operation name only — head count removed.
-| ~2532 | Home screen + group cards + `renderFieldHome()` stub (field mode) |
+| ~2532 | Home screen + group cards + `renderFieldHome()` (field mode: tiles + tasks + events) |
 | ~2627 | Home view toggle (`renderHomeViewToggle`, `setHomeViewMode`) + Locations view (`renderLocationsView`, `renderLocationCard`, `renderUnplacedGroupsSection`) |
 > **Event tile redesign (b20260403.0022):** `renderLocationCard(ev, opts)` fully rewritten — section-based layout: header (color bar, name + acreage, badge, day/date/cost, Edit + Move All buttons) → SUB-PADDOCKS (conditional, active = green dot with halo) → GROUPS (per-group Move → move wizard + ⚖ weigh) → stacked DMI bars (`_renderDMIBars()`, 3-day, green grazing / amber stored) → Feed check button (amber, conditional on stored feed) → DMI summary + progress bar → NPK (pasture only) → Feed button. `opts.compact` mode for field mode expanded cards (no ⚖, no NPK, compact action row). Badge logic: "grazing" (pure pasture), "stored feed" (noPasture/confinement), "stored feed & grazing" (has feed entries + pasture time, split gradient). Move buttons call `openMoveWizSheet()` not `openEventEdit()` (OI-0150 fix).
 > **FIELD_MODULES (b20260403.0022):** Added `move` (Move Animals 🚜, `_fieldModeMoveHandler`) and `feedcheck` (Feed Check 📋, `_fieldModeFeedCheckHandler`). Default active set unchanged (`['feed','harvest','survey','animals']`).
@@ -157,7 +157,7 @@ All sheets are always in the DOM. Toggle: add/remove `.open` on the `-wrap` div.
 | Reset data | `#reset-sheet-wrap` | `openResetSheet(mode)` | `closeResetSheet()` |
 | **Move wizard (3-step)** | `#move-wiz-wrap` | **`openMoveWizSheet(evId, groupId, moveAll)`** | **`closeMoveWizSheet()`** | **b20260403.0022.** 3-step flow: Step 1 Where? → Step 2a paddock picker / 2b event picker → Step 3 confirm with FROM→TO, close-out survey, save. State: `_mwStep`, `_mwSourceEvId`, `_mwGroupIds`, `_mwMoveAll`, `_mwDestType`, `_mwDestPaddockId`, `_mwDestEventId`. Replaces old nav-based wizard for card-level moves. |
 | **Close sub-paddock** | `#close-sub-paddock-wrap` | **`openCloseSubPaddockSheet(evId, smId)`** | **`closeCloseSubPaddockSheet()`** | **b20260403.0022.** Single-screen: sub-paddock info, close date/time, pasture close-out survey (height, cover, quality, recovery min/max), anchor paddock info box. Fixes OI-0152 width. |
-| **Feed check** | `#feed-check-wrap` | **`openFeedCheckSheet(evId)`** | **`closeFeedCheckSheet()`** | **b20260403.0022.** Stub — currently delegates to `openEventEdit(evId)`. Full dual-input redesign (stepper + slider) deferred to follow-up session. |
+| **Feed check** | `#feed-check-wrap` | **`openFeedCheckSheet(evId)`** | **`closeFeedCheckSheet()`** | **b20260403.0038.** Per-feed-type dual-input dialog: stepper (−/+/direct, 2dp) + percentage + slider, all bidirectionally linked. Groups entries by feedTypeId. "Consumed since last check" amber summary. Saves `typeChecks[]` on check record + backward-compat `balesRemainingPct`. State: `_fcEvId`, `_fcTypeData[]`. |
 
 ---
 
@@ -1215,6 +1215,22 @@ The recovery min/max input section in the sub-move sheet has been wrapped in `di
 
 The FAB was hidden on mobile by OI-0147 to fix a badge z-index/overflow issue. Root fix: `z-index` raised to 150 (above nav bar's ~100, below sheets at 200), `overflow:visible` added so badge renders properly, slightly smaller on mobile (44px vs 48px desktop). Field mode still hides FAB via `body.field-mode .fab{display:none !important}`.
 
+### Feed check dialog — per-type tracking with backward compat (OI-0159, b20260403.0038)
+
+`openFeedCheckSheet(evId)` groups all feed entries by feedTypeId (via batch lookup) and renders one card per feed type. Each card has a stepper (−/+/direct entry, 2 decimal places), a percentage display, and a horizontal slider — all three bidirectionally linked. "Consumed since last check" amber bar shows units consumed + estimated DMI in lbs.
+
+**Data model bridge:** The existing `feedResidualChecks[]` model stores a single `balesRemainingPct` per check. The new dialog saves both the backward-compatible overall percentage (weighted by lbs value across types) AND a `typeChecks[]` array on the check record with per-type `{feedTypeId, remaining, total}`. This allows the existing `calcConsumedDMI()` to continue working unchanged while per-type data is available for future use.
+
+**Last check seeding:** If a prior check has `typeChecks[]`, per-type remaining values are restored. Otherwise, the overall `balesRemainingPct` is apportioned equally across types. This handles pre-migration checks gracefully.
+
+### Feed disposition at close (OI-0155, b20260403.0047)
+
+When the move wizard closes an event (last group leaving) and stored feed is present, step 3 shows two additional sections below the pasture close-out survey:
+
+**FINAL FEED CHECK** — same per-feed-type stepper+slider cards as standalone feed check, rendered inline via `_mwRenderInlineFeedCheck()`. Reuses `_fcTypeData[]` and all `_fc*` interaction handlers (wizard and standalone never open simultaneously).
+
+**FEED DISPOSITION** — per-feed-type prompt: "X units remaining — move feed?" with two buttons: "Record as residual" (default) or "Move to destination". State: `_mwFeedDisposition{}` (feedTypeId → 'residual'|'move'). On save: close-reading feed check saved to source event; for each type with disposition 'move', a new feedEntry is created on the destination event with the remaining quantity. **NPK note:** feed transfer is inventory movement only — no NPK deposit. The existing livestock excretion path handles NPK.
+
 ---
 
 ## ⚠️ Dead Code — Removed (Do Not Re-Add)
@@ -1356,7 +1372,7 @@ A stripped-down layout for focused phone use in the field. Activated by any of t
 
 **`<link rel="apple-touch-icon">`** (b20260401.1011): Added after the viewport meta tag. Uses the same SVG data URI as the manifest icon (`%3Csvg … 🌾 …`). Required for correct icon display on iOS home screen and in the shortcut context menu.
 
-**Field Home tile grid (OI-0006, b20260331.2335):** `renderFieldHome()` fully implemented. Replaces the stub that showed a single feed button.
+**Field Home redesign (OI-0145, b20260403.0038):** `renderFieldHome()` fully rewritten with three sections: (1) Quick-launch tiles (2-column grid, white bg, 88px min-height), (2) Tasks section — compact todo list with inline checkbox completion (`_fhCompleteTodo`), due date/overdue labels, + Add button (max 4 shown), (3) Events section — collapsed event cards (color bar, icon+name, acreage, group names, day count, active sub-move) expand on tap to show full `renderLocationCard(ev, {compact:true})` with teal border and ⌃ collapse handle. One expanded at a time via `_fhExpandedEvId`.
 
 | Constant / Function | Purpose |
 |---|---|
@@ -1366,7 +1382,7 @@ A stripped-down layout for focused phone use in the field. Activated by any of t
 | `_setUserFieldModules(keys)` | Writes to `user.fieldModules`, calls `save()` |
 | `toggleFieldModule(key)` | Adds/removes a module key, saves, re-renders |
 | `renderFieldModules()` | Settings card — per-module on/off toggle pills |
-| `renderFieldHome()` | 2-column grid of large tiles (min 100px, glove-friendly touch targets) |
+| `renderFieldHome()` | 3-section field mode home: tiles (2-col grid) → tasks (compact todos, max 4, inline completion) → events (collapsed cards, expand-on-tap with compact renderLocationCard) |
 
 **Module keys:** `feed` · `harvest` · `survey` · `animals`. Future modules added to `FIELD_MODULES` constant — stub with `handler:null` until implemented.
 
