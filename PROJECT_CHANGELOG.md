@@ -3,6 +3,13 @@
 
 | Build | File | Change |
 |---|---|---|
+| b20260403.1729 | HTML | Feature (#1/#2): Sub-move wizard confirm now includes "Arrival pasture survey" section: forage height, forage cover %, forage condition (Poor/Fair/Good/Exc buttons). Saved as `heightIn`, `forageCoverIn`, `qualityIn` on sub-move record. |
+| b20260403.1729 | HTML | Feature (#5): Edit sub-move sheet now shows forage cover in/out and forage condition (with pre-selected button state). Quality + cover saved in `saveEditSubMove()`. |
+| b20260403.1729 | HTML | Feature (#6): Feed check percentage field is now a direct-entry input (in addition to slider). `_fcPctChanged()` handler converts % → remaining units. Bidirectional: typing %, adjusting slider, or changing units all stay in sync. |
+| b20260403.1729 | HTML | Bug fix (#10): Sub-moves auto-close when anchor event closes. Both `_mwSave` (move wizard) and `saveEventEdit` (last-group-out rule) now iterate active sub-moves and set `dateOut`/`durationHours`. Prevents orphan active sub-moves on closed events. |
+| b20260403.1729 | HTML | Feature (#11): "+ Add sub-move" link now always visible on home event cards, even when no sub-moves exist yet. Previously the entire SUB-PADDOCKS section was hidden when empty. |
+| b20260403.1729 | HTML | Feature (#3): Home card sub-paddock list now sorted: active sub-moves first, then closed in reverse chronological order (most recent first). |
+| b20260403.1729 | HTML | Cleanup (#12): Legacy paddock dropdown in event edit form hidden (`display:none`). Paddock management uses the active paddock cards and chips sections. |
 | b20260403.1642 | HTML | Bug fix: "Open new sub-paddock? → Yes" now launches `openSubMoveWiz` (paddock picker wizard) instead of legacy `openSubMoveSheet`. Close date/time from the just-closed sub-paddock pre-fills into the wizard confirm step via `_mwSubMovePreDate`/`_mwSubMovePreTime`. |
 | b20260403.1642 | HTML | Feature: New edit sub-move sheet (`#edit-sm-wrap`, z-index:210) — full-width overlay with location info card, date/time in/out, pasture survey section (height, recovery, hidden for confinement), notes, Save/Cancel buttons. `openEditSubMoveSheet(evId, smId)` renders the form; `saveEditSubMove()` auto-calculates duration from dates, updates pasture recovery days, queues event write, refreshes home + event edit if open. Replaces legacy `openSmEditForm` for all Edit buttons. |
 | b20260403.1642 | HTML | Rewire: All sub-move "Edit" buttons (event edit sub-move list + legacy manage sheet) now call `openEditSubMoveSheet` instead of `openSubMoveSheetFromEdit`/`openSmEditForm`. |

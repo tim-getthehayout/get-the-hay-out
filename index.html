@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260403.1646" id="app-version-meta"/>
+<meta name="app-version" content="b20260403.1734" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -4800,10 +4800,17 @@ function renderLocationCard(ev, opts){
     </div>
   </div>`;
 
-  // ── SUB-PADDOCKS (conditional) ──────────────────────────────
+  // ── SUB-PADDOCKS (always show section for + Add) ──────────────────────────
   let subPaddocksHtml = '';
-  if(subMoves.length){
-    const smRows = subMoves.map(sm=>{
+  {
+    // Sort: active first, then closed reverse-chronological
+    const sortedSMs = [...subMoves].sort((a,b)=>{
+      const aActive = !a.durationHours && !a.dateOut;
+      const bActive = !b.durationHours && !b.dateOut;
+      if(aActive !== bActive) return aActive ? -1 : 1;
+      return (b.date||'').localeCompare(a.date||'');
+    });
+    const smRows = sortedSMs.map(sm=>{
       const isActive = !sm.durationHours;
       const smLoc = (S.pastures||[]).find(p=>String(p.id)===String(sm.pastureId));
       const smAcres = smLoc?.acres || sm.acres || '';
@@ -4823,7 +4830,7 @@ function renderLocationCard(ev, opts){
       }
     }).join('');
     subPaddocksHtml = `<div style="padding:8px 14px 0;margin-left:14px;">
-      <div style="font-size:11px;font-weight:600;color:var(--text2);letter-spacing:0.03em;padding:8px 0 4px;border-top:0.5px solid var(--border);">SUB-PADDOCKS</div>
+      ${smRows ? `<div style="font-size:11px;font-weight:600;color:var(--text2);letter-spacing:0.03em;padding:8px 0 4px;border-top:0.5px solid var(--border);">SUB-PADDOCKS</div>` : ''}
       ${smRows}
       <button style="padding:4px 0;font-size:12px;border:none;background:transparent;color:var(--teal);cursor:pointer;font-weight:500;font-family:inherit;margin-top:2px;" onclick="event.stopPropagation();openSubMoveWiz(${ev.id})">+ Add sub-move</button>
     </div>`;
@@ -15979,6 +15986,13 @@ function saveEventEdit(){
     ev.status='closed';
     ev.dateOut=ev.dateOut||todayStr();
     ev.feedResidual=ev.feedResidual||0;
+    // Auto-close any active sub-moves
+    (ev.subMoves||[]).forEach(sm=>{
+      if(!sm.durationHours && !sm.dateOut){
+        sm.dateOut = ev.dateOut; sm.timeOut = null;
+        sm.durationHours = sm.date ? Math.max(0, daysBetween(sm.date, ev.dateOut)*24) : 0;
+      }
+    });
     recalcEventTotals(ev);
   }
   ev.updatedAt=new Date().toISOString();
@@ -19492,7 +19506,7 @@ window.addEventListener('offline', ()=>{
       </div>
       <div id="ee-active-paddocks"></div>
       <div id="ee-paddock-chips" style="margin-top:4px;"></div>
-      <select id="ee-paddock" style="max-width:100%;margin-top:6px;">
+      <select id="ee-paddock" style="display:none;">
         <option value="">— add paddock —</option>
       </select>
     </div>
@@ -19871,6 +19885,7 @@ function openSubMoveWiz(evId){
   _mwCloseOutData = {};
   _mwFeedDisposition = {};
   _mwSubMoveMode = true;
+  _mwSmQuality = null;
   _mwStep = 2; // skip step 1 — go straight to paddock picker
   _renderMoveWizStep();
   document.getElementById('move-wiz-wrap').classList.add('open');
@@ -20276,7 +20291,9 @@ function _mwRenderInlineFeedCheck(srcEv, isLastGroup, hasStoredFeed){
             <button style="width:36px;height:38px;border:none;background:var(--amber-l);color:var(--amber-d);font-size:18px;cursor:pointer;font-weight:500;font-family:inherit;" onclick="_fcAdj(${idx},0.25)">+</button>
           </div></div>
         <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Remaining %</label>
-          <div style="padding:10px 12px;border:0.5px solid var(--border2);border-radius:8px;font-size:16px;font-weight:500;background:var(--bg);text-align:center;" id="fc-pct-${idx}">${pct.toFixed(2)}%</div></div>
+          <input type="number" id="fc-pct-${idx}" value="${pct.toFixed(1)}" min="0" max="100" step="0.5"
+            style="width:100%;padding:10px 12px;border:0.5px solid var(--border2);border-radius:8px;font-size:16px;font-weight:500;background:var(--bg);text-align:center;box-sizing:border-box;font-family:inherit;color:var(--text);"
+            oninput="_fcPctChanged(${idx})"></div>
       </div>
       <input type="range" id="fc-slider-${idx}" min="0" max="100" value="${pct.toFixed(1)}" step="0.5" style="width:100%;accent-color:#BA7517;" oninput="_fcSliderChanged(${idx})">
     </div>`;
@@ -20355,8 +20372,35 @@ function _mwRenderSubMoveConfirm(){
     <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Move date</label><input type="date" id="mw-sm-date" value="${todayD}" style="width:100%;padding:9px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
     <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Time</label><input type="time" id="mw-sm-time" value="${nowTime}" style="width:100%;padding:9px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
   </div>
+  <div style="border:0.5px solid var(--border2);border-radius:10px;padding:10px 12px;margin-bottom:14px;">
+    <div style="font-size:11px;font-weight:500;color:var(--text2);letter-spacing:0.03em;margin-bottom:8px;">ARRIVAL PASTURE SURVEY</div>
+    <div style="display:flex;gap:10px;margin-bottom:8px;">
+      <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px;">Forage height (in)</label><input type="number" id="mw-sm-height" placeholder="e.g. 7" style="width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+      <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px;">Forage cover (%)</label><input type="number" id="mw-sm-cover" placeholder="e.g. 65" min="0" max="100" style="width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+    </div>
+    <div><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Forage condition</label>
+      <div style="display:flex;gap:4px;" id="mw-sm-quality-row">
+        <button style="flex:1;padding:6px 0;font-size:12px;border-radius:6px;border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;" type="button" onclick="_mwSmSetQuality(this,'Poor')">Poor</button>
+        <button style="flex:1;padding:6px 0;font-size:12px;border-radius:6px;border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;" type="button" onclick="_mwSmSetQuality(this,'Fair')">Fair</button>
+        <button style="flex:1;padding:6px 0;font-size:12px;border-radius:6px;border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;" type="button" onclick="_mwSmSetQuality(this,'Good')">Good</button>
+        <button style="flex:1;padding:6px 0;font-size:12px;border-radius:6px;border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;" type="button" onclick="_mwSmSetQuality(this,'Excellent')">Exc.</button>
+      </div>
+    </div>
+  </div>
   <div style="margin-bottom:14px;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Notes (optional)</label><input type="text" id="mw-sm-notes" placeholder="e.g. milking, shade break" style="width:100%;padding:9px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
   <button style="width:100%;padding:12px;font-size:14px;font-weight:600;border-radius:8px;border:none;background:var(--teal);color:white;cursor:pointer;font-family:inherit;" type="button" onclick="_mwSaveSubMove()">Record sub-move</button>`;
+}
+
+let _mwSmQuality = null;
+function _mwSmSetQuality(btn, val){
+  _mwSmQuality = val;
+  const row = document.getElementById('mw-sm-quality-row');
+  if(row) row.querySelectorAll('button').forEach(b=>{
+    const isActive = b.textContent.trim().startsWith(val.substring(0,3));
+    b.style.background = isActive ? 'var(--green-l)' : 'transparent';
+    b.style.color = isActive ? 'var(--green-d)' : 'var(--text2)';
+    b.style.borderColor = isActive ? 'var(--green)' : 'var(--border2)';
+  });
 }
 
 function _mwSaveSubMove(){
@@ -20370,6 +20414,8 @@ function _mwSaveSubMove(){
   // Create sub-move record on source event
   if(!srcEv.subMoves) srcEv.subMoves = [];
   const smId = Date.now();
+  const smHeight = document.getElementById('mw-sm-height')?.value;
+  const smCover = document.getElementById('mw-sm-cover')?.value;
   srcEv.subMoves.push({
     id: smId,
     locationName: dp.name,
@@ -20383,8 +20429,10 @@ function _mwSaveSubMove(){
     notes: notes || null,
     feedEntries: [],
     feedResidualChecks: [],
-    heightIn: null,
+    heightIn: smHeight ? parseFloat(smHeight) : null,
     heightOut: null,
+    forageCoverIn: smCover ? parseFloat(smCover) : null,
+    qualityIn: _mwSmQuality || null,
     recoveryMinDays: dp.recoveryMin || dp.recoveryMinDays || null,
     recoveryMaxDays: dp.recoveryMax || dp.recoveryMaxDays || null,
   });
@@ -20441,6 +20489,13 @@ function _mwSave(){
       srcEv.status = 'closed';
       srcEv.dateOut = moveDate;
       srcEv.timeOut = moveTime;
+      // Auto-close any active sub-moves
+      (srcEv.subMoves||[]).forEach(sm=>{
+        if(!sm.durationHours && !sm.dateOut){
+          sm.dateOut = moveDate; sm.timeOut = moveTime;
+          sm.durationHours = sm.date ? Math.max(0, daysBetween(sm.date, moveDate)*24) : 0;
+        }
+      });
       // Pasture close-out survey data
       const coHeight = document.getElementById('mw-co-height')?.value;
       const coCover = document.getElementById('mw-co-cover')?.value;
@@ -20847,7 +20902,9 @@ function _fcRender(){
         </div>
         <div style="flex:1;">
           <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Remaining %</label>
-          <div style="padding:10px 12px;border:0.5px solid var(--border2);border-radius:8px;font-size:16px;font-weight:500;background:var(--bg);text-align:center;" id="fc-pct-${idx}">${pct.toFixed(2)}%</div>
+          <input type="number" id="fc-pct-${idx}" value="${pct.toFixed(1)}" min="0" max="100" step="0.5"
+            style="width:100%;padding:10px 12px;border:0.5px solid var(--border2);border-radius:8px;font-size:16px;font-weight:500;background:var(--bg);text-align:center;box-sizing:border-box;font-family:inherit;color:var(--text);"
+            oninput="_fcPctChanged(${idx})">
         </div>
       </div>
       <div style="margin-bottom:8px;">
@@ -20898,6 +20955,17 @@ function _fcUnitsChanged(idx){
   _fcUpdateUI(idx, true); // skip units input update — user is typing
 }
 
+function _fcPctChanged(idx){
+  const t = _fcTypeData[idx]; if(!t) return;
+  const pctEl = document.getElementById('fc-pct-'+idx);
+  if(!pctEl) return;
+  let pct = parseFloat(pctEl.value);
+  if(isNaN(pct)) pct = 0;
+  pct = Math.max(0, Math.min(100, pct));
+  t.remaining = parseFloat((t.startedUnits * pct / 100).toFixed(2));
+  _fcUpdateUI(idx, false); // update units + slider, skip pct (user is typing)
+}
+
 function _fcSliderChanged(idx){
   const t = _fcTypeData[idx]; if(!t) return;
   const slider = document.getElementById('fc-slider-'+idx);
@@ -20915,7 +20983,7 @@ function _fcUpdateUI(idx, skipUnits){
     if(unitsEl) unitsEl.value = t.remaining.toFixed(2);
   }
   const pctEl = document.getElementById('fc-pct-'+idx);
-  if(pctEl) pctEl.textContent = pct.toFixed(2) + '%';
+  if(pctEl) pctEl.value = pct.toFixed(1);
   const sliderEl = document.getElementById('fc-slider-'+idx);
   if(sliderEl) sliderEl.value = pct.toFixed(1);
   // Update consumed bar
@@ -21086,6 +21154,17 @@ function _ageAddGroup(groupId){
 // ── EDIT SUB-MOVE SHEET ─────────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
 let _esmEvId = null;
+let _esmQuality = null;
+function _esmSetQuality(btn, val){
+  _esmQuality = val;
+  const row = document.getElementById('esm-quality-row');
+  if(row) row.querySelectorAll('button').forEach(b=>{
+    const isActive = b.textContent.trim().startsWith(val.substring(0,3));
+    b.style.background = isActive ? 'var(--green-l)' : 'transparent';
+    b.style.color = isActive ? 'var(--green-d)' : 'var(--text2)';
+    b.style.borderColor = isActive ? 'var(--green)' : 'var(--border2)';
+  });
+}
 let _esmSmId = null;
 
 function openEditSubMoveSheet(evId, smId){
@@ -21096,6 +21175,7 @@ function openEditSubMoveSheet(evId, smId){
   const sm = (ev.subMoves||[]).find(s=>String(s.id)===String(smId));
   if(!sm) return;
   const loc = (S.pastures||[]).find(p=>p.name===sm.locationName);
+  _esmQuality = sm.qualityIn || null;
   const isCon = loc?.locationType==='confinement';
   const isNoPasture = sm.noPasture || isCon;
   const showGrazing = !isNoPasture;
@@ -21107,7 +21187,19 @@ function openEditSubMoveSheet(evId, smId){
       <div style="font-size:11px;font-weight:500;color:var(--text2);letter-spacing:0.03em;margin-bottom:8px;">PASTURE SURVEY</div>
       <div style="display:flex;gap:10px;margin-bottom:8px;">
         <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px;">Height in (in)</label><input type="number" id="esm-height-in" value="${sm.heightIn||''}" placeholder="e.g. 7" style="width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+        <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px;">Forage cover in (%)</label><input type="number" id="esm-cover-in" value="${sm.forageCoverIn||''}" min="0" max="100" style="width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+      </div>
+      <div style="margin-bottom:8px;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Forage condition at arrival</label>
+        <div style="display:flex;gap:4px;" id="esm-quality-row">
+          <button style="flex:1;padding:6px 0;font-size:12px;border-radius:6px;border:0.5px solid var(--border2);background:${sm.qualityIn==='Poor'?'var(--green-l)':'transparent'};color:${sm.qualityIn==='Poor'?'var(--green-d)':'var(--text2)'};cursor:pointer;font-family:inherit;" type="button" onclick="_esmSetQuality(this,'Poor')">Poor</button>
+          <button style="flex:1;padding:6px 0;font-size:12px;border-radius:6px;border:0.5px solid var(--border2);background:${sm.qualityIn==='Fair'?'var(--green-l)':'transparent'};color:${sm.qualityIn==='Fair'?'var(--green-d)':'var(--text2)'};cursor:pointer;font-family:inherit;" type="button" onclick="_esmSetQuality(this,'Fair')">Fair</button>
+          <button style="flex:1;padding:6px 0;font-size:12px;border-radius:6px;border:0.5px solid var(--border2);background:${sm.qualityIn==='Good'?'var(--green-l)':'transparent'};color:${sm.qualityIn==='Good'?'var(--green-d)':'var(--text2)'};cursor:pointer;font-family:inherit;" type="button" onclick="_esmSetQuality(this,'Good')">Good</button>
+          <button style="flex:1;padding:6px 0;font-size:12px;border-radius:6px;border:0.5px solid var(--border2);background:${sm.qualityIn==='Excellent'?'var(--green-l)':'transparent'};color:${sm.qualityIn==='Excellent'?'var(--green-d)':'var(--text2)'};cursor:pointer;font-family:inherit;" type="button" onclick="_esmSetQuality(this,'Excellent')">Exc.</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;margin-bottom:8px;">
         <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px;">Height out (in)</label><input type="number" id="esm-height-out" value="${sm.heightOut||''}" placeholder="e.g. 3.5" style="width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+        <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px;">Forage cover out (%)</label><input type="number" id="esm-cover-out" value="${sm.forageCoverOut||''}" min="0" max="100" style="width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
       </div>
       <div style="display:flex;gap:10px;">
         <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px;">Recovery min (days)</label><input type="number" id="esm-rec-min" value="${sm.recoveryMinDays||loc?.recoveryMin||''}" style="width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
@@ -21182,6 +21274,11 @@ function saveEditSubMove(){
     sm.durationHours = 0; // still active
   }
 
+  const coverIn = document.getElementById('esm-cover-in')?.value;
+  const coverOut = document.getElementById('esm-cover-out')?.value;
+  sm.forageCoverIn = coverIn ? parseFloat(coverIn) : null;
+  sm.forageCoverOut = coverOut ? parseFloat(coverOut) : null;
+  sm.qualityIn = _esmQuality || sm.qualityIn || null;
   sm.notes = notes || null;
   if(heightIn) sm.heightIn = parseFloat(heightIn);
   else sm.heightIn = null;
