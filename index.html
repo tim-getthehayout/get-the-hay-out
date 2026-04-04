@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260403.1757" id="app-version-meta"/>
+<meta name="app-version" content="b20260404.1339" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -135,6 +135,26 @@ body.field-mode .field-mode-sheet.open .sheet{
 .sheet-backdrop{position:absolute;inset:0;background:rgba(0,0,0,0.4);}
 .sheet{position:relative;width:min(92vw,680px);background:var(--bg);border-radius:var(--radius-xl);padding:16px 16px 24px;max-height:90vh;overflow-y:auto;z-index:1;}
 .sheet-handle{width:36px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 16px;}
+#auth-overlay{position:fixed;inset:0;z-index:500;background:linear-gradient(160deg,#2d6a4f 0%,#1b4332 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;font-family:inherit;}
+#auth-overlay *{box-sizing:border-box;}
+#auth-overlay .ao-card{background:rgba(255,255,255,0.97);border-radius:var(--radius-xl);padding:32px 28px;width:100%;max-width:360px;box-shadow:0 8px 32px rgba(0,0,0,0.18);}
+@media(prefers-color-scheme:dark){#auth-overlay .ao-card{background:rgba(36,36,32,0.97);}}
+#auth-overlay .ao-logo{font-size:36px;margin-bottom:6px;text-align:center;}
+#auth-overlay .ao-title{font-size:20px;font-weight:600;color:#fff;text-align:center;margin-bottom:4px;}
+#auth-overlay .ao-tagline{font-size:13px;color:rgba(255,255,255,0.7);text-align:center;margin-bottom:28px;}
+#auth-overlay .ao-heading{font-size:16px;font-weight:600;color:var(--text);margin-bottom:16px;}
+#auth-overlay .ao-field{margin-bottom:14px;}
+#auth-overlay .ao-field label{display:block;font-size:12px;font-weight:500;color:var(--text2);margin-bottom:5px;}
+#auth-overlay .ao-field input{width:100%;padding:10px 12px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:15px;font-family:inherit;background:var(--bg);color:var(--text);}
+#auth-overlay .ao-field input:focus{outline:2px solid var(--green);outline-offset:-1px;}
+#auth-overlay .ao-btn{width:100%;padding:12px;border:none;border-radius:var(--radius);font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;background:var(--green-d);color:#fff;}
+#auth-overlay .ao-btn:active{opacity:0.85;}
+#auth-overlay .ao-btn:disabled{opacity:0.5;cursor:default;}
+#auth-overlay .ao-btn-outline{background:transparent;border:0.5px solid var(--border2);color:var(--text2);font-weight:500;}
+#auth-overlay .ao-status{margin-top:10px;font-size:13px;font-weight:500;min-height:20px;}
+#auth-overlay .ao-hint{font-size:12px;color:var(--text2);margin-top:6px;line-height:1.5;}
+#auth-overlay .ao-pw-toggle{font-size:12px;color:var(--green-d);cursor:pointer;margin-top:8px;text-align:center;}
+@media(prefers-color-scheme:dark){#auth-overlay .ao-pw-toggle{color:var(--green-l2);}}
 .cat-pills{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;}
 .cat-pill{padding:6px 14px;border-radius:20px;font-size:13px;font-weight:500;cursor:pointer;border:0.5px solid var(--border2);background:transparent;color:var(--text2);font-family:inherit;}
 .cp-bug.sel{background:var(--red-l);color:var(--red-d);border-color:var(--red);}
@@ -512,6 +532,59 @@ body:not(.field-mode) #field-mode-toggle{
 </head>
 <body>
 
+<!-- AUTH OVERLAY — shown when not signed in; removed from DOM on auth success -->
+<div id="auth-overlay">
+  <div class="ao-logo">🌾</div>
+  <div class="ao-title">Get The Hay Out</div>
+  <div class="ao-tagline">Grass-based farm management</div>
+  <div class="ao-card">
+    <!-- Step 1: Email (+ optional password) -->
+    <div id="ao-step1">
+      <div class="ao-heading">Sign in / Sign up</div>
+      <div class="ao-field">
+        <label>Email address</label>
+        <input type="email" id="ao-email" placeholder="you@example.com"
+          onkeydown="if(event.key==='Enter'){if(document.getElementById('ao-pw-field').style.display!=='none')document.getElementById('ao-pw').focus();else aoSendCode();}"/>
+      </div>
+      <div id="ao-pw-field" style="display:none;" class="ao-field">
+        <label>Password</label>
+        <input type="password" id="ao-pw" placeholder="••••••••"
+          onkeydown="if(event.key==='Enter')aoSignIn()"/>
+      </div>
+      <button class="ao-btn" id="ao-send-btn" onclick="aoSignIn()">Continue</button>
+      <div id="ao-pw-toggle" class="ao-pw-toggle" onclick="aoTogglePassword()">Sign in with password instead</div>
+      <div id="ao-step1-status" class="ao-status"></div>
+    </div>
+    <!-- Step 2: OTP code entry -->
+    <div id="ao-step2" style="display:none;">
+      <div class="ao-heading">Check your email</div>
+      <div class="ao-hint" style="margin-bottom:14px;margin-top:-8px;">Enter the sign-in code we sent to <strong id="ao-sent-email"></strong></div>
+      <div class="ao-field">
+        <label>Sign-in code</label>
+        <input type="text" id="ao-otp" placeholder="123456"
+          maxlength="8" inputmode="numeric" autocomplete="one-time-code"
+          style="letter-spacing:0.15em;font-size:18px;font-weight:600;max-width:180px;"
+          onkeydown="if(event.key==='Enter')aoVerifyOtp()"/>
+      </div>
+      <button class="ao-btn" id="ao-verify-btn" onclick="aoVerifyOtp()">Verify code</button>
+      <div style="margin-top:10px;">
+        <button class="ao-btn ao-btn-outline" onclick="aoBackToStep1()">Use different email</button>
+      </div>
+      <div id="ao-step2-status" class="ao-status"></div>
+    </div>
+  </div>
+</div>
+<script>
+// Synchronous session check — remove overlay before first paint for signed-in users
+(function(){
+  try{
+    var k='sb-oihivpwftpngbhwpjsqt-auth-token';
+    var t=localStorage.getItem(k);
+    if(t){var o=document.getElementById('auth-overlay');if(o)o.remove();}
+  }catch(e){}
+})();
+</script>
+
 <!-- UPDATE AVAILABLE BANNER -->
 <div id="update-banner" style="
   display:none;
@@ -630,7 +703,7 @@ body:not(.field-mode) #field-mode-toggle{
       <!-- Field mode toggle — label and action set by setFieldModeUI() -->
       <button id="field-mode-toggle" onclick="toggleFieldMode()"></button>
       <!-- Active user avatar -->
-      <div id="hdr-avatar" style="cursor:pointer;" onclick="openUserPicker()"></div>
+      <div id="hdr-avatar" style="cursor:pointer;" onclick="openSignOutSheet()"></div>
       <!-- move-btn removed: actions now live in group cards on Home -->
     </div>
   </div>
@@ -1154,59 +1227,21 @@ body:not(.field-mode) #field-mode-toggle{
         <button class="btn btn-green btn-sm" onclick="saveSettings()">Save settings</button>
       </div>
 
-      <!-- Supabase Auth (M1) -->
+      <!-- Supabase Auth (M1) — OI-0171: sign-in moved to auth overlay; sign-out moved to header avatar -->
       <div class="card">
-        <div class="sec">Account &amp; sync — Supabase</div>
+        <div class="sec">Account &amp; sync</div>
 
-        <!-- Signed out state — two steps -->
+        <!-- Signed out fallback (normally hidden behind auth overlay) -->
         <div id="sb-signed-out">
-
-          <!-- Step 1: Email entry -->
-          <div id="sb-step1">
-            <div style="font-size:13px;color:var(--text2);margin-bottom:14px;line-height:1.6;">
-              Sign in to sync your farm data across devices.
-            </div>
-            <div class="field">
-              <label>Email address</label>
-              <input type="email" id="sb-email-input" placeholder="you@example.com"
-                style="max-width:280px;"
-                onkeydown="if(event.key==='Enter')document.getElementById('sb-password-input').focus()"/>
-            </div>
-            <div class="field">
-              <label>Password <span style="font-weight:400;color:var(--text2);font-size:11px;">— leave blank to use email code instead</span></label>
-              <input type="password" id="sb-password-input" placeholder="••••••••"
-                style="max-width:280px;"
-                onkeydown="if(event.key==='Enter')sbSignInStep1()"/>
-            </div>
-            <button class="btn btn-green btn-sm" id="sb-sendcode-btn" onclick="sbSignInStep1()">Sign in</button>
-            <div id="sb-step1-status" style="display:none;margin-top:10px;font-size:13px;color:var(--red);font-weight:500;"></div>
+          <div style="font-size:13px;color:var(--text2);line-height:1.6;">
+            Not signed in. Reload the app to sign in.
           </div>
-
-          <!-- Step 2: Code entry (shown after code sent) -->
-          <div id="sb-step2" style="display:none;">
-            <div style="font-size:13px;color:var(--text2);margin-bottom:14px;line-height:1.6;">
-              Check your email for the sign-in code and enter it below.
-            </div>
-            <div class="field">
-              <label>Sign-in code</label>
-              <input type="text" id="sb-otp-input" placeholder="12345678"
-                maxlength="8" inputmode="numeric" autocomplete="one-time-code"
-                style="max-width:160px;letter-spacing:0.15em;font-size:18px;font-weight:600;"
-                onkeydown="if(event.key==='Enter')sbVerifyOtp()"/>
-            </div>
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-              <button class="btn btn-green btn-sm" id="sb-verify-btn" onclick="sbVerifyOtp()">Verify code</button>
-              <button class="btn btn-outline btn-sm" onclick="sbResetToStep1()">Use different email</button>
-            </div>
-            <div id="sb-step2-status" style="display:none;margin-top:10px;font-size:13px;font-weight:500;"></div>
-          </div>
-
         </div>
 
         <!-- Signed in state -->
         <div id="sb-signed-in" style="display:none;">
           <div class="banner ban-green" style="margin-bottom:10px;">
-            <div style="font-size:14px;font-weight:600;color:var(--green-d);">✓ Connected to Supabase</div>
+            <div style="font-size:14px;font-weight:600;color:var(--green-d);">✓ Connected</div>
             <div style="font-size:12px;color:var(--green-d);opacity:0.85;" id="sb-user-email">—</div>
           </div>
           <!-- OI-0074: display name input -->
@@ -1218,7 +1253,6 @@ body:not(.field-mode) #field-mode-toggle{
           </div>
           <div style="display:flex;gap:8px;margin-top:8px;align-items:center;">
             <button class="btn btn-outline btn-sm" onclick="sbSaveDisplayName()">Save name</button>
-            <button class="btn btn-outline btn-sm" style="color:var(--red);" onclick="sbSignOut()">Sign out</button>
           </div>
         </div>
       </div>
@@ -2201,6 +2235,7 @@ function sbInitClient(){
             await ensureQueueFlushed();
             await loadFromSupabase(opId);
             subscribeRealtime(opId);
+            _dismissAuthOverlay(); // OI-0171: dismiss overlay on successful load
           }
           else { updateHeaderAvatar(); renderCurrentScreen(); }
         }).finally(() => { _sbLoadInProgress = false; });
@@ -2349,7 +2384,192 @@ function sbResetToStep1(){
 // Kept as a no-op alias so any stale calls don't throw
 function sbSignIn(){ sbSendCode(); }
 
-// Sign out of Supabase
+// ── AUTH OVERLAY (OI-0171) ──────────────────────────────────────────────────
+// Full-screen branded overlay shown when _sbSession is null.
+// Removed from DOM on successful auth; re-created on sign-out.
+
+let _aoPasswordMode = false;
+
+function _aoStatus(stepId, msg, isError){
+  const el = document.getElementById(stepId);
+  if(!el) return;
+  el.textContent = msg;
+  el.style.color = isError ? 'var(--red)' : 'var(--green-d)';
+}
+
+function aoTogglePassword(){
+  _aoPasswordMode = !_aoPasswordMode;
+  const pwField = document.getElementById('ao-pw-field');
+  const toggle = document.getElementById('ao-pw-toggle');
+  const btn = document.getElementById('ao-send-btn');
+  if(pwField) pwField.style.display = _aoPasswordMode ? 'block' : 'none';
+  if(toggle) toggle.textContent = _aoPasswordMode ? 'Use email code instead' : 'Sign in with password instead';
+  if(btn) btn.textContent = _aoPasswordMode ? 'Sign in' : 'Continue';
+}
+
+async function aoSignIn(){
+  if(_aoPasswordMode){
+    await aoSignInWithPassword();
+  } else {
+    await aoSendCode();
+  }
+}
+
+async function aoSendCode(){
+  if(!_sbClient){ sbInitClient(); if(!_sbClient){ if(confirm('Sync service failed to load. Reload?'))location.reload(); return; } }
+  const email = document.getElementById('ao-email')?.value?.trim();
+  if(!email){ _aoStatus('ao-step1-status','Enter your email address',true); return; }
+  const btn = document.getElementById('ao-send-btn');
+  if(btn){ btn.disabled=true; btn.textContent='Sending code…'; }
+  _aoStatus('ao-step1-status','',false);
+  try{
+    const {error} = await _sbClient.auth.signInWithOtp({email});
+    if(error) throw error;
+    document.getElementById('ao-step1').style.display='none';
+    document.getElementById('ao-step2').style.display='block';
+    const sentEl = document.getElementById('ao-sent-email');
+    if(sentEl) sentEl.textContent = email;
+    setTimeout(()=>document.getElementById('ao-otp')?.focus(),100);
+  }catch(e){
+    _aoStatus('ao-step1-status','Failed to send code: '+e.message,true);
+  }finally{
+    if(btn){ btn.disabled=false; btn.textContent=_aoPasswordMode?'Sign in':'Continue'; }
+  }
+}
+
+async function aoSignInWithPassword(){
+  if(!_sbClient){ sbInitClient(); if(!_sbClient){ if(confirm('Sync service failed to load. Reload?'))location.reload(); return; } }
+  const email = document.getElementById('ao-email')?.value?.trim();
+  const password = document.getElementById('ao-pw')?.value;
+  if(!email){ _aoStatus('ao-step1-status','Enter your email address',true); return; }
+  if(!password){ _aoStatus('ao-step1-status','Enter your password',true); return; }
+  const btn = document.getElementById('ao-send-btn');
+  if(btn){ btn.disabled=true; btn.textContent='Signing in…'; }
+  _aoStatus('ao-step1-status','',false);
+  try{
+    const {error} = await _sbClient.auth.signInWithPassword({email,password});
+    if(error){ _aoStatus('ao-step1-status',error.message,true); if(btn){btn.disabled=false;btn.textContent='Sign in';} return; }
+    // onAuthStateChange fires SIGNED_IN — load chain runs; overlay dismissed by sbPostSignInCheck path
+  }catch(e){
+    _aoStatus('ao-step1-status','Sign-in failed: '+e.message,true);
+  }finally{
+    if(btn){ btn.disabled=false; btn.textContent='Sign in'; }
+  }
+}
+
+async function aoVerifyOtp(){
+  if(!_sbClient){ sbInitClient(); if(!_sbClient){ if(confirm('Sync service failed to load. Reload?'))location.reload(); return; } }
+  const email = document.getElementById('ao-email')?.value?.trim();
+  const token = document.getElementById('ao-otp')?.value?.trim().replace(/\s/g,'');
+  if(!token || token.length<4){ _aoStatus('ao-step2-status','Enter the code from your email',true); return; }
+  const btn = document.getElementById('ao-verify-btn');
+  if(btn){ btn.disabled=true; btn.textContent='Verifying…'; }
+  _aoStatus('ao-step2-status','',false);
+  try{
+    const {data:otpData,error} = await _sbClient.auth.verifyOtp({email,token,type:'email'});
+    if(error) throw error;
+    _aoStatus('ao-step2-status','✓ Signed in! Loading your data…',false);
+    if(otpData?.user) await sbPostSignInCheck(otpData.user);
+    _dismissAuthOverlay();
+  }catch(e){
+    _aoStatus('ao-step2-status','Incorrect code — check your email and try again',true);
+    if(btn){btn.disabled=false;btn.textContent='Verify code';}
+  }
+}
+
+function aoBackToStep1(){
+  document.getElementById('ao-step2').style.display='none';
+  document.getElementById('ao-step1').style.display='block';
+  document.getElementById('ao-otp').value='';
+  _aoStatus('ao-step2-status','',false);
+  document.getElementById('ao-email')?.focus();
+}
+
+function _dismissAuthOverlay(){
+  const el = document.getElementById('auth-overlay');
+  if(el) el.remove();
+}
+
+function _renderAuthOverlay(){
+  if(document.getElementById('auth-overlay')) return; // already present
+  const div = document.createElement('div');
+  div.id='auth-overlay';
+  div.innerHTML=`
+    <div class="ao-logo">🌾</div>
+    <div class="ao-title">Get The Hay Out</div>
+    <div class="ao-tagline">Grass-based farm management</div>
+    <div class="ao-card">
+      <div id="ao-step1">
+        <div class="ao-heading">Sign in / Sign up</div>
+        <div class="ao-field">
+          <label>Email address</label>
+          <input type="email" id="ao-email" placeholder="you@example.com"
+            onkeydown="if(event.key==='Enter'){if(document.getElementById('ao-pw-field').style.display!=='none')document.getElementById('ao-pw').focus();else aoSendCode();}"/>
+        </div>
+        <div id="ao-pw-field" style="display:none;" class="ao-field">
+          <label>Password</label>
+          <input type="password" id="ao-pw" placeholder="••••••••"
+            onkeydown="if(event.key==='Enter')aoSignIn()"/>
+        </div>
+        <button class="ao-btn" id="ao-send-btn" onclick="aoSignIn()">Continue</button>
+        <div id="ao-pw-toggle" class="ao-pw-toggle" onclick="aoTogglePassword()">Sign in with password instead</div>
+        <div id="ao-step1-status" class="ao-status"></div>
+      </div>
+      <div id="ao-step2" style="display:none;">
+        <div class="ao-heading">Check your email</div>
+        <div class="ao-hint" style="margin-bottom:14px;margin-top:-8px;">Enter the sign-in code we sent to <strong id="ao-sent-email"></strong></div>
+        <div class="ao-field">
+          <label>Sign-in code</label>
+          <input type="text" id="ao-otp" placeholder="123456"
+            maxlength="8" inputmode="numeric" autocomplete="one-time-code"
+            style="letter-spacing:0.15em;font-size:18px;font-weight:600;max-width:180px;"
+            onkeydown="if(event.key==='Enter')aoVerifyOtp()"/>
+        </div>
+        <button class="ao-btn" id="ao-verify-btn" onclick="aoVerifyOtp()">Verify code</button>
+        <div style="margin-top:10px;">
+          <button class="ao-btn ao-btn-outline" onclick="aoBackToStep1()">Use different email</button>
+        </div>
+        <div id="ao-step2-status" class="ao-status"></div>
+      </div>
+    </div>`;
+  document.body.insertBefore(div, document.body.firstChild);
+  _aoPasswordMode = false;
+  setTimeout(()=>document.getElementById('ao-email')?.focus(),200);
+}
+
+// ── SIGN-OUT SHEET (OI-0171) ────────────────────────────────────────────────
+
+function openSignOutSheet(){
+  if(!_sbSession) return; // not signed in — no-op
+  const user = _sbSession.user;
+  const cached = _sbLoadCachedIdentity();
+  const displayName = cached?.displayName || '';
+  const email = user?.email || '—';
+  const initial = (displayName || email || '?')[0].toUpperCase();
+  const color = cached?.color || 'var(--green)';
+  const el = document.getElementById('signout-content');
+  if(!el) return;
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+      <div style="width:40px;height:40px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;color:#fff;flex-shrink:0;">${initial}</div>
+      <div>
+        ${displayName ? `<div style="font-size:15px;font-weight:500;">${displayName}</div>` : ''}
+        <div style="font-size:13px;color:var(--text2);">${email}</div>
+      </div>
+    </div>
+    <div style="font-size:14px;color:var(--text2);margin-bottom:20px;line-height:1.5;">
+      Sign out of this device? Unsynced changes will be saved locally until you sign back in.
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <button class="btn" style="width:100%;padding:13px;background:var(--red);color:#fff;border:none;border-radius:var(--radius);font-size:15px;font-weight:600;cursor:pointer;" onclick="closeSignOutSheet();sbSignOut();">Sign out</button>
+      <button class="btn btn-outline" style="width:100%;padding:13px;border-radius:var(--radius);font-size:15px;" onclick="closeSignOutSheet()">Cancel</button>
+    </div>`;
+  document.getElementById('signout-sheet-wrap').classList.add('open');
+}
+
+function closeSignOutSheet(){
+  document.getElementById('signout-sheet-wrap').classList.remove('open');
+}
 // ── Sync Queue Inspector ─────────────────────────────────────────────────────
 function renderSyncQueueInspector(){
   const el = document.getElementById('sb-queue-inspector');
@@ -2399,6 +2619,7 @@ async function sbSignOut(){
   await _sbClient.auth.signOut();
   _sbSession = null;
   sbUpdateAuthUI();
+  _renderAuthOverlay(); // OI-0171: show auth overlay after sign-out
 }
 
 // Update the Supabase card in Settings to reflect current auth state
@@ -22081,6 +22302,15 @@ function saveEditSubMove(){
   <div class="sheet" style="padding:16px 16px 24px;">
     <div class="sheet-handle"></div>
     <div id="esm-content"></div>
+  </div>
+</div>
+
+<!-- ── SIGN OUT CONFIRMATION SHEET ──────────────────────────────────────────── -->
+<div class="sheet-wrap" id="signout-sheet-wrap">
+  <div class="sheet-backdrop" onclick="closeSignOutSheet()"></div>
+  <div class="sheet" style="padding:16px 20px 24px;max-width:420px;">
+    <div class="sheet-handle"></div>
+    <div id="signout-content"></div>
   </div>
 </div>
 

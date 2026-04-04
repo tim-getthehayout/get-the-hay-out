@@ -1,8 +1,8 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260403.1757`
-**Last updated:** 2026-04-03
+**Current build:** `b20260404.1339`
+**Last updated:** 2026-04-04
 
 > This is the authoritative navigation guide for every AI coding session.
 > Update it at the end of every session using the SESSION_RULES.md protocol.
@@ -159,6 +159,7 @@ All sheets are always in the DOM. Toggle: add/remove `.open` on the `-wrap` div.
 | **Close sub-paddock** | `#close-sub-paddock-wrap` | **`openCloseSubPaddockSheet(evId, smId)`** | **`closeCloseSubPaddockSheet()`** | **b20260403.0022.** Single-screen: sub-paddock info, close date/time, pasture close-out survey (height, cover, quality, recovery min/max), anchor paddock info box. Fixes OI-0152 width. |
 | **Feed check** | `#feed-check-wrap` | **`openFeedCheckSheet(evId)`** | **`closeFeedCheckSheet()`** | **b20260403.0038.** Per-feed-type dual-input dialog: stepper (−/+/direct, 2dp) + percentage + slider, all bidirectionally linked. Groups entries by feedTypeId. "Consumed since last check" amber summary. Saves `typeChecks[]` on check record + backward-compat `balesRemainingPct`. State: `_fcEvId`, `_fcTypeData[]`. |
 | **Add group to event** | `#add-grp-ev-wrap` | **`openAddGroupToEventSheet(evId)`** | **`closeAddGroupToEventSheet()`** | **b20260403.1018.** Group picker launched from "+ Add group" on home event card. Shows all groups with status (already here / at location / not placed). Handles source-event removal + close-if-last. z-index:210. State: `_ageTargetEvId`. |
+| **Sign-out confirmation** | `#signout-sheet-wrap` | **`openSignOutSheet()`** | **`closeSignOutSheet()`** | **OI-0171 b20260404.** Avatar, email, descriptive text, red "Sign out" button, Cancel. Triggered by `#hdr-avatar` onclick. Only opens when `_sbSession` is non-null. Confirm calls `sbSignOut()` which re-renders auth overlay. |
 
 ---
 
@@ -737,12 +738,23 @@ Critical ordering constraint for the app init block at bottom of `<script>`:
 | Realtime var | `_sbRealtimeChannel` — active Supabase channel; replaced on re-subscribe |
 | Write queue | `gthy-sync-queue` localStorage key — array of `{table, record}` ops |
 
-**Auth flow (M2 — OTP code, b20260328.1211):**
-1. User enters email in Settings → Supabase card → taps **Send code**
-2. `sbSendCode()` calls `signInWithOtp({ email })` — no `emailRedirectTo` — Supabase emails a 6-digit code
-3. Step-2 div shown; user types the code
-4. `sbVerifyOtp()` calls `verifyOtp({ email, token, type: 'email' })` — verifies in-app within PWA context
-5. `onAuthStateChange` fires `SIGNED_IN` in PWA localStorage context → M2 load chain runs
+**Auth flow (M2 — OTP code, b20260328.1211; overlay added OI-0171 b20260404):**
+1. App loads → inline `<script>` synchronously checks `localStorage['sb-oihivpwftpngbhwpjsqt-auth-token']`
+2. If key exists → `#auth-overlay` removed from DOM before first paint (no flash for signed-in users)
+3. If key missing → `#auth-overlay` stays visible; user enters email → `aoSignIn()` dispatches to `aoSendCode()` (OTP) or `aoSignInWithPassword()` (password toggle)
+4. OTP path: `aoSendCode()` calls `signInWithOtp({ email })` → step-2 shown → `aoVerifyOtp()` calls `verifyOtp()` → `sbPostSignInCheck()` → `_dismissAuthOverlay()` removes overlay from DOM
+5. Password path: `aoSignInWithPassword()` calls `signInWithPassword()` → `onAuthStateChange` fires `SIGNED_IN` → load chain runs → `_dismissAuthOverlay()` called after `loadFromSupabase()` completes
+6. Sign-out: `openSignOutSheet()` → confirm → `sbSignOut()` → `_renderAuthOverlay()` re-creates and inserts overlay DOM
+
+**Auth overlay lifecycle (OI-0171, b20260404):**
+- `#auth-overlay` — full-screen branded overlay (z-index:500, above sheets/nav). Green gradient, GTHY logo+tagline, white card with email→OTP two-step form. Password toggle option.
+- **Rendered in static HTML** — present from first paint for unsigned users. Inline `<script>` immediately after the overlay checks `sb-*-auth-token` localStorage key and removes overlay synchronously if found. This means signed-in users never see the overlay; unsigned users see it before any JS runs.
+- **Removed from DOM on auth success** — not hidden. `_dismissAuthOverlay()` calls `el.remove()`. Prevents stale DOM from interfering with sheet z-index stack.
+- **Re-created on sign-out** — `_renderAuthOverlay()` builds overlay innerHTML and inserts at `document.body.firstChild`. Resets `_aoPasswordMode`.
+- **Settings card simplified** — sign-in and sign-out UI removed. Card shows: connected banner (email), display name input, sync queue inspector, operation members list. Old Settings auth functions (`sbSignInStep1`, `sbSignInWithPassword`, `sbSendCode`, `sbVerifyOtp`, `sbResetToStep1`, `_sbStep1Status`, `_sbStep2Status`) retained as dead code — all safely null-guarded, no UI triggers them.
+- **Header avatar** — `#hdr-avatar` onclick changed from `openUserPicker()` (retired no-op) to `openSignOutSheet()`. Only opens when `_sbSession` is non-null.
+
+**Sign-out sheet (`#signout-sheet-wrap`, OI-0171):** Bottom sheet showing avatar circle, display name, email, descriptive text ("Sign out of this device? Unsynced changes will be saved locally until you sign back in."), red "Sign out" button, Cancel. `openSignOutSheet()` dynamically renders content from `_sbSession` + `_sbLoadCachedIdentity()`. Confirm → `closeSignOutSheet()` + `sbSignOut()`.
 
 **Why OTP instead of magic link:** Magic link clicks open in regular Safari. PWA and Safari have isolated `localStorage` contexts — Supabase writes `sb-*` session tokens to Safari's storage; the PWA never sees them. `onAuthStateChange` never fires in the PWA. OTP sidesteps this entirely — the code is verified in-app, session tokens are written directly to PWA localStorage.
 
@@ -799,6 +811,22 @@ Critical ordering constraint for the app init block at bottom of `<script>`:
 | `loadFromSupabase(opId)` | ~L2048 | Full parallel load; assembles S from Supabase; re-renders |
 | `subscribeRealtime(opId)` | ~L2172 | Postgres realtime channel; full reload on any change |
 
+**Auth overlay functions (OI-0171, b20260404):**
+
+| Function | Purpose |
+|---|---|
+| `aoSignIn()` | Dispatcher — routes to `aoSendCode()` or `aoSignInWithPassword()` based on `_aoPasswordMode` |
+| `aoSendCode()` | Send OTP code via `signInWithOtp()` using overlay `#ao-email` input; advance to step 2 |
+| `aoSignInWithPassword()` | Password sign-in via `signInWithPassword()` using overlay `#ao-email` + `#ao-pw` inputs |
+| `aoVerifyOtp()` | Verify OTP code via `verifyOtp()` using overlay `#ao-otp` input; calls `sbPostSignInCheck()` then `_dismissAuthOverlay()` |
+| `aoBackToStep1()` | Reset overlay back to email entry step |
+| `aoTogglePassword()` | Toggle `_aoPasswordMode` — shows/hides password field, updates button label |
+| `_aoStatus(stepId, msg, isError)` | Set status text in overlay step-1 or step-2 status divs |
+| `_dismissAuthOverlay()` | Remove `#auth-overlay` from DOM. No-op if already removed. |
+| `_renderAuthOverlay()` | Create `#auth-overlay` DOM element and insert at `document.body.firstChild`. No-op if already present. Resets `_aoPasswordMode`. |
+| `openSignOutSheet()` | Render sign-out confirmation sheet with avatar, email, buttons. No-op if `_sbSession` is null. |
+| `closeSignOutSheet()` | Close `#signout-sheet-wrap` |
+
 
 **Correct RLS policy set (as of b20260328.1221 — post-bootstrap testing):**
 
@@ -837,11 +865,11 @@ across reloads via `sb-*` localStorage — rate limit only affects new sign-in a
 
 **`S.surveys` note — OI-0115 implemented (b20260330.2116):** `surveys` Supabase table added. `S.surveys[]` now syncs to Supabase. Each survey has `id, date, status ('draft'|'committed'), draftRatings (JSONB), notes`. Ratings live as `paddock_observations` rows — `surveys` is the parent container only. `latestSurveyRating()` and `renderSurveyReport()` rewritten to read from `S.paddockObservations` rather than `S.surveys[].ratings[]`. Legacy `ratings[]` field still supported in `migrateM0aData` backfill (filtered to surveys that have it).
 
-**Settings UI (b20260328.1623 — M3):**
-- `#sb-step1` — email input + "Send code" button + error status line
-- `#sb-step2` — 6-digit code input (`inputmode="numeric"`, `autocomplete="one-time-code"`) + "Verify code" + "Use different email" + status line; hidden until code sent
-- `#sb-signed-out` — wrapper for both steps; shown when not authenticated
-- `#sb-signed-in` — green banner with email + display name input (OI-0074) + Save name + Sign out; shown when authenticated
+**Settings UI (b20260328.1623 — M3; simplified OI-0171 b20260404):**
+- `#sb-signed-out` — minimal fallback ("Not signed in. Reload the app to sign in."); normally hidden behind auth overlay
+- `#sb-signed-in` — green banner with email + display name input (OI-0074) + Save name; shown when authenticated
+- Sign-in UI **moved to auth overlay** (OI-0171) — `#auth-overlay` renders full-screen branded sign-in with email→OTP/password flow
+- Sign-out UI **moved to header avatar** (OI-0171) — `#signout-sheet-wrap` bottom sheet with confirmation
 - Drive card **removed** at M3
 
 **Key write-path functions (M3):**

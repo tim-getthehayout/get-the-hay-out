@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260403.1749
-**Reconciled against build:** b20260403.1749
+**Last updated:** b20260404.1336
+**Reconciled against build:** b20260404.1336
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -21,7 +21,7 @@
 | 🔴 Open — Roadblock | 0 |
 | 🔴 Open — Bug | 0 |
 | 🟡 Open — Polish | 2 |
-| 🔵 Open — Enhancement | 18 |
+| 🔵 Open — Enhancement | 19 |
 | ⚪ Open — Debt | 9 |
 | ✅ Closed | 122 |
 
@@ -29,7 +29,7 @@
 
 ## Session Queue
 
-Recommended work order as of b20260403.0047. Updated after OI-0145, OI-0159 closed + feed disposition + emoji bug fix.
+Recommended work order as of b20260404. Updated after OI-0171 Phase 1 (auth overlay) delivered.
 
 ### 🐞 Bucket 1 — Bugs (do first)
 | Priority | OI | Title | Notes |
@@ -65,6 +65,7 @@ Recommended work order as of b20260403.0047. Updated after OI-0145, OI-0159 clos
 ### 🔭 Deferred — design first
 | OI | Title |
 |---|---|
+| OI-0171 | Auth overlay Phase 2: new-user setup wizard (design UX copy first) |
 | OI-0014 | Stage feed before moving group (suspended future event concept) |
 | OI-0038 | Confinement NPK as lost (data model change) |
 | OI-0045 | Fertility factors form in Settings |
@@ -2755,6 +2756,23 @@ Active paddock cards in event edit only showed name, type badge, acreage, and cl
 Two related bugs: (1) Two consecutive feed checks with the same remaining % produced a 0 daily consumption rate, making DMI bars show empty. Rate carried forward as 0 after last check too. (2) Feed transferred mid-event + new bale delivery inflated `totalDMLbs` retroactively — the 100% baseline jumped, making all interpolated rates spike.
 
 **Fixed:** `getDailyStoredDMI()` fully rewritten with cumulative delivery timeline. Per-delivery DM tracked with dates via `cumDMAt(date)`. Check percentages converted to actual remaining lbs relative to cumulative delivered at check time. Per-segment consumption accounts for mid-segment deliveries. Same-% fallback: when segment rate is 0 but overall consumption exists, uses overall average rate instead of returning 0.
+
+---
+
+### OI-0171 — Auth overlay + new user onboarding
+**Source:** Claude.ai design conversation — b20260404.0751
+**Area:** Auth / Onboarding
+**Severity:** Enhancement
+**Status:** 🔵 Open (Phase 1 ✅ Closed b20260404)
+**Found:** b20260404.0751
+**Closed:** —
+
+Auth gate overlay replaces Settings-embedded sign-in UI. Three phases:
+- **Phase 1** (b20260404): Full-screen branded overlay shown when `_sbSession` is null. Two-step email→OTP. Removed from DOM on auth success. Header avatar → sign-out confirmation sheet → `sbSignOut()` → overlay re-renders. Settings card simplified.
+- **Phase 2** (future): New-user setup wizard — triggers when `sbBootstrapOperation()` fires AND farm is genuinely empty (`S.pastures.length===0 && S.animals.length===0`). Linear wizard: farm name → display name → herd type → herd size. "Skip all setup →" on screen 1; "Skip for now →" per screen.
+- **Phase 3 / M6-H** (deferred): Multi-operation support.
+
+**Acceptance criteria (Phase 1):** Unsigned users see branded overlay on load; signed-in users never see flash; sign-out from header avatar re-shows overlay; Settings card no longer has sign-in/sign-out controls.
 
 ---
 
