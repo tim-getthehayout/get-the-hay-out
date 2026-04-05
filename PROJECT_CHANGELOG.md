@@ -3,6 +3,7 @@
 
 | Build | File | Change |
 |---|---|---|
+| b20260405.NEXT | HTML | Bug fix: Event edit dialog hid the Feed Checks section when no checks existed yet. Condition changed from `noPasture || hasFeedChecks` to also include `hasStoredFeed` (event has feed entries). Section now shows with "No checks recorded yet" message and Add button. |
 | b20260405.NEXT | HTML | Bug fix: Feed check edit from event editor created a duplicate instead of updating the existing record. `_fcSave()` always pushed a new entry. Added `_fcEditId` state variable; `editEeFeedCheck()` now sets it before opening the sheet; `_fcSave()` updates the existing record when `_fcEditId` is set. Also restores per-type remaining values when editing. |
 | b20260405.NEXT | HTML | Fix: `pushAllToSupabase()` operations row changed from upsert to direct UPDATE. Upsert attempted INSERT which failed RLS `owner_id = auth.uid()` check during backup restore. Operations row is identity — should only be updated, never inserted by restore. Added `submissions` and `animal_health_events` to `FLUSH_TIERS`. |
 | b20260405.NEXT | HTML | OI-0175: Tiered flush ordering in `flushToSupabase()`. Queue items grouped by table and flushed in 5 FK dependency tiers (Tier 0=roots → Tier 4=leaves). Fast path for single-item queues. Extracted `_flushOneOp()` helper. Added `FLUSH_TIERS` constant + `_FLUSH_TIER_MAP`. |
