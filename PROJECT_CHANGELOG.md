@@ -3,6 +3,7 @@
 
 | Build | File | Change |
 |---|---|---|
+| b20260405.NEXT | HTML | Feature: Animal classes can now be edited via Edit button in manage classes sheet. `editAnimalClass()` populates form, button changes to "Save changes", Cancel button shown. Fixed "undefined lbs" and "undefined% DMI" display — shows dash when fields are null. |
 | b20260405.NEXT | HTML | OI-0183 Fix 1: `getDailyStoredDMI()` anchor conversion rewritten to use `typeChecks` array (unit-based remaining lbs) instead of percentage of cumulative DM. New helper `_fcCheckToRemainingLbs()` looks up batch wt/dm per feed type. Falls back to pct-based for legacy checks without typeChecks. |
 | b20260405.NEXT | HTML | OI-0183 Fix 4: No-check pasture events return `{noSplit: true}` instead of broken `totalDM/days` estimate. `_renderDMIBars` shows gray bars at full DMI height with "Feed check needed" message. Confinement/noPasture events keep existing 100% stored behavior. |
 | b20260405.NEXT | HTML | OI-0183 Fix 2: Move wizard transfer now creates synthetic opening feed check on destination event with `notes:'transfer_opening'`, `typeChecks` for transferred types, and `carriedRate` from source event. Source rate captured via `getDailyStoredDMI(srcEv, moveDate)` before source is closed. |
