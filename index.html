@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260405.1955" id="app-version-meta"/>
+<meta name="app-version" content="b20260405.2249" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -524,6 +524,10 @@ body:not(.field-mode) #field-mode-toggle{
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.8; }
 }
+/* Hide native number input spinners — steppers use custom +/- buttons */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input[type=number] { -moz-appearance: textfield; }
 
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous"></script>
@@ -20843,18 +20847,18 @@ function _mwRenderInlineFeedCheck(srcEv, isLastGroup, hasStoredFeed){
       <div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:12px;">
         <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Remaining ${unitLabel}</label>
           <div style="display:flex;align-items:center;border:0.5px solid var(--amber);border-radius:8px;overflow:hidden;background:var(--bg);">
-            <button style="width:36px;height:38px;border:none;background:var(--amber-l);color:var(--amber-d);font-size:18px;cursor:pointer;font-weight:500;font-family:inherit;" onclick="_fcAdj(${idx},-0.25)">−</button>
-            <input type="number" id="fc-units-${idx}" value="${t.remaining.toFixed(2)}" step="0.01" min="0" max="${t.startedUnits}"
+            <button style="width:36px;height:38px;border:none;background:var(--amber-l);color:var(--amber-d);font-size:18px;cursor:pointer;font-weight:500;font-family:inherit;" onclick="_fcAdj(${idx},-0.10)">−</button>
+            <input type="number" id="fc-units-${idx}" value="${t.remaining.toFixed(2)}" step="0.01" min="0" max="${t.lastCheckUnits}"
               style="flex:1;text-align:center;border:none;font-size:16px;font-weight:500;padding:8px 0;background:transparent;color:var(--text);outline:none;width:50px;font-family:inherit;"
               oninput="_fcUnitsChanged(${idx})">
-            <button style="width:36px;height:38px;border:none;background:var(--amber-l);color:var(--amber-d);font-size:18px;cursor:pointer;font-weight:500;font-family:inherit;" onclick="_fcAdj(${idx},0.25)">+</button>
+            <button style="width:36px;height:38px;border:none;background:var(--amber-l);color:var(--amber-d);font-size:18px;cursor:pointer;font-weight:500;font-family:inherit;" onclick="_fcAdj(${idx},0.10)">+</button>
           </div></div>
         <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Remaining %</label>
           <input type="number" id="fc-pct-${idx}" value="${pct.toFixed(1)}" min="0" max="100" step="0.5"
             style="width:100%;padding:10px 12px;border:0.5px solid var(--border2);border-radius:8px;font-size:16px;font-weight:500;background:var(--bg);text-align:center;box-sizing:border-box;font-family:inherit;color:var(--text);"
             oninput="_fcPctChanged(${idx})"></div>
       </div>
-      <input type="range" id="fc-slider-${idx}" min="0" max="100" value="${pct.toFixed(1)}" step="0.5" style="width:100%;accent-color:#BA7517;" oninput="_fcSliderChanged(${idx})">
+      <input type="range" id="fc-slider-${idx}" min="0" max="${(t.lastCheckUnits/t.startedUnits*100).toFixed(1)}" value="${pct.toFixed(1)}" step="0.5" style="width:100%;accent-color:#BA7517;" oninput="_fcSliderChanged(${idx})">
     </div>`;
   }).join('');
 
@@ -21480,11 +21484,11 @@ function _fcRender(){
         <div style="flex:1;">
           <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Remaining ${unitLabel}</label>
           <div style="display:flex;align-items:center;border:0.5px solid var(--amber);border-radius:8px;overflow:hidden;background:var(--bg);">
-            <button style="width:36px;height:38px;border:none;background:var(--amber-l);color:var(--amber-d);font-size:18px;cursor:pointer;font-weight:500;font-family:inherit;" onclick="_fcAdj(${idx},-0.25)">\u2212</button>
-            <input type="number" id="fc-units-${idx}" value="${t.remaining.toFixed(2)}" step="0.01" min="0" max="${t.startedUnits}"
+            <button style="width:36px;height:38px;border:none;background:var(--amber-l);color:var(--amber-d);font-size:18px;cursor:pointer;font-weight:500;font-family:inherit;" onclick="_fcAdj(${idx},-0.10)">\u2212</button>
+            <input type="number" id="fc-units-${idx}" value="${t.remaining.toFixed(2)}" step="0.01" min="0" max="${t.lastCheckUnits}"
               style="flex:1;text-align:center;border:none;font-size:16px;font-weight:500;padding:8px 0;background:transparent;color:var(--text);outline:none;width:50px;font-family:inherit;"
               oninput="_fcUnitsChanged(${idx})">
-            <button style="width:36px;height:38px;border:none;background:var(--amber-l);color:var(--amber-d);font-size:18px;cursor:pointer;font-weight:500;font-family:inherit;" onclick="_fcAdj(${idx},0.25)">+</button>
+            <button style="width:36px;height:38px;border:none;background:var(--amber-l);color:var(--amber-d);font-size:18px;cursor:pointer;font-weight:500;font-family:inherit;" onclick="_fcAdj(${idx},0.10)">+</button>
           </div>
         </div>
         <div style="flex:1;">
@@ -21495,9 +21499,9 @@ function _fcRender(){
         </div>
       </div>
       <div style="margin-bottom:8px;">
-        <input type="range" id="fc-slider-${idx}" min="0" max="100" value="${pct.toFixed(1)}" step="0.5"
+        <input type="range" id="fc-slider-${idx}" min="0" max="${(t.lastCheckUnits/t.startedUnits*100).toFixed(1)}" value="${pct.toFixed(1)}" step="0.5"
           style="width:100%;accent-color:#BA7517;" oninput="_fcSliderChanged(${idx})">
-        <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text3);margin-top:2px;"><span>0%</span><span>50%</span><span>100%</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text3);margin-top:2px;"><span>0%</span><span>50%</span><span>${Math.round(t.lastCheckUnits/t.startedUnits*100)}%</span></div>
       </div>
       <div style="background:var(--amber-l);border-radius:8px;padding:8px 10px;display:flex;justify-content:space-between;align-items:center;">
         <span style="font-size:11px;color:var(--amber-d);">Consumed since last check</span>
@@ -21528,7 +21532,7 @@ function _fcUnitLabel(unit){
 
 function _fcAdj(idx, delta){
   const t = _fcTypeData[idx]; if(!t) return;
-  t.remaining = Math.max(0, Math.min(t.startedUnits, parseFloat((t.remaining + delta).toFixed(2))));
+  t.remaining = Math.max(0, Math.min(t.lastCheckUnits, parseFloat((t.remaining + delta).toFixed(2))));
   _fcUpdateUI(idx);
 }
 
@@ -21538,7 +21542,7 @@ function _fcUnitsChanged(idx){
   if(!input) return;
   let v = parseFloat(input.value);
   if(isNaN(v)) v = 0;
-  t.remaining = Math.max(0, Math.min(t.startedUnits, parseFloat(v.toFixed(2))));
+  t.remaining = Math.max(0, Math.min(t.lastCheckUnits, parseFloat(v.toFixed(2))));
   _fcUpdateUI(idx, true); // skip units input update — user is typing
 }
 
@@ -21549,8 +21553,8 @@ function _fcPctChanged(idx){
   let pct = parseFloat(pctEl.value);
   if(isNaN(pct)) pct = 0;
   pct = Math.max(0, Math.min(100, pct));
-  t.remaining = parseFloat((t.startedUnits * pct / 100).toFixed(2));
-  _fcUpdateUI(idx, false); // update units + slider, skip pct (user is typing)
+  t.remaining = Math.min(t.lastCheckUnits, parseFloat((t.startedUnits * pct / 100).toFixed(2)));
+  _fcUpdateUI(idx, false, true); // update units + slider, skip pct (user is typing)
 }
 
 function _fcSliderChanged(idx){
@@ -21558,19 +21562,21 @@ function _fcSliderChanged(idx){
   const slider = document.getElementById('fc-slider-'+idx);
   if(!slider) return;
   const pct = parseFloat(slider.value);
-  t.remaining = parseFloat((t.startedUnits * pct / 100).toFixed(2));
+  t.remaining = Math.min(t.lastCheckUnits, parseFloat((t.startedUnits * pct / 100).toFixed(2)));
   _fcUpdateUI(idx);
 }
 
-function _fcUpdateUI(idx, skipUnits){
+function _fcUpdateUI(idx, skipUnits, skipPct){
   const t = _fcTypeData[idx]; if(!t) return;
   const pct = t.startedUnits > 0 ? (t.remaining / t.startedUnits * 100) : 0;
   if(!skipUnits){
     const unitsEl = document.getElementById('fc-units-'+idx);
     if(unitsEl) unitsEl.value = t.remaining.toFixed(2);
   }
-  const pctEl = document.getElementById('fc-pct-'+idx);
-  if(pctEl) pctEl.value = pct.toFixed(1);
+  if(!skipPct){
+    const pctEl = document.getElementById('fc-pct-'+idx);
+    if(pctEl) pctEl.value = pct.toFixed(1);
+  }
   const sliderEl = document.getElementById('fc-slider-'+idx);
   if(sliderEl) sliderEl.value = pct.toFixed(1);
   // Update consumed bar
