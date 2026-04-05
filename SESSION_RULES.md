@@ -332,8 +332,8 @@ This section is reference material for writing accurate session briefs. The auth
 
 **Do all of the following before delivering outputs:**
 
-### 7a. Update OPEN_ITEMS.md
-If any items were added, closed, or modified this session, update `OPEN_ITEMS.md` and deliver it.
+### 7a. Capture OPEN_ITEMS changes
+If any items were added, closed, or modified this session, include all changes in the SESSION_BRIEF per §4d. Claude Code applies them to `OPEN_ITEMS.md` in the repo.
 
 ### 7b. Generate Session Brief (if applicable)
 If the session produced design decisions or implementation guidance, generate a SESSION_BRIEF per §4d.

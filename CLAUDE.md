@@ -85,9 +85,9 @@ Only modify the specific function(s) needed for the requested change. Do not ref
 
 ## Doc Ownership
 
-Claude Code owns these docs — update them with every deploy:
+Claude Code owns these docs:
 - **ARCHITECTURE.md** — line numbers, function map, screen map, data model
-- **PROJECT_CHANGELOG.md** — one row per change, every session
+- **PROJECT_CHANGELOG.md** — one row per change, every deploy
 
 Claude.ai owns:
 - **SESSION_RULES.md** — design session governance
@@ -97,6 +97,16 @@ Shared:
 
 ### Session Brief Handoff
 When the user pastes a SESSION_BRIEF from Claude.ai, look for the `## OPEN_ITEMS changes` section and apply all entries to `OPEN_ITEMS.md` before starting implementation work.
+
+### Deploy Gate — Mandatory Before Every Deploy
+Before running `deploy.py deploy` or `deploy.py release`, complete ALL of the following:
+
+1. **PROJECT_CHANGELOG.md** — Add one row per change included in this deploy
+2. **ARCHITECTURE.md** — Update any affected sections (function map, line ranges, data model, known traps, auth/sync notes)
+3. **OPEN_ITEMS.md** — If any items were added, closed, or modified, update the file
+4. **Syntax check** — Run the code quality check from the "Code Quality Checks" section
+
+Do NOT run deploy until all four steps are done. If the user asks to deploy, complete the gate first, then deploy.
 
 ## Build Stamp
 
