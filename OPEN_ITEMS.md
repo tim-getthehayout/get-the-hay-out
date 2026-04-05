@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260404.1336
-**Reconciled against build:** b20260404.1336
+**Last updated:** b20260405.0100
+**Reconciled against build:** b20260405.0100
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -29,7 +29,7 @@
 
 ## Session Queue
 
-Recommended work order as of b20260404. Updated after OI-0171 Phase 1 (auth overlay) delivered.
+Recommended work order as of b20260405.0100. Updated after OI-0171 Phase 1.5 (auth refinement + bootstrap fix).
 
 ### 🐞 Bucket 1 — Bugs (do first)
 | Priority | OI | Title | Notes |
@@ -2763,12 +2763,13 @@ Two related bugs: (1) Two consecutive feed checks with the same remaining % prod
 **Source:** Claude.ai design conversation — b20260404.0751
 **Area:** Auth / Onboarding
 **Severity:** Enhancement
-**Status:** 🔵 Open (Phase 1 ✅ Closed b20260404)
+**Status:** 🔵 Open (Phase 1 ✅ b20260404; Phase 1.5 ✅ b20260405)
 **Found:** b20260404.0751
 **Closed:** —
 
 Auth gate overlay replaces Settings-embedded sign-in UI. Three phases:
 - **Phase 1** (b20260404): Full-screen branded overlay shown when `_sbSession` is null. Two-step email→OTP. Removed from DOM on auth success. Header avatar → sign-out confirmation sheet → `sbSignOut()` → overlay re-renders. Settings card simplified.
+- **Phase 1.5** (b20260405): Default flipped to password mode (returning users see email+password). Toggle for OTP. Step 3 added — after OTP verification, "Set up your account" prompts name + password. `aoSaveAccount()` sets password via `auth.updateUser()`. Bug fix: `sbPostSignInCheck()` now bootstraps new users directly (fixes race condition where new users got no operation).
 - **Phase 2** (future): New-user setup wizard — triggers when `sbBootstrapOperation()` fires AND farm is genuinely empty (`S.pastures.length===0 && S.animals.length===0`). Linear wizard: farm name → display name → herd type → herd size. "Skip all setup →" on screen 1; "Skip for now →" per screen.
 - **Phase 3 / M6-H** (deferred): Multi-operation support.
 

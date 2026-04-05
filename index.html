@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260404.1339" id="app-version-meta"/>
+<meta name="app-version" content="b20260405.0108" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -538,21 +538,21 @@ body:not(.field-mode) #field-mode-toggle{
   <div class="ao-title">Get The Hay Out</div>
   <div class="ao-tagline">Grass-based farm management</div>
   <div class="ao-card">
-    <!-- Step 1: Email (+ optional password) -->
+    <!-- Step 1: Email + Password (default) or Email-only (OTP toggle) -->
     <div id="ao-step1">
       <div class="ao-heading">Sign in / Sign up</div>
       <div class="ao-field">
         <label>Email address</label>
         <input type="email" id="ao-email" placeholder="you@example.com"
-          onkeydown="if(event.key==='Enter'){if(document.getElementById('ao-pw-field').style.display!=='none')document.getElementById('ao-pw').focus();else aoSendCode();}"/>
+          onkeydown="if(event.key==='Enter')document.getElementById('ao-pw')?.focus();"/>
       </div>
-      <div id="ao-pw-field" style="display:none;" class="ao-field">
+      <div id="ao-pw-field" class="ao-field">
         <label>Password</label>
         <input type="password" id="ao-pw" placeholder="••••••••"
           onkeydown="if(event.key==='Enter')aoSignIn()"/>
       </div>
-      <button class="ao-btn" id="ao-send-btn" onclick="aoSignIn()">Continue</button>
-      <div id="ao-pw-toggle" class="ao-pw-toggle" onclick="aoTogglePassword()">Sign in with password instead</div>
+      <button class="ao-btn" id="ao-send-btn" onclick="aoSignIn()">Sign in</button>
+      <div id="ao-pw-toggle" class="ao-pw-toggle" onclick="aoTogglePassword()">First time? Use email code instead</div>
       <div id="ao-step1-status" class="ao-status"></div>
     </div>
     <!-- Step 2: OTP code entry -->
@@ -571,6 +571,29 @@ body:not(.field-mode) #field-mode-toggle{
         <button class="ao-btn ao-btn-outline" onclick="aoBackToStep1()">Use different email</button>
       </div>
       <div id="ao-step2-status" class="ao-status"></div>
+    </div>
+    <!-- Step 3: Set up account (after OTP verification for new users) -->
+    <div id="ao-step3" style="display:none;">
+      <div class="ao-heading">Set up your account</div>
+      <div class="ao-hint" style="margin-bottom:14px;margin-top:-8px;">Create a password so you can sign in instantly next time.</div>
+      <div class="ao-field">
+        <label>Your name</label>
+        <input type="text" id="ao-name" placeholder="e.g. Tim"
+          onkeydown="if(event.key==='Enter')document.getElementById('ao-newpw')?.focus()"/>
+      </div>
+      <div class="ao-field">
+        <label>Password</label>
+        <input type="password" id="ao-newpw" placeholder="At least 6 characters"
+          onkeydown="if(event.key==='Enter')document.getElementById('ao-newpw2')?.focus()"/>
+      </div>
+      <div class="ao-field">
+        <label>Confirm password</label>
+        <input type="password" id="ao-newpw2" placeholder="••••••••"
+          onkeydown="if(event.key==='Enter')aoSaveAccount()"/>
+      </div>
+      <button class="ao-btn" id="ao-save-btn" onclick="aoSaveAccount()">Save &amp; continue</button>
+      <div class="ao-pw-toggle" onclick="aoSkipSetup()" style="margin-top:10px;">Skip for now →</div>
+      <div id="ao-step3-status" class="ao-status"></div>
     </div>
   </div>
 </div>
@@ -2388,7 +2411,7 @@ function sbSignIn(){ sbSendCode(); }
 // Full-screen branded overlay shown when _sbSession is null.
 // Removed from DOM on successful auth; re-created on sign-out.
 
-let _aoPasswordMode = false;
+let _aoPasswordMode = true;
 
 function _aoStatus(stepId, msg, isError){
   const el = document.getElementById(stepId);
@@ -2402,9 +2425,14 @@ function aoTogglePassword(){
   const pwField = document.getElementById('ao-pw-field');
   const toggle = document.getElementById('ao-pw-toggle');
   const btn = document.getElementById('ao-send-btn');
+  const emailInput = document.getElementById('ao-email');
   if(pwField) pwField.style.display = _aoPasswordMode ? 'block' : 'none';
-  if(toggle) toggle.textContent = _aoPasswordMode ? 'Use email code instead' : 'Sign in with password instead';
+  if(toggle) toggle.textContent = _aoPasswordMode ? 'First time? Use email code instead' : 'Sign in with password';
   if(btn) btn.textContent = _aoPasswordMode ? 'Sign in' : 'Continue';
+  // Update Enter key behaviour on email field
+  if(emailInput) emailInput.onkeydown = _aoPasswordMode
+    ? function(e){ if(e.key==='Enter') document.getElementById('ao-pw')?.focus(); }
+    : function(e){ if(e.key==='Enter') aoSendCode(); };
 }
 
 async function aoSignIn(){
@@ -2470,7 +2498,14 @@ async function aoVerifyOtp(){
     if(error) throw error;
     _aoStatus('ao-step2-status','✓ Signed in! Loading your data…',false);
     if(otpData?.user) await sbPostSignInCheck(otpData.user);
-    _dismissAuthOverlay();
+    // Show step 3 (set name + password) instead of dismissing immediately
+    document.getElementById('ao-step2').style.display='none';
+    document.getElementById('ao-step3').style.display='block';
+    // Pre-fill name from cached identity if available
+    const cached = _sbLoadCachedIdentity();
+    const nameEl = document.getElementById('ao-name');
+    if(nameEl && cached?.displayName && cached.displayName !== email) nameEl.value = cached.displayName;
+    setTimeout(()=>document.getElementById('ao-name')?.focus(),100);
   }catch(e){
     _aoStatus('ao-step2-status','Incorrect code — check your email and try again',true);
     if(btn){btn.disabled=false;btn.textContent='Verify code';}
@@ -2483,6 +2518,41 @@ function aoBackToStep1(){
   document.getElementById('ao-otp').value='';
   _aoStatus('ao-step2-status','',false);
   document.getElementById('ao-email')?.focus();
+}
+
+async function aoSaveAccount(){
+  const name = document.getElementById('ao-name')?.value?.trim();
+  const pw = document.getElementById('ao-newpw')?.value;
+  const pw2 = document.getElementById('ao-newpw2')?.value;
+  if(!name){ _aoStatus('ao-step3-status','Enter your name',true); return; }
+  if(!pw || pw.length < 6){ _aoStatus('ao-step3-status','Password must be at least 6 characters',true); return; }
+  if(pw !== pw2){ _aoStatus('ao-step3-status','Passwords do not match',true); return; }
+  const btn = document.getElementById('ao-save-btn');
+  if(btn){ btn.disabled=true; btn.textContent='Saving…'; }
+  _aoStatus('ao-step3-status','',false);
+  try{
+    // Set password on the Supabase auth user
+    const {error} = await _sbClient.auth.updateUser({password: pw});
+    if(error) throw error;
+    // Save display name to identity cache + Supabase operation_members
+    sbCacheIdentity(name, _sbOperationId);
+    if(_sbOperationId){
+      await _sbClient.from('operation_members')
+        .update({display_name: name})
+        .eq('operation_id', _sbOperationId)
+        .eq('user_id', _sbSession.user.id);
+    }
+    updateHeader();
+    updateHeaderAvatar();
+    _dismissAuthOverlay();
+  }catch(e){
+    _aoStatus('ao-step3-status','Failed to save: '+e.message,true);
+    if(btn){btn.disabled=false;btn.textContent='Save & continue';}
+  }
+}
+
+function aoSkipSetup(){
+  _dismissAuthOverlay();
 }
 
 function _dismissAuthOverlay(){
@@ -2504,15 +2574,15 @@ function _renderAuthOverlay(){
         <div class="ao-field">
           <label>Email address</label>
           <input type="email" id="ao-email" placeholder="you@example.com"
-            onkeydown="if(event.key==='Enter'){if(document.getElementById('ao-pw-field').style.display!=='none')document.getElementById('ao-pw').focus();else aoSendCode();}"/>
+            onkeydown="if(event.key==='Enter')document.getElementById('ao-pw')?.focus();"/>
         </div>
-        <div id="ao-pw-field" style="display:none;" class="ao-field">
+        <div id="ao-pw-field" class="ao-field">
           <label>Password</label>
           <input type="password" id="ao-pw" placeholder="••••••••"
             onkeydown="if(event.key==='Enter')aoSignIn()"/>
         </div>
-        <button class="ao-btn" id="ao-send-btn" onclick="aoSignIn()">Continue</button>
-        <div id="ao-pw-toggle" class="ao-pw-toggle" onclick="aoTogglePassword()">Sign in with password instead</div>
+        <button class="ao-btn" id="ao-send-btn" onclick="aoSignIn()">Sign in</button>
+        <div id="ao-pw-toggle" class="ao-pw-toggle" onclick="aoTogglePassword()">First time? Use email code instead</div>
         <div id="ao-step1-status" class="ao-status"></div>
       </div>
       <div id="ao-step2" style="display:none;">
@@ -2531,9 +2601,31 @@ function _renderAuthOverlay(){
         </div>
         <div id="ao-step2-status" class="ao-status"></div>
       </div>
+      <div id="ao-step3" style="display:none;">
+        <div class="ao-heading">Set up your account</div>
+        <div class="ao-hint" style="margin-bottom:14px;margin-top:-8px;">Create a password so you can sign in instantly next time.</div>
+        <div class="ao-field">
+          <label>Your name</label>
+          <input type="text" id="ao-name" placeholder="e.g. Tim"
+            onkeydown="if(event.key==='Enter')document.getElementById('ao-newpw')?.focus()"/>
+        </div>
+        <div class="ao-field">
+          <label>Password</label>
+          <input type="password" id="ao-newpw" placeholder="At least 6 characters"
+            onkeydown="if(event.key==='Enter')document.getElementById('ao-newpw2')?.focus()"/>
+        </div>
+        <div class="ao-field">
+          <label>Confirm password</label>
+          <input type="password" id="ao-newpw2" placeholder="••••••••"
+            onkeydown="if(event.key==='Enter')aoSaveAccount()"/>
+        </div>
+        <button class="ao-btn" id="ao-save-btn" onclick="aoSaveAccount()">Save &amp; continue</button>
+        <div class="ao-pw-toggle" onclick="aoSkipSetup()" style="margin-top:10px;">Skip for now →</div>
+        <div id="ao-step3-status" class="ao-status"></div>
+      </div>
     </div>`;
   document.body.insertBefore(div, document.body.firstChild);
-  _aoPasswordMode = false;
+  _aoPasswordMode = true;
   setTimeout(()=>document.getElementById('ao-email')?.focus(),200);
 }
 
@@ -2811,10 +2903,17 @@ async function sbPostSignInCheck(user){
       _sbProfile = member;
       localStorage.setItem('gthy-operation-id', _sbOperationId);
       sbCacheIdentity(member.display_name, _sbOperationId);
-      loadFromSupabase(_sbOperationId);
+      await loadFromSupabase(_sbOperationId);
       subscribeRealtime(_sbOperationId);
+    } else if(!_sbOperationId){
+      // New user — no pending invite claimed, no existing member row, no cached op.
+      // Bootstrap their own operation directly (don't rely on onAuthStateChange race).
+      const opId = await sbBootstrapOperation();
+      if(opId){
+        await loadFromSupabase(opId);
+        subscribeRealtime(opId);
+      }
     }
-    // If no member row found, sbGetOperationId will bootstrap on next call
   } catch(e){
     logError('sb-post-signin', e.message, '');
   }

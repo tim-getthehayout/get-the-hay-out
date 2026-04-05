@@ -1,8 +1,8 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260404.1339`
-**Last updated:** 2026-04-04
+**Current build:** `b20260405.0108`
+**Last updated:** 2026-04-05
 
 > This is the authoritative navigation guide for every AI coding session.
 > Update it at the end of every session using the SESSION_RULES.md protocol.
@@ -738,21 +738,26 @@ Critical ordering constraint for the app init block at bottom of `<script>`:
 | Realtime var | `_sbRealtimeChannel` — active Supabase channel; replaced on re-subscribe |
 | Write queue | `gthy-sync-queue` localStorage key — array of `{table, record}` ops |
 
-**Auth flow (M2 — OTP code, b20260328.1211; overlay added OI-0171 b20260404):**
+**Auth flow (M2 — OTP code, b20260328.1211; overlay added OI-0171 b20260404; password-default + step 3 b20260405):**
 1. App loads → inline `<script>` synchronously checks `localStorage['sb-oihivpwftpngbhwpjsqt-auth-token']`
 2. If key exists → `#auth-overlay` removed from DOM before first paint (no flash for signed-in users)
-3. If key missing → `#auth-overlay` stays visible; user enters email → `aoSignIn()` dispatches to `aoSendCode()` (OTP) or `aoSignInWithPassword()` (password toggle)
-4. OTP path: `aoSendCode()` calls `signInWithOtp({ email })` → step-2 shown → `aoVerifyOtp()` calls `verifyOtp()` → `sbPostSignInCheck()` → `_dismissAuthOverlay()` removes overlay from DOM
-5. Password path: `aoSignInWithPassword()` calls `signInWithPassword()` → `onAuthStateChange` fires `SIGNED_IN` → load chain runs → `_dismissAuthOverlay()` called after `loadFromSupabase()` completes
-6. Sign-out: `openSignOutSheet()` → confirm → `sbSignOut()` → `_renderAuthOverlay()` re-creates and inserts overlay DOM
+3. If key missing → `#auth-overlay` stays visible; default mode is **email + password** (returning users). Toggle link "First time? Use email code instead" switches to OTP mode.
+4. Password path (default): `aoSignInWithPassword()` calls `signInWithPassword()` → `onAuthStateChange` fires `SIGNED_IN` → load chain runs → `_dismissAuthOverlay()` called after `loadFromSupabase()` completes
+5. OTP path (toggled): `aoSendCode()` calls `signInWithOtp({ email })` → step-2 shown → `aoVerifyOtp()` calls `verifyOtp()` → `sbPostSignInCheck()` → step-3 shown (set up account)
+6. Step 3: user sets display name + password via `aoSaveAccount()` (calls `auth.updateUser({password})` + writes `operation_members.display_name`). "Skip for now →" via `aoSkipSetup()` dismisses without setting password.
+7. Sign-out: `openSignOutSheet()` → confirm → `sbSignOut()` → `_renderAuthOverlay()` re-creates overlay DOM
 
-**Auth overlay lifecycle (OI-0171, b20260404):**
-- `#auth-overlay` — full-screen branded overlay (z-index:500, above sheets/nav). Green gradient, GTHY logo+tagline, white card with email→OTP two-step form. Password toggle option.
+**Auth overlay lifecycle (OI-0171, b20260404; updated b20260405):**
+- `#auth-overlay` — full-screen branded overlay (z-index:500, above sheets/nav). Green gradient, GTHY logo+tagline, white card. Three steps: (1) email+password or email-only, (2) OTP code entry, (3) set up account (name + password).
+- **Default mode is password** — `_aoPasswordMode = true`. Password field visible, button "Sign in". Toggle flips to OTP mode ("Continue" button, password hidden). `aoTogglePassword()` updates field visibility, button text, toggle text, and email Enter-key behaviour.
 - **Rendered in static HTML** — present from first paint for unsigned users. Inline `<script>` immediately after the overlay checks `sb-*-auth-token` localStorage key and removes overlay synchronously if found. This means signed-in users never see the overlay; unsigned users see it before any JS runs.
 - **Removed from DOM on auth success** — not hidden. `_dismissAuthOverlay()` calls `el.remove()`. Prevents stale DOM from interfering with sheet z-index stack.
-- **Re-created on sign-out** — `_renderAuthOverlay()` builds overlay innerHTML and inserts at `document.body.firstChild`. Resets `_aoPasswordMode`.
-- **Settings card simplified** — sign-in and sign-out UI removed. Card shows: connected banner (email), display name input, sync queue inspector, operation members list. Old Settings auth functions (`sbSignInStep1`, `sbSignInWithPassword`, `sbSendCode`, `sbVerifyOtp`, `sbResetToStep1`, `_sbStep1Status`, `_sbStep2Status`) retained as dead code — all safely null-guarded, no UI triggers them.
-- **Header avatar** — `#hdr-avatar` onclick changed from `openUserPicker()` (retired no-op) to `openSignOutSheet()`. Only opens when `_sbSession` is non-null.
+- **Re-created on sign-out** — `_renderAuthOverlay()` builds overlay innerHTML and inserts at `document.body.firstChild`. Resets `_aoPasswordMode = true`.
+- **Step 3 (set up account)** — shown after OTP verification only, not after password sign-in. `aoVerifyOtp()` advances to step 3 instead of dismissing. Pre-fills name from cached identity. `aoSaveAccount()` sets password via `auth.updateUser()`, writes display name to `operation_members`, refreshes identity cache. `aoSkipSetup()` dismisses without saving.
+- **Settings card simplified** — sign-in and sign-out UI removed. Card shows: connected banner (email), display name input, sync queue inspector, operation members list.
+- **Header avatar** — `#hdr-avatar` onclick is `openSignOutSheet()`. Only opens when `_sbSession` is non-null.
+
+**`sbPostSignInCheck` bootstrap fix (b20260405):** Previously, when a new user had no `operation_members` row and no pending invite, `sbPostSignInCheck()` did nothing — relied on `onAuthStateChange` → `sbGetOperationId()` to bootstrap. This was a race condition; the concurrent paths could interfere. Now `sbPostSignInCheck()` calls `sbBootstrapOperation()` directly when `member` is null AND `_sbOperationId` is null (genuine new user). This is the authoritative bootstrap path for OTP sign-in.
 
 **Sign-out sheet (`#signout-sheet-wrap`, OI-0171):** Bottom sheet showing avatar circle, display name, email, descriptive text ("Sign out of this device? Unsynced changes will be saved locally until you sign back in."), red "Sign out" button, Cancel. `openSignOutSheet()` dynamically renders content from `_sbSession` + `_sbLoadCachedIdentity()`. Confirm → `closeSignOutSheet()` + `sbSignOut()`.
 
@@ -792,7 +797,7 @@ Critical ordering constraint for the app init block at bottom of `<script>`:
 | `getActiveUser()` | ~L2239 | M6 identity: `_sbProfile` → session → cache → guest |
 | `isAdmin()` | ~L2180 | `_sbProfile.role === 'owner'\|\|'admin'`; true when offline |
 | `sbInviteMember(email, role)` | ~L2185 | Insert pending `operation_members` row + send OTP to invitee |
-| `sbPostSignInCheck(user)` | ~L2215 | Claim pending invite via RPC; load member row; set `_sbProfile`; load farm |
+| `sbPostSignInCheck(user)` | ~L2795 | Claim pending invite via RPC; load member row; set `_sbProfile`; load farm. **b20260405:** if no member row AND no cached `_sbOperationId`, calls `sbBootstrapOperation()` directly (fixes new-user bootstrap race). |
 | `renderOperationMembersList()` | ~L3490 | Async render of members card — accepted + pending rows; admin gates |
 | `sbRemoveMember(id)` | ~L3540 | Delete accepted member row (admin only) |
 | `sbCancelInvite(id)` | ~L3550 | Delete pending invite row (admin only) |
@@ -811,19 +816,21 @@ Critical ordering constraint for the app init block at bottom of `<script>`:
 | `loadFromSupabase(opId)` | ~L2048 | Full parallel load; assembles S from Supabase; re-renders |
 | `subscribeRealtime(opId)` | ~L2172 | Postgres realtime channel; full reload on any change |
 
-**Auth overlay functions (OI-0171, b20260404):**
+**Auth overlay functions (OI-0171, b20260404; step 3 added b20260405):**
 
 | Function | Purpose |
 |---|---|
-| `aoSignIn()` | Dispatcher — routes to `aoSendCode()` or `aoSignInWithPassword()` based on `_aoPasswordMode` |
+| `aoSignIn()` | Dispatcher — routes to `aoSendCode()` or `aoSignInWithPassword()` based on `_aoPasswordMode` (default: password) |
 | `aoSendCode()` | Send OTP code via `signInWithOtp()` using overlay `#ao-email` input; advance to step 2 |
 | `aoSignInWithPassword()` | Password sign-in via `signInWithPassword()` using overlay `#ao-email` + `#ao-pw` inputs |
-| `aoVerifyOtp()` | Verify OTP code via `verifyOtp()` using overlay `#ao-otp` input; calls `sbPostSignInCheck()` then `_dismissAuthOverlay()` |
+| `aoVerifyOtp()` | Verify OTP code via `verifyOtp()` using overlay `#ao-otp` input; calls `sbPostSignInCheck()` then advances to step 3 (set up account) |
 | `aoBackToStep1()` | Reset overlay back to email entry step |
-| `aoTogglePassword()` | Toggle `_aoPasswordMode` — shows/hides password field, updates button label |
-| `_aoStatus(stepId, msg, isError)` | Set status text in overlay step-1 or step-2 status divs |
+| `aoTogglePassword()` | Toggle `_aoPasswordMode` — shows/hides password field, updates button/toggle labels and email Enter-key behaviour |
+| `aoSaveAccount()` | Step 3: set password via `auth.updateUser({password})`, save display name to `operation_members` + identity cache, dismiss overlay |
+| `aoSkipSetup()` | Step 3: dismiss overlay without setting password |
+| `_aoStatus(stepId, msg, isError)` | Set status text in overlay step status divs |
 | `_dismissAuthOverlay()` | Remove `#auth-overlay` from DOM. No-op if already removed. |
-| `_renderAuthOverlay()` | Create `#auth-overlay` DOM element and insert at `document.body.firstChild`. No-op if already present. Resets `_aoPasswordMode`. |
+| `_renderAuthOverlay()` | Create `#auth-overlay` DOM element and insert at `document.body.firstChild`. No-op if already present. Resets `_aoPasswordMode = true`. |
 | `openSignOutSheet()` | Render sign-out confirmation sheet with avatar, email, buttons. No-op if `_sbSession` is null. |
 | `closeSignOutSheet()` | Close `#signout-sheet-wrap` |
 
