@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260405.1137`
+**Current build:** `b20260405.1206`
 **Last updated:** 2026-04-05
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -759,6 +759,10 @@ Critical ordering constraint for the app init block at bottom of `<script>`:
 - **Header avatar** — `#hdr-avatar` onclick is `openSignOutSheet()`. Only opens when `_sbSession` is non-null.
 
 **`sbPostSignInCheck` bootstrap fix (b20260405):** Previously, when a new user had no `operation_members` row and no pending invite, `sbPostSignInCheck()` did nothing — relied on `onAuthStateChange` → `sbGetOperationId()` to bootstrap. This was a race condition; the concurrent paths could interfere. Now `sbPostSignInCheck()` calls `sbBootstrapOperation()` directly when `member` is null AND `_sbOperationId` is null (genuine new user). This is the authoritative bootstrap path for OTP sign-in.
+
+**`sbBootstrapOperation` dedup guard (b20260405.1113):** Both `sbPostSignInCheck()` and `onAuthStateChange` → `sbGetOperationId()` can call `sbBootstrapOperation()` concurrently after OTP verification. A boolean flag was insufficient because both async paths could pass the check before either awaited the insert. Replaced with `_sbBootstrapPromise` — the first caller creates and stores the promise; the second caller awaits the same promise instead of starting a new bootstrap. Promise is cleared in `finally`.
+
+**`_sbProfile` set during bootstrap (b20260405.1137):** `sbBootstrapOperation()` now sets `_sbProfile = { operation_id, role:'owner', display_name, field_mode:false }` after creating the member row. Previously `_sbProfile` was only set when `sbPostSignInCheck()` found an existing member row, so `isAdmin()` returned `false` for newly bootstrapped owners until the next page load.
 
 **Sign-out sheet (`#signout-sheet-wrap`, OI-0171):** Bottom sheet showing avatar circle, display name, email, descriptive text ("Sign out of this device? Unsynced changes will be saved locally until you sign back in."), red "Sign out" button, Cancel. `openSignOutSheet()` dynamically renders content from `_sbSession` + `_sbLoadCachedIdentity()`. Confirm → `closeSignOutSheet()` + `sbSignOut()`.
 
