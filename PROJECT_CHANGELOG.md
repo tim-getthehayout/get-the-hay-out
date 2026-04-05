@@ -3,6 +3,7 @@
 
 | Build | File | Change |
 |---|---|---|
+| b20260405.NEXT | HTML | Bug fix: `aoSaveAccount()` added 15s timeout on `updateUser({password})` call to prevent infinite hang. Shows "timed out — try again" error instead of stuck "Saving…" button. |
 | b20260405.NEXT | HTML | Bug fix: Auth overlay Step 3 race condition — `verifyOtp()` triggers `onAuthStateChange(SIGNED_IN)` which runs the load chain and calls `_dismissAuthOverlay()` before Step 3 is shown. Added `_aoStep3Pending` flag set before `verifyOtp`, checked in `_dismissAuthOverlay()` to block premature dismissal. Cleared on save/skip. |
 | b20260405.NEXT | HTML | (Superseded) Auth overlay Step 3 — previous fix checked step3 visibility but was insufficient because dismiss fired before step3 was made visible. Replaced by `_aoStep3Pending` flag approach. SIGNED_IN handler calling `_dismissAuthOverlay()` after load chain completed. `_dismissAuthOverlay()` now checks if Step 3 is visible and returns early if so. |
 | b20260405.NEXT | HTML | Bug fix: `sbGetOperationId()` used `.maybeSingle()` which errors when user belongs to multiple operations. Changed to: if cached operation ID exists, fetch that specific row; otherwise fetch all rows and prefer owner role. Fixes `_sbProfile` not being set → `isAdmin()` returning false → invite button hidden for multi-operation users. |
