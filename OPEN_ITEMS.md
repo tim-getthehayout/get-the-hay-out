@@ -19,7 +19,7 @@
 | Status | Count |
 |---|---|
 | 🔴 Open — Roadblock | 0 |
-| 🔴 Open — Bug | 8 |
+| 🔴 Open — Bug | 10 |
 | 🟡 Open — Polish | 2 |
 | 🔵 Open — Enhancement | 19 |
 | ⚪ Open — Debt | 9 |
@@ -42,6 +42,8 @@ Recommended work order as of b20260405.0100. Updated after OI-0171 Phase 1.5 (au
 | 6 | OI-0180 | `input_applications` and `manure_batches` need shape functions | Nested arrays passed as columns |
 | 7 | OI-0181 | `manure_batches` JS model does not match Supabase schema | Zero column overlap — never synced |
 | 8 | OI-0182 | `input_applications` field name mismatches with Supabase schema | `total_qty` vs `quantity`, missing NPK totals |
+| 9 | OI-0183 | DMI calculation redesign (Fixes 1-4) | typeChecks anchor, synthetic transfer check, carried rate, gray bars |
+| 10 | OI-0184 | Feed check UI fixes (Fixes 5-7) | Max cap at last check, stepper 0.10, pct multi-digit typing |
 
 ### 🔧 Bucket 2 — Missing fields & quick CRUD
 | Priority | OI | Title | Notes |
@@ -2914,6 +2916,42 @@ JS model has `name, volumeLbs, nPct, pPct, kPct, events[]`. Supabase has `source
 `_sbToSnake` produces `total_qty` but Supabase column is `quantity`. NPK totals (`n_lbs_total` etc.), `source_type`, and `manure_batch_id` are never written.
 
 **Acceptance criteria:** `_inputApplicationRow()` shape function maps all JS fields to correct Supabase columns. NPK totals computed from locations[] sums.
+
+---
+
+### OI-0183 — DMI calculation redesign
+**Source:** Claude.ai design conversation — b20260405
+**Area:** DMI calculation / Event cards / Move wizard
+**Severity:** Bug
+**Status:** 🔴 Open
+**Found:** b20260405
+
+Four linked bugs in `getDailyStoredDMI()` and `_renderDMIBars()`:
+- **Bug A:** Transfer residual shows 100% stored on destination (totalDM/1 day = entire DMI target)
+- **Bug B:** Adding feed inflates stored DMI retroactively (new feed spread across all past days)
+- **Bug C:** Feed check % applied to wrong cumulative base (new feed type inflates cumDMAt after check)
+- **Fix 1:** typeChecks-based anchor conversion (remaining lbs from unit counts, not % of shifting total)
+- **Fix 2:** Synthetic opening check on destination after transfer
+- **Fix 3:** Carry-forward rate from source event
+- **Fix 4:** Gray "no split" bars when no check exists (replaces broken totalDM/days estimate)
+
+**Acceptance criteria:** Transfer creates synthetic check; DMI bars show gray when no check; adding feed doesn't retroactively inflate; typeChecks anchors immune to later feed additions.
+
+---
+
+### OI-0184 — Feed check UI fixes
+**Source:** Claude.ai design conversation — b20260405
+**Area:** Feed check sheet
+**Severity:** Bug
+**Status:** 🔴 Open
+**Found:** b20260405
+
+Three feed check sheet UI issues:
+- **Fix 5:** Max quantity cap should be last check remaining, not total started (feed doesn't grow)
+- **Fix 6:** Stepper increment 0.10 (was 0.25), hide native number spinner arrows
+- **Fix 7:** Percent field fires oninput on every keystroke, rewrites field, prevents multi-digit entry
+
+**Acceptance criteria:** Can't increase remaining above last check; stepper steps at 0.10; can type "45" in percent field without cursor reset.
 
 ---
 
