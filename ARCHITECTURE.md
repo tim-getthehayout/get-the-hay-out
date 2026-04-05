@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260405.1224`
+**Current build:** `b20260405.1319`
 **Last updated:** 2026-04-05
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -39,7 +39,7 @@ build = 'b' + datetime.now().strftime('%Y%m%d') + '.' + datetime.now().strftime(
 | ~1650 | Main app `<script>` tag + JS Section TOC comment block |
 | ~1533 | App Update Banner |
 | ~1594 | Data init (`S` object), localStorage keys, save helpers |
-| ~1682 | **Supabase M3 write path:** `_sbToSnake`, `_pastureRow`, shape functions (`_animalRow`, `_batchRow`, `_feedTypeRow`, `_animalClassRow`, `_animalGroupRow`, `_aiBullRow`, `_inputProductRow`, `_todoRow`, `_treatmentTypeRow`, `_animalGroupMembershipRow`, `_animalWeightRecordRow`, `_manureBatchTransactionRow`, `_surveyRow`), `queueWrite`, `queueEventWrite`, `ensureQueueFlushed`, `flushToSupabase`, `supabaseSyncDebounced`, `setSyncStatus` |
+| ~1682 | **Supabase M3 write path:** `_sbToSnake`, `_pastureRow`, shape functions (`_animalRow`, `_batchRow`, `_feedTypeRow`, `_animalClassRow`, `_animalGroupRow`, `_aiBullRow`, `_inputProductRow`, `_todoRow`, `_treatmentTypeRow`, `_animalGroupMembershipRow`, `_animalWeightRecordRow`, `_manureBatchTransactionRow`, `_surveyRow`, `_inputApplicationRow`, `_manureBatchRow`), `FLUSH_TIERS`, `_FLUSH_TIER_MAP`, `_flushOneOp`, `queueWrite`, `queueEventWrite`, `ensureQueueFlushed`, `flushToSupabase`, `deleteOperationData`, `supabaseSyncDebounced`, `setSyncStatus` |
 | ~1745 | **Supabase auth (M1):** `SUPABASE_URL`, `SUPABASE_KEY` constants; `_sbClient`, `_sbSession` module vars; `sbInitClient()`, `sbSignIn()`, `sbSignOut()`, `sbUpdateAuthUI()` |
 | ~1984 | Export / Import JSON (including `importDataJSON` full-replace + Drive force-write) |
 | ~2138 | Nav routing |
@@ -304,8 +304,11 @@ All sheets are always in the DOM. Toggle: add/remove `.open` on the `-wrap` div.
 | `exportFeedbackJSON()` | Exports `S.feedback` as `gthy-feedback-YYYY-MM-DD-HHMM.json` for Claude session import into OPEN_ITEMS.md. Distinct from the full backup — submissions only, structured for machine parsing. Includes `type` and `app` fields as of b20260401.2022. |
 | `exportFeedbackCSV()` | Human-readable CSV export of submissions. For record-keeping; Claude uses the JSON export. |
 | `exportDataJSON()` | Full data backup as `gthy-backup-YYYY-MM-DD-HHMM.json`. Full replacement restore — not merged. |
-| `flushToSupabase()` | Called on `visibilitychange` → visible. Drains `gthy-sync-queue` to Supabase. Also called by `supabaseSyncDebounced` 800ms after every `save()`. Uses `op.conflictKey \|\| 'id'` per entry — supports tables whose PK is not `id`. |
-| `pushAllToSupabase()` | **M4.5-C** Full re-push of entire S state to Supabase. Iterates all S arrays, queues every record using correct patterns (`_pastureRow` for pastures, `queueEventWrite` for events, `_sbToSnake` for flat tables), then calls `flushToSupabase()` immediately. Called by `importDataJSON()` after backup restore when signed in. Safe to call repeatedly — all writes are upserts. |
+| `flushToSupabase()` | **OI-0175 rewrite:** Groups queue by table, flushes in 5 FK dependency tiers (`FLUSH_TIERS`). Single-item fast path skips grouping. Within each tier, fires all ops in parallel via `Promise.all`, awaits between tiers. `_delete:` prefixed entries handled by extracting real table for tier lookup. Unknown tables flush in safety-net catch-all with `console.warn`. |
+| `_flushOneOp(op, failed)` | Helper for `flushToSupabase()`. Processes one queue entry — upsert (with `_sanitizeQueueRecord`) or delete. Pushes to `failed[]` on error. |
+| `FLUSH_TIERS` / `_FLUSH_TIER_MAP` | 5-tier array of table names in FK dependency order. `_FLUSH_TIER_MAP` is O(1) table→tier lookup. Defined near `_SB_ALLOWED_COLS`. |
+| `pushAllToSupabase()` | Full re-push of entire S state to Supabase. Uses dedicated shape functions for all tables (no more raw `_sbToSnake` for `input_applications`). Includes `manure_batches` (OI-0179). `flushToSupabase()` handles FK ordering. Called by `importDataJSON()` after `deleteOperationData()`. |
+| `deleteOperationData(opId)` | **OI-0178:** Deletes all operation data from Supabase in reverse tier order (Tier 4→1). Skips Tier 0 (operation identity). Each tier deletes in parallel. Called by `importDataJSON()` before `pushAllToSupabase()` during backup restore. |
 | `queueWrite(table, record, conflictKey='id')` | **M4.5-A** Appends/replaces one record in the offline write queue. Third param `conflictKey` (default `'id'`) controls both dedup key and the `onConflict` hint passed to Supabase upsert. Required for tables whose PK is not `id` (e.g. `operation_settings` uses `conflictKey='operation_id'`). |
 | `maybeResumeTokenRefresh()` | Called at init. Schedules token refresh or triggers silent re-auth if already expired. |
 | `editTreatmentType(id)` | Populates manage-treatments form with existing values; sets `_editingTreatmentId`. Switches button label to "Save changes" and shows Cancel. |

@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260405.1224" id="app-version-meta"/>
+<meta name="app-version" content="b20260405.1319" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -3558,9 +3558,10 @@ function _harvestEventRow(ev, opId){
 }
 
 // M7-F: _harvestEventFieldRow — per-field sub-record
-function _harvestEventFieldRow(f, harvestEventId){
+function _harvestEventFieldRow(f, harvestEventId, opId){
   return {
     id:                 f.id,
+    operation_id:       opId || null,
     harvest_event_id:   harvestEventId,
     land_id:            f.landId    ?? null,
     land_name:          f.landName  ?? null,
@@ -3818,6 +3819,46 @@ function _surveyRow(sv, opId){
   };
 }
 
+// OI-0180/0182: _inputApplicationRow — maps S.inputApplications[] to Supabase input_applications
+// Strips nested locations[] (those go to input_application_locations separately)
+function _inputApplicationRow(r, opId){
+  return {
+    id:              r.id,
+    operation_id:    opId,
+    product_id:      r.productId ?? null,
+    product_name:    r.productName ?? null,
+    source_type:     r.sourceType ?? null,
+    manure_batch_id: r.manureBatchId ?? null,
+    date:            r.date ?? null,
+    quantity:        r.totalQty ?? null,
+    unit:            r.unit ?? null,
+    n_lbs_total:     r.nLbsTotal ?? null,
+    p_lbs_total:     r.pLbsTotal ?? null,
+    k_lbs_total:     r.kLbsTotal ?? null,
+    total_cost:      r.totalCost ?? null,
+    notes:           r.notes ?? null,
+  };
+}
+
+// OI-0180/0181: _manureBatchRow — maps S.manureBatches[] to Supabase manure_batches
+// Strips nested events[] (those go to manure_batch_transactions separately)
+function _manureBatchRow(b, opId){
+  return {
+    id:                   b.id,
+    operation_id:         opId,
+    name:                 b.name ?? null,
+    label:                b.label ?? null,
+    location_name:        b.locationName ?? null,
+    mode:                 b.mode ?? null,
+    n_lbs:                b.nLbs ?? null,
+    p_lbs:                b.pLbs ?? null,
+    k_lbs:                b.kLbs ?? null,
+    estimated_volume_lbs: b.estimatedVolumeLbs ?? null,
+    remaining_lbs:        b.remainingLbs ?? null,
+    created_at:           b.createdAt ?? new Date().toISOString(),
+  };
+}
+
 // ── END shape functions ───────────────────────────────────────────────────────
 
 // M3: append/replace one record in the offline write queue
@@ -3956,11 +3997,27 @@ const _SB_ALLOWED_COLS = {
   animal_group_memberships: new Set(['id','operation_id','group_id','animal_id','date_joined','date_left','reason']),
   animal_weight_records: new Set(['id','operation_id','animal_id','recorded_at','weight_lbs','note','source','created_at']),
   manure_batch_transactions: new Set(['id','operation_id','batch_id','type','date','volume_lbs','n_lbs','p_lbs','k_lbs','source_event_id','application_id','pasture_names','notes','recorded_at']),
-  // harvest_event_fields: child table — no operation_id column; harvest_event_id FK suffices.
-  // This entry strips the operation_id auto-injected by queueWrite() before it reaches Supabase.
   pastures:             new Set(['id','operation_id','name','type','acres','min_days','max_days','archived','setup_updated_at','farm_id','land_use','field_code']),
-  harvest_event_fields: new Set(['id','harvest_event_id','land_id','land_name','acres','feed_type_id','batch_unit','quantity','weight_per_unit_kg','dm_pct','n_per_tonne_dm','p_per_tonne_dm','k_per_tonne_dm','batch_id','notes','created_at']),
+  harvest_event_fields: new Set(['id','operation_id','harvest_event_id','land_id','land_name','acres','feed_type_id','batch_unit','quantity','weight_per_unit_kg','dm_pct','n_per_tonne_dm','p_per_tonne_dm','k_per_tonne_dm','batch_id','notes','created_at']),
+  // OI-0177: operations uses `id` as PK — excludes `operation_id` so queueWrite's auto-inject gets stripped
+  operations:           new Set(['id','owner_id','herd_name','herd_type','herd_count','herd_weight','herd_dmi','schema_version','created_at','updated_at']),
+  // OI-0176/0182: explicit column mapping — strips nested locations[]
+  input_applications:   new Set(['id','operation_id','product_id','product_name','source_type','manure_batch_id','date','quantity','unit','n_lbs_total','p_lbs_total','k_lbs_total','total_cost','notes']),
+  // OI-0180/0181: maps JS model fields after schema migration adds these columns
+  manure_batches:       new Set(['id','operation_id','name','label','location_name','mode','n_lbs','p_lbs','k_lbs','estimated_volume_lbs','remaining_lbs','created_at']),
 };
+// OI-0175: FK dependency tiers for ordered flush. Each tier must complete before the next begins.
+// Tier 0 = root tables (no FK deps). Tier 4 = leaf tables (deepest FK chains).
+const FLUSH_TIERS = [
+  ['operations','operation_settings','forage_types','animal_classes','treatment_types','input_products','ai_bulls'],
+  ['farms','feed_types','animals','animal_groups'],
+  ['pastures','batches','manure_batches','events','animal_weight_records','animal_group_memberships','animal_group_class_compositions'],
+  ['soil_tests','harvest_events','todos','surveys','paddock_observations','input_applications','event_group_memberships','event_paddock_windows','event_sub_moves'],
+  ['harvest_event_fields','event_feed_deliveries','event_feed_residual_checks','event_npk_deposits','input_application_locations','manure_batch_transactions'],
+];
+const _FLUSH_TIER_MAP = new Map();
+FLUSH_TIERS.forEach((tables, tier) => tables.forEach(t => _FLUSH_TIER_MAP.set(t, tier)));
+
 // Column aliases: maps wrong-but-meaningful column names to correct Supabase names.
 // Handles queue entries written by old code paths (e.g. location_type → type for pastures).
 const _SB_COL_ALIASES = {
@@ -4002,12 +4059,30 @@ async function ensureQueueFlushed(){
   }
 }
 
+// OI-0175: helper — flush a single queue operation (upsert or delete)
+async function _flushOneOp(op, failed){
+  try{
+    if(op.table.startsWith('_delete:')){
+      const realTable = op.table.slice(8);
+      let q = _sbClient.from(realTable).delete();
+      for(const [k,v] of Object.entries(op.record)){ if(v!=null) q = q.eq(k,v); }
+      const { error } = await q;
+      if(error){ failed.push(op); logError('supabase-flush', 'delete '+realTable+': '+error.message, ''); }
+    } else {
+      const record = _sanitizeQueueRecord(op.table, op.record);
+      const { error } = await _sbClient.from(op.table).upsert(record, { onConflict: op.conflictKey || 'id' });
+      if(error){ failed.push(op); logError('supabase-flush', op.table+': '+error.message, ''); }
+    }
+  } catch(e){
+    failed.push(op);
+    logError('supabase-flush', op.table + ': ' + e.message, '');
+  }
+}
+
 async function flushToSupabase(){
   if(!_sbClient || !_sbOperationId) return;
   const rawQueue = JSON.parse(localStorage.getItem('gthy-sync-queue') || '[]');
   // Patch any items queued before sign-in resolved (operation_id was null at write time).
-  // Now that we have _sbOperationId, fill it in so the item can flush successfully.
-  // Items that still have no resolvable operation_id after patching are dropped.
   let patched = 0;
   const queue = rawQueue.map(op => {
     if(op.record && op.record.operation_id == null){
@@ -4022,26 +4097,35 @@ async function flushToSupabase(){
   }
   if(!queue.length) return;
   const failed = [];
-  for(const op of queue){
-    try{
-      if(op.table.startsWith('_delete:')){
-        // Delete operation: match all fields in record
-        const realTable = op.table.slice(8);
-        let q = _sbClient.from(realTable).delete();
-        for(const [k,v] of Object.entries(op.record)){ if(v!=null) q = q.eq(k,v); }
-        const { error } = await q;
-        if(error){ failed.push(op); logError('supabase-flush', 'delete '+realTable+': '+error.message, ''); }
-      } else {
-        // Sanitize record against known schema — strips extra fields from pre-fix queue items
-        const record = _sanitizeQueueRecord(op.table, op.record);
-        const { error } = await _sbClient.from(op.table).upsert(record, { onConflict: op.conflictKey || 'id' });
-        if(error){ failed.push(op); logError('supabase-flush', op.table+': '+error.message, ''); }
+
+  // Fast path: single item — skip tier grouping overhead
+  if(queue.length === 1){
+    await _flushOneOp(queue[0], failed);
+  } else {
+    // OI-0175: Multi-item path — group by table, flush in FK dependency order
+    const byTable = new Map();
+    for(const op of queue){
+      const key = op.table; // includes '_delete:' prefix if present
+      if(!byTable.has(key)) byTable.set(key, []);
+      byTable.get(key).push(op);
+    }
+    // Process each tier sequentially; within a tier, fire all ops in parallel
+    for(let tier = 0; tier < FLUSH_TIERS.length; tier++){
+      const tierOps = [];
+      for(const table of FLUSH_TIERS[tier]){
+        if(byTable.has(table)){ tierOps.push(...byTable.get(table)); byTable.delete(table); }
+        const delKey = '_delete:' + table;
+        if(byTable.has(delKey)){ tierOps.push(...byTable.get(delKey)); byTable.delete(delKey); }
       }
-    } catch(e){
-      failed.push(op);
-      logError('supabase-flush', op.table + ': ' + e.message, '');
+      if(tierOps.length) await Promise.all(tierOps.map(op => _flushOneOp(op, failed)));
+    }
+    // Safety net: any tables not in FLUSH_TIERS flush last
+    for(const [table, ops] of byTable){
+      console.warn('[SYNC] Table "' + table + '" not in FLUSH_TIERS — flushing in catch-all');
+      await Promise.all(ops.map(op => _flushOneOp(op, failed)));
     }
   }
+
   if(failed.length){
     localStorage.setItem('gthy-sync-queue', JSON.stringify(failed));
     setSyncStatus('error', failed.length + ' item(s) pending — will retry');
@@ -4057,14 +4141,14 @@ async function flushToSupabase(){
 async function pushAllToSupabase(){
   if(!_sbClient || !_sbOperationId) return;
   const opId = _sbOperationId;
-  // Settings
-  queueWrite('operations', { id: opId, herd_name: S.herd.name, updated_at: new Date().toISOString() });
+  // OI-0177: operations row — _SB_ALLOWED_COLS strips auto-injected operation_id
+  queueWrite('operations', { id: opId, herd_name: S.herd.name||'My Farm', herd_type: S.herd.type||null, herd_count: S.herd.count||0, herd_weight: S.herd.weight||0, herd_dmi: S.herd.dmi||2.5, updated_at: new Date().toISOString() });
   queueWrite('operation_settings', { operation_id: opId, data: S.settings }, 'operation_id');
-  // Simple flat tables
+  // Flat tables with shape functions
   const flatTables = [
     ['animal_group_memberships', S.animalGroupMemberships, r => _animalGroupMembershipRow(r, opId)],
     ['animal_weight_records',    S.animalWeightRecords,    r => _animalWeightRecordRow(r, opId)],
-    ['input_applications',       S.inputApplications,      r => _sbToSnake({...r, operationId: opId})],
+    ['input_applications',       S.inputApplications,      r => _inputApplicationRow(r, opId)],
     ['input_application_locations', S.inputApplicationLocations, r => _sbToSnake({...r, operationId: opId})],
     ['manure_batch_transactions', S.manureBatchTransactions, r => _manureBatchTransactionRow(r, opId)],
     ['paddock_observations',     S.paddockObservations,    r => _paddockObservationRow(r, opId)],
@@ -4084,7 +4168,7 @@ async function pushAllToSupabase(){
   (S.treatmentTypes||[]).forEach(t => queueWrite('treatment_types', _treatmentTypeRow(t, opId)));
   (S.aiBulls||[]).forEach(b => queueWrite('ai_bulls', _aiBullRow(b, opId)));
   (S.inputProducts||[]).forEach(p => queueWrite('input_products', _inputProductRow(p, opId)));
-  // Pastures use a special shape function
+  // Pastures
   (S.pastures||[]).forEach(p => queueWrite('pastures', _pastureRow(p, opId)));
   // M7-A: farms
   (S.farms||[]).forEach(f => queueWrite('farms', _farmRow(f, opId)));
@@ -4092,15 +4176,30 @@ async function pushAllToSupabase(){
   (S.soilTests||[]).forEach(t => queueWrite('soil_tests', _soilTestRow(t, opId)));
   // M7-E: forage types
   (S.forageTypes||[]).forEach(ft => queueWrite('forage_types', _forageTypeRow(ft, opId)));
+  // OI-0179: manure batches (parent table — was missing)
+  (S.manureBatches||[]).forEach(b => queueWrite('manure_batches', _manureBatchRow(b, opId)));
   // M7-F: harvest events + per-field sub-records
   (S.harvestEvents||[]).forEach(ev => {
     queueWrite('harvest_events', _harvestEventRow(ev, opId));
-    (ev.fields||[]).forEach(f => queueWrite('harvest_event_fields', _harvestEventFieldRow(f, ev.id)));
+    (ev.fields||[]).forEach(f => queueWrite('harvest_event_fields', _harvestEventFieldRow(f, ev.id, opId)));
   });
   // Events: use queueEventWrite which handles all 6 child tables
   (S.events||[]).forEach(ev => queueEventWrite(ev));
-  // Flush immediately — this is an explicit full-replace, not incremental
+  // Flush immediately — tiered ordering handles FK dependencies
   await flushToSupabase();
+}
+
+// OI-0178: delete all operation data from Supabase in reverse tier order before restore.
+// Skips Tier 0 (operations, operation_settings, etc.) — those are operation identity.
+async function deleteOperationData(opId){
+  if(!_sbClient || !opId) return;
+  for(let tier = FLUSH_TIERS.length - 1; tier >= 1; tier--){
+    const deletes = FLUSH_TIERS[tier].map(table =>
+      _sbClient.from(table).delete().eq('operation_id', opId)
+        .then(({error}) => { if(error) logError('delete-op-data', table + ': ' + error.message, ''); })
+    );
+    await Promise.all(deletes);
+  }
 }
 
 // M3: debounced flush — replaces driveSyncDebounced
@@ -4426,9 +4525,12 @@ function importDataJSON(event){
       const _importStatusEl=document.getElementById('import-status');
       _importStatusEl.style.display='block';
       if(_sbSession && _sbOperationId){
+        // OI-0178: delete stale records before upserting backup data
+        _importStatusEl.textContent='Clearing cloud data…';
+        await deleteOperationData(_sbOperationId);
         _importStatusEl.textContent='Restoring to cloud…';
         await pushAllToSupabase();
-        _importStatusEl.textContent='✓ Restored & synced to cloud.';
+        _importStatusEl.textContent='✓ Restored & synced.';
       } else {
         _importStatusEl.textContent='✓ Restored locally. Sign in to sync to other devices.';
       }
@@ -10104,7 +10206,7 @@ function saveHarvestEvent(){
 
   S.harvestEvents.push(ev);
   queueWrite('harvest_events',_harvestEventRow(ev,_sbOperationId));
-  ev.fields.forEach(f=>queueWrite('harvest_event_fields',_harvestEventFieldRow(f,evId)));
+  ev.fields.forEach(f=>queueWrite('harvest_event_fields',_harvestEventFieldRow(f,evId,_sbOperationId)));
 
   // Auto-create one S.batches[] entry per field record
   ev.fields.forEach(f=>{
