@@ -3,6 +3,11 @@
 
 | Build | File | Change |
 |---|---|---|
+| b20260405.NEXT | HTML | OI-0183 Fix 1: `getDailyStoredDMI()` anchor conversion rewritten to use `typeChecks` array (unit-based remaining lbs) instead of percentage of cumulative DM. New helper `_fcCheckToRemainingLbs()` looks up batch wt/dm per feed type. Falls back to pct-based for legacy checks without typeChecks. |
+| b20260405.NEXT | HTML | OI-0183 Fix 4: No-check pasture events return `{noSplit: true}` instead of broken `totalDM/days` estimate. `_renderDMIBars` shows gray bars at full DMI height with "Feed check needed" message. Confinement/noPasture events keep existing 100% stored behavior. |
+| b20260405.NEXT | HTML | OI-0183 Fix 2: Move wizard transfer now creates synthetic opening feed check on destination event with `notes:'transfer_opening'`, `typeChecks` for transferred types, and `carriedRate` from source event. Source rate captured via `getDailyStoredDMI(srcEv, moveDate)` before source is closed. |
+| b20260405.NEXT | HTML | OI-0183 Fix 3: `getDailyStoredDMI()` detects synthetic transfer checks (`notes==='transfer_opening'`) and returns `carriedRate` as stored DMI until first real check exists. |
+| b20260405.NEXT | supabase/ | Migration: `carried_rate` numeric column added to `event_feed_residual_checks`. |
 | b20260405.NEXT | HTML | OI-0184 Fix 7: Feed check percent field multi-digit typing. Added `skipPct` parameter to `_fcUpdateUI()`. `_fcPctChanged()` passes `skipPct=true` so the percent field isn't rewritten while user types. |
 | b20260405.NEXT | HTML | OI-0184 Fix 6: Feed check stepper increment changed from 0.25 to 0.10. Native number input spinners hidden via CSS (`-webkit-appearance:none` on all number inputs). |
 | b20260405.NEXT | HTML | OI-0184 Fix 5: Feed check max cap at `lastCheckUnits` instead of `startedUnits`. Applied to `_fcAdj`, `_fcUnitsChanged`, `_fcPctChanged`, `_fcSliderChanged`, HTML `max` attributes on units input and slider. Prevents increasing remaining above last check value. |
