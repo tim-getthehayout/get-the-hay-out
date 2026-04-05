@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260405.1454" id="app-version-meta"/>
+<meta name="app-version" content="b20260405.1501" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -15646,10 +15646,11 @@ function openEventEdit(eventId){
   badge.className='badge '+(isClosed?'bb':'bt');
   if(isClosed){updateEventEditPreview(ev);renderDmiVariance(ev);}
   else{document.getElementById('ee-preview').style.display='none';document.getElementById('ee-dmi-variance').style.display='none';}
-  // Feed checks section — show when noPasture or has existing checks
+  // Feed checks section — show when event has stored feed, noPasture, or existing checks
   const _hasFeedChecks = (ev.feedResidualChecks||[]).filter(c=>!c.isCloseReading).length>0;
+  const _hasStoredFeed = allFeedEntries(ev).length > 0;
   const _fcsEl = document.getElementById('ee-feed-checks-section');
-  if(_fcsEl) _fcsEl.style.display = (ev.noPasture||_hasFeedChecks) ? 'block' : 'none';
+  if(_fcsEl) _fcsEl.style.display = (ev.noPasture||_hasFeedChecks||_hasStoredFeed) ? 'block' : 'none';
   renderEeFeedChecks(ev);
   // Anchor close button — only for open events
   const _acbw = document.getElementById('ee-close-event-btn-wrap');
