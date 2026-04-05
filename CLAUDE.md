@@ -23,6 +23,9 @@
 - **Deploy:** Routine pushes — bug fixes, incremental work
 - **Release:** User-facing milestones — new features, significant changes
 
+### Deploy prompt
+After completing a bug fix or feature change, always ask the user if they want to deploy to main. Changes in `dev` are not live until deployed.
+
 ## Before Touching Any Function
 
 1. Read `ARCHITECTURE.md` — check the Screen Map for the authoritative render function
