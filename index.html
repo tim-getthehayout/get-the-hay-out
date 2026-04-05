@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260405.0244" id="app-version-meta"/>
+<meta name="app-version" content="b20260405.1113" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -2815,8 +2815,14 @@ async function sbGetOperationId(){
 
 // Bootstrap: create operations + operation_members rows on first sign-in.
 // Runs silently with no confirmation screen. Uses existing S.herd data.
+let _sbBootstrapPromise = null;  // dedup concurrent bootstrap calls
 async function sbBootstrapOperation(){
+  if(_sbBootstrapPromise) return _sbBootstrapPromise;  // second caller waits for first
   if(!_sbClient || !_sbSession) return null;
+  _sbBootstrapPromise = _sbBootstrapOperationInner();
+  return _sbBootstrapPromise;
+}
+async function _sbBootstrapOperationInner(){
   try{
     const {data:op, error:opErr} = await _sbClient.from('operations').insert({
       owner_id:    _sbSession.user.id,
@@ -2847,6 +2853,8 @@ async function sbBootstrapOperation(){
     logError('supabase-bootstrap', 'Bootstrap failed: ' + e.message, '');
     setSyncStatus('error', 'Bootstrap failed — check console');
     return null;
+  } finally {
+    _sbBootstrapPromise = null;
   }
 }
 
