@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260405.1319" id="app-version-meta"/>
+<meta name="app-version" content="b20260405.1359" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -4010,8 +4010,8 @@ const _SB_ALLOWED_COLS = {
 // Tier 0 = root tables (no FK deps). Tier 4 = leaf tables (deepest FK chains).
 const FLUSH_TIERS = [
   ['operations','operation_settings','forage_types','animal_classes','treatment_types','input_products','ai_bulls'],
-  ['farms','feed_types','animals','animal_groups'],
-  ['pastures','batches','manure_batches','events','animal_weight_records','animal_group_memberships','animal_group_class_compositions'],
+  ['farms','feed_types','animals','animal_groups','submissions'],
+  ['pastures','batches','manure_batches','events','animal_weight_records','animal_group_memberships','animal_group_class_compositions','animal_health_events'],
   ['soil_tests','harvest_events','todos','surveys','paddock_observations','input_applications','event_group_memberships','event_paddock_windows','event_sub_moves'],
   ['harvest_event_fields','event_feed_deliveries','event_feed_residual_checks','event_npk_deposits','input_application_locations','manure_batch_transactions'],
 ];
@@ -4141,8 +4141,13 @@ async function flushToSupabase(){
 async function pushAllToSupabase(){
   if(!_sbClient || !_sbOperationId) return;
   const opId = _sbOperationId;
-  // OI-0177: operations row — _SB_ALLOWED_COLS strips auto-injected operation_id
-  queueWrite('operations', { id: opId, herd_name: S.herd.name||'My Farm', herd_type: S.herd.type||null, herd_count: S.herd.count||0, herd_weight: S.herd.weight||0, herd_dmi: S.herd.dmi||2.5, updated_at: new Date().toISOString() });
+  // Operations row: UPDATE only (never insert/upsert — the row is the operation identity).
+  // Restoring a backup must not attempt to insert a new operations row.
+  if(_sbClient) _sbClient.from('operations').update({
+    herd_name: S.herd.name||'My Farm', herd_type: S.herd.type||null,
+    herd_count: S.herd.count||0, herd_weight: S.herd.weight||0,
+    herd_dmi: S.herd.dmi||2.5, updated_at: new Date().toISOString(),
+  }).eq('id', opId).then(({error}) => { if(error) logError('supabase-flush', 'operations update: '+error.message, ''); });
   queueWrite('operation_settings', { operation_id: opId, data: S.settings }, 'operation_id');
   // Flat tables with shape functions
   const flatTables = [

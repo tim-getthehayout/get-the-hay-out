@@ -3,6 +3,7 @@
 
 | Build | File | Change |
 |---|---|---|
+| b20260405.NEXT | HTML | Fix: `pushAllToSupabase()` operations row changed from upsert to direct UPDATE. Upsert attempted INSERT which failed RLS `owner_id = auth.uid()` check during backup restore. Operations row is identity — should only be updated, never inserted by restore. Added `submissions` and `animal_health_events` to `FLUSH_TIERS`. |
 | b20260405.NEXT | HTML | OI-0175: Tiered flush ordering in `flushToSupabase()`. Queue items grouped by table and flushed in 5 FK dependency tiers (Tier 0=roots → Tier 4=leaves). Fast path for single-item queues. Extracted `_flushOneOp()` helper. Added `FLUSH_TIERS` constant + `_FLUSH_TIER_MAP`. |
 | b20260405.NEXT | HTML | OI-0176/0182: Created `_inputApplicationRow()` shape function. Maps JS fields to correct Supabase columns (`nLbsTotal→n_lbs_total`, `totalCost→total_cost`, etc.). Strips nested `locations[]`. Added `_SB_ALLOWED_COLS` entry for `input_applications`. |
 | b20260405.NEXT | HTML | OI-0177: Added `_SB_ALLOWED_COLS` entry for `operations` that excludes `operation_id` (the table uses `id` as PK). Expanded `pushAllToSupabase()` operations write to include all herd fields. |
