@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260405.0100
-**Reconciled against build:** b20260405.0100
+**Last updated:** b20260405.0134
+**Reconciled against build:** b20260405.0134
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -23,7 +23,7 @@
 | 🟡 Open — Polish | 2 |
 | 🔵 Open — Enhancement | 19 |
 | ⚪ Open — Debt | 9 |
-| ✅ Closed | 122 |
+| ✅ Closed | 125 |
 
 ---
 
@@ -2324,6 +2324,34 @@ Event Edit sheet shows the first group (index 0) as "primary" — locked green p
 ---
 
 ## Closed Items
+
+### OI-0172 — Home screen desktop Locations view dead space
+**Source:** User report b20260405
+**Area:** Home screen / renderHomeViewToggle / desktop CSS grid
+**Severity:** Bug — Polish
+**Status:** ✅ Closed b20260405.0134
+
+**Root cause:** Desktop `#home-groups` uses `grid-template-columns:1fr 1fr`. The view toggle div occupied one grid cell, pushing the first location card into column 2 and leaving column 1 mostly empty. Same issue with `renderUnplacedGroupsSection`.
+
+**Fix:** Added `grid-column:1/-1` to the toggle div and the unplaced groups card so both span the full width of the grid.
+
+### OI-0173 — Events screen active rotation tile shows only one active event
+**Source:** User report b20260405 — 3 active events but banner only showed the D pasture event
+**Area:** Events screen / renderEventsLog
+**Severity:** Bug
+**Status:** ✅ Closed b20260405.0134
+
+**Root cause:** `renderEventsLog()` called `getActive()` → `getAnyActiveEvent()` → `S.events.find(...)` which returns only the first match. A `getActiveEvents()` function already existed returning all open events via `.filter()`.
+
+**Fix:** Changed to loop over `getActiveEvents()`, rendering a separate green banner for each active event. Also fixed group display to use `evGroups(ae)` instead of legacy `ae.groupId` field.
+
+### OI-0174 — Move wizard step 3 FROM/TO layout and close-out fields
+**Source:** User request b20260405
+**Area:** Move Wizard / _mwRenderStep3
+**Severity:** Polish
+**Status:** ✅ Closed b20260405.0134
+
+**Redesign:** FROM section (red accent bar, close-out survey) now renders on top; TO section (green accent bar, arrival survey) on bottom. Replaced old side-by-side FROM→TO card. Close-out survey simplified: removed forage quality (pre-graze reading, not post-graze) and forage cover %. Retained residual height + recovery min/max. Each section clearly labeled with pasture name.
 
 ### OI-0149 — wizSaveNew does not close group record in old event (multi-group dual-location bug)
 **Source:** User report b20260402 — Bull Group appearing in both Corral and Pasture D

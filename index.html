@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260405.0108" id="app-version-meta"/>
+<meta name="app-version" content="b20260405.0149" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -5030,7 +5030,7 @@ function renderHome(){
 
 // ── Home view toggle ─────────────────────────────────────────────────────────
 function renderHomeViewToggle(active){
-  return `<div style="display:flex;gap:4px;padding:0 2px 10px;align-items:center;">
+  return `<div style="display:flex;gap:4px;padding:0 2px 10px;align-items:center;grid-column:1/-1;">
     <span style="font-size:12px;color:var(--text2);margin-right:4px;font-weight:500;">View:</span>
     <button onclick="setHomeViewMode('groups')" style="padding:4px 12px;font-size:12px;border-radius:20px;border:0.5px solid ${active==='groups'?'var(--green)':'var(--border2)'};background:${active==='groups'?'var(--green)':'transparent'};color:${active==='groups'?'white':'var(--text2)'};cursor:pointer;font-family:inherit;font-weight:${active==='groups'?'600':'400'};">Groups</button>
     <button onclick="setHomeViewMode('locations')" style="padding:4px 12px;font-size:12px;border-radius:20px;border:0.5px solid ${active==='locations'?'var(--green)':'var(--border2)'};background:${active==='locations'?'var(--green)':'transparent'};color:${active==='locations'?'white':'var(--text2)'};cursor:pointer;font-family:inherit;font-weight:${active==='locations'?'600':'400'};">Locations</button>
@@ -5420,7 +5420,7 @@ function renderUnplacedGroupsSection(unplaced){
       <button class="btn btn-teal btn-sm" onclick="moveGroup(${g.id})">Place</button>
     </div>`;
   }).join('');
-  return `<div class="card" style="margin-top:0;">
+  return `<div class="card" style="margin-top:0;grid-column:1/-1;">
     <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:2px;letter-spacing:0.04em;">NOT PLACED</div>
     ${rows}
   </div>`;
@@ -9168,36 +9168,39 @@ function archiveBatchFromAdj(){
 // ─── END BATCH ADJUSTMENT ─────────────────────────────────────────────────────
 
 function renderEventsLog(){
-  const ae=getActive();
+  const allActive=getActiveEvents();
   const ab=document.getElementById('ev-active-banner');
-  if(ae){
-    const aePads=evPaddocks(ae);
-    const padChips=aePads.map((p,i)=>{
-      const isActive=!p.dateRemoved;
-      const sinceDay=p.dateAdded&&p.dateAdded>ae.dateIn?
-        ' · added day '+daysBetween(ae.dateIn,p.dateAdded):'';
-      const removedNote=p.dateRemoved?
-        ` <span style="color:var(--amber-d);font-size:10px;">left ${dLabel(p.dateRemoved)}</span>`:'';
-      return `<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;
-        border-radius:12px;font-size:11px;font-weight:600;
-        background:${isActive?'rgba(99,153,34,0.15)':'rgba(0,0,0,0.06)'};
-        color:${isActive?'var(--green-d)':'var(--text2)'};
-        opacity:${isActive?'1':'0.7'};">
-        ${p.pastureName}${sinceDay}${removedNote}
-      </span>`;
+  if(allActive.length){
+    ab.innerHTML=allActive.map(ae=>{
+      const aePads=evPaddocks(ae);
+      const padChips=aePads.map((p,i)=>{
+        const isActive=!p.dateRemoved;
+        const sinceDay=p.dateAdded&&p.dateAdded>ae.dateIn?
+          ' \u00b7 added day '+daysBetween(ae.dateIn,p.dateAdded):'';
+        const removedNote=p.dateRemoved?
+          ` <span style="color:var(--amber-d);font-size:10px;">left ${dLabel(p.dateRemoved)}</span>`:'';
+        return `<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;
+          border-radius:12px;font-size:11px;font-weight:600;
+          background:${isActive?'rgba(99,153,34,0.15)':'rgba(0,0,0,0.06)'};
+          color:${isActive?'var(--green-d)':'var(--text2)'};
+          opacity:${isActive?'1':'0.7'};">
+          ${p.pastureName}${sinceDay}${removedNote}
+        </span>`;
+      }).join('');
+      const aeGrps=evGroups(ae).filter(g=>!g.dateRemoved).map(g=>{const gg=getGroupById(g.groupId);return gg?gg.name:'';}).filter(Boolean).join(' + ');
+      return `<div class="banner ban-green" style="margin-bottom:8px;">
+        <div style="font-size:14px;font-weight:600;color:var(--green-d);">
+          Active rotation \u2014 Day ${daysBetween(ae.dateIn,todayStr())}
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;margin:4px 0;">
+          ${padChips}
+        </div>
+        <div style="font-size:12px;color:var(--green-d);opacity:0.85;">
+          In ${dLabel(ae.dateIn)} \u00b7 ${(ae.feedEntries||[]).length} feedings
+          ${aeGrps?' \u00b7 '+aeGrps:''}
+        </div>
+      </div>`;
     }).join('');
-    ab.innerHTML=`<div class="banner ban-green">
-      <div style="font-size:14px;font-weight:600;color:var(--green-d);">
-        Active rotation — Day ${daysBetween(ae.dateIn,todayStr())}
-      </div>
-      <div style="display:flex;flex-wrap:wrap;gap:4px;margin:4px 0;">
-        ${padChips}
-      </div>
-      <div style="font-size:12px;color:var(--green-d);opacity:0.85;">
-        In ${dLabel(ae.dateIn)} · ${(ae.feedEntries||[]).length} feedings
-        ${ae.groupId?` · ${getGroupById(ae.groupId)?.name||''}`: ''}
-      </div>
-    </div>`;
   } else {
     ab.innerHTML='';
   }
@@ -20495,7 +20498,7 @@ function _mwRenderStep3(){
       destSubLine = dGrps; }
   } else if(_mwDestType==='new' && _mwDestPaddockId){
     const dp = (S.pastures||[]).find(p=>String(p.id)===String(_mwDestPaddockId));
-    if(dp){ destName=dp.name; destIcon=dp.locationType==='confinement'?'🏚':'🌿'; destAcres=dp.acres||''; destSubLine='New event \u00b7 '+(destAcres?destAcres+' ac':''); }
+    if(dp){ destName=dp.name; destIcon=dp.locationType==='confinement'?'🏚':'🌿'; destAcres=dp.acres||''; destSubLine='New event'; }
   }
 
   // Is this the last group leaving? → event will close
@@ -20535,26 +20538,25 @@ function _mwRenderStep3(){
     </div>`;
   }
 
-  // Pasture close-out survey (if last group + pasture location)
-  let closeOutHtml = '';
+  // ── FROM section: source pasture close-out ─────────────────────
+  let fromSectionHtml = '';
   if(isPastureClose){
     const surveyLoc = (S.pastures||[]).find(p=>String(p.id)===String(srcEv.paddocks?.[0]?.pastureId));
     const lastSrv = surveyLoc ? (surveyLoc.surveys||[]).sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0] : null;
     const defRecMin = lastSrv?.recoveryMin || surveyLoc?.recoveryMin || '';
     const defRecMax = lastSrv?.recoveryMax || surveyLoc?.recoveryMax || '';
-    closeOutHtml = `<div class="card" style="padding:12px;margin-bottom:14px;">
-      <div style="font-size:11px;font-weight:600;color:var(--text2);letter-spacing:0.03em;margin-bottom:10px;">PASTURE CLOSE-OUT \u2014 ${escHtml(srcName.toUpperCase())}</div>
-      <div style="display:flex;gap:10px;margin-bottom:10px;">
-        <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Residual height (in)</label><input type="number" id="mw-co-height" placeholder="e.g. 3.5" style="width:100%;padding:9px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
-        <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Forage cover (%)</label><input type="number" id="mw-co-cover" placeholder="e.g. 65" style="width:100%;padding:9px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
-      </div>
-      <div style="margin-bottom:10px;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Forage quality</label>
-        <div style="display:flex;gap:4px;" id="mw-co-quality-row">
-          <button style="flex:1;padding:7px 0;font-size:12px;border-radius:6px;border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;" onclick="_mwSetQuality(this,'Poor')">Poor</button>
-          <button style="flex:1;padding:7px 0;font-size:12px;border-radius:6px;border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;" onclick="_mwSetQuality(this,'Fair')">Fair</button>
-          <button style="flex:1;padding:7px 0;font-size:12px;border-radius:6px;border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;" onclick="_mwSetQuality(this,'Good')">Good</button>
-          <button style="flex:1;padding:7px 0;font-size:12px;border-radius:6px;border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;" onclick="_mwSetQuality(this,'Excellent')">Exc.</button>
+    fromSectionHtml = `<div class="card" style="padding:14px;margin-bottom:14px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding-bottom:10px;border-bottom:0.5px solid var(--border);">
+        <div style="width:4px;height:32px;border-radius:2px;background:var(--red);flex-shrink:0;"></div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--red-d);letter-spacing:0.03em;">FROM</div>
+          <div style="font-size:15px;font-weight:600;">${srcIcon} ${escHtml(srcName)}${srcAcres ? ` <span style="font-size:11px;color:var(--text2);font-weight:400;">${srcAcres} ac</span>` : ''}</div>
         </div>
+      </div>
+      <div style="font-size:11px;font-weight:600;color:var(--text2);letter-spacing:0.03em;margin-bottom:10px;">PASTURE CLOSE-OUT</div>
+      <div style="margin-bottom:10px;">
+        <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Residual height (in)</label>
+        <input type="number" id="mw-co-height" placeholder="e.g. 3.5" style="width:100%;padding:9px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;">
       </div>
       <div style="display:flex;gap:10px;margin-bottom:6px;">
         <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Recovery min (days)</label><input type="number" id="mw-co-rec-min" value="${defRecMin}" style="width:100%;padding:9px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
@@ -20564,28 +20566,59 @@ function _mwRenderStep3(){
     </div>`;
   }
 
-  // Arrival pasture survey (new destination + pasture only)
-  let arrivalSurveyHtml = '';
+  // ── TO section: destination pasture arrival survey ──────────────
+  let toSectionHtml = '';
   if(_mwDestType==='new' && _mwDestPaddockId){
     const arrDp = (S.pastures||[]).find(p=>String(p.id)===String(_mwDestPaddockId));
     const isArrCon = arrDp && arrDp.locationType==='confinement';
     if(arrDp && !isArrCon){
-      arrivalSurveyHtml = `<div style="border:0.5px solid var(--border2);border-radius:10px;padding:10px 12px;margin-bottom:14px;">
-      <div style="font-size:11px;font-weight:500;color:var(--text2);letter-spacing:0.03em;margin-bottom:8px;">ARRIVAL PASTURE SURVEY \u2014 ${escHtml(arrDp.name.toUpperCase())}</div>
-      <div style="display:flex;gap:10px;margin-bottom:8px;">
-        <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px;">Forage height (in)</label><input type="number" id="mw-arr-height" placeholder="e.g. 7" style="width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
-        <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px;">Forage cover (%)</label><input type="number" id="mw-arr-cover" placeholder="e.g. 65" min="0" max="100" style="width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
-      </div>
-      <div><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Forage condition</label>
-        <div style="display:flex;gap:4px;" id="mw-arr-quality-row">
-          <button style="flex:1;padding:6px 0;font-size:12px;border-radius:6px;border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;" type="button" onclick="_mwArrSetQuality(this,'Poor')">Poor</button>
-          <button style="flex:1;padding:6px 0;font-size:12px;border-radius:6px;border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;" type="button" onclick="_mwArrSetQuality(this,'Fair')">Fair</button>
-          <button style="flex:1;padding:6px 0;font-size:12px;border-radius:6px;border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;" type="button" onclick="_mwArrSetQuality(this,'Good')">Good</button>
-          <button style="flex:1;padding:6px 0;font-size:12px;border-radius:6px;border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;" type="button" onclick="_mwArrSetQuality(this,'Excellent')">Exc.</button>
+      toSectionHtml = `<div class="card" style="padding:14px;margin-bottom:14px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding-bottom:10px;border-bottom:0.5px solid var(--border);">
+          <div style="width:4px;height:32px;border-radius:2px;background:var(--green);flex-shrink:0;"></div>
+          <div style="flex:1;">
+            <div style="font-size:11px;font-weight:600;color:var(--green-d);letter-spacing:0.03em;">TO</div>
+            <div style="font-size:15px;font-weight:600;">${destIcon} ${escHtml(arrDp.name)}${arrDp.acres ? ` <span style="font-size:11px;color:var(--text2);font-weight:400;">${arrDp.acres} ac</span>` : ''}</div>
+          </div>
+          <span style="font-size:11px;color:var(--green-d);font-weight:500;">New event</span>
         </div>
+        <div style="font-size:11px;font-weight:600;color:var(--text2);letter-spacing:0.03em;margin-bottom:10px;">ARRIVAL PASTURE SURVEY</div>
+        <div style="display:flex;gap:10px;margin-bottom:10px;">
+          <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px;">Forage height (in)</label><input type="number" id="mw-arr-height" placeholder="e.g. 7" style="width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+          <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px;">Forage cover (%)</label><input type="number" id="mw-arr-cover" placeholder="e.g. 65" min="0" max="100" style="width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+        </div>
+        <div><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Forage condition</label>
+          <div style="display:flex;gap:4px;" id="mw-arr-quality-row">
+            <button style="flex:1;padding:6px 0;font-size:12px;border-radius:6px;border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;" type="button" onclick="_mwArrSetQuality(this,'Poor')">Poor</button>
+            <button style="flex:1;padding:6px 0;font-size:12px;border-radius:6px;border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;" type="button" onclick="_mwArrSetQuality(this,'Fair')">Fair</button>
+            <button style="flex:1;padding:6px 0;font-size:12px;border-radius:6px;border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;" type="button" onclick="_mwArrSetQuality(this,'Good')">Good</button>
+            <button style="flex:1;padding:6px 0;font-size:12px;border-radius:6px;border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;" type="button" onclick="_mwArrSetQuality(this,'Excellent')">Exc.</button>
+          </div>
+        </div>
+      </div>`;
+    } else if(arrDp){
+      // Confinement destination — show TO header only, no survey
+      toSectionHtml = `<div class="card" style="padding:14px;margin-bottom:14px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="width:4px;height:32px;border-radius:2px;background:#888;flex-shrink:0;"></div>
+          <div>
+            <div style="font-size:11px;font-weight:600;color:var(--text2);letter-spacing:0.03em;">TO</div>
+            <div style="font-size:15px;font-weight:600;">${destIcon} ${escHtml(arrDp.name)}</div>
+          </div>
+        </div>
+      </div>`;
+    }
+  } else if(_mwDestType==='existing' && _mwDestEventId){
+    // Joining existing event — show TO header with event info
+    toSectionHtml = `<div class="card" style="padding:14px;margin-bottom:14px;cursor:pointer;" onclick="_mwChangeDest()">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="width:4px;height:32px;border-radius:2px;background:var(--green);flex-shrink:0;"></div>
+        <div style="flex:1;">
+          <div style="font-size:11px;font-weight:600;color:var(--green-d);letter-spacing:0.03em;">TO <span style="font-size:9px;">\u270E</span></div>
+          <div style="font-size:15px;font-weight:600;">${destIcon} ${escHtml(destName)}${destAcres ? ` <span style="font-size:11px;color:var(--text2);font-weight:400;">${destAcres} ac</span>` : ''}</div>
+        </div>
+        <div style="font-size:11px;color:var(--text2);">${escHtml(destSubLine)}</div>
       </div>
     </div>`;
-    }
   }
 
   const saveLabel = isLastGroup ? 'Save move & close event' : 'Save move';
@@ -20599,30 +20632,15 @@ function _mwRenderStep3(){
     <button style="font-size:12px;color:var(--text2);background:none;border:none;cursor:pointer;font-family:inherit;" onclick="closeMoveWizSheet()">Cancel</button>
   </div>
   <div style="font-size:17px;font-weight:600;margin-bottom:14px;">${isLastGroup ? 'Confirm move & close' : 'Confirm move'}</div>
-  <div class="card" style="padding:12px;margin-bottom:14px;">
-    <div style="display:flex;align-items:center;gap:10px;">
-      <div style="flex:1;text-align:center;">
-        <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">FROM</div>
-        <div style="font-size:13px;font-weight:500;">${srcIcon} ${escHtml(srcName)}</div>
-        ${srcAcres ? `<div style="font-size:11px;color:var(--text2);">${srcAcres} ac</div>` : ''}
-      </div>
-      <div style="font-size:18px;color:var(--text3);">\u2192</div>
-      <div style="flex:1;text-align:center;cursor:pointer;border-radius:8px;padding:4px;transition:background 0.15s;" onclick="_mwChangeDest()" title="Tap to change destination">
-        <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">TO <span style="font-size:9px;">✎</span></div>
-        <div style="font-size:13px;font-weight:500;">${destIcon} ${escHtml(destName)}</div>
-        <div style="font-size:11px;color:${_mwDestType==='new'?'var(--green)':'var(--text2)'};">${escHtml(destSubLine)}</div>
-      </div>
-    </div>
-  </div>
   ${groupCard}
   <div style="display:flex;gap:10px;margin-bottom:14px;">
     <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Date</label><input type="date" id="mw-date" value="${todayD}" style="width:100%;padding:9px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
     <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Time</label><input type="time" id="mw-time" style="width:100%;padding:9px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
   </div>
   ${infoBoxes}
-  ${arrivalSurveyHtml}
-  ${closeOutHtml}
+  ${fromSectionHtml}
   ${_mwRenderInlineFeedCheck(srcEv, isLastGroup, hasStoredFeed)}
+  ${toSectionHtml}
   <button style="width:100%;padding:12px;font-size:14px;font-weight:600;border-radius:8px;border:none;background:var(--teal);color:white;cursor:pointer;font-family:inherit;" onclick="_mwSave()">${saveLabel}</button>`;
 }
 

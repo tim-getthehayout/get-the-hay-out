@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260405.0108`
+**Current build:** `b20260405.0149`
 **Last updated:** 2026-04-05
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -51,6 +51,7 @@ build = 'b' + datetime.now().strftime('%Y%m%d') + '.' + datetime.now().strftime(
 > **Event tile redesign (b20260403.0022):** `renderLocationCard(ev, opts)` fully rewritten — section-based layout: header (color bar, name + acreage, badge, day/date/cost, Edit + Move All buttons) → SUB-PADDOCKS (conditional, active = green dot with halo) → GROUPS (per-group Move → move wizard + ⚖ weigh) → stacked DMI bars (`_renderDMIBars()`, 3-day, green grazing / amber stored) → Feed check button (amber, conditional on stored feed) → DMI summary + progress bar → NPK (pasture only) → Feed button. `opts.compact` mode for field mode expanded cards (no ⚖, no NPK, compact action row). Badge logic: "grazing" (pure pasture), "stored feed" (noPasture/confinement), "stored feed & grazing" (has feed entries + pasture time, split gradient). Move buttons call `openMoveWizSheet()` not `openEventEdit()` (OI-0150 fix).
 > **FIELD_MODULES (b20260403.0022):** Added `move` (Move Animals 🚜, `_fieldModeMoveHandler`) and `feedcheck` (Feed Check 📋, `_fieldModeFeedCheckHandler`). Default active set unchanged (`['feed','harvest','survey','animals']`).
 > **Quick Feed picker (b20260324.1730):** `qfShowEventStep()` is now location-centric — shows location name + type badge as primary, group names as secondary. Cancel button (`#qf-step1-cancel`) added to step-1 picker, hidden on step-2.
+> **Desktop grid fix (b20260405.0134):** `renderHomeViewToggle` and `renderUnplacedGroupsSection` now emit `grid-column:1/-1` so they span both columns of the desktop 2-column `#home-groups` grid. Previously the toggle occupied one grid cell, pushing the first location card into column 2 and leaving dead space in column 1.
 | ~2921 | To-Do system |
 | ~3070 | Feed screen + Quick Feed sheet + Feed Types + Feed Goal + goFeedGroup |
 | ~3417 | Move Wizard (legacy full-page nav-based wizard — retained for nav-bar "Move" button; card-level moves now use `openMoveWizSheet()` sheet overlay) |
@@ -60,7 +61,7 @@ build = 'b' + datetime.now().strftime('%Y%m%d') + '.' + datetime.now().strftime(
 | ~4780 | Multi-paddock wizard helpers + Event Edit multi-paddock |
 | ~5347 | Treatment Types, AI Bulls, Manage sheets (classes/treatments/sires) + `TREATMENT_CATEGORIES` |
 | ~5598 | Batch Adjustment / Reconcile |
-| ~5805 | **`renderEventsLog()`** ← displaced here by Batch Adj insertion; logically part of Events section above. Now renders consolidated parent + sub-move thread (OI-0029, b20260329.1751) |
+| ~5805 | **`renderEventsLog()`** ← displaced here by Batch Adj insertion; logically part of Events section above. Now renders consolidated parent + sub-move thread (OI-0029, b20260329.1751). **Active rotation banner (b20260405.0134):** now loops over `getActiveEvents()` (all open events) instead of `getActive()` (single event). Each active event gets its own green banner with paddock chips, day count, group names via `evGroups()`. |
 | ~5954 | Pastures screen + recovery date helpers + **Survey system (OI-0115):** `openBulkSurveySheet`, `openSurveySheet(pastureId, surveyId)`, `saveSurveyDraft`, `completeBulkSurvey`, `discardSurvey`, `updateSurveyReading`, `deleteSurveyReading`, `renderSurveysTab`, `renderPastureEditHistory`, `setPasturesView`, `openBulkSurveyEdit`, `pasturesView` |
 | ~6030 | Settings screen — includes Sync queue inspector card (`renderSyncQueueInspector`, `exportSyncQueue`) |
 | ~6222 | **Submissions tab** (formerly Feedback) + Dev Brief + Export CSV. `renderFeedbackTab()` → `renderConfirmSection()` + `renderFeedbackStats()` + `renderFeedbackList()`. Edit sheet: `openEditSubmissionSheet(id)`, `saveEditSubmission()`, `deleteSubmission(id)`, `closeEditSubmissionSheet()`. Shape function: `_submissionRow(f,opId)`. Type system: `selTypeVal` module var; `selFbType(type,btn)`; `_fbUpdateTypeUI(type)`. |
@@ -155,7 +156,7 @@ All sheets are always in the DOM. Toggle: add/remove `.open` on the `-wrap` div.
 | Sub-move | `#sm-sheet-wrap` | `openSubMoveSheet(eventId)` | `closeSubMoveSheet()` |
 | Cull animal | `#cull-sheet-wrap` | `openCullSheet(animalId)` | `closeCullSheet()` |
 | Reset data | `#reset-sheet-wrap` | `openResetSheet(mode)` | `closeResetSheet()` |
-| **Move wizard (3-step)** | `#move-wiz-wrap` | **`openMoveWizSheet(evId, groupId, moveAll)`** | **`closeMoveWizSheet()`** | **b20260403.0022.** 3-step flow: Step 1 Where? → Step 2a paddock picker / 2b event picker → Step 3 confirm with FROM→TO, close-out survey, save. State: `_mwStep`, `_mwSourceEvId`, `_mwGroupIds`, `_mwMoveAll`, `_mwDestType`, `_mwDestPaddockId`, `_mwDestEventId`. Replaces old nav-based wizard for card-level moves. |
+| **Move wizard (3-step)** | `#move-wiz-wrap` | **`openMoveWizSheet(evId, groupId, moveAll)`** | **`closeMoveWizSheet()`** | **b20260405.0134.** 3-step flow: Step 1 Where? → Step 2a paddock picker / 2b event picker → Step 3 confirm. **Step 3 redesign (b20260405.0134):** FROM section (red accent bar) on top with close-out survey embedded (residual height + recovery min/max only — forage quality and forage cover removed); TO section (green accent bar) on bottom with arrival survey for new pasture destinations. Existing event destinations show TO header with ✎ re-pick. State: `_mwStep`, `_mwSourceEvId`, `_mwGroupIds`, `_mwMoveAll`, `_mwDestType`, `_mwDestPaddockId`, `_mwDestEventId`. |
 | **Close sub-paddock** | `#close-sub-paddock-wrap` | **`openCloseSubPaddockSheet(evId, smId)`** | **`closeCloseSubPaddockSheet()`** | **b20260403.0022.** Single-screen: sub-paddock info, close date/time, pasture close-out survey (height, cover, quality, recovery min/max), anchor paddock info box. Fixes OI-0152 width. |
 | **Feed check** | `#feed-check-wrap` | **`openFeedCheckSheet(evId)`** | **`closeFeedCheckSheet()`** | **b20260403.0038.** Per-feed-type dual-input dialog: stepper (−/+/direct, 2dp) + percentage + slider, all bidirectionally linked. Groups entries by feedTypeId. "Consumed since last check" amber summary. Saves `typeChecks[]` on check record + backward-compat `balesRemainingPct`. State: `_fcEvId`, `_fcTypeData[]`. |
 | **Add group to event** | `#add-grp-ev-wrap` | **`openAddGroupToEventSheet(evId)`** | **`closeAddGroupToEventSheet()`** | **b20260403.1018.** Group picker launched from "+ Add group" on home event card. Shows all groups with status (already here / at location / not placed). Handles source-event removal + close-if-last. z-index:210. State: `_ageTargetEvId`. |
@@ -1241,7 +1242,7 @@ The recovery min/max input section in the sub-move sheet has been wrapped in `di
 
 **Card-level moves** (Move button on group row, Move All in header, Place for unplaced groups) now open `#move-wiz-wrap` — a 3-step sheet overlay. **Nav-bar moves** (bottom nav "Move" button) still use the legacy full-page wizard (`nav('move')` → `initWiz()`). Both systems coexist. `moveGroup()` and `moveAllGroupsInEvent()` have been rewired to call `openMoveWizSheet()`.
 
-**Move wizard state:** `_mwStep` (1/2/3), `_mwSourceEvId`, `_mwGroupIds[]`, `_mwMoveAll`, `_mwDestType` ('new'|'existing'), `_mwDestPaddockId`, `_mwDestEventId`, `_mwCloseOutData`. All state is reset on open.
+**Move wizard state:** `_mwStep` (1/2/3), `_mwSourceEvId`, `_mwGroupIds[]`, `_mwMoveAll`, `_mwDestType` ('new'|'existing'), `_mwDestPaddockId`, `_mwDestEventId`, `_mwCloseOutData`. All state is reset on open. **Step 3 (b20260405.0134):** FROM/TO no longer side-by-side — FROM section (red bar) on top with close-out, TO section (green bar) on bottom with arrival survey. Close-out removed forage quality and forage cover fields. `_mwSetQuality` still exists but is no longer called from step 3 UI. `_mwSave()` gracefully handles missing `mw-co-cover` element (optional chaining returns undefined, field not written).
 
 **Close-out at move:** When the move wizard closes an event (last group leaving a pasture location), it writes close-out survey data (`heightOut`, `coverOut`, `qualityOut`) to the source event and updates the paddock's `recoveryMin`/`recoveryMax`. Same fields used by the survey sheet — no duplication.
 

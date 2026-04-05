@@ -1,5 +1,5 @@
 # Get The Hay Out — Session Rules
-**Doc version:** 15 — last meaningful update b20260329
+**Doc version:** 17 — last meaningful update b20260404
 **These rules govern every Claude session on this project.**
 Upload this file to the Claude Project alongside ARCHITECTURE.md and the current HTML.
 
@@ -17,6 +17,8 @@ Read this to understand why a rule exists or when it was introduced.
 
 | Doc v | Build | Change |
 |---|---|---|
+| v17 | b20260404 | §4d — SESSION_BRIEF filename convention changed from `SESSION_BRIEF_bYYYYMMDD_HHMM.md` to `SESSION_BRIEF_[subject-slug].md` (subject naming; timestamp lives in file header only). |
+| v16 | b20260329 | §8e delivery table — ⚠️ rename-before-copy note + bash snippet added; rename step added to delivery checklist. Root cause of stable-name deliverables documented: HTML/ARCHITECTURE work under stable names during session; OPEN_ITEMS/PROJECT_CHANGELOG carry stamps in filename from creation so never need renaming — that asymmetry is the failure mode. Filename convention updated: underscores throughout (`bYYYYMMDD_HHMM`) replacing dots in all stamped filenames. |
 | v15 | b20260329 | §1a resolution table updated for hybrid workflow — HTML and ARCHITECTURE rows changed to stable filenames (`index.html`, `ARCHITECTURE.md`); OPEN_ITEMS/PROJECT_CHANGELOG rows note both stamped and stable naming; MASTER_TEMPLATE rows support both dot and underscore version conventions. §8e delivery table — HTML and ARCHITECTURE rows clarify Claude.ai delivers with stamp, push.command renames in repo. §8f updated — upload reminder now directs user to `upload-to-claude/` subfolder for correctly re-stamped files. |
 | v14 | b20260329 | §8e delivery table — Master template row split into two: claude.ai variant (`MASTER_TEMPLATE_vN.N.md`) and hybrid variant (`MASTER_TEMPLATE_hybrid_vN.N.md`). Both use versioned filename convention for deliverables. |
 | v13 | b20260328.2241 | §0 — Patterns 11–14 promoted to MASTER_TEMPLATE v2.8: Backend Assembly Contract (shape mapping at assembly layer), Write Queue Mutation Ownership (queueWrite before save), Supabase Nested Select FK Disambiguation, Supabase Realtime REPLICA IDENTITY FULL. No SESSION_RULES rule changes — patterns live in MASTER_TEMPLATE §3. |
@@ -337,7 +339,7 @@ Do **not** generate one when the session only produced closed OPEN_ITEMS entries
 
 ### Delivery
 
-- Filename: `SESSION_BRIEF_bYYYYMMDD.HHMM.md` — build-stamped like all other deliverables
+- Filename: `SESSION_BRIEF_[subject-slug].md` — subject-named (e.g. `SESSION_BRIEF_auth_overlay.md`); timestamp lives in the file header `**Generated:**` line, not the filename
 - Delivered as an output file alongside (not instead of) the normal session deliverables
 - **Not uploaded to the Claude Project** — it is transient, session-scoped; overwrite it at the start of each new session
 - After implementation: decisions that survived should be promoted to OPEN_ITEMS.md or ARCHITECTURE.md as permanent record
@@ -553,15 +555,29 @@ List functions made obsolete this session. Remove them from the HTML and all cal
 
 | File | Deliver when | Naming convention |
 |---|---|---|
-| App HTML | Every session | `get-the-hay-out_bYYYYMMDD.HHMM.html` (Claude.ai delivers with stamp; `push.command` renames to `index.html` in repo) |
-| Architecture map | Every session (always gets stamp update) | `ARCHITECTURE_bYYYYMMDD.HHMM.md` (Claude.ai delivers with stamp; `push.command` renames to `ARCHITECTURE.md` in repo) |
-| Open items punch list | When any item changed | `OPEN_ITEMS_bYYYYMMDD.HHMM.md` |
-| Project changelog | Every session (always has new rows) | `PROJECT_CHANGELOG_bYYYYMMDD.HHMM.md` |
+| App HTML | Every session | `get-the-hay-out_bYYYYMMDD_HHMM.html` (Claude.ai delivers with stamp; `push.command` renames to `index.html` in repo) |
+| Architecture map | Every session (always gets stamp update) | `ARCHITECTURE_bYYYYMMDD_HHMM.md` (Claude.ai delivers with stamp; `push.command` renames to `ARCHITECTURE.md` in repo) |
+| Open items punch list | When any item changed | `OPEN_ITEMS_bYYYYMMDD_HHMM.md` |
+| Project changelog | Every session (always has new rows) | `PROJECT_CHANGELOG_bYYYYMMDD_HHMM.md` |
 | Session rules | **Only when rules actually changed** | `SESSION_RULES.md` |
 | Master template (claude.ai) | On confirmed §8g promotion **or** when SESSION_RULES.md was edited (§8h) | `MASTER_TEMPLATE_vN.N.md` |
 | Master template (hybrid) | On confirmed §8g promotion **or** when SESSION_RULES.md was edited (§8h) | `MASTER_TEMPLATE_hybrid_vN.N.md` |
 
+> **Note:** All stamped filenames use underscores throughout — `b20260329_1917`, not `b20260329.1917`. Dots are used inside file content (meta tags, headers) but not in filenames where they cause confusion.
+
 **The user never edits ARCHITECTURE.md, OPEN_ITEMS.md, or SESSION_RULES.md directly.** Claude owns all three.
+
+**⚠️ Rename before copy — mandatory:** HTML and ARCHITECTURE are worked on under stable names (`index.html`, `ARCHITECTURE.md`) during the session. They MUST be renamed to their stamped versions when copying to outputs. The rename is what makes them consistent with OPEN_ITEMS and PROJECT_CHANGELOG. Missing this step is what causes stable names to appear as deliverables.
+
+```bash
+# Correct copy-to-outputs pattern:
+STAMP=b20260329_1917   # underscores, no dot
+cp /home/claude/index.html       /mnt/user-data/outputs/get-the-hay-out_${STAMP}.html
+cp /home/claude/ARCHITECTURE.md  /mnt/user-data/outputs/ARCHITECTURE_${STAMP}.md
+cp /home/claude/OPEN_ITEMS_${STAMP}.md       /mnt/user-data/outputs/
+cp /home/claude/PROJECT_CHANGELOG_${STAMP}.md /mnt/user-data/outputs/
+# SESSION_RULES and MASTER_TEMPLATE only if changed — no stamp in their names
+```
 
 ---
 
@@ -596,6 +612,7 @@ DELIVERABLES:
 - [ ] SESSION_RULES delivered **only if rules changed** this session
 - [ ] §8g completed — check for universal candidates
 - [ ] §8h completed — if SESSION_RULES changed, MASTER_TEMPLATE updated and included
+- [ ] **HTML and ARCHITECTURE renamed to stamped filenames before copy to outputs** — `get-the-hay-out_bYYYYMMDD_HHMM.html` and `ARCHITECTURE_bYYYYMMDD_HHMM.md` (underscores, not dots)
 - [ ] All changed files copied to outputs with correct filenames
 - [ ] User reminded to deploy + upload changed files to project
 
