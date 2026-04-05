@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260405.1427" id="app-version-meta"/>
+<meta name="app-version" content="b20260405.1454" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -15738,23 +15738,31 @@ function editEeFeedCheck(ckId){
   if(!evId) return;
   const ev=S.events.find(e=>e.id===evId);
   if(!ev) return;
-  // Find the check being edited — capture its date/time before opening dialog
   const editCk = (ev.feedResidualChecks||[]).find(c=>String(c.id)===String(ckId));
-  const editDate = editCk?.date || null;
-  const editTime = editCk?.time || null;
+  if(!editCk) return;
   _fcOnCloseCallback = ()=>{
     if(ev){ renderEeFeedChecks(ev); updateEventEditPreview(ev); }
   };
+  _fcEditId = ckId;
   openFeedCheckSheet(evId);
-  // Pre-fill with the edited check's date/time (after dialog renders)
-  if(editDate){
-    setTimeout(()=>{
-      const dateEl = document.getElementById('fc-date');
-      const timeEl = document.getElementById('fc-time');
-      if(dateEl) dateEl.value = editDate;
-      if(timeEl && editTime) timeEl.value = editTime;
-    }, 80);
-  }
+  // Pre-fill with the edited check's date/time and per-type data
+  setTimeout(()=>{
+    const dateEl = document.getElementById('fc-date');
+    const timeEl = document.getElementById('fc-time');
+    if(dateEl && editCk.date) dateEl.value = editCk.date;
+    if(timeEl && editCk.time) timeEl.value = editCk.time;
+    // Restore per-type remaining values if available
+    if(editCk.typeChecks && _fcTypeData.length){
+      editCk.typeChecks.forEach(tc=>{
+        const td = _fcTypeData.find(t=>String(t.feedTypeId)===String(tc.feedTypeId));
+        if(td){ td.remaining = tc.remaining; }
+      });
+      _fcRender();
+      // Re-apply date/time after re-render
+      if(dateEl && editCk.date) dateEl.value = editCk.date;
+      if(timeEl && editCk.time) timeEl.value = editCk.time;
+    }
+  }, 80);
 }
 
 function closeEeFeedCheck(){
@@ -21345,6 +21353,7 @@ function _cspOpenNewSub(evId, closeDate, closeTime){
 // ── FEED CHECK SHEET — dual input per feed type (OI-0159) ────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
 let _fcEvId = null;
+let _fcEditId = null; // non-null when editing an existing feed check
 let _fcOnCloseCallback = null;
 let _fcTypeData = []; // [{feedTypeId, feedTypeName, unit, startedUnits, lastCheckUnits, lastCheckDate, lbsPerUnit, dmPct, remaining}]
 
@@ -21412,6 +21421,7 @@ function openFeedCheckSheet(evId){
 function closeFeedCheckSheet(){
   document.getElementById('feed-check-wrap').classList.remove('open');
   _fcEvId = null;
+  _fcEditId = null;
   _fcTypeData = [];
   if(_fcOnCloseCallback){ const cb=_fcOnCloseCallback; _fcOnCloseCallback=null; cb(); }
 }
@@ -21566,16 +21576,28 @@ function _fcSave(){
   const fcDate = document.getElementById('fc-date')?.value || todayStr();
   const fcTime = document.getElementById('fc-time')?.value || null;
   if(!ev.feedResidualChecks) ev.feedResidualChecks = [];
-  ev.feedResidualChecks.push({
-    id: Date.now(),
-    date: fcDate,
-    time: fcTime,
-    balesRemainingPct: overallPct,
-    residualPct: overallPct,
-    typeChecks: typeChecks,
-    notes: null,
-    isCloseReading: false
-  });
+  if(_fcEditId){
+    // Update existing check
+    const idx = ev.feedResidualChecks.findIndex(c=>String(c.id)===String(_fcEditId));
+    if(idx >= 0){
+      ev.feedResidualChecks[idx].date = fcDate;
+      ev.feedResidualChecks[idx].time = fcTime;
+      ev.feedResidualChecks[idx].balesRemainingPct = overallPct;
+      ev.feedResidualChecks[idx].residualPct = overallPct;
+      ev.feedResidualChecks[idx].typeChecks = typeChecks;
+    }
+  } else {
+    ev.feedResidualChecks.push({
+      id: Date.now(),
+      date: fcDate,
+      time: fcTime,
+      balesRemainingPct: overallPct,
+      residualPct: overallPct,
+      typeChecks: typeChecks,
+      notes: null,
+      isCloseReading: false
+    });
+  }
   ev.updatedAt = new Date().toISOString();
   queueEventWrite(ev);
   save();
