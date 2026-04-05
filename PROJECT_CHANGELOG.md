@@ -3,6 +3,11 @@
 
 | Build | File | Change |
 |---|---|---|
+| b20260405.1206 | CLAUDE.md | Added "Data Integrity — Backup/Restore Congruence" section with trigger table for changes that require backup/restore review (new S.* fields, renamed keys, new Supabase tables, changed row shapes, new migrations). |
+| b20260405.1206 | CLAUDE.md | Added "Deploy Gate" checklist — PROJECT_CHANGELOG, ARCHITECTURE.md, OPEN_ITEMS, and syntax check must all be completed before running deploy.py. |
+| b20260405.1206 | ARCHITECTURE.md | Documented bootstrap dedup guard (`_sbBootstrapPromise`) and `_sbProfile` set during bootstrap. |
+| b20260405.1206 | PROJECT_CHANGELOG.md | Backfilled all session changes from b20260405.1113 and b20260405.1137. |
+| b20260405.1206 | SESSION_RULES.md | Fixed §7a inconsistency — changed from "update OPEN_ITEMS.md and deliver it" to "capture in SESSION_BRIEF per §4d". |
 | b20260405.1137 | HTML | Bug fix: `sbBootstrapOperation()` now sets `_sbProfile` with role `'owner'` after creating the member row. Previously `_sbProfile` was null after bootstrap, so `isAdmin()` returned `false` for new operation owners until next page load. |
 | b20260405.1113 | HTML | Bug fix: Replaced boolean `_sbBootstrapInProgress` guard with promise-based `_sbBootstrapPromise` dedup. Both `sbPostSignInCheck()` and `onAuthStateChange` → `sbGetOperationId()` fire concurrently after OTP verification — boolean flag was insufficient because both async paths passed the check before either awaited the insert, creating duplicate operations. Second caller now awaits the first caller's promise. |
 | b20260405.1113 | CLAUDE.md | Added "Deploy prompt" rule under Branching & Deploy — Claude Code should ask user if they want to deploy after completing a fix or feature. |

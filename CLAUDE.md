@@ -52,6 +52,22 @@ After completing a bug fix or feature change, always ask the user if they want t
 3. **Function collision:** `grep -n "function myFunction" index.html` — duplicates silently overwrite
 4. **Call site check:** Before removing/renaming a function, grep for all call sites
 
+## Data Integrity — Backup/Restore Congruence
+
+Backup (`exportDataJSON`) serializes the entire `S` object. Restore (`importDataJSON`) replaces `S` wholesale, runs migrations, then pushes to Supabase via `pushAllToSupabase()`. Any change that alters the shape of `S` can break backup/restore if not kept in sync.
+
+**After any change that touches the following, check backup/restore congruence:**
+
+| Change type | What to verify |
+|---|---|
+| New `S.*` array or field | Added to `ensureDataArrays()`? Will old backups missing this field restore cleanly? |
+| Renamed or removed `S.*` key | Migration in `importDataJSON` to map old key → new? Old backups must still import. |
+| New Supabase table | Added to `pushAllToSupabase()`? Restore-then-sync must push all data. |
+| Changed row shape (new columns) | Shape function (`_*Row()`) updated? `pushAllToSupabase` uses shape functions to write. |
+| New migration function | Called in `importDataJSON` restore path? (Currently runs `migrateSystemIds`, `migrateToPaddocksField`, `ensureDataArrays`.) |
+
+**Rule:** If a change touches any of the above, update the backup/restore path in the same deploy. Flag it to the user if uncertain whether a migration is needed for old backups.
+
 ## Data Mutation Pattern
 
 Always follow this sequence when changing app state:
