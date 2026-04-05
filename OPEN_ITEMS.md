@@ -19,7 +19,7 @@
 | Status | Count |
 |---|---|
 | 🔴 Open — Roadblock | 0 |
-| 🔴 Open — Bug | 0 |
+| 🔴 Open — Bug | 8 |
 | 🟡 Open — Polish | 2 |
 | 🔵 Open — Enhancement | 19 |
 | ⚪ Open — Debt | 9 |
@@ -34,6 +34,14 @@ Recommended work order as of b20260405.0100. Updated after OI-0171 Phase 1.5 (au
 ### 🐞 Bucket 1 — Bugs (do first)
 | Priority | OI | Title | Notes |
 |---|---|---|---|
+| 1 | OI-0175 | Tiered flush ordering in `flushToSupabase()` | FK cascade failures on every backup restore |
+| 2 | OI-0176 | `input_applications` shape function writes `locations` as column | "column not found" errors |
+| 3 | OI-0177 | `operations` table write path stamps invalid `operation_id` column | Schema cache error on every flush |
+| 4 | OI-0178 | Backup restore must delete stale Supabase records before upserting | Orphan records survive restore |
+| 5 | OI-0179 | `pushAllToSupabase()` missing `manure_batches` table | Parent records lost on restore |
+| 6 | OI-0180 | `input_applications` and `manure_batches` need shape functions | Nested arrays passed as columns |
+| 7 | OI-0181 | `manure_batches` JS model does not match Supabase schema | Zero column overlap — never synced |
+| 8 | OI-0182 | `input_applications` field name mismatches with Supabase schema | `total_qty` vs `quantity`, missing NPK totals |
 
 ### 🔧 Bucket 2 — Missing fields & quick CRUD
 | Priority | OI | Title | Notes |
@@ -2802,6 +2810,110 @@ Auth gate overlay replaces Settings-embedded sign-in UI. Three phases:
 - **Phase 3 / M6-H** (deferred): Multi-operation support.
 
 **Acceptance criteria (Phase 1):** Unsigned users see branded overlay on load; signed-in users never see flash; sign-out from header avatar re-shows overlay; Settings card no longer has sign-in/sign-out controls.
+
+---
+
+### OI-0175 — Tiered flush ordering in `flushToSupabase()`
+**Source:** Claude.ai design conversation — b20260405.1200
+**Area:** Supabase write path
+**Severity:** Bug
+**Status:** 🔴 Open
+**Found:** b20260405.1200
+
+`flushToSupabase()` fires all queued writes concurrently without respecting FK dependency order. Backup restore on any Supabase-connected operation creates a cascade of FK constraint failures as child records are written before parent records exist. Fix: group queue by table, flush in 5 dependency tiers with `await` between each tier.
+
+**Acceptance criteria:** Restore a backup JSON on a Supabase-connected operation. All records sync successfully without FK errors. Queue empties to zero after one flush cycle.
+
+---
+
+### OI-0176 — `input_applications` shape function writes `locations` as column
+**Source:** Claude.ai design conversation — b20260405.1200
+**Area:** Supabase write path
+**Severity:** Bug
+**Status:** 🔴 Open
+**Found:** b20260405.1200
+
+`pushAllToSupabase()` writes `input_applications` with the nested `locations[]` array as a raw column. Supabase `input_applications` table has no `locations` column — locations are stored in the separate `input_application_locations` table.
+
+**Acceptance criteria:** Input applications with locations sync to Supabase without "column not found" errors. Locations appear in `input_application_locations` table.
+
+---
+
+### OI-0177 — `operations` table write path stamps invalid `operation_id` column
+**Source:** Claude.ai design conversation — b20260405.1200
+**Area:** Supabase write path
+**Severity:** Bug
+**Status:** 🔴 Open
+**Found:** b20260405.1200
+
+A shape function or `_sbToSnake` is adding `operation_id` to the operations row, but the `operations` table uses `id` as its PK (it IS the operation). Causes "Could not find the 'operation_id' column" error on every flush.
+
+**Acceptance criteria:** Operations writes succeed without schema cache errors.
+
+---
+
+### OI-0178 — Backup restore must delete stale Supabase records before upserting
+**Source:** Claude.ai design conversation — b20260405.1200
+**Area:** Supabase write path / Backup restore
+**Severity:** Bug
+**Status:** 🔴 Open
+**Found:** b20260405.1200
+
+`pushAllToSupabase()` only upserts — records that exist in Supabase but are absent from the restored backup survive and reappear on next load. A user restoring a 30-animal backup into a 50-animal operation ends up with 80. Fix: add a delete phase before the upsert phase, using reverse tier order (children first). Skip Tier 0 (operation identity).
+
+**Acceptance criteria:** Restore a backup with fewer records than currently in Supabase. After restore + sync, `loadFromSupabase()` returns exactly the backup's record count — no orphans.
+
+---
+
+### OI-0179 — `pushAllToSupabase()` missing `manure_batches` table
+**Source:** Claude.ai design conversation — b20260405.1200
+**Area:** Supabase write path
+**Severity:** Bug
+**Status:** 🔴 Open
+**Found:** b20260405.1200
+
+`pushAllToSupabase()` writes `manure_batch_transactions` but never writes the parent `manure_batches` table. Individual save paths do write this table. Backup restore or "Push all" loses all manure batch records.
+
+**Acceptance criteria:** After restore, `manure_batches` table in Supabase matches `S.manureBatches`. Shape function `_manureBatchRow()` created. `_SB_ALLOWED_COLS` entry added.
+
+---
+
+### OI-0180 — `input_applications` and `manure_batches` need shape functions + `_SB_ALLOWED_COLS`
+**Source:** Claude.ai design conversation — b20260405.1200
+**Area:** Supabase write path
+**Severity:** Bug
+**Status:** 🔴 Open
+**Found:** b20260405.1200
+
+Both tables use raw `_sbToSnake` which passes through nested JS arrays (`locations[]`, `events[]`) as columns. No `_SB_ALLOWED_COLS` entries exist for either. Creates "column not found" errors on flush.
+
+**Acceptance criteria:** `_inputApplicationRow()` and `_manureBatchRow()` shape functions created. `_SB_ALLOWED_COLS` entries added. `pushAllToSupabase()` uses the shape functions. `input_applications.locations[]` written as separate `input_application_locations` rows.
+
+---
+
+### OI-0181 — `manure_batches` JS model does not match Supabase schema
+**Source:** Claude.ai design conversation — b20260405.1200
+**Area:** Supabase schema / Data model
+**Severity:** Bug
+**Status:** 🔴 Open
+**Found:** b20260405.1200
+
+JS model has `name, volumeLbs, nPct, pPct, kPct, events[]`. Supabase has `source_event_id, date_collected, quantity, unit, notes`. Almost zero overlap. Manure batches have never synced to Supabase. Needs design decision: alter Supabase schema to match JS model, or write a shape function that maps between them.
+
+**Acceptance criteria:** Manure batches sync correctly. Schema and JS model are aligned. Round-trip backup→restore→load returns same data.
+
+---
+
+### OI-0182 — `input_applications` field name mismatches with Supabase schema
+**Source:** Claude.ai design conversation — b20260405.1200
+**Area:** Supabase write path
+**Severity:** Bug
+**Status:** 🔴 Open
+**Found:** b20260405.1200
+
+`_sbToSnake` produces `total_qty` but Supabase column is `quantity`. NPK totals (`n_lbs_total` etc.), `source_type`, and `manure_batch_id` are never written.
+
+**Acceptance criteria:** `_inputApplicationRow()` shape function maps all JS fields to correct Supabase columns. NPK totals computed from locations[] sums.
 
 ---
 

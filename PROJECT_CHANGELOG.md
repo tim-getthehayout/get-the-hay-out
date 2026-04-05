@@ -3,6 +3,14 @@
 
 | Build | File | Change |
 |---|---|---|
+| b20260405.NEXT | HTML | OI-0175: Tiered flush ordering in `flushToSupabase()`. Queue items grouped by table and flushed in 5 FK dependency tiers (Tier 0=roots → Tier 4=leaves). Fast path for single-item queues. Extracted `_flushOneOp()` helper. Added `FLUSH_TIERS` constant + `_FLUSH_TIER_MAP`. |
+| b20260405.NEXT | HTML | OI-0176/0182: Created `_inputApplicationRow()` shape function. Maps JS fields to correct Supabase columns (`nLbsTotal→n_lbs_total`, `totalCost→total_cost`, etc.). Strips nested `locations[]`. Added `_SB_ALLOWED_COLS` entry for `input_applications`. |
+| b20260405.NEXT | HTML | OI-0177: Added `_SB_ALLOWED_COLS` entry for `operations` that excludes `operation_id` (the table uses `id` as PK). Expanded `pushAllToSupabase()` operations write to include all herd fields. |
+| b20260405.NEXT | HTML | OI-0178: Added `deleteOperationData(opId)` — deletes all operation data in reverse tier order (Tier 4→1, skip Tier 0 identity). Updated `importDataJSON()` to call delete before upsert. Progress: "Clearing cloud data…" → "Restoring to cloud…" → "✓ Restored & synced." |
+| b20260405.NEXT | HTML | OI-0179: Added `manure_batches` to `pushAllToSupabase()` — parent table was missing, only transactions were written. |
+| b20260405.NEXT | HTML | OI-0180/0181: Created `_manureBatchRow()` shape function. Maps JS model fields to new Supabase columns. Strips nested `events[]`. Added `_SB_ALLOWED_COLS` entry. |
+| b20260405.NEXT | HTML | Added `operation_id` to `_harvestEventFieldRow()` shape function and `_SB_ALLOWED_COLS` entry. Updated both call sites. |
+| b20260405.NEXT | supabase/ | Migration `20260405_backup_restore_fixes.sql`: Added columns to `manure_batches` (name, label, location_name, mode, n_lbs, p_lbs, k_lbs, estimated_volume_lbs, remaining_lbs, created_at). Added `operation_id` to `harvest_event_fields` with backfill from parent. |
 | b20260405.1206 | CLAUDE.md | Added "Data Integrity — Backup/Restore Congruence" section with trigger table for changes that require backup/restore review (new S.* fields, renamed keys, new Supabase tables, changed row shapes, new migrations). |
 | b20260405.1206 | CLAUDE.md | Added "Deploy Gate" checklist — PROJECT_CHANGELOG, ARCHITECTURE.md, OPEN_ITEMS, and syntax check must all be completed before running deploy.py. |
 | b20260405.1206 | ARCHITECTURE.md | Documented bootstrap dedup guard (`_sbBootstrapPromise`) and `_sbProfile` set during bootstrap. |
