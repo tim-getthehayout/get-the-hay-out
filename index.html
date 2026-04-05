@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260405.1939" id="app-version-meta"/>
+<meta name="app-version" content="b20260405.1942" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -2494,6 +2494,7 @@ async function aoVerifyOtp(){
   if(btn){ btn.disabled=true; btn.textContent='Verifying…'; }
   _aoStatus('ao-step2-status','',false);
   try{
+    _aoStep3Pending = true; // block overlay dismissal until Step 3 is shown
     const {data:otpData,error} = await _sbClient.auth.verifyOtp({email,token,type:'email'});
     if(error) throw error;
     _aoStatus('ao-step2-status','✓ Signed in! Loading your data…',false);
@@ -2507,6 +2508,7 @@ async function aoVerifyOtp(){
     if(nameEl && cached?.displayName && cached.displayName !== email) nameEl.value = cached.displayName;
     setTimeout(()=>document.getElementById('ao-name')?.focus(),100);
   }catch(e){
+    _aoStep3Pending = false;
     _aoStatus('ao-step2-status','Incorrect code — check your email and try again',true);
     if(btn){btn.disabled=false;btn.textContent='Verify code';}
   }
@@ -2544,6 +2546,7 @@ async function aoSaveAccount(){
     }
     updateHeader();
     updateHeaderAvatar();
+    _aoStep3Pending = false;
     _dismissAuthOverlay();
   }catch(e){
     _aoStatus('ao-step3-status','Failed to save: '+e.message,true);
@@ -2552,11 +2555,13 @@ async function aoSaveAccount(){
 }
 
 function aoSkipSetup(){
+  _aoStep3Pending = false;
   _dismissAuthOverlay();
 }
 
+let _aoStep3Pending = false; // true while OTP verify is in progress — prevents premature overlay dismissal
 function _dismissAuthOverlay(){
-  // Don't dismiss if Step 3 (set name + password) is visible — user needs to complete it
+  if(_aoStep3Pending) return; // OTP verify will show Step 3 — don't dismiss yet
   const step3 = document.getElementById('ao-step3');
   if(step3 && step3.style.display !== 'none') return;
   const el = document.getElementById('auth-overlay');
