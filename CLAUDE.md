@@ -88,7 +88,12 @@ Claude Code owns these docs — update them with every deploy:
 
 Claude.ai owns:
 - **SESSION_RULES.md** — design session governance
-- **OPEN_ITEMS.md** — shared (Claude.ai adds items, Claude Code closes them)
+
+Shared:
+- **OPEN_ITEMS.md** — Claude.ai proposes changes (add/close/update) in session briefs. Claude Code applies them to the file in the repo.
+
+### Session Brief Handoff
+When the user pastes a SESSION_BRIEF from Claude.ai, look for the `## OPEN_ITEMS changes` section and apply all entries to `OPEN_ITEMS.md` before starting implementation work.
 
 ## Build Stamp
 
