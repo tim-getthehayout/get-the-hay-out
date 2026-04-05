@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260405.2258" id="app-version-meta"/>
+<meta name="app-version" content="b20260405.2320" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -8989,7 +8989,9 @@ function unarchiveAIBull(id){
 // ─── END TREATMENT TYPES / AI BULLS ──────────────────────────────────────────
 
 // ─── MANAGE CLASSES SHEET ─────────────────────────────────────────────────────
+let _mcEditingClassId = null;
 function openManageClassesSheet(){
+  _mcEditingClassId = null;
   renderMcClassesList();
   document.getElementById('manage-classes-wrap').classList.add('open');
 }
@@ -9003,24 +9005,75 @@ function renderMcClassesList(){
   }
   el.innerHTML=S.animalClasses.map((c,i)=>c.archived
     ?`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);opacity:0.45;"><span style="font-size:13px;"><strong>${c.name}</strong> <span class="badge bb">archived</span></span><button class="btn btn-outline btn-xs" onclick="unarchive('class',${c.id});renderMcClassesList();">Unarchive</button></div>`
-    :`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);font-size:13px;"><span><strong>${escHtml(c.name)}</strong> <span class="badge bb">${escHtml(c.species||'')}</span> <span class="badge bt">${c.defaultWeightLbs} lbs</span> <span class="badge bg">${c.dmiPct}% DMI</span></span><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;" onclick="tryDeleteAnimalClass(${i});renderMcClassesList();">×</button></div>`
+    :`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);font-size:13px;${_mcEditingClassId===c.id?'background:var(--green-l,#f0f9ec);margin:0 -4px;padding:7px 4px;border-radius:4px;':''}"><span><strong>${escHtml(c.name)}</strong> <span class="badge bb">${escHtml(c.species||'')}</span> <span class="badge bt">${c.defaultWeightLbs!=null?c.defaultWeightLbs+' lbs':'\u2014'}</span> <span class="badge bg">${c.dmiPct!=null?c.dmiPct+'% DMI':'\u2014'}</span></span><div style="display:flex;gap:6px;align-items:center;"><button class="btn btn-outline btn-xs" onclick="editAnimalClass(${c.id})">Edit</button><button style="border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:16px;" onclick="tryDeleteAnimalClass(${i});renderMcClassesList();">\u00d7</button></div></div>`
   ).join('');
 }
 function addClassFromSheet(){
   const name=document.getElementById('mc-cls-name').value.trim();
   if(!name){alert('Enter a class name');return;}
   if(!S.animalClasses)S.animalClasses=[];
-  S.animalClasses.push({
-    id:Date.now(),archived:false,name,
-    species:document.getElementById('mc-cls-species').value,
-    defaultWeightLbs:parseFloat(document.getElementById('mc-cls-wt').value)||1000,
-    dmiPct:parseFloat(document.getElementById('mc-cls-dmi').value)||2.5,
-  });
-  const _nc=S.animalClasses[S.animalClasses.length-1];
-  stampSetup();queueWrite('animal_classes',_animalClassRow(_nc,_sbOperationId));save();renderMcClassesList();renderClassesList();
+  if(_mcEditingClassId){
+    // Edit existing class
+    const cls=S.animalClasses.find(c=>c.id===_mcEditingClassId);
+    if(cls){
+      cls.name=name;
+      cls.species=document.getElementById('mc-cls-species').value;
+      cls.defaultWeightLbs=parseFloat(document.getElementById('mc-cls-wt').value)||null;
+      cls.dmiPct=parseFloat(document.getElementById('mc-cls-dmi').value)||null;
+      stampSetup();queueWrite('animal_classes',_animalClassRow(cls,_sbOperationId));save();
+    }
+    _mcEditingClassId=null;
+    const addBtn=document.getElementById('mc-cls-add-btn');
+    if(addBtn) addBtn.textContent='Add class';
+    const cancelBtn=document.getElementById('mc-cls-cancel-btn');
+    if(cancelBtn) cancelBtn.style.display='none';
+    const formHdr=document.getElementById('mc-form-hdr');
+    if(formHdr) formHdr.textContent='Add class';
+  } else {
+    S.animalClasses.push({
+      id:Date.now(),archived:false,name,
+      species:document.getElementById('mc-cls-species').value,
+      defaultWeightLbs:parseFloat(document.getElementById('mc-cls-wt').value)||1000,
+      dmiPct:parseFloat(document.getElementById('mc-cls-dmi').value)||2.5,
+    });
+    const _nc=S.animalClasses[S.animalClasses.length-1];
+    stampSetup();queueWrite('animal_classes',_animalClassRow(_nc,_sbOperationId));save();
+  }
+  renderMcClassesList();renderClassesList();
   document.getElementById('mc-cls-name').value='';
   document.getElementById('mc-cls-wt').value='';
   document.getElementById('mc-cls-dmi').value='';
+}
+function editAnimalClass(id){
+  const cls=(S.animalClasses||[]).find(c=>c.id===id);
+  if(!cls)return;
+  _mcEditingClassId=id;
+  document.getElementById('mc-cls-name').value=cls.name||'';
+  document.getElementById('mc-cls-species').value=cls.species||'';
+  document.getElementById('mc-cls-wt').value=cls.defaultWeightLbs||'';
+  document.getElementById('mc-cls-dmi').value=cls.dmiPct||'';
+  const addBtn=document.getElementById('mc-cls-add-btn');
+  if(addBtn) addBtn.textContent='Save changes';
+  const cancelBtn=document.getElementById('mc-cls-cancel-btn');
+  if(cancelBtn) cancelBtn.style.display='inline-block';
+  const formHdr=document.getElementById('mc-form-hdr');
+  if(formHdr) formHdr.textContent='Edit class';
+  document.getElementById('mc-cls-name').focus();
+  renderMcClassesList();
+}
+function cancelEditClass(){
+  _mcEditingClassId=null;
+  document.getElementById('mc-cls-name').value='';
+  document.getElementById('mc-cls-species').value='';
+  document.getElementById('mc-cls-wt').value='';
+  document.getElementById('mc-cls-dmi').value='';
+  const addBtn=document.getElementById('mc-cls-add-btn');
+  if(addBtn) addBtn.textContent='Add class';
+  const cancelBtn=document.getElementById('mc-cls-cancel-btn');
+  if(cancelBtn) cancelBtn.style.display='none';
+  const formHdr=document.getElementById('mc-form-hdr');
+  if(formHdr) formHdr.textContent='Add class';
+  renderMcClassesList();
 }
 
 // ─── MANAGE TREATMENT TYPES SHEET ────────────────────────────────────────────
@@ -22247,7 +22300,7 @@ function saveEditSubMove(){
     </div>
     <div id="mc-classes-list" style="margin-bottom:12px;"></div>
     <div class="div"></div>
-    <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Add class</div>
+    <div id="mc-form-hdr" style="font-size:13px;font-weight:600;margin-bottom:8px;">Add class</div>
     <div class="two">
       <div class="field">
         <label>Class name *</label>
@@ -22272,7 +22325,8 @@ function saveEditSubMove(){
       </div>
     </div>
     <div class="btn-row" style="margin-top:8px;">
-      <button class="btn btn-green" onclick="addClassFromSheet()">Add class</button>
+      <button class="btn btn-green" id="mc-cls-add-btn" onclick="addClassFromSheet()">Add class</button>
+      <button class="btn btn-outline" id="mc-cls-cancel-btn" style="display:none;" onclick="cancelEditClass()">Cancel</button>
       <button class="btn btn-outline" onclick="closeManageClassesSheet()">Done</button>
     </div>
   </div>
