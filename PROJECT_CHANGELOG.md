@@ -3,6 +3,7 @@
 
 | Build | File | Change |
 |---|---|---|
+| b20260405.NEXT | HTML | Bug fix: `sbBootstrapOperation()` now checks if user already owns an operation before creating a new one. Prevents duplicate operations on repeated sign-ins when `get_my_operation_id()` returns a different operation (e.g. user is member of another farm). |
 | b20260405.NEXT | HTML | Bug fix: `saveSoilTest()` generated numeric string IDs (`Date.now()`) but Supabase `soil_tests.id` column is `uuid` type. Changed to use `crypto.randomUUID()` with fallback. Existing numeric IDs in queue will still fail — those soil tests need re-entry. |
 | b20260405.NEXT | HTML | Bug fix: Event edit dialog hid the Feed Checks section when no checks existed yet. Condition changed from `noPasture || hasFeedChecks` to also include `hasStoredFeed` (event has feed entries). Section now shows with "No checks recorded yet" message and Add button. |
 | b20260405.NEXT | HTML | Bug fix: Feed check edit from event editor created a duplicate instead of updating the existing record. `_fcSave()` always pushed a new entry. Added `_fcEditId` state variable; `editEeFeedCheck()` now sets it before opening the sheet; `_fcSave()` updates the existing record when `_fcEditId` is set. Also restores per-type remaining values when editing. |

@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260405.1547" id="app-version-meta"/>
+<meta name="app-version" content="b20260405.1733" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -2824,6 +2824,16 @@ async function sbBootstrapOperation(){
 }
 async function _sbBootstrapOperationInner(){
   try{
+    // Guard: check if user already owns an operation (prevents duplicates on repeated sign-ins)
+    const {data:existing} = await _sbClient.from('operation_members')
+      .select('operation_id').eq('user_id', _sbSession.user.id).eq('role', 'owner').maybeSingle();
+    if(existing?.operation_id){
+      _sbOperationId = existing.operation_id;
+      _sbProfile = { operation_id: existing.operation_id, role: 'owner', display_name: _sbSession.user.email, field_mode: false };
+      localStorage.setItem('gthy-operation-id', _sbOperationId);
+      logError('supabase-bootstrap', 'User already owns operation ' + existing.operation_id + ' — skipping bootstrap', '');
+      return existing.operation_id;
+    }
     const {data:op, error:opErr} = await _sbClient.from('operations').insert({
       owner_id:    _sbSession.user.id,
       herd_name:   S.herd?.name  || 'My Farm',
