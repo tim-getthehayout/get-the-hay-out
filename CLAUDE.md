@@ -148,6 +148,8 @@ Before running `deploy.py deploy` or `deploy.py release`, complete ALL of the fo
 
 Do NOT run deploy until all four steps are done. If the user asks to deploy, complete the gate first, then deploy.
 
+**This applies to every deploy, including hotfixes.** When multiple deploys happen in a session (e.g., a feature deploy followed by hotfix deploys), each deploy must update the changelog before running `deploy.py`. Do not batch changelog updates — a missing entry means the change is undocumented.
+
 ## Build Stamp
 
 - **Format:** `bYYYYMMDD.HHMM` (UTC)
