@@ -68,6 +68,30 @@ Backup (`exportDataJSON`) serializes the entire `S` object. Restore (`importData
 
 **Rule:** If a change touches any of the above, update the backup/restore path in the same deploy. Flag it to the user if uncertain whether a migration is needed for old backups.
 
+## Supabase Sync — Mandatory queueWrite Rule
+
+`save()` only writes `S` to localStorage — it does NOT sync to Supabase. Every function that mutates `S.*` data MUST explicitly call `queueWrite()` for each record it creates, updates, or deletes BEFORE calling `save()`.
+
+**Pattern for every mutation:**
+```
+queueWrite('table_name', _shapeFunction(record, _sbOperationId));  // sync to Supabase
+save();                                                             // persist to localStorage
+```
+
+**For deletes:**
+```
+queueWrite('_delete:table_name', {id: recordId, operation_id: _sbOperationId});
+```
+
+**For events (parent + 6 child tables):**
+```
+queueEventWrite(ev);  // handles events + all child tables
+```
+
+**Common trap:** Complex functions that touch multiple tables (calving, split, move, input application) often queue some records but forget others. After writing any multi-table mutation, verify EVERY `S.*.push()`, `S.*[idx]=`, or `a.healthEvents.push()` has a corresponding `queueWrite`.
+
+**Safety net:** "Push all to Supabase" button in Settings calls `pushAllToSupabase()` which re-queues everything. But this is a manual recovery tool, not a substitute for correct queueWrite calls.
+
 ## Data Mutation Pattern
 
 Always follow this sequence when changing app state:

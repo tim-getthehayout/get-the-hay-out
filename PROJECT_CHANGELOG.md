@@ -3,6 +3,7 @@
 
 | Build | File | Change |
 |---|---|---|
+| b20260406.NEXT | HTML | "Push all to Supabase" button now calls `_safePushAll()` which loads latest from Supabase before pushing, preventing overwrite of changes made on other devices. Shows progress status. |
 | b20260406.NEXT | HTML | Supabase sync audit: fixed 7 remaining gaps where mutations called `save()` without `queueWrite()`. (1) `applySpreadSheet` manure amendment event. (2-3) `saveSplit` health events for source/dest groups + new event. (4-5) `saveApplyInput` parent application record + per-paddock amendment events. (6) `logGroupChange` health events. (7) `_mwSave` arrival paddock observation. All now queue to Supabase before `save()`. |
 | b20260406.NEXT | HTML | Bug fix: `saveCalving()` never queued the calf, dam update, weight record, or calving health event to Supabase. Calf and calving data were saved to localStorage only, never synced. Added `queueWrite` calls for: new calf animal, dam update, birth weight record, calving health event on dam. |
 | b20260406.NEXT | HTML | Fix: `saveSettings()` had a second `queueWrite('operations', ...)` that was missed in the earlier operations-to-direct-UPDATE fix. Caused perpetual RLS error in sync queue. Changed to direct UPDATE matching `pushAllToSupabase()` pattern. |
