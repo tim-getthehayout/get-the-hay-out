@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260406.0957" id="app-version-meta"/>
+<meta name="app-version" content="b20260406.1021" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -1584,6 +1584,25 @@ input[type=number] { -moz-appearance: textfield; }
           <div style="font-size:11px;color:var(--text2);margin-top:4px;">Default 1000 lbs. Used to calculate Animal Unit Days (AUDs) per rotation.</div>
         </div>
         <div class="div"></div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:10px;">Grazing management</div>
+        <div class="two">
+          <div class="field">
+            <label>DM intake per AUD (lbs)</label>
+            <input type="number" id="s-dm-per-aud" placeholder="26" step="1" min="10" max="40" style="max-width:100px;"/>
+            <div style="font-size:10px;color:var(--text3);margin-top:2px;">Default 26 lbs. Dry matter consumed by one AU per day.</div>
+          </div>
+          <div class="field">
+            <label>Default residual grazing height (in)</label>
+            <input type="number" id="s-residual-graze" placeholder="3" step="0.5" min="0" style="max-width:100px;"/>
+            <div style="font-size:10px;color:var(--text3);margin-top:2px;">Minimum height to graze to. Paddocks and forage types can override.</div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Forage utilization rate (%)</label>
+          <input type="number" id="s-forage-util" placeholder="50" step="5" min="10" max="90" style="max-width:100px;"/>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px;">Percent of standing forage actually consumed. 50% is conservative; 60-70% for intensive management.</div>
+        </div>
+        <div class="div"></div>
         <div style="font-size:13px;font-weight:600;margin-bottom:10px;">Per-metric goals</div>
         <div id="thresholds-list"></div>
         <div style="font-size:11px;color:var(--text2);margin-top:10px;line-height:1.6;">
@@ -1754,6 +1773,12 @@ input[type=number] { -moz-appearance: textfield; }
       <div class="field"><label>N kg/t DM</label><input type="number" id="forage-sheet-n" placeholder="18.0" step="0.1" min="0"/></div>
       <div class="field"><label>P kg/t DM</label><input type="number" id="forage-sheet-p" placeholder="2.8" step="0.1" min="0"/></div>
       <div class="field"><label>K kg/t DM</label><input type="number" id="forage-sheet-k" placeholder="20.0" step="0.1" min="0"/></div>
+    </div>
+    <div class="two">
+      <div class="field"><label>DM per inch per acre (lbs)</label><input type="number" id="forage-sheet-dm-per-inch" placeholder="225" step="1" min="0"/>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px;">Standing DM yield per inch of height per acre</div></div>
+      <div class="field"><label>Min residual height (in)</label><input type="number" id="forage-sheet-min-residual" placeholder="3" step="0.5" min="0"/>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px;">Recommended minimum grazing height</div></div>
     </div>
     <div class="field"><label>Notes (optional)</label><input type="text" id="forage-sheet-notes" placeholder="Source, lab, year…"/></div>
     <div class="btn-row" style="margin-top:8px;">
@@ -3425,18 +3450,24 @@ async function loadFromSupabase(operationId){
     try{
       const [{data:op}, {data:sets}] = await Promise.all([
         _sbClient.from('operations')
-          .select('herd_name,herd_type,herd_count,herd_weight,herd_dmi')
+          .select('herd_name,herd_type,herd_count,herd_weight,herd_dmi,residual_graze_height,forage_utilization_pct,dm_per_aud')
           .filter('id', 'eq', operationId).single(),
         _sbClient.from('operation_settings')
           .select('data').eq('operation_id', operationId).single(),
       ]);
-      if(op) S.herd = {
-        name:   op.herd_name  || '',
-        type:   op.herd_type  || '',
-        count:  op.herd_count || 0,
-        weight: op.herd_weight|| 0,
-        dmi:    op.herd_dmi   || 2.5,
-      };
+      if(op){
+        S.herd = {
+          name:   op.herd_name  || '',
+          type:   op.herd_type  || '',
+          count:  op.herd_count || 0,
+          weight: op.herd_weight|| 0,
+          dmi:    op.herd_dmi   || 2.5,
+        };
+        // OI-0186: grazing management settings stored on operations row
+        if(op.residual_graze_height != null) S.settings.residualGrazeHeight = op.residual_graze_height;
+        if(op.forage_utilization_pct != null) S.settings.forageUtilizationPct = op.forage_utilization_pct;
+        if(op.dm_per_aud != null) S.settings.dmPerAUD = op.dm_per_aud;
+      }
       if(sets?.data) S.settings = {...S.settings, ...sets.data};
     } catch(e){ logError('supabase-load', 'Herd/settings fetch: ' + e.message, ''); }
 
@@ -3444,7 +3475,7 @@ async function loadFromSupabase(operationId){
     // Migration guards — all additive, safe to run on Supabase-loaded data
     migrateHerdToGroups(); migrateGroupsToAnimals(); migrateAnimalSystemIds();
     migrateSystemIds(); migrateToPaddocksField(); migrateToGroupsField();
-    migrateWeaningFields(); migrateM0aData(); migrateHomeFarm(); migrateForageTypes();
+    migrateWeaningFields(); migrateM0aData(); migrateHomeFarm(); migrateForageTypes(); migrateForageTypesV2();
 
     // Rebuild ev.totals for closed events. totals is a computed JS object — it is never
     // stored in Supabase. On first load, closed events have totals=undefined which causes
@@ -3544,6 +3575,8 @@ function _pastureRow(p, opId){
     farm_id:          p.farmId ?? null,        // M7-B
     land_use:         p.landUse ?? null,       // M7-B
     field_code:       p.fieldCode ?? null,     // OI-0122
+    forage_type_id:   p.forageTypeId ?? null,  // OI-0186
+    residual_graze_height: p.residualGrazeHeight != null ? parseFloat(p.residualGrazeHeight) : null,
   };
 }
 
@@ -3625,6 +3658,8 @@ function _forageTypeRow(ft, opId){
     notes:            ft.notes   ?? null,
     is_seeded:        ft.isSeeded ?? false,
     created_at:       ft.createdAt ?? new Date().toISOString(),
+    dm_lbs_per_inch_per_acre: ft.dmLbsPerInchPerAcre != null ? parseFloat(ft.dmLbsPerInchPerAcre) : null,
+    min_residual_height:      ft.minResidualHeight   != null ? parseFloat(ft.minResidualHeight)   : null,
   };
 }
 
@@ -4062,10 +4097,10 @@ const _SB_ALLOWED_COLS = {
   animal_group_memberships: new Set(['id','operation_id','group_id','animal_id','date_joined','date_left','reason']),
   animal_weight_records: new Set(['id','operation_id','animal_id','recorded_at','weight_lbs','note','source','created_at']),
   manure_batch_transactions: new Set(['id','operation_id','batch_id','type','date','volume_lbs','n_lbs','p_lbs','k_lbs','source_event_id','application_id','pasture_names','notes','recorded_at']),
-  pastures:             new Set(['id','operation_id','name','type','acres','min_days','max_days','archived','setup_updated_at','farm_id','land_use','field_code']),
+  pastures:             new Set(['id','operation_id','name','type','acres','min_days','max_days','archived','setup_updated_at','farm_id','land_use','field_code','forage_type_id','residual_graze_height']),
   harvest_event_fields: new Set(['id','operation_id','harvest_event_id','land_id','land_name','acres','feed_type_id','batch_unit','quantity','weight_per_unit_kg','dm_pct','n_per_tonne_dm','p_per_tonne_dm','k_per_tonne_dm','batch_id','notes','created_at']),
   // OI-0177: operations uses `id` as PK — excludes `operation_id` so queueWrite's auto-inject gets stripped
-  operations:           new Set(['id','owner_id','herd_name','herd_type','herd_count','herd_weight','herd_dmi','schema_version','created_at','updated_at']),
+  operations:           new Set(['id','owner_id','herd_name','herd_type','herd_count','herd_weight','herd_dmi','schema_version','created_at','updated_at','residual_graze_height','forage_utilization_pct','dm_per_aud']),
   // OI-0176/0182: explicit column mapping — strips nested locations[]
   input_applications:   new Set(['id','operation_id','product_id','product_name','source_type','manure_batch_id','date','quantity','unit','n_lbs_total','p_lbs_total','k_lbs_total','total_cost','notes']),
   // OI-0180/0181: maps JS model fields after schema migration adds these columns
@@ -5486,6 +5521,90 @@ function _fcCheckToRemainingLbs(check, ev){
   }
   return null; // no typeChecks — caller should use pct fallback
 }
+
+// ── OI-0186: Forage estimation functions ─────────────────────────────────────
+
+// Three-tier residual resolution: paddock → forage type → operation setting
+function getEffectiveResidual(pastureId){
+  const pad = findPastureById(pastureId);
+  if(pad && pad.residualGrazeHeight != null) return pad.residualGrazeHeight;
+  if(pad && pad.forageTypeId){
+    const ft = (S.forageTypes||[]).find(f=>String(f.id)===String(pad.forageTypeId));
+    if(ft && ft.minResidualHeight != null) return ft.minResidualHeight;
+  }
+  return S.settings.residualGrazeHeight || 3;
+}
+
+// Most recent paddockObservation with vegHeight for a paddock
+function getLatestVegObservation(pastureId){
+  return (S.paddockObservations||[])
+    .filter(o=>String(o.pastureId)===String(pastureId) && o.vegHeight != null)
+    .sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0] || null;
+}
+
+// Estimated usable DM (lbs) — supply side, after utilization rate
+function estimateAvailableDM(pastureId){
+  const pad = findPastureById(pastureId);
+  if(!pad || !pad.acres) return null;
+  const obs = getLatestVegObservation(pastureId);
+  if(!obs || obs.vegHeight == null) return null;
+  const ft = pad.forageTypeId
+    ? (S.forageTypes||[]).find(f=>String(f.id)===String(pad.forageTypeId))
+    : null;
+  if(!ft || !ft.dmLbsPerInchPerAcre) return null;
+  const residual = getEffectiveResidual(pastureId);
+  const availableInches = Math.max(0, obs.vegHeight - residual);
+  const coverPct = obs.forageCoverPct ?? 100;
+  const utilizationPct = S.settings.forageUtilizationPct || 50;
+  const grossDM = availableInches * ft.dmLbsPerInchPerAcre * pad.acres * (coverPct / 100);
+  return grossDM * (utilizationPct / 100);
+}
+
+// Estimated AUDs the paddock can support — supply side
+function estimateAvailableAUDs(pastureId){
+  const dm = estimateAvailableDM(pastureId);
+  if(dm == null) return null;
+  const dmPerAUD = S.settings.dmPerAUD || 26;
+  return dm / dmPerAUD;
+}
+
+// Estimated grazing days for a specific group on a paddock
+function estimateGrazeDays(pastureId, groupId){
+  const availableDM = estimateAvailableDM(pastureId);
+  if(availableDM == null) return null;
+  const g = getGroupById(groupId);
+  if(!g) return null;
+  const t = getGroupTotals(g);
+  if(!t || !t.dmiTarget) return null;
+  return Math.floor(availableDM / t.dmiTarget);
+}
+
+// Stocking efficiency: actual consumed ÷ estimated available
+function stockingEfficiency(pastureId, periodStart, periodEnd){
+  const estimated = estimateAvailableAUDs(pastureId);
+  if(estimated == null || estimated === 0) return null;
+  const auWt = S.settings.auWeight || 1000;
+  const evs = S.events.filter(e=>
+    evMatchesPasture(e, null, pastureId) &&
+    e.dateIn <= periodEnd &&
+    (e.dateOut || todayStr()) >= periodStart
+  );
+  let actualAUDs = 0;
+  evs.forEach(ev=>{
+    const days = daysBetween(ev.dateIn, ev.dateOut||todayStr());
+    let head = ev.head||0, wt = ev.wt||0;
+    if(!head || !wt){
+      evGroups(ev).forEach(g=>{
+        const grp = getGroupById(g.groupId);
+        if(grp){ const t=getGroupTotals(grp); head+=(t.totalHead||0); wt=wt||t.avgWeight||0; }
+      });
+    }
+    actualAUDs += (head * wt / auWt) * days;
+  });
+  return { estimated, actual: actualAUDs, efficiency: Math.round((actualAUDs / estimated) * 100) };
+}
+
+// ── END OI-0186 forage estimation ────────────────────────────────────────────
 
 function getDailyStoredDMI(ev, dateStr){
   const entries = allFeedEntries(ev);
@@ -7164,12 +7283,17 @@ function aggregatePaddockPeriod(pastureName, pastureId, periodStart, periodEnd){
   const avgPasturePct = pasturePctCount>0 ? Math.round(pasturePctSum/pasturePctCount) : null;
   const costPerDay = totalDays>0 ? totalCost/totalDays : null;
 
+  // OI-0186: stocking efficiency — actual AUDs ÷ estimated available AUDs
+  const _estAUDs = pastureId ? estimateAvailableAUDs(pastureId) : null;
+  const efficiency = (_estAUDs != null && _estAUDs > 0) ? Math.round((totalAUDs / _estAUDs) * 100) : null;
+
   return {
     auds: totalAUDs,
     pasturePct: avgPasturePct,
     npkAcre: npkPerAc,
     omLbs: totalOM,
     costDay: costPerDay,
+    efficiency,
     totalCost, totalDays, totalAcres, totalNPK,
     eventCount: allEvs.length,
     groupIds: [...groupsSeen],
@@ -7191,6 +7315,7 @@ const CAL_METRICS = [
   {key:'npkAcre',    label:'NPK / ac',   fmt: v=>v!=null?v.toFixed(1):'—'},
   {key:'omLbs',      label:'OM (lbs)',   fmt: v=>v!=null?v.toFixed(0):'—'},
   {key:'costDay',    label:'$/day',      fmt: v=>v!=null?'$'+v.toFixed(0):'—'},
+  {key:'efficiency', label:'Efficiency %', fmt: v=>v!=null?v+'%':'—'},
 ];
 
 // renderRotationCalendar (metric grid) moved to shared function below
@@ -9913,7 +10038,7 @@ function renderPastures(){
       const remLbs=batches.reduce((s,b)=>s+getBatchRemaining(b),0);
       if(remLbs>0){const vol=volLbsToDisplay(remLbs);manureLine=`<div style="font-size:11px;color:var(--amber-d);margin-top:3px;">~${vol.val} ${vol.unit} in storage</div>`;}
     }
-    return `<div class="chip"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><div style="font-size:14px;font-weight:600;">${p.name}${landUseBadge(p)}${fieldCodeBadge} ${isActive?'<span class="badge bt">active</span>':''} ${isCon?'<span class="badge bb">confinement</span>':''}</div><div style="font-size:12px;color:var(--text2);margin-top:2px;">${detail}</div>${soilLine}${npkLine}${manureLine}${(()=>{return !isCon?recoveryDateLine(p,true):'';})()}${harvestLog}</div><div style="display:flex;gap:6px;align-items:center;">${typeBadge}${avg!==null?`<span class="badge ${avg>=60?'bg':'ba'}">${avg}% avg</span>`:''} ${openTasks?`<span class="badge ba">${openTasks} task${openTasks!==1?'s':''}</span>`:''}${(()=>{const lr=latestSurveyRating(p.id,p.name);return lr?`<span style="font-size:11px;font-weight:700;color:${surveyRatingColor(lr.rating)};background:${surveyRatingBg(lr.rating)};padding:2px 7px;border-radius:10px;" title="Survey ${dLabel(lr.date)}">${lr.rating}</span>`:'';})()}<button class="btn btn-outline btn-xs" onclick="openLocEdit(${i})">Edit</button><button class="btn btn-outline btn-xs" onclick="openSurveySheet('${p.id}')">📋 Survey</button>${!isCon?`<button class="btn btn-outline btn-xs" onclick="openSoilTestSheet('${p.id}')">🧪 Soil</button>`:''}</div></div></div>`;
+    return `<div class="chip"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><div style="font-size:14px;font-weight:600;">${p.name}${landUseBadge(p)}${fieldCodeBadge} ${isActive?'<span class="badge bt">active</span>':''} ${isCon?'<span class="badge bb">confinement</span>':''}</div><div style="font-size:12px;color:var(--text2);margin-top:2px;">${detail}</div>${soilLine}${npkLine}${manureLine}${(()=>{if(isCon||isActive)return '';const _estDM=estimateAvailableDM(p.id);if(_estDM==null)return '';const _estAUDs=estimateAvailableAUDs(p.id);const _obs=getLatestVegObservation(p.id);const _res=getEffectiveResidual(p.id);const _util=S.settings.forageUtilizationPct||50;return `<div style="font-size:11px;color:var(--green-d);margin-top:3px;">\ud83c\udf3f Est. available: ${Math.round(_estDM).toLocaleString()} lbs DM${_estAUDs!=null?' \u00b7 ~'+Math.round(_estAUDs)+' AUDs':''}</div><div style="font-size:10px;color:var(--text3);margin-top:1px;">at ${_util}% util${_obs?' \u00b7 Survey '+dLabel(_obs.date)+' \u00b7 '+_obs.vegHeight+'\u2033':''} \u00b7 Residual: ${_res}\u2033</div>`;})()}${(()=>{return !isCon?recoveryDateLine(p,true):'';})()}${harvestLog}</div><div style="display:flex;gap:6px;align-items:center;">${typeBadge}${avg!==null?`<span class="badge ${avg>=60?'bg':'ba'}">${avg}% avg</span>`:''} ${openTasks?`<span class="badge ba">${openTasks} task${openTasks!==1?'s':''}</span>`:''}${(()=>{const lr=latestSurveyRating(p.id,p.name);return lr?`<span style="font-size:11px;font-weight:700;color:${surveyRatingColor(lr.rating)};background:${surveyRatingBg(lr.rating)};padding:2px 7px;border-radius:10px;" title="Survey ${dLabel(lr.date)}">${lr.rating}</span>`:'';})()}<button class="btn btn-outline btn-xs" onclick="openLocEdit(${i})">Edit</button><button class="btn btn-outline btn-xs" onclick="openSurveySheet('${p.id}')">📋 Survey</button>${!isCon?`<button class="btn btn-outline btn-xs" onclick="openSoilTestSheet('${p.id}')">🧪 Soil</button>`:''}</div></div></div>`;
   }
 
   if(multipleF){
@@ -9945,6 +10070,13 @@ function saveSettings(){
   // AU weight + thresholds
   const auWtEl=document.getElementById('s-au-weight');
   if(auWtEl)S.settings.auWeight=parseFloat(auWtEl.value)||1000;
+  // OI-0186: grazing management settings
+  const dmAudEl=document.getElementById('s-dm-per-aud');
+  if(dmAudEl)S.settings.dmPerAUD=parseFloat(dmAudEl.value)||26;
+  const resGzEl=document.getElementById('s-residual-graze');
+  if(resGzEl)S.settings.residualGrazeHeight=parseFloat(resGzEl.value)||3;
+  const forUtEl=document.getElementById('s-forage-util');
+  if(forUtEl)S.settings.forageUtilizationPct=parseFloat(forUtEl.value)||50;
   const recReqEl=document.getElementById('s-recovery-required');
   if(recReqEl)S.settings.recoveryRequired=recReqEl.checked;
   const recMinEl=document.getElementById('s-recovery-min');
@@ -9982,6 +10114,9 @@ function saveSettings(){
       herd_name: S.herd.name||'My Farm', herd_type: S.herd.type||null,
       herd_count: S.herd.count||0, herd_weight: S.herd.weight||0,
       herd_dmi: S.herd.dmi||2.5, updated_at: new Date().toISOString(),
+      residual_graze_height: S.settings.residualGrazeHeight||3,
+      forage_utilization_pct: S.settings.forageUtilizationPct||50,
+      dm_per_aud: S.settings.dmPerAUD||26,
     }).eq('id', _sbOperationId).then(({error}) => { if(error) logError('supabase-flush', 'operations update: '+error.message, ''); });
     queueWrite('operation_settings', { operation_id: _sbOperationId, data: S.settings }, 'operation_id');
   }
@@ -10001,6 +10136,13 @@ function loadSettings(){
   if(spEl)spEl.value=S.settings.homeStatPeriod||'7d';
   const auWtLoad=document.getElementById('s-au-weight');
   if(auWtLoad)auWtLoad.value=S.settings.auWeight||1000;
+  // OI-0186: grazing management settings
+  const dmAudLoad=document.getElementById('s-dm-per-aud');
+  if(dmAudLoad)dmAudLoad.value=S.settings.dmPerAUD||26;
+  const resGzLoad=document.getElementById('s-residual-graze');
+  if(resGzLoad)resGzLoad.value=S.settings.residualGrazeHeight||3;
+  const forUtLoad=document.getElementById('s-forage-util');
+  if(forUtLoad)forUtLoad.value=S.settings.forageUtilizationPct||50;
   const recReqLoad=document.getElementById('s-recovery-required');
   if(recReqLoad)recReqLoad.checked=!!S.settings.recoveryRequired;
   const recMinLoad=document.getElementById('s-recovery-min');
@@ -10517,6 +10659,8 @@ function openEditForageTypeSheet(idx){
   document.getElementById('forage-sheet-p').value     = ft ? (ft.pPerTonneDM??'') : '';
   document.getElementById('forage-sheet-k').value     = ft ? (ft.kPerTonneDM??'') : '';
   document.getElementById('forage-sheet-notes').value = ft ? (ft.notes||'') : '';
+  document.getElementById('forage-sheet-dm-per-inch').value = ft ? (ft.dmLbsPerInchPerAcre??'') : '';
+  document.getElementById('forage-sheet-min-residual').value = ft ? (ft.minResidualHeight??'') : '';
   document.getElementById('forage-sheet-title').textContent = ft ? 'Edit Forage Type' : 'Add Forage Type';
   document.getElementById('forage-sheet-wrap').style.display='flex';
 }
@@ -10535,6 +10679,8 @@ function saveForageTypeFromSheet(){
   ft.pPerTonneDM = parseFloat(document.getElementById('forage-sheet-p').value)||null;
   ft.kPerTonneDM = parseFloat(document.getElementById('forage-sheet-k').value)||null;
   ft.notes       = document.getElementById('forage-sheet-notes').value.trim()||null;
+  ft.dmLbsPerInchPerAcre = parseFloat(document.getElementById('forage-sheet-dm-per-inch').value)||null;
+  ft.minResidualHeight   = parseFloat(document.getElementById('forage-sheet-min-residual').value)||null;
   if(!isEdit) S.forageTypes.push(ft);
   queueWrite('forage_types', _forageTypeRow(ft, _sbOperationId));
   stampSetup(); save(); renderForageTypes(); closeForageTypeSheet();
@@ -12202,6 +12348,10 @@ function openAddLocation(){
   document.getElementById('le-loctype').value = 'pasture';
   document.getElementById('le-soil').value    = 'Loam';
   document.getElementById('le-species').value = '';
+  const _ftSel2=document.getElementById('le-forage-type');
+  if(_ftSel2){ _ftSel2.innerHTML='<option value="">— none —</option>'+(S.forageTypes||[]).map(ft=>`<option value="${ft.id}">${escHtml(ft.name)}</option>`).join(''); _ftSel2.value=''; }
+  document.getElementById('le-residual-height').value='';
+  _leUpdateResidualHint();
   document.getElementById('le-desc').value    = '';
   document.getElementById('le-capture').value = 'no';
   document.getElementById('le-cap-pct').value = 80;
@@ -12234,6 +12384,14 @@ function openLocEdit(idx){
   if(!isCon){
     document.getElementById('le-soil').value=p.soil||'Loam';
     document.getElementById('le-species').value=p.species||'';
+    // OI-0186: populate forage type selector
+    const _ftSel=document.getElementById('le-forage-type');
+    if(_ftSel){
+      _ftSel.innerHTML='<option value="">— none —</option>'+(S.forageTypes||[]).map(ft=>`<option value="${ft.id}">${escHtml(ft.name)}</option>`).join('');
+      _ftSel.value=p.forageTypeId||'';
+    }
+    document.getElementById('le-residual-height').value=p.residualGrazeHeight??'';
+    _leUpdateResidualHint();
     document.getElementById('le-capture-fields').style.display='none';
   } else {
     document.getElementById('le-desc').value=p.description||'';
@@ -12267,6 +12425,27 @@ function onLeCaptureChange(){
   document.getElementById('le-capture-fields').style.display=v==='yes'?'block':'none';
 }
 
+// OI-0186: update residual hint when forage type changes
+function _leForageTypeChanged(){
+  const ftId = document.getElementById('le-forage-type').value;
+  const ft = ftId ? (S.forageTypes||[]).find(f=>String(f.id)===String(ftId)) : null;
+  // Auto-fill species notes from forage type name if species field is empty
+  const specEl = document.getElementById('le-species');
+  if(specEl && !specEl.value && ft) specEl.value = ft.name;
+  _leUpdateResidualHint();
+}
+function _leUpdateResidualHint(){
+  const hint = document.getElementById('le-residual-hint');
+  if(!hint) return;
+  const ftId = document.getElementById('le-forage-type')?.value;
+  const ft = ftId ? (S.forageTypes||[]).find(f=>String(f.id)===String(ftId)) : null;
+  if(ft && ft.minResidualHeight != null){
+    hint.textContent = 'From ' + ft.name + ': ' + ft.minResidualHeight + ' in';
+  } else {
+    hint.textContent = 'Operation default: ' + (S.settings.residualGrazeHeight||3) + ' in';
+  }
+}
+
 function saveLocEdit(){
   const idxRaw = document.getElementById('loc-edit-idx').value;
   const isNew  = idxRaw === '__new__';
@@ -12288,6 +12467,9 @@ function saveLocEdit(){
     if(!isCon){
       loc.soil    = document.getElementById('le-soil').value;
       loc.species = document.getElementById('le-species').value;
+      loc.forageTypeId = document.getElementById('le-forage-type').value||null;
+      const _rh = document.getElementById('le-residual-height').value;
+      loc.residualGrazeHeight = _rh ? parseFloat(_rh) : null;
     } else {
       loc.description   = document.getElementById('le-desc').value;
       loc.captureManure = document.getElementById('le-capture').value === 'yes';
@@ -12322,6 +12504,9 @@ function saveLocEdit(){
   if(!isCon){
     p.soil    = document.getElementById('le-soil').value;
     p.species = document.getElementById('le-species').value;
+    p.forageTypeId = document.getElementById('le-forage-type').value||null;
+    const _rh2 = document.getElementById('le-residual-height').value;
+    p.residualGrazeHeight = _rh2 ? parseFloat(_rh2) : null;
   } else {
     p.description    = document.getElementById('le-desc').value;
     p.captureManure  = document.getElementById('le-capture').value === 'yes';
@@ -18369,6 +18554,36 @@ function migrateForageTypes(){
   });
 }
 
+// OI-0186: backfill dmLbsPerInchPerAcre + minResidualHeight on seeded forage types
+function migrateForageTypesV2(){
+  if(S.settings._forageTypeV2Migrated) return;
+  const v2Data = {
+    'Alfalfa Hay':       {dmLbsPerInchPerAcre:300, minResidualHeight:3},
+    'Mixed Grass Hay':   {dmLbsPerInchPerAcre:225, minResidualHeight:3},
+    'Grass Hay (pure)':  {dmLbsPerInchPerAcre:200, minResidualHeight:3},
+    'Timothy Hay':       {dmLbsPerInchPerAcre:200, minResidualHeight:3},
+    'Orchardgrass Hay':  {dmLbsPerInchPerAcre:250, minResidualHeight:3},
+    'Alfalfa/Grass Mix': {dmLbsPerInchPerAcre:275, minResidualHeight:3},
+    'Corn Silage':       {dmLbsPerInchPerAcre:null, minResidualHeight:null},
+  };
+  let updated = false;
+  (S.forageTypes||[]).forEach(ft=>{
+    if(!ft.isSeeded) return;
+    const vals = v2Data[ft.name];
+    if(!vals) return;
+    if(ft.dmLbsPerInchPerAcre == null && vals.dmLbsPerInchPerAcre != null){
+      ft.dmLbsPerInchPerAcre = vals.dmLbsPerInchPerAcre;
+      updated = true;
+    }
+    if(ft.minResidualHeight == null && vals.minResidualHeight != null){
+      ft.minResidualHeight = vals.minResidualHeight;
+      updated = true;
+    }
+    if(updated && _sbOperationId) queueWrite('forage_types', _forageTypeRow(ft, _sbOperationId));
+  });
+  S.settings._forageTypeV2Migrated = true;
+}
+
 function migrateWeaningFields(){
   (S.animals||[]).forEach(a=>{
     if(a.weaned===undefined) a.weaned=null;
@@ -19738,7 +19953,12 @@ window.addEventListener('offline', ()=>{
     <div id="le-pasture-fields">
       <div class="two">
         <div class="field"><label>Soil type</label><select id="le-soil"><option>Loam</option><option>Clay</option><option>Sandy</option><option>Silt</option></select></div>
-        <div class="field"><label>Forage species</label><input type="text" id="le-species" placeholder="Mixed grass/clover"/></div>
+        <div class="field"><label>Forage type</label><select id="le-forage-type" onchange="_leForageTypeChanged()"><option value="">— none —</option></select></div>
+      </div>
+      <div class="two">
+        <div class="field"><label>Forage species (notes)</label><input type="text" id="le-species" placeholder="Mixed grass/clover"/></div>
+        <div class="field"><label>Residual grazing height (in)</label><input type="number" id="le-residual-height" step="0.5" min="0"/>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px;" id="le-residual-hint">Leave blank for default</div></div>
       </div>
     </div>
     <div id="le-confinement-fields" style="display:none;">
@@ -20911,9 +21131,12 @@ function _mwRenderStep2a(){
     const acTxt = p.acres ? p.acres+' ac' : '';
     let statusLine = '';
     let opacity = '1';
+    // OI-0186: estimated grazing days for this destination
+    const _gzDays = (!item.isInUse && !item.isCon && _mwGroupIds.length) ? estimateGrazeDays(p.id, _mwGroupIds[0]) : null;
+    const _gzLine = _gzDays != null ? `<div style="font-size:11px;color:var(--teal);margin-top:2px;">Est. ~${_gzDays} days grazing</div>` : '';
     if(item.isInUse){ statusLine = '<div style="font-size:11px;color:var(--text3);margin-top:2px;">In use</div>'; opacity = '0.55'; }
-    else if(item.isReady){ statusLine = `<div style="font-size:11px;color:var(--green);font-weight:500;margin-top:2px;">Ready \u2014 ${item.daysSinceClose} days recovered</div><div style="height:4px;border-radius:2px;background:var(--bg3);margin-top:3px;overflow:hidden;width:60px;"><div style="width:100%;height:100%;border-radius:2px;background:var(--green);"></div></div>`; }
-    else if(item.recoveryPct < 100){ statusLine = `<div style="font-size:11px;color:var(--text2);margin-top:2px;">Last grazed ${item.daysSinceClose}d ago \u00b7 ${item.recMin} day recovery</div><div style="height:4px;border-radius:2px;background:var(--bg3);margin-top:3px;overflow:hidden;width:60px;"><div style="width:${item.recoveryPct}%;height:100%;border-radius:2px;background:var(--green);"></div></div>`; }
+    else if(item.isReady){ statusLine = `<div style="font-size:11px;color:var(--green);font-weight:500;margin-top:2px;">Ready \u2014 ${item.daysSinceClose} days recovered</div>${_gzLine}<div style="height:4px;border-radius:2px;background:var(--bg3);margin-top:3px;overflow:hidden;width:60px;"><div style="width:100%;height:100%;border-radius:2px;background:var(--green);"></div></div>`; }
+    else if(item.recoveryPct < 100){ statusLine = `<div style="font-size:11px;color:var(--text2);margin-top:2px;">Last grazed ${item.daysSinceClose}d ago \u00b7 ${item.recMin} day recovery</div>${_gzLine}<div style="height:4px;border-radius:2px;background:var(--bg3);margin-top:3px;overflow:hidden;width:60px;"><div style="width:${item.recoveryPct}%;height:100%;border-radius:2px;background:var(--green);"></div></div>`; }
     const isSelf = String(p.id) === String(currentPastureId);
     if(isSelf) return `<div style="display:flex;gap:10px;padding:10px 12px;background:var(--bg);border:0.5px solid var(--border);border-radius:10px;margin-bottom:6px;">
       <div style="width:4px;border-radius:2px;flex-shrink:0;align-self:stretch;background:var(--green);"></div>
