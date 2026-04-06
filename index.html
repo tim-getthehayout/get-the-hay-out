@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260406.1021" id="app-version-meta"/>
+<meta name="app-version" content="b20260406.1046" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -5268,7 +5268,8 @@ function renderHome(){
       const t=e.totals||{};const g=getGroupById(e.groupId);
       const pc=t.pct>=60?'bg':t.pct>=30?'ba':'br';
       const isCon=e.locationType==='confinement';
-      return `<div class="row"><div class="row-head"><span style="font-size:14px;font-weight:600;">${evDisplayName(e)}</span><span class="badge ${isCon?'bb':pc}">${isCon?'confinement':t.pct!==undefined?t.pct+'% pasture':'--'}</span></div><div class="row-detail">${g?g.name+' · ':''}${dLabel(e.dateIn)} → ${dLabel(e.dateOut||'')} · ${t.days||'?'} days · $${(t.cost||0).toFixed(2)}</div></div>`;
+      const _aw2=S.settings.auWeight||1000;const _au2=(e.head||0)*(e.wt||0)/_aw2;const _aud2=_au2*(t.days||1);
+      return `<div class="row"><div class="row-head"><span style="font-size:14px;font-weight:600;">${evDisplayName(e)}</span><span class="badge ${isCon?'bb':pc}">${isCon?'confinement':t.pct!==undefined?t.pct+'% pasture':'--'}</span></div><div class="row-detail">${g?g.name+' · ':''}${dLabel(e.dateIn)} → ${dLabel(e.dateOut||'')} · ${t.days||'?'} days · $${(t.cost||0).toFixed(2)} · ${_au2.toFixed(1)} AU · ${_aud2.toFixed(1)} AUDs</div></div>`;
     }).join('');
   }
   updateTodoBadge();
@@ -5359,7 +5360,7 @@ function renderLocationCard(ev, opts){
       <div style="display:flex;align-items:center;justify-content:space-between;margin-top:3px;">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
           ${badgeHtml}
-          <span style="font-size:11px;color:var(--text2);">Day ${days} \u00b7 In ${dLabel(ev.dateIn)} \u00b7 $${costAll.toFixed(2)}</span>
+          <span style="font-size:11px;color:var(--text2);">Day ${days} \u00b7 In ${dLabel(ev.dateIn)} \u00b7 $${costAll.toFixed(2)} \u00b7 ${(()=>{const _aw3=S.settings.auWeight||1000;const _au3=totalBW/_aw3;return _au3.toFixed(1)+' AU \u00b7 '+(_au3*days).toFixed(1)+' AUDs';})()}</span>
         </div>
         ${headerBtns}
       </div>
@@ -5845,7 +5846,7 @@ function renderGroupCard(g){
     locBar=`<div class="grp-loc-bar">
       <div style="flex:1;">
         <div style="font-size:13px;font-weight:600;">${locIcon} ${evDisplayName(ae)} ${locBadge}</div>
-        <div style="font-size:11px;color:var(--text2);margin-top:2px;">Day ${days} · ${dLabel(ae.dateIn)} · ${allEntries2.length} feeding${allEntries2.length!==1?'s':''} · $${costAll.toFixed(2)}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px;">Day ${days} · ${dLabel(ae.dateIn)} · ${allEntries2.length} feeding${allEntries2.length!==1?'s':''} · $${costAll.toFixed(2)} · ${(()=>{const _aw=S.settings.auWeight||1000;const _au=t.totalLiveWeight/_aw;return _au.toFixed(1)+' AU · '+(_au*days).toFixed(1)+' AUDs';})()}</div>
         ${subMoves.length?`<div style="font-size:11px;color:var(--text2);margin-top:2px;">${subMoves.length} sub-move${subMoves.length!==1?'s':''} · ${subHrsTotal.toFixed(1)}h off-paddock · ${pastureHrsPct}% on pasture</div>`:''}
         ${currentAtLineGC}
       </div>
@@ -8919,9 +8920,13 @@ function renderEeGroupChips(){
         ? `<span style="font-size:10px;color:var(--text2);font-style:italic;">unsaved</span>`
         : `<span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:500;padding:2px 7px;border-radius:20px;background:var(--green-l);color:var(--green-d);">${isFirst?'primary':'active'}</span>`;
 
-    // Sub-line: joined date + head count
+    // Sub-line: joined date + head count + weight + AU
     const grpTotals = grp ? getGroupTotals(grp) : null;
+    const _auWt = S.settings.auWeight || 1000;
+    const _grpLiveWt = grpTotals ? grpTotals.totalLiveWeight : 0;
+    const _grpAUs = _auWt > 0 ? (_grpLiveWt / _auWt) : 0;
     const headStr = grpTotals&&grpTotals.totalHead ? ` · ${grpTotals.totalHead} head` : '';
+    const wtAuStr = _grpLiveWt > 0 ? ` · ${Math.round(_grpLiveWt).toLocaleString()} lbs · ${_grpAUs.toFixed(1)} AU` : '';
 
     // Date/time panel for group arrival (editable dateAdded + timeAdded) — all groups
     const datePanel = `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px;padding-left:16px;">
@@ -8939,7 +8944,7 @@ function renderEeGroupChips(){
             style="padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);
                    font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;"/>
         </div>
-        ${headStr?`<div style="align-self:flex-end;font-size:11px;color:var(--text2);padding-bottom:6px;">${headStr.slice(3)}</div>`:''}
+        ${headStr?`<div style="align-self:flex-end;font-size:11px;color:var(--text2);padding-bottom:6px;">${headStr.slice(3)}${wtAuStr}</div>`:''}
       </div>`;
     const joinedStr = '';
 
@@ -16257,6 +16262,7 @@ function openEventEdit(eventId){
   if(_acbw) _acbw.style.display = isClosed ? 'none' : 'block';
   const _acw = document.getElementById('ee-anchor-close-wrap');
   if(_acw) _acw.style.display = 'none';
+  renderEeAudSummary(ev);
   document.getElementById('event-edit-wrap').classList.add('open');
   }catch(err){
     logError('openEventEdit',err.message,err.stack);
@@ -16882,6 +16888,55 @@ function onEeNoPastureChange(){
   const evId=parseInt(document.getElementById('ee-id').value);
   const ev=S.events.find(e=>e.id===evId);
   if(ev&&ev.status==='closed') renderDmiVariance(ev);
+}
+
+function renderEeAudSummary(ev){
+  const el = document.getElementById('ee-aud-summary');
+  if(!el) return;
+  if(!ev){ el.style.display='none'; return; }
+  const auWt = S.settings.auWeight || 1000;
+  const dateIn = ev.dateIn;
+  const dateOut = ev.dateOut || todayStr();
+  const days = Math.max(1, daysBetween(dateIn, dateOut));
+  // Compute total AU from all active groups
+  const grps = evGroups(ev).filter(g=>!g.dateRemoved);
+  let totalHead=0, totalLiveWt=0;
+  grps.forEach(g=>{
+    const grp = getGroupById(g.groupId);
+    if(!grp) return;
+    const t = getGroupTotals(grp);
+    totalHead += t.totalHead||0;
+    totalLiveWt += t.totalLiveWeight||0;
+  });
+  // Fallback to event-stamped head/wt
+  if(!totalHead){ totalHead = ev.head||0; totalLiveWt = (ev.head||0)*(ev.wt||0); }
+  const totalAUs = auWt > 0 ? totalLiveWt / auWt : 0;
+  const totalAUDs = totalAUs * days;
+  // Per-paddock AUDs (pro-rate by time in each paddock)
+  const paddocks = evPaddocks(ev);
+  let padLines = '';
+  if(paddocks.length > 1 || (ev.subMoves||[]).length){
+    padLines = '<div style="margin-top:4px;">';
+    paddocks.forEach(p=>{
+      const pStart = p.dateAdded || dateIn;
+      const pEnd = p.dateRemoved || dateOut;
+      const pDays = Math.max(1, daysBetween(pStart, pEnd));
+      const pAUDs = totalAUs * pDays;
+      padLines += `<div>\u00b7 ${escHtml(p.pastureName||p.name||'?')}: ${pDays}d \u00b7 ${pAUDs.toFixed(1)} AUDs</div>`;
+    });
+    (ev.subMoves||[]).forEach(sm=>{
+      if(!sm.date) return;
+      const smEnd = sm.dateOut || dateOut;
+      const smDays = Math.max(1, daysBetween(sm.date, smEnd));
+      const smAUDs = totalAUs * smDays;
+      padLines += `<div>\u00b7 ${escHtml(sm.locationName||sm.pastureName||'sub-move')}: ${smDays}d \u00b7 ${smAUDs.toFixed(1)} AUDs</div>`;
+    });
+    padLines += '</div>';
+  }
+  el.style.display = 'block';
+  el.innerHTML = `<div style="font-weight:600;margin-bottom:2px;">AU / AUD Summary</div>` +
+    `<div>${totalHead} head \u00b7 ${Math.round(totalLiveWt).toLocaleString()} lbs \u00b7 ${totalAUs.toFixed(1)} AU \u00b7 ${days} days \u00b7 <strong>${totalAUDs.toFixed(1)} AUDs</strong></div>` +
+    padLines;
 }
 
 function updateEventEditPreview(ev){
@@ -20782,6 +20837,8 @@ window.addEventListener('offline', ()=>{
       </div>
       <div id="ee-submoves-list"></div>
     </div>
+    <!-- AUD summary -->
+    <div id="ee-aud-summary" style="font-size:12px;color:var(--text2);background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius);padding:8px 10px;margin-bottom:10px;"></div>
     <!-- Recalc preview -->
     <div id="ee-preview" class="card-inset" style="display:none;margin-bottom:10px;">
       <div style="font-size:12px;font-weight:600;margin-bottom:4px;">Recalculated totals</div>
