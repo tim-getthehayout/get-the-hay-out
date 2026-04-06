@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260406.1118" id="app-version-meta"/>
+<meta name="app-version" content="b20260406.1129" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -9651,7 +9651,7 @@ function renderEventsLog(){
   }
 
   const filter=document.getElementById('ev-filter').value;
-  let evs=[...S.events].filter(e=>e.type!=='amend').reverse();
+  let evs=[...S.events].filter(e=>e.type!=='amend').sort((a,b)=>(b.dateIn||'').localeCompare(a.dateIn||''));
   if(filter==='open')evs=evs.filter(e=>e.status==='open');
   if(filter==='closed')evs=evs.filter(e=>e.status==='closed');
   const el=document.getElementById('ev-list');
@@ -9692,6 +9692,17 @@ function renderEventsLog(){
           ?` · <span style="color:var(--teal-d);">↻ ${e.recoveryMinDays||'?'}–${e.recoveryMaxDays||'?'}d</span>`
           :''}`
       :`${dLabel(e.dateIn)} → ongoing · ${days} · ${(e.feedEntries||[]).length} feeding${(e.feedEntries||[]).length!==1?'s':''}`;
+
+    // AU / AUD / DM summary
+    const _evAuWt=S.settings.auWeight||1000;
+    const _evDays=e.dateIn?(e.dateOut?daysBetween(e.dateIn,e.dateOut):daysBetween(e.dateIn,todayStr())):1;
+    const _evHead=e.head||0;const _evWt=e.wt||0;
+    const _evAU=(_evHead*_evWt)/_evAuWt;
+    const _evStoredDM=calcConsumedDMI(allFeedEntries(e),getEffectiveFeedResidual(e));
+    const _evDmiT=(_evHead*_evWt*0.025)*_evDays;
+    const _evPastureDM=e.noPasture?0:Math.max(0,_evDmiT-_evStoredDM);
+    const _evPastureAUDs=(S.settings.dmPerAUD||26)>0?_evPastureDM/(S.settings.dmPerAUD||26):0;
+    const audLine=`<br>${_evAU.toFixed(1)} AU · Pasture AUDs: ${_evPastureAUDs.toFixed(1)} · Stored: ${Math.round(_evStoredDM).toLocaleString()} · Pasture: ${Math.round(_evPastureDM).toLocaleString()} lbs DM`;
 
     const npkLine=isClosed&&t.npkVal
       ?`<br>NPK: N${t.npk?t.npk.n.toFixed(1):0}/P${t.npk?t.npk.p.toFixed(1):0}/K${t.npk?t.npk.k.toFixed(1):0} lbs · $${t.npkVal.toFixed(2)} fert value`
@@ -9748,7 +9759,7 @@ function renderEventsLog(){
           </div>
         </div>
         ${padLine}
-        <div class="row-detail">${detailLine}${npkLine}${dmiLine}</div>
+        <div class="row-detail">${detailLine}${audLine}${npkLine}${dmiLine}</div>
       </div>
       ${smThread}
     </div>`;
@@ -16952,7 +16963,7 @@ function renderEeAudSummary(ev){
   el.innerHTML = `<div style="font-weight:600;margin-bottom:2px;">AU / AUD Summary</div>` +
     `<div>${totalHead} head \u00b7 ${Math.round(totalLiveWt).toLocaleString()} lbs \u00b7 ${totalAUs.toFixed(1)} AU \u00b7 ${days} days</div>` +
     `<div style="margin-top:3px;">Stored feed: ${Math.round(_storedDM).toLocaleString()} lbs DM \u00b7 Pasture: ${Math.round(_pastureDM).toLocaleString()} lbs DM</div>` +
-    `<div style="margin-top:3px;"><strong>Pasture AUDs: ${_pastureAUDs.toFixed(1)}</strong> (${Math.round(_pastureFrac*100)}% from pasture) \u00b7 Total presence: ${totalAUDs.toFixed(1)} AUDs</div>` +
+    `<div style="margin-top:3px;"><strong>Pasture AUDs: ${_pastureAUDs.toFixed(1)}</strong> (${Math.round(_pastureFrac*100)}% from pasture)</div>` +
     padLines;
 }
 
