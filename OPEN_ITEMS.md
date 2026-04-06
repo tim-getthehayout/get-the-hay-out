@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260406.NEXT
-**Reconciled against build:** b20260406.NEXT
+**Last updated:** b20260406.2214
+**Reconciled against build:** b20260406.2214
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
