@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260406.2247" id="app-version-meta"/>
+<meta name="app-version" content="b20260406.2305" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -3038,7 +3038,8 @@ function assembleEvents(rows){
     const feByEntry = new Map();
     for (const d of anchorDels) {
       const entryKey = Math.floor(d.id / 1000);
-      if (!feByEntry.has(entryKey)) feByEntry.set(entryKey, {id: entryKey, date: d.date, lines: []});
+      if (!feByEntry.has(entryKey)) feByEntry.set(entryKey, {id: entryKey, date: d.date, lines: [],
+        kind: d.kind || undefined, transferPairId: d.transfer_pair_id || undefined, notes: d.notes || undefined});
       feByEntry.get(entryKey).lines.push({batchId: d.batch_id, qty: d.quantity});
     }
     ev.feedEntries = [...feByEntry.values()];
@@ -3050,7 +3051,8 @@ function assembleEvents(rows){
       const smFeByEntry = new Map();
       for (const d of smDels) {
         const smEntryKey = Math.floor(d.id / 1000);
-        if (!smFeByEntry.has(smEntryKey)) smFeByEntry.set(smEntryKey, {id: smEntryKey, date: d.date, lines: []});
+        if (!smFeByEntry.has(smEntryKey)) smFeByEntry.set(smEntryKey, {id: smEntryKey, date: d.date, lines: [],
+          kind: d.kind || undefined, transferPairId: d.transfer_pair_id || undefined, notes: d.notes || undefined});
         smFeByEntry.get(smEntryKey).lines.push({batchId: d.batch_id, qty: d.quantity});
       }
       smC.feedEntries = [...smFeByEntry.values()];
@@ -4071,6 +4073,9 @@ function queueEventWrite(ev){
         quantity: line.qty || null, unit: line.unit || null,
         dmPct: null, dmLbs: null, cost: line.cost || null,
         updatedAt: entry.updatedAt || null,
+        kind: entry.kind || null,
+        transferPairId: entry.transferPairId || null,
+        notes: entry.notes || null,
       }));
     });
   });
@@ -4131,6 +4136,7 @@ const _SB_ALLOWED_COLS = {
   manure_batches:       new Set(['id','operation_id','name','label','location_name','mode','n_lbs','p_lbs','k_lbs','estimated_volume_lbs','remaining_lbs','created_at']),
   animal_health_events: new Set(['id','animal_id','operation_id','type','date','time','bcs_score','treatment_type_id','treatment_name','treatment_dose','treatment_unit','treatment_batch','withdrawal_date','breeding_subtype','ai_bull_id','bull_animal_id','sire_name','sire_reg_num','semen_id','ai_tech','expected_calving','calving_calf_id','calving_stillbirth','notes','recorded_at','likely_cull']),
   batch_nutritional_profiles: new Set(['id','operation_id','batch_id','date','source','n_pct','p_pct','k_pct','dm_pct','protein_pct','adf_pct','ndf_pct','tdn_pct','rfv','lab','notes','created_at']),
+  event_feed_deliveries: new Set(['id','event_id','operation_id','sub_move_id','batch_id','date','quantity','unit','dm_pct','dm_lbs','cost','updated_at','kind','transfer_pair_id','notes']),
 };
 // OI-0175: FK dependency tiers for ordered flush. Each tier must complete before the next begins.
 // Tier 0 = root tables (no FK deps). Tier 4 = leaf tables (deepest FK chains).
@@ -4431,6 +4437,61 @@ function calcResidualOM(entries, residPct){
 }
 
 function calcEntryCost(entries){let c=0;(entries||[]).forEach(e=>e.lines.forEach(l=>{const b=S.batches.find(x=>x.id===l.batchId);if(b)c+=l.qty*(b.cpu||0);}));return c;}
+
+// Double-entry feed transfer helper — creates paired negative/positive entries
+// Returns {success: true, pairs} or {success: false, errors}
+function createFeedTransfer(srcEv, destEv, items, moveDate, moveTime){
+  const errors=[];
+  // Phase 1: resolve every batchId before mutating anything
+  const resolved=items.map(item=>{
+    const srcEntries=allFeedEntries(srcEv);
+    let batchId=null;
+    for(const entry of srcEntries){
+      for(const line of (entry.lines||[])){
+        if((line.qty||0)<=0) continue; // skip negative/transfer lines
+        const batch=S.batches.find(b=>b.id===line.batchId);
+        if(batch&&(String(batch.feedTypeId)===String(item.feedTypeId)
+                 ||String(batch.typeId)===String(item.feedTypeId))){
+          batchId=batch.id; break;
+        }
+      }
+      if(batchId) break;
+    }
+    if(!batchId) errors.push('batchId not found for feedTypeId '+item.feedTypeId);
+    return {...item, batchId};
+  });
+  // Phase 2: if ANY lookup failed, bail entirely
+  if(errors.length) return {success:false, errors};
+  // Phase 3: create paired entries — IDs must differ by ≥1000 to avoid assembly merge
+  const now=new Date().toISOString();
+  const baseId=Date.now()*10;
+  if(!srcEv.feedEntries)  srcEv.feedEntries=[];
+  if(!destEv.feedEntries) destEv.feedEntries=[];
+  const pairs=[];
+  resolved.forEach((item,i)=>{
+    const transferPairId=String(Date.now())+'-'+Math.floor(Math.random()*1000000)+'-'+i;
+    const srcEntryId=baseId+i*2;
+    const destEntryId=baseId+i*2+1;
+    // Negative entry on source
+    srcEv.feedEntries.push({
+      id:srcEntryId, date:moveDate, time:moveTime||null,
+      lines:[{batchId:item.batchId, qty:-Math.abs(item.qty), unit:item.unit}],
+      notes:'Moved to '+evDisplayName(destEv),
+      kind:'transfer', transferPairId, updatedAt:now
+    });
+    // Positive entry on destination
+    destEv.feedEntries.push({
+      id:destEntryId, date:moveDate, time:moveTime||null,
+      lines:[{batchId:item.batchId, qty:Math.abs(item.qty), unit:item.unit}],
+      notes:'Moved from '+evDisplayName(srcEv),
+      kind:'transfer', transferPairId, updatedAt:now
+    });
+    pairs.push({transferPairId, batchId:item.batchId, qty:item.qty});
+  });
+  srcEv.updatedAt=now;
+  destEv.updatedAt=now;
+  return {success:true, pairs};
+}
 function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function getUser(id){return S.users.find(u=>u.id===id)||null;} // Legacy — S.users[] local records; kept for todo assignment compat
 
@@ -5666,7 +5727,7 @@ function getDailyStoredDMI(ev, dateStr){
       const b = S.batches.find(x=>x.id===l.batchId);
       if(b){ dmLbs += (b.wt ? l.qty*b.wt : l.qty) * ((b.dm||100)/100); }
     });
-    if(dmLbs > 0) deliveries.push({date: e.date||ev.dateIn, dmLbs});
+    if(dmLbs !== 0) deliveries.push({date: e.date||ev.dateIn, dmLbs});
   });
   if(!deliveries.length) return {storedDMI:0, hasCheck:false};
   deliveries.sort((a,b)=>a.date.localeCompare(b.date));
@@ -5725,10 +5786,10 @@ function getDailyStoredDMI(ev, dateStr){
   for(let i=1; i<anchors.length; i++){
     const a = anchors[i-1], b = anchors[i];
     const segDays = Math.max(1, daysBetween(a.date, b.date));
-    const addedInSeg = deliveries
-      .filter(d=>d.date > a.date && d.date <= b.date)
-      .reduce((s,d)=>s+d.dmLbs, 0);
-    const consumed = Math.max(0, a.remainingLbs + addedInSeg - b.remainingLbs);
+    const segDeliveries = deliveries.filter(d=>d.date > a.date && d.date <= b.date);
+    const positivesInSeg = segDeliveries.filter(d=>d.dmLbs>0).reduce((s,d)=>s+d.dmLbs, 0);
+    const negativesInSeg = segDeliveries.filter(d=>d.dmLbs<0).reduce((s,d)=>s+Math.abs(d.dmLbs), 0);
+    const consumed = Math.max(0, a.remainingLbs + positivesInSeg - negativesInSeg - b.remainingLbs);
     const rate = consumed / segDays;
     overallConsumed += consumed;
     overallDays += segDays;
@@ -10467,7 +10528,6 @@ function _deleteFeedTypeFromEdit(){
 // OI-0127: inline harvest-active toggle — one tap, immediate save, re-renders harvest tile grid if open
 function toggleFeedTypeHarvestActive(idx){
   const ft=S.feedTypes[idx];if(!ft)return;
-  console.log('toggleFeedTypeHarvestActive', idx, ft.name, ft.harvestActive, '→', !ft.harvestActive, '_sbOpId:', !!_sbOperationId);
   ft.harvestActive=!ft.harvestActive;
   stampSetup();queueWrite('feed_types',_feedTypeRow(ft,_sbOperationId));save();
   renderFeedTypes();
@@ -16577,6 +16637,7 @@ function renderEeFeedList(ev){
   const entries=allFeedEntries(ev);
   if(!entries.length){el.innerHTML='<div style="font-size:13px;color:var(--text2);">No feed entries yet</div>';return;}
   el.innerHTML=entries.map((entry,ei)=>{
+    const isTransfer=entry.kind==='transfer';
     let dmi=0,cost=0;
     entry.lines.forEach(l=>{
       const b=S.batches.find(x=>x.id===l.batchId);
@@ -16584,6 +16645,29 @@ function renderEeFeedList(ev){
       const af=b.wt?l.qty*b.wt:l.qty;
       dmi+=af*(b.dm/100);cost+=l.qty*(b.cpu||0);
     });
+    // Transfer entries: distinct rendering with arrow + notes
+    if(isTransfer){
+      const netQty=entry.lines.reduce((s,l)=>s+(l.qty||0),0);
+      const isIncoming=netQty>0;
+      const arrow=isIncoming?'←':'→';
+      const color=isIncoming?'var(--blue-d)':'var(--text3)';
+      const absDesc=entry.lines.map(l=>{
+        const b=S.batches.find(x=>x.id===l.batchId);
+        return b?Math.abs(l.qty)+' '+b.unit+' '+b.label:'';
+      }).filter(Boolean).join(', ');
+      return `<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:7px 0;border-bottom:0.5px solid var(--border);opacity:0.85;">
+        <div>
+          <div style="font-size:13px;font-weight:500;color:${color};">${arrow} ${dLabel(entry.date)}</div>
+          <div style="font-size:11px;color:${color};">${absDesc}${entry.notes?' — '+entry.notes:''}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+          <div style="text-align:right;font-size:12px;color:var(--text3);">${Math.round(Math.abs(dmi))} lbs DM</div>
+          <button class="btn btn-outline btn-xs" style="color:var(--red-d);border-color:var(--red-d);"
+            onclick="deleteEeFeedEntry('${entry.id}')">×</button>
+        </div>
+      </div>`;
+    }
+    // Normal entries
     const desc=entry.lines.filter(l=>l.qty>0).map(l=>{
       const b=S.batches.find(x=>x.id===l.batchId);
       return b?l.qty+' '+b.unit+' '+b.label:'';
@@ -17116,19 +17200,50 @@ function saveEeFeedEntry(){
 function deleteEeFeedEntry(entryId){
   const evId=parseInt(document.getElementById('ee-id').value);
   const ev=S.events.find(e=>e.id===evId);if(!ev)return;
-  if(!confirm('Delete this feed entry? Batch inventory will be restored.'))return;
-  // Search main feedEntries and all subMove feedEntries
-  let entry=null;
+  // Find the entry first to check for transfer pair
+  let entry=(ev.feedEntries||[]).find(e=>String(e.id)===String(entryId));
+  if(!entry){
+    for(const sm of (ev.subMoves||[])){
+      entry=(sm.feedEntries||[]).find(e=>String(e.id)===String(entryId));
+      if(entry)break;
+    }
+  }
+  if(!entry)return;
+  // Transfer pair protection
+  if(entry.transferPairId){
+    // Find the paired entry on another event
+    let pairedEv=null,pairedEntry=null;
+    for(const otherEv of S.events){
+      if(otherEv.id===evId) continue;
+      const match=(otherEv.feedEntries||[]).find(e=>e.transferPairId===entry.transferPairId&&String(e.id)!==String(entryId));
+      if(match){pairedEv=otherEv;pairedEntry=match;break;}
+    }
+    const pairMsg=pairedEv
+      ?'This is a transfer entry paired with '+evDisplayName(pairedEv)+'. Deleting will also remove the matching entry. Continue?'
+      :'This is a transfer entry (paired entry not found). Delete anyway?';
+    if(!confirm(pairMsg))return;
+    // Delete paired entry if found
+    if(pairedEv&&pairedEntry){
+      const pIdx=(pairedEv.feedEntries||[]).findIndex(e=>String(e.id)===String(pairedEntry.id));
+      if(pIdx>=0) pairedEv.feedEntries.splice(pIdx,1);
+      pairedEv.updatedAt=new Date().toISOString();
+      if(pairedEv.status==='closed')recalcEventTotals(pairedEv);
+      queueEventWrite(pairedEv);
+    }
+  } else {
+    if(!confirm('Delete this feed entry? Batch inventory will be restored.'))return;
+  }
+  // Remove the entry from this event
   const mainIdx=(ev.feedEntries||[]).findIndex(e=>String(e.id)===String(entryId));
-  if(mainIdx>=0){entry=ev.feedEntries[mainIdx];ev.feedEntries.splice(mainIdx,1);}
+  if(mainIdx>=0){ev.feedEntries.splice(mainIdx,1);}
   else {
     for(const sm of (ev.subMoves||[])){
       const smIdx=(sm.feedEntries||[]).findIndex(e=>String(e.id)===String(entryId));
-      if(smIdx>=0){entry=sm.feedEntries[smIdx];sm.feedEntries.splice(smIdx,1);break;}
+      if(smIdx>=0){sm.feedEntries.splice(smIdx,1);break;}
     }
   }
-  // Restore inventory
-  if(entry){
+  // Restore inventory (only for non-transfer positive entries)
+  if(!entry.transferPairId){
     entry.lines.forEach(l=>{
       const b=S.batches.find(x=>x.id===l.batchId);
       if(b&&l.qty>0)b.remaining=+(b.remaining+l.qty).toFixed(2);
@@ -21823,7 +21938,7 @@ function _mwRenderInlineFeedCheck(srcEv, isLastGroup, hasStoredFeed){
           const ft = (S.feedTypes||[]).find(f=>f.id===ftId);
           typeMap[ftId] = { feedTypeId:ftId, feedTypeName:ft?ft.name:(batch.label||'Feed'), unit:ft?ft.unit:(batch.unit||'unit'), totalUnits:0, lbsPerUnit:batch.wt||0, dmPct:batch.dm||85 };
         }
-        typeMap[ftId].totalUnits += (line.qty||0);
+        typeMap[ftId].totalUnits += Math.max(0, line.qty||0);
       });
     });
     const lastCheck = (srcEv.feedResidualChecks||[]).filter(c=>!c.isCloseReading).sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];
@@ -22176,60 +22291,40 @@ function _mwSave(){
     queueEventWrite(destEv);
   }
 
-  // ── 3. Transfer feed to destination if disposition = 'move' ──
+  // ── 3. Transfer feed to destination if disposition = 'move' (double-entry ledger) ──
   if(isLastGroup && _fcTypeData.length){
     const destEvForFeed = _mwDestType==='new'
       ? S.events[S.events.length-1] // the one we just pushed
       : (_mwDestEventId ? S.events.find(e=>e.id===_mwDestEventId) : null);
-    if(destEvForFeed){
+    if(destEvForFeed && srcEv){
+      const transferItems=[];
       _fcTypeData.forEach(t=>{
         if(_mwFeedDisposition[t.feedTypeId]==='move' && t.remaining > 0){
-          // Find the batch used in the source event for this feed type
-          const srcEntries = allFeedEntries(srcEv);
-          let batchId = null;
-          for(const entry of srcEntries){
-            for(const line of (entry.lines||[])){
-              const batch = S.batches.find(b=>b.id===line.batchId);
-              if(batch && (batch.feedTypeId===t.feedTypeId || batch.typeId===t.feedTypeId)){
-                batchId = batch.id; break;
-              }
-            }
-            if(batchId) break;
-          }
-          if(batchId){
-            if(!destEvForFeed.feedEntries) destEvForFeed.feedEntries=[];
-            destEvForFeed.feedEntries.push({
-              id: Date.now() + Math.floor(Math.random()*1000),
-              date: moveDate,
-              lines: [{ batchId, qty: t.remaining, unit: t.unit }],
-              notes: 'Transferred from ' + (srcEv ? evDisplayName(srcEv) : 'closed event'),
-              updatedAt: new Date().toISOString()
-            });
-          }
+          transferItems.push({feedTypeId:t.feedTypeId, qty:t.remaining, unit:t.unit});
         }
       });
-      // OI-0183 Fix 2: Create synthetic opening check on destination so DMI bars work
-      const transferredTypeChecks = [];
-      _fcTypeData.forEach(t=>{
-        if(_mwFeedDisposition[t.feedTypeId]==='move' && t.remaining > 0){
-          transferredTypeChecks.push({feedTypeId: t.feedTypeId, remaining: t.remaining, total: t.remaining});
+      if(transferItems.length){
+        const result=createFeedTransfer(srcEv, destEvForFeed, transferItems, moveDate, moveTime);
+        if(!result.success){
+          console.warn('[transfer] failed:', result.errors);
+          alert('Feed transfer failed: '+result.errors.join(', ')+'. No feed was moved.');
+        } else {
+          // Synthetic opening check on destination (retained — DMI anchor)
+          const transferredTypeChecks=transferItems.map(item=>({
+            feedTypeId:item.feedTypeId, remaining:item.qty, total:item.qty}));
+          if(!destEvForFeed.feedResidualChecks) destEvForFeed.feedResidualChecks=[];
+          destEvForFeed.feedResidualChecks.push({
+            id:Date.now()+Math.floor(Math.random()*1000)+500,
+            date:moveDate,
+            balesRemainingPct:100, residualPct:100,
+            typeChecks:transferredTypeChecks,
+            notes:'transfer_opening', isCloseReading:false,
+            carriedRate:_mwSourceRate||0,
+          });
+          queueEventWrite(srcEv);        // source has new negative entries
+          queueEventWrite(destEvForFeed); // destination has new positive entries + check
         }
-      });
-      if(transferredTypeChecks.length){
-        if(!destEvForFeed.feedResidualChecks) destEvForFeed.feedResidualChecks = [];
-        destEvForFeed.feedResidualChecks.push({
-          id: Date.now() + Math.floor(Math.random()*1000) + 500,
-          date: moveDate,
-          balesRemainingPct: 100,
-          residualPct: 100,
-          typeChecks: transferredTypeChecks,
-          notes: 'transfer_opening',
-          isCloseReading: false,
-          carriedRate: _mwSourceRate || 0,
-        });
       }
-      destEvForFeed.updatedAt = new Date().toISOString();
-      queueEventWrite(destEvForFeed);
     }
   }
 
@@ -22446,7 +22541,7 @@ function openFeedCheckSheet(evId){
           dmPct: batch.dm || 85,
         };
       }
-      typeMap[ftId].totalUnits += (line.qty||0);
+      typeMap[ftId].totalUnits += Math.max(0, line.qty||0);
     });
   });
 

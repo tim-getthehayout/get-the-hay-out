@@ -19,11 +19,11 @@
 | Status | Count |
 |---|---|
 | 🔴 Open — Roadblock | 0 |
-| 🔴 Open — Bug | 12 |
+| 🔴 Open — Bug | 11 |
 | 🟡 Open — Polish | 3 |
-| 🔵 Open — Enhancement | 20 |
+| 🔵 Open — Enhancement | 22 |
 | ⚪ Open — Debt | 9 |
-| ✅ Closed | 125 |
+| ✅ Closed | 126 |
 
 ---
 
@@ -2939,6 +2939,8 @@ Four linked bugs in `getDailyStoredDMI()` and `_renderDMIBars()`:
 
 **Acceptance criteria:** Transfer creates synthetic check; DMI bars show gray when no check; adding feed doesn't retroactively inflate; typeChecks anchors immune to later feed additions.
 
+**Note (b20260406):** The "batchId silent drop" bug identified in the feed transfer session (feed entry push gated on batchId resolution but synthetic check push not gated) is fixed by OI-0191's `createFeedTransfer()` helper, which resolves all batchIds before any mutation.
+
 ---
 
 ### OI-0184 — Feed check UI fixes
@@ -2985,9 +2987,9 @@ Layout flip (existing types list on top, add form below), harvest active label �
 **Source:** Claude.ai design conversation — b20260406
 **Area:** Feed Types
 **Severity:** Bug
-**Status:** 🔴 Open
+**Status:** ✅ Closed (b20260406.2247)
 
-Toggle appears to work in code inspection but user reports it is not working. Needs hands-on reproduction in DevTools. Console.log tracing added. Check both inline toggle pill and form checkbox paths. May be mobile touch event issue.
+**Root cause:** CSS issue — `.field input` set `-webkit-appearance: none` which stripped native checkbox rendering, making the checkmark invisible (white on white). Fixed with explicit `appearance: checkbox` + `accent-color: var(--green)` on the checkbox. Toggle logic was always correct.
 
 ---
 
@@ -3000,6 +3002,28 @@ Toggle appears to work in code inspection but user reports it is not working. Ne
 Field mode harvest button opens the harvest sheet directly without letting user pick which field the harvest is from. Added field picker step (crop + mixed-use filter pills, search) as first step in field mode harvest flow. After picking a field, proceeds to tile grid with field pre-selected on first row.
 
 **Acceptance criteria:** Field mode harvest tap shows field picker with crop/mixed-use filter; selecting a field advances to tile grid; first field row is pre-populated with selected field.
+
+---
+
+### OI-0191 — Feed transfer ledger model
+**Source:** Claude.ai design conversation — b20260406
+**Area:** Feed/Events
+**Severity:** Enhancement
+**Status:** 🔵 Open
+
+Double-entry feed transfers via `createFeedTransfer()` helper. When feed is transferred during a move, creates paired negative entry on source event and positive entry on destination event with shared `transferPairId` and `kind: 'transfer'`. Fixes batchId silent drop bug in `_mwSave`. DMI calculations updated for negative quantities. Feed check `startedUnits` excludes negatives. Transfer entries render with distinct arrow styling. Delete protection removes both sides of a pair. Supabase: `kind`, `transfer_pair_id`, `notes` columns added to `event_feed_deliveries`.
+
+**Acceptance criteria:** Moving a group with "move feed" disposition creates paired entries visible on both events. DMI bars show correct rates. Feed check shows correct started count. Deleting a transfer entry removes the pair.
+
+---
+
+### OI-0192 — Transfer pair audit/reconciliation tool (deferred)
+**Source:** Claude.ai design conversation — b20260406
+**Area:** Feed/Events
+**Severity:** Enhancement
+**Status:** 🔵 Open (deferred)
+
+Load-time integrity check that verifies all `transferPairId` groups have exactly one negative + one positive with matching abs(qty) and batchId. Surfaces orphans as a review nudge with Delete / Link / Dismiss actions. Deferred until ledger model ships and has real data to verify against.
 
 ---
 
