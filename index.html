@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260406.1136" id="app-version-meta"/>
+<meta name="app-version" content="b20260406.1143" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -5270,7 +5270,8 @@ function renderHome(){
       const isCon=e.locationType==='confinement';
       const _aw2=S.settings.auWeight||1000;const _au2=(e.head||0)*(e.wt||0)/_aw2;const _aud2=_au2*(t.days||1);
       const _sFeed2=calcConsumedDMI(allFeedEntries(e),getEffectiveFeedResidual(e));const _dmiT2=((e.head||0)*(e.wt||0)*0.025)*(t.days||1);const _pDM2=e.noPasture?0:Math.max(0,_dmiT2-_sFeed2);const _pAUD2=(S.settings.dmPerAUD||26)>0?_pDM2/(S.settings.dmPerAUD||26):0;
-      return `<div class="row"><div class="row-head"><span style="font-size:14px;font-weight:600;">${evDisplayName(e)}</span><span class="badge ${isCon?'bb':pc}">${isCon?'confinement':t.pct!==undefined?t.pct+'% pasture':'--'}</span></div><div class="row-detail">${g?g.name+' · ':''}${dLabel(e.dateIn)} → ${dLabel(e.dateOut||'')} · ${t.days||'?'} days · $${(t.cost||0).toFixed(2)} · ${_au2.toFixed(1)} AU · Pasture AUDs: ${_pAUD2.toFixed(1)} · Pasture DM: ${Math.round(_pDM2).toLocaleString()} lbs</div></div>`;
+      const _ac2=t.pastureAcres||((S.pastures||[]).find(p=>evMatchesPasture(e,null,p.id))?.acres)||0;const _ada2=_ac2>0?_pAUD2/_ac2:0;
+      return `<div class="row"><div class="row-head"><span style="font-size:14px;font-weight:600;">${evDisplayName(e)}</span><span class="badge ${isCon?'bb':pc}">${isCon?'confinement':t.pct!==undefined?t.pct+'% pasture':'--'}</span></div><div class="row-detail">${g?g.name+' · ':''}${dLabel(e.dateIn)} → ${dLabel(e.dateOut||'')} · ${t.days||'?'} days · $${(t.cost||0).toFixed(2)} · ${_au2.toFixed(1)} AU · Pasture AUDs: ${_pAUD2.toFixed(1)}${_ac2>0?' · ADA: '+_ada2.toFixed(1)+'/ac':''}</div><div class="row-detail" style="font-size:10px;">Stored: ${Math.round(_sFeed2).toLocaleString()} · Pasture: ${Math.round(_pDM2).toLocaleString()} lbs DM</div></div>`;
     }).join('');
   }
   updateTodoBadge();
@@ -5361,7 +5362,7 @@ function renderLocationCard(ev, opts){
       <div style="display:flex;align-items:center;justify-content:space-between;margin-top:3px;">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
           ${badgeHtml}
-          <span style="font-size:11px;color:var(--text2);">Day ${days} \u00b7 In ${dLabel(ev.dateIn)} \u00b7 $${costAll.toFixed(2)} \u00b7 ${(()=>{const _aw3=S.settings.auWeight||1000;const _au3=totalBW/_aw3;const _sf3=calcConsumedDMI(entries,getEffectiveFeedResidual(ev));const _pDM3=ev.noPasture?0:Math.max(0,totalDMITarget*days-_sf3);const _pAUD3=(S.settings.dmPerAUD||26)>0?_pDM3/(S.settings.dmPerAUD||26):0;return _au3.toFixed(1)+' AU \u00b7 Pasture AUDs: '+_pAUD3.toFixed(1)+' \u00b7 Pasture DM: '+Math.round(_pDM3).toLocaleString()+' lbs';})()}</span>
+          <span style="font-size:11px;color:var(--text2);">Day ${days} \u00b7 In ${dLabel(ev.dateIn)} \u00b7 $${costAll.toFixed(2)} \u00b7 ${(()=>{const _aw3=S.settings.auWeight||1000;const _au3=totalBW/_aw3;const _sf3=calcConsumedDMI(entries,getEffectiveFeedResidual(ev));const _pDM3=ev.noPasture?0:Math.max(0,totalDMITarget*days-_sf3);const _pAUD3=(S.settings.dmPerAUD||26)>0?_pDM3/(S.settings.dmPerAUD||26):0;const _ac3=acres?parseFloat(acres):0;const _ada3=_ac3>0?_pAUD3/_ac3:0;return _au3.toFixed(1)+' AU \u00b7 Pasture AUDs: '+_pAUD3.toFixed(1)+(_ac3>0?' \u00b7 ADA: '+_ada3.toFixed(1)+'/ac':'')+' \u00b7 Stored: '+Math.round(_sf3).toLocaleString()+' \u00b7 Pasture: '+Math.round(_pDM3).toLocaleString()+' lbs DM';})()}</span>
         </div>
         ${headerBtns}
       </div>
@@ -5847,7 +5848,7 @@ function renderGroupCard(g){
     locBar=`<div class="grp-loc-bar">
       <div style="flex:1;">
         <div style="font-size:13px;font-weight:600;">${locIcon} ${evDisplayName(ae)} ${locBadge}</div>
-        <div style="font-size:11px;color:var(--text2);margin-top:2px;">Day ${days} · ${dLabel(ae.dateIn)} · ${allEntries2.length} feeding${allEntries2.length!==1?'s':''} · $${costAll.toFixed(2)} · ${(()=>{const _aw=S.settings.auWeight||1000;const _au=t.totalLiveWeight/_aw;const _sf4=calcConsumedDMI(allEntries2,getEffectiveFeedResidual(ae));const _pDM4=ae.noPasture?0:Math.max(0,t.dmiTarget*days-_sf4);const _pAUD4=(S.settings.dmPerAUD||26)>0?_pDM4/(S.settings.dmPerAUD||26):0;return _au.toFixed(1)+' AU · Pasture AUDs: '+_pAUD4.toFixed(1)+' · Pasture DM: '+Math.round(_pDM4).toLocaleString()+' lbs';})()}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px;">Day ${days} · ${dLabel(ae.dateIn)} · ${allEntries2.length} feeding${allEntries2.length!==1?'s':''} · $${costAll.toFixed(2)} · ${(()=>{const _aw=S.settings.auWeight||1000;const _au=t.totalLiveWeight/_aw;const _sf4=calcConsumedDMI(allEntries2,getEffectiveFeedResidual(ae));const _pDM4=ae.noPasture?0:Math.max(0,t.dmiTarget*days-_sf4);const _pAUD4=(S.settings.dmPerAUD||26)>0?_pDM4/(S.settings.dmPerAUD||26):0;const _ac4=ae.paddocks?.[0]?.acres||0;const _ada4=_ac4>0?_pAUD4/_ac4:0;return _au.toFixed(1)+' AU · Pasture AUDs: '+_pAUD4.toFixed(1)+(_ac4>0?' · ADA: '+_ada4.toFixed(1)+'/ac':'')+' · Stored: '+Math.round(_sf4).toLocaleString()+' · Pasture: '+Math.round(_pDM4).toLocaleString()+' lbs DM';})()}</div>
         ${subMoves.length?`<div style="font-size:11px;color:var(--text2);margin-top:2px;">${subMoves.length} sub-move${subMoves.length!==1?'s':''} · ${subHrsTotal.toFixed(1)}h off-paddock · ${pastureHrsPct}% on pasture</div>`:''}
         ${currentAtLineGC}
       </div>
@@ -9702,7 +9703,8 @@ function renderEventsLog(){
     const _evDmiT=(_evHead*_evWt*0.025)*_evDays;
     const _evPastureDM=e.noPasture?0:Math.max(0,_evDmiT-_evStoredDM);
     const _evPastureAUDs=(S.settings.dmPerAUD||26)>0?_evPastureDM/(S.settings.dmPerAUD||26):0;
-    const audLine=`<br>${_evAU.toFixed(1)} AU · Pasture AUDs: ${_evPastureAUDs.toFixed(1)} · Pasture DM: ${Math.round(_evPastureDM).toLocaleString()} lbs`;
+    const _evAc=evPaddocks(e).reduce((s,p)=>s+(p.acres||0),0)||(S.pastures||[]).find(p=>evMatchesPasture(e,null,p.id))?.acres||0;const _evADA=_evAc>0?_evPastureAUDs/_evAc:0;
+    const audLine=`<br>${_evAU.toFixed(1)} AU · Pasture AUDs: ${_evPastureAUDs.toFixed(1)}${_evAc>0?' · ADA: '+_evADA.toFixed(1)+'/ac':''} · Stored: ${Math.round(_evStoredDM).toLocaleString()} · Pasture: ${Math.round(_evPastureDM).toLocaleString()} lbs DM`;
 
     const npkLine=isClosed&&t.npkVal
       ?`<br>NPK: N${t.npk?t.npk.n.toFixed(1):0}/P${t.npk?t.npk.p.toFixed(1):0}/K${t.npk?t.npk.k.toFixed(1):0} lbs · $${t.npkVal.toFixed(2)} fert value`
@@ -16927,6 +16929,20 @@ function renderEeAudSummary(ev){
   // Per-paddock AUDs (pro-rate by time in each paddock)
   const paddocks = evPaddocks(ev);
   let padLines = '';
+  // DM from stored feed vs pasture
+  const _allEntries = allFeedEntries(ev);
+  const _storedDM = calcConsumedDMI(_allEntries, getEffectiveFeedResidual(ev));
+  const _dmiTarget = grps.reduce((s,g)=>{const grp=getGroupById(g.groupId);return s+(grp?getGroupTotals(grp).dmiTarget:0);},0);
+  const _totalDMTarget = _dmiTarget * days;
+  const _pastureDM = ev.noPasture ? 0 : Math.max(0, _totalDMTarget - _storedDM);
+  const _dmPerAUD = S.settings.dmPerAUD || 26;
+  const _pastureAUDs = _dmPerAUD > 0 ? _pastureDM / _dmPerAUD : 0;
+  const _pastureFrac = _totalDMTarget > 0 ? _pastureDM / _totalDMTarget : 0;
+  // ADA — pasture AUDs per acre
+  const _padAcres = paddocks.reduce((s,p)=>s+(p.acres||0),0) || (evPaddocks(ev)[0]?.acres||0);
+  const _ada = _padAcres > 0 ? _pastureAUDs / _padAcres : 0;
+
+  // Rebuild sub-move padLines now that _dmiTarget and _dmPerAUD are defined
   if(paddocks.length > 1 || (ev.subMoves||[]).length){
     padLines = '<div style="margin-top:4px;">';
     paddocks.forEach(p=>{
@@ -16940,31 +16956,20 @@ function renderEeAudSummary(ev){
       if(!sm.date) return;
       const smEnd = sm.dateOut || dateOut;
       const smDays = Math.max(1, daysBetween(sm.date, smEnd));
-      const smAUDs = totalAUs * smDays;
       const _smStoredDM = calcConsumedDMI(sm.feedEntries||[], getEffectiveFeedResidual(sm));
       const _smDmiT = _dmiTarget * smDays;
       const _smPastureDM = sm.noPasture ? 0 : Math.max(0, _smDmiT - _smStoredDM);
       const _smPAUD = (_dmPerAUD > 0) ? _smPastureDM / _dmPerAUD : 0;
-      padLines += `<div>\u00b7 ${escHtml(sm.locationName||sm.pastureName||'sub-move')}: ${smDays}d \u00b7 Pasture AUDs: ${_smPAUD.toFixed(1)} \u00b7 Pasture DM: ${Math.round(_smPastureDM).toLocaleString()} lbs</div>`;
+      padLines += `<div>\u00b7 ${escHtml(sm.locationName||sm.pastureName||'sub-move')}: ${smDays}d \u00b7 Pasture AUDs: ${_smPAUD.toFixed(1)} \u00b7 Stored: ${Math.round(_smStoredDM).toLocaleString()} \u00b7 Pasture DM: ${Math.round(_smPastureDM).toLocaleString()} lbs</div>`;
     });
     padLines += '</div>';
   }
-  // DM from stored feed vs pasture
-  const _allEntries = allFeedEntries(ev);
-  const _storedDM = calcConsumedDMI(_allEntries, getEffectiveFeedResidual(ev));
-  const _dmiTarget = grps.reduce((s,g)=>{const grp=getGroupById(g.groupId);return s+(grp?getGroupTotals(grp).dmiTarget:0);},0);
-  const _totalDMTarget = _dmiTarget * days;
-  const _pastureDM = ev.noPasture ? 0 : Math.max(0, _totalDMTarget - _storedDM);
-
-  const _dmPerAUD = S.settings.dmPerAUD || 26;
-  const _pastureAUDs = _dmPerAUD > 0 ? _pastureDM / _dmPerAUD : 0;
-  const _pastureFrac = _totalDMTarget > 0 ? _pastureDM / _totalDMTarget : 0;
 
   el.style.display = 'block';
   el.innerHTML = `<div style="font-weight:600;margin-bottom:2px;">AU / AUD Summary</div>` +
     `<div>${totalHead} head \u00b7 ${Math.round(totalLiveWt).toLocaleString()} lbs \u00b7 ${totalAUs.toFixed(1)} AU \u00b7 ${days} days</div>` +
-    `<div style="margin-top:3px;">Pasture DM: ${Math.round(_pastureDM).toLocaleString()} lbs</div>` +
-    `<div style="margin-top:3px;"><strong>Pasture AUDs: ${_pastureAUDs.toFixed(1)}</strong> (${Math.round(_pastureFrac*100)}% from pasture)</div>` +
+    `<div style="margin-top:3px;">Stored: ${Math.round(_storedDM).toLocaleString()} lbs DM \u00b7 Pasture DM: ${Math.round(_pastureDM).toLocaleString()} lbs</div>` +
+    `<div style="margin-top:3px;"><strong>Pasture AUDs: ${_pastureAUDs.toFixed(1)}</strong> (${Math.round(_pastureFrac*100)}% from pasture)${_padAcres>0?' \u00b7 ADA: '+_ada.toFixed(1)+'/ac':''}</div>` +
     padLines;
 }
 
