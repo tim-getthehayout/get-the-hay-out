@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260406.0919" id="app-version-meta"/>
+<meta name="app-version" content="b20260406.0928" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -9959,9 +9959,14 @@ function saveSettings(){
     const sp=normalizeSpecies((S.animalClasses.find(c=>c.id===a.classId)||{}).species);
     a.weanTargetDate=computeWeanTargetDate(a.birthDate,sp);
   });
-  // M4.5-A: queue settings write to Supabase
+  // M4.5-A: sync settings to Supabase
   if(_sbOperationId){
-    queueWrite('operations', { id: _sbOperationId, herd_name: S.herd.name, updated_at: new Date().toISOString() });
+    // Operations row: direct UPDATE (never upsert — the row is the operation identity)
+    if(_sbClient) _sbClient.from('operations').update({
+      herd_name: S.herd.name||'My Farm', herd_type: S.herd.type||null,
+      herd_count: S.herd.count||0, herd_weight: S.herd.weight||0,
+      herd_dmi: S.herd.dmi||2.5, updated_at: new Date().toISOString(),
+    }).eq('id', _sbOperationId).then(({error}) => { if(error) logError('supabase-flush', 'operations update: '+error.message, ''); });
     queueWrite('operation_settings', { operation_id: _sbOperationId, data: S.settings }, 'operation_id');
   }
   save();updateHeader();
