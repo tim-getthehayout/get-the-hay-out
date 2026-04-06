@@ -3,6 +3,7 @@
 
 | Build | File | Change |
 |---|---|---|
+| b20260406.NEXT | HTML | Fix: `saveSettings()` had a second `queueWrite('operations', ...)` that was missed in the earlier operations-to-direct-UPDATE fix. Caused perpetual RLS error in sync queue. Changed to direct UPDATE matching `pushAllToSupabase()` pattern. |
 | b20260406.NEXT | HTML | Feature: Field module preferences now sync via Supabase `operation_members.field_modules` (jsonb). `_setUserFieldModules()` writes to both localStorage cache and Supabase. `sbCacheIdentity()` and `getActiveUser()` prefer `_sbProfile.fieldModules` from Supabase over local cache. Persists across devices and survives sign-out. |
 | b20260406.NEXT | supabase/ | Migration: `field_modules jsonb` column added to `operation_members`. |
 | b20260406.NEXT | HTML | Fix: Heat events excluded from general "Treatment history" list on animal edit card (shown in separate "Heat history" section). Added "Treatment history" header to health events section. Delete heat record: fixed ID comparison to use String() for robust matching. |
