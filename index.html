@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260406.0848" id="app-version-meta"/>
+<meta name="app-version" content="b20260406.0919" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -2774,9 +2774,9 @@ function sbCacheIdentity(displayName, operationId){
     displayName:  displayName || ex?.displayName || _sbSession?.user?.email?.split('@')[0] || 'Farmer',
     email:        _sbSession?.user?.email || '',
     color:        ex?.color        || '#639922',
-    role:         ex?.role         || 'owner',
-    fieldMode:    ex?.fieldMode    || false,
-    fieldModules: ex?.fieldModules || null, // OI-0128: per-user module prefs — null = use default
+    role:         _sbProfile?.role  || ex?.role         || 'owner',
+    fieldMode:    _sbProfile?.fieldMode ?? ex?.fieldMode ?? false,
+    fieldModules: _sbProfile?.fieldModules || ex?.fieldModules || null,
     operationId:  operationId || _sbOperationId || ex?.operationId || null,
   }));
 }
@@ -2796,14 +2796,14 @@ async function sbGetOperationId(){
     let data, error;
     if(_sbOperationId){
       ({data, error} = await _sbClient.from('operation_members')
-        .select('operation_id, role, display_name, field_mode')
+        .select('operation_id, role, display_name, field_mode, field_modules')
         .eq('user_id', _sbSession.user.id).eq('operation_id', _sbOperationId)
         .maybeSingle());
     }
     if(!data && !error){
       // No cached ID or no row for cached ID — fetch all and prefer owner role
       const {data:rows, error:err2} = await _sbClient.from('operation_members')
-        .select('operation_id, role, display_name, field_mode')
+        .select('operation_id, role, display_name, field_mode, field_modules')
         .eq('user_id', _sbSession.user.id);
       error = err2;
       if(rows && rows.length){
@@ -2936,7 +2936,7 @@ async function sbPostSignInCheck(user){
     // Now load the member row (may have just been claimed, or already existed)
     const { data: member } = await _sbClient
       .from('operation_members')
-      .select('operation_id, role, display_name, field_mode')
+      .select('operation_id, role, display_name, field_mode, field_modules')
       .eq('user_id', user.id)
       .maybeSingle();
     if(member){
@@ -4347,7 +4347,7 @@ function getActiveUser(){
     const c=_sbLoadCachedIdentity();
     const role = _sbProfile?.role || c?.role || 'owner';
     const fieldMode = _sbProfile?.field_mode ?? c?.fieldMode ?? false;
-    const fieldModules = c?.fieldModules || null; // OI-0128: null = use FIELD_MODULES_DEFAULT
+    const fieldModules = _sbProfile?.fieldModules || c?.fieldModules || null;
     return {id:_sbSession.user.id, name:_sbProfile?.display_name||c?.displayName||_sbSession.user.email?.split('@')[0]||'Farmer',
       email:_sbSession.user.email||'', color:c?.color||'#639922',
       role, fieldMode, fieldModules, _fromSupabase:true};
@@ -4981,10 +4981,18 @@ function _getUserFieldModules(){
   return FIELD_MODULES_DEFAULT;
 }
 function _setUserFieldModules(keys){
-  // Write directly into gthy-identity, preserving all other fields.
+  // Write into gthy-identity cache + sync to Supabase operation_members
   const c = _sbLoadCachedIdentity();
-  if(c === null) return; // no identity yet — nothing to write into
+  if(c === null) return;
   localStorage.setItem('gthy-identity', JSON.stringify({...c, fieldModules: keys}));
+  // Persist to Supabase so it syncs across devices
+  if(_sbClient && _sbOperationId && _sbSession){
+    _sbClient.from('operation_members')
+      .update({field_modules: keys})
+      .eq('operation_id', _sbOperationId)
+      .eq('user_id', _sbSession.user.id)
+      .then(({error}) => { if(error) logError('field-modules', error.message, ''); });
+  }
 }
 function toggleFieldModule(key){
   const current = _getUserFieldModules();
