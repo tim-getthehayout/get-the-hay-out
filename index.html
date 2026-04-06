@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260406.0934" id="app-version-meta"/>
+<meta name="app-version" content="b20260406.0948" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -11163,6 +11163,8 @@ function saveSpreadEvent(){
     applicationId:null,pastureNames:[paddock],notes:document.getElementById('sp-notes').value||null});
   // Add amendment event to pasture event ledger
   S.events.push({id:Date.now(),type:'amend',pasture:paddock,date,amendType:'manure',product:b.label+' (manure)',source:'manure-batch',sourceBatchId:id,totalCost:0,lifeDays:365,lifeDisplay:'1 year',nPct:0,pPct:0,kPct:0,manureNLbs:calc.nApp,manurePLbs:calc.pApp,manureKLbs:calc.kApp,notes:document.getElementById('sp-notes').value});
+  const _amendEv=S.events[S.events.length-1];
+  queueEventWrite(_amendEv);
   const _mbt=S.manureBatchTransactions[S.manureBatchTransactions.length-1];
   queueWrite('manure_batches',_sbToSnake({...b,operationId:_sbOperationId}));
   queueWrite('manure_batch_transactions',_manureBatchTransactionRow(_mbt,_sbOperationId));
@@ -12038,7 +12040,7 @@ function saveSplit(){
   // ── Log group-change note on each split animal ──────────────────────────────
   splitAnimals.forEach(a => {
     ensureAnimalHealthEvents(a);
-    a.healthEvents.push({
+    const _splitEvt = {
       id: Date.now() + a.id,
       type: 'note',
       date: splitDate,
@@ -12046,8 +12048,10 @@ function saveSplit(){
       text: 'Split from group: ' + g.name,
       createdAt: new Date().toISOString(),
       _groupChange: true,
-    });
+    };
+    a.healthEvents.push(_splitEvt);
     a.updatedAt = new Date().toISOString();
+    queueWrite('animal_health_events', _animalHealthEventRow(_splitEvt, a.id, _sbOperationId));
   });
 
   // ── Remove split animals from source group ──────────────────────────────────
@@ -12096,6 +12100,7 @@ function saveSplit(){
         subMoves:    [],
       };
       S.events.push(newEv);
+      queueEventWrite(newEv);
       showSurveyToast(`Split complete — ${newName} placed at ${evDisplayName(srcAe)}`);
     } else {
       showSurveyToast(`Split complete — ${newName} unplaced. Use Move on Home to place them.`);
@@ -12120,7 +12125,7 @@ function saveSplit(){
     // Log group change note
     splitAnimals.forEach(a => {
       ensureAnimalHealthEvents(a);
-      a.healthEvents.push({
+      const _destEvt = {
         id: Date.now() + a.id + 1,
         type: 'note',
         date: splitDate,
@@ -12128,8 +12133,10 @@ function saveSplit(){
         text: 'Moved to group: ' + destG.name,
         createdAt: new Date().toISOString(),
         _groupChange: true,
-      });
+      };
+      a.healthEvents.push(_destEvt);
       a.updatedAt = new Date().toISOString();
+      queueWrite('animal_health_events', _animalHealthEventRow(_destEvt, a.id, _sbOperationId));
     });
 
     // Update destination event head/wt if it has an active event (Scenario C)
@@ -15456,6 +15463,7 @@ function saveApplyInput(){
   }
 
   S.inputApplications.push(application);
+  queueWrite('input_applications', _inputApplicationRow(application, _sbOperationId));
 
   // M0b-H: write per-paddock rows to S.inputApplicationLocations[]
   if(!Array.isArray(S.inputApplicationLocations)) S.inputApplicationLocations=[];
@@ -15478,7 +15486,7 @@ function saveApplyInput(){
   // Create per-paddock amend events (NPK ledger)
   application.locations.forEach(loc=>{
     if(loc.nLbs>0||loc.pLbs>0||loc.kLbs>0){
-      S.events.push({
+      const _amendEv = {
         id:Date.now()+Math.floor(Math.random()*9999),
         type:'amend',pasture:loc.name,date,
         amendType:sourceType==='manure'?'manure':'product',
@@ -15488,7 +15496,9 @@ function saveApplyInput(){
         totalCost:loc.costShare||0,
         manureNLbs:loc.nLbs,manurePLbs:loc.pLbs,manureKLbs:loc.kLbs,
         notes
-      });
+      };
+      S.events.push(_amendEv);
+      queueEventWrite(_amendEv);
     }
   });
 
@@ -17345,16 +17355,18 @@ function saveAnimalMove(){
     const a = getAnimalById(animalId);
     if(!a) return;
     ensureAnimalHealthEvents(a);
-    a.healthEvents.push({
+    const _gcEvt = {
       id:        Date.now() + animalId,
       type:      'note',
       date:      moveDate,
       time:      moveTime,
       text:      'Group change: ' + (fromGroupName ? fromGroupName + ' → ' : '') + toGroupName,
       createdAt: new Date().toISOString(),
-      _groupChange: true,  // flag for filtering if needed
-    });
+      _groupChange: true,
+    };
+    a.healthEvents.push(_gcEvt);
     a.updatedAt = new Date().toISOString();
+    queueWrite('animal_health_events', _animalHealthEventRow(_gcEvt, animalId, _sbOperationId));
   }
 
   if(animalMoveMode === 'existing'){
@@ -21512,11 +21524,13 @@ function _mwSave(){
     // Write paddock observation for arrival survey
     if(arrHeight && !isCon){
       if(!S.paddockObservations) S.paddockObservations = [];
-      S.paddockObservations.push({
+      const _arrObs = {
         id: Date.now()+99, pastureId: dp.id, date: moveDate, type:'open',
         sourceId: newEvId, confidenceRank:1, vegHeight: arrHeight,
         forageCoverPct: arrCover || null, forageQuality: arrQuality || null,
-      });
+      };
+      S.paddockObservations.push(_arrObs);
+      queueWrite('paddock_observations', _paddockObservationRow(_arrObs, _sbOperationId));
     }
     S.events.push(newEv);
     queueEventWrite(newEv);
