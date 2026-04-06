@@ -3,6 +3,12 @@
 
 | Build | File | Change |
 |---|---|---|
+| b20260406.NEXT | HTML | OI-0185 Task 1: `animal_health_events` Supabase write path wired. Created `_animalHealthEventRow()` shape function mapping all 24 columns. Added `_SB_ALLOWED_COLS` entry. `saveAnimalEvent()` now calls `queueWrite`. `deleteAnimalEvent()` now queues Supabase delete. `pushAllToSupabase()` iterates all animal health events. All health event types (note, treatment, breeding, heat, bcs) now sync to Supabase. |
+| b20260406.NEXT | HTML | OI-0185 Task 2: Heat history section in animal edit card. Shows below confirmed bred section for female animals. Lists all heat events newest first with date, time, notes, Edit button. "Record heat" button opens dedicated heat sheet. |
+| b20260406.NEXT | HTML | OI-0185 Task 3: Heat record sheet (`#heat-record-wrap`). Standalone sheet for recording/editing heat events. Date, time, notes fields. Edit mode shows delete button. Toast confirmation on save. |
+| b20260406.NEXT | HTML | OI-0185 Task 4: Heat badge on animal list. Female animals with heat recorded within 3 days show pink "🌡 Heat" badge inline with other badges. |
+| b20260406.NEXT | HTML | OI-0185 Task 5: Field mode "Record Heat" module with animal picker (`#heat-picker-wrap`). Two-step flow: searchable female animal list → date/time/notes → save → back to picker for next animal. Added to FIELD_MODULES (opt-in, not in defaults). |
+| b20260406.NEXT | supabase/ | Migration: `time text` column added to `animal_health_events`. |
 | b20260405.NEXT | HTML | Feature: Animal classes can now be edited via Edit button in manage classes sheet. `editAnimalClass()` populates form, button changes to "Save changes", Cancel button shown. Fixed "undefined lbs" and "undefined% DMI" display — shows dash when fields are null. |
 | b20260405.NEXT | HTML | OI-0183 Fix 1: `getDailyStoredDMI()` anchor conversion rewritten to use `typeChecks` array (unit-based remaining lbs) instead of percentage of cumulative DM. New helper `_fcCheckToRemainingLbs()` looks up batch wt/dm per feed type. Falls back to pct-based for legacy checks without typeChecks. |
 | b20260405.NEXT | HTML | OI-0183 Fix 4: No-check pasture events return `{noSplit: true}` instead of broken `totalDM/days` estimate. `_renderDMIBars` shows gray bars at full DMI height with "Feed check needed" message. Confinement/noPasture events keep existing 100% stored behavior. |
