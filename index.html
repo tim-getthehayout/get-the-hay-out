@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260406.2317" id="app-version-meta"/>
+<meta name="app-version" content="b20260406.2324" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -15457,33 +15457,49 @@ function saveSubMove(){
 //   - No membership rows found for the group (pre-membership-ledger data)
 //   - dateIn or outDate missing
 function _memberWeightedDays(ae, outDate){
-  // Multi-group guard: membership-weighted recalc not yet supported for multi-group events.
-  const activeGroups = (ae.groups||[]).filter(g => !g.dateRemoved);
-  if(activeGroups.length > 1) return null;
-
-  const groupId = ae.groupId;
-  if(!groupId || !ae.dateIn || !outDate) return null;
-
-  const memberships = (S.animalGroupMemberships||[]).filter(m => m.groupId === groupId);
-  if(!memberships.length) return null;
-
+  if(!ae.dateIn || !outDate) return null;
   const evStart = ae.dateIn;
   const evEnd   = outDate;
-  let totalDays = 0;
 
-  memberships.forEach(m => {
-    // Clamp animal's presence window to the event window.
-    // dateJoined null or before evStart → treat as present from evStart.
-    const memberStart = (m.dateJoined && m.dateJoined > evStart) ? m.dateJoined : evStart;
-    // dateLeft null or after evEnd → treat as present through evEnd.
-    const memberEnd   = (m.dateLeft && m.dateLeft < evEnd) ? m.dateLeft : evEnd;
-    // Only count if the animal was present at any point during the event.
-    if(memberEnd >= memberStart){
-      totalDays += daysBetween(memberStart, memberEnd);
+  // Path 1: single-group → individual animal memberships (most precise)
+  const allGroups = ae.groups||[];
+  if(allGroups.length <= 1 && ae.groupId){
+    const memberships = (S.animalGroupMemberships||[]).filter(m => m.groupId === ae.groupId);
+    if(memberships.length){
+      let totalDays = 0;
+      memberships.forEach(m => {
+        const memberStart = (m.dateJoined && m.dateJoined > evStart) ? m.dateJoined : evStart;
+        const memberEnd   = (m.dateLeft && m.dateLeft < evEnd) ? m.dateLeft : evEnd;
+        if(memberEnd >= memberStart) totalDays += daysBetween(memberStart, memberEnd);
+      });
+      return totalDays > 0 ? {animalDays: totalDays} : null;
     }
-  });
+  }
 
-  return totalDays > 0 ? totalDays : null;
+  // Path 2: multi-group → group-level headSnapshot × daysPresent
+  if(allGroups.length){
+    let totalAnimalDays = 0;
+    let totalWeightedMass = 0; // sum(headDays × weight) for weighted avg
+    allGroups.forEach(g => {
+      const head = g.headSnapshot || 0;
+      const wt   = g.weightSnapshot || 0;
+      if(!head) return;
+      // Clamp group presence to event window
+      const gStart = (g.dateJoined && g.dateJoined > evStart) ? g.dateJoined : evStart;
+      const gEnd   = (g.dateRemoved && g.dateRemoved < evEnd) ? g.dateRemoved : evEnd;
+      if(gEnd >= gStart){
+        const gDays = Math.max(1, daysBetween(gStart, gEnd));
+        const headDays = head * gDays;
+        totalAnimalDays += headDays;
+        totalWeightedMass += headDays * wt;
+      }
+    });
+    if(totalAnimalDays > 0){
+      return {animalDays: totalAnimalDays, avgWeight: Math.round(totalWeightedMass / totalAnimalDays)};
+    }
+  }
+
+  return null;
 }
 
 // Called by calcEventTotalsWithSubMoves — used in close
@@ -15505,14 +15521,15 @@ function calcEventTotalsWithSubMoves(ae, outDate, feedRes){
 
   const head=ae.head||S.herd.count||0, wt=ae.wt||S.herd.weight||0;
   // OI-0021: membership-weighted animal-days; fallback to head×days when no membership
-  // data exists or for multi-group events (zero regression on legacy data).
+  // data exists. Multi-group events now use group-level headSnapshot × daysPresent.
   const st = S.settings;
-  const memberDays   = _memberWeightedDays(ae, outDate);
-  const effectiveAUD = memberDays !== null ? memberDays : (head * days);
-  const totalNPK = wt ? {
-    n: effectiveAUD * wt/1000 * (st.nExc||0.32),
-    p: effectiveAUD * wt/1000 * (st.pExc||0.09),
-    k: effectiveAUD * wt/1000 * (st.kExc||0.30)
+  const memberResult = _memberWeightedDays(ae, outDate);
+  const effectiveAUD = memberResult !== null ? memberResult.animalDays : (head * days);
+  const effectiveWt  = memberResult?.avgWeight || wt;
+  const totalNPK = effectiveWt ? {
+    n: effectiveAUD * effectiveWt/1000 * (st.nExc||0.32),
+    p: effectiveAUD * effectiveWt/1000 * (st.pExc||0.09),
+    k: effectiveAUD * effectiveWt/1000 * (st.kExc||0.30)
   } : {n:0,p:0,k:0};
 
   // NPK to paddock = total × pasture fraction
@@ -17640,15 +17657,15 @@ function recalcEventTotals(ev){
   const subHrs   = (ev.subMoves||[]).reduce((s,sm)=>s+(sm.durationHours||0), 0);
   const pFraction = totalHrs>0 ? Math.max(0,(totalHrs-subHrs)/totalHrs) : 1;
 
-  // OI-0021: membership-weighted animal-days; fallback to head×days when no membership
-  // data exists or for multi-group events.
-  const memberDays   = _memberWeightedDays(ev, ev.dateOut);
-  const effectiveAUD = memberDays !== null ? memberDays : (head * days);
+  // OI-0021: membership-weighted animal-days; multi-group uses group-level headSnapshot × daysPresent.
+  const memberResult = _memberWeightedDays(ev, ev.dateOut);
+  const effectiveAUD = memberResult !== null ? memberResult.animalDays : (head * days);
+  const effectiveWt  = memberResult?.avgWeight || wt;
   const st = S.settings;
   const totalNPK = {
-    n: effectiveAUD * wt/1000 * (st.nExc||0.32),
-    p: effectiveAUD * wt/1000 * (st.pExc||0.09),
-    k: effectiveAUD * wt/1000 * (st.kExc||0.30)
+    n: effectiveAUD * effectiveWt/1000 * (st.nExc||0.32),
+    p: effectiveAUD * effectiveWt/1000 * (st.pExc||0.09),
+    k: effectiveAUD * effectiveWt/1000 * (st.kExc||0.30)
   };
   const npk    = {n:totalNPK.n*pFraction, p:totalNPK.p*pFraction, k:totalNPK.k*pFraction};
   const npkVal = npk.n*(st.nPrice||0.55)+npk.p*(st.pPrice||0.65)+npk.k*(st.kPrice||0.42);
