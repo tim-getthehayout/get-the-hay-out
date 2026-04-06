@@ -3,6 +3,7 @@
 
 | Build | File | Change |
 |---|---|---|
+| b20260406.NEXT | HTML | Bug fix: `saveCalving()` never queued the calf, dam update, weight record, or calving health event to Supabase. Calf and calving data were saved to localStorage only, never synced. Added `queueWrite` calls for: new calf animal, dam update, birth weight record, calving health event on dam. |
 | b20260406.NEXT | HTML | Fix: `saveSettings()` had a second `queueWrite('operations', ...)` that was missed in the earlier operations-to-direct-UPDATE fix. Caused perpetual RLS error in sync queue. Changed to direct UPDATE matching `pushAllToSupabase()` pattern. |
 | b20260406.NEXT | HTML | Feature: Field module preferences now sync via Supabase `operation_members.field_modules` (jsonb). `_setUserFieldModules()` writes to both localStorage cache and Supabase. `sbCacheIdentity()` and `getActiveUser()` prefer `_sbProfile.fieldModules` from Supabase over local cache. Persists across devices and survives sign-out. |
 | b20260406.NEXT | supabase/ | Migration: `field_modules jsonb` column added to `operation_members`. |
