@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260406.2305" id="app-version-meta"/>
+<meta name="app-version" content="b20260406.2317" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -3105,14 +3105,15 @@ function assembleEvents(rows){
 
     // ── Derive ev.head / ev.wt from group membership snapshots ──────────────
     // The events table has no head/wt columns — they live in event_group_memberships.
-    // Sum headSnapshot across active (non-removed) groups; weight is a weighted average.
+    // Sum headSnapshot across groups; weight is a weighted average.
+    // For closed events, all groups have dateRemoved set — use all groups, not just active.
     if (ev.head == null || ev.wt == null) {
-      const activeGroups = ev.groups.filter(g => !g.dateRemoved);
-      const totalHead = activeGroups.reduce((sum, g) => sum + (g.headSnapshot || 0), 0);
+      const groupsForCalc = ev.status === 'closed' ? ev.groups : ev.groups.filter(g => !g.dateRemoved);
+      const totalHead = groupsForCalc.reduce((sum, g) => sum + (g.headSnapshot || 0), 0);
       if (totalHead > 0) {
         if (ev.head == null) ev.head = totalHead;
         if (ev.wt == null) {
-          const totalMass = activeGroups.reduce(
+          const totalMass = groupsForCalc.reduce(
             (sum, g) => sum + (g.headSnapshot || 0) * (g.weightSnapshot || 0), 0);
           ev.wt = totalMass > 0 ? Math.round(totalMass / totalHead) : null;
         }
@@ -8794,7 +8795,8 @@ function renderEePaddockChips(){
       </div>`;
     }
 
-    const isClosed = !!p.dateRemoved;
+    const evClosed = ev?.status==='closed';
+    const isClosed = !!p.dateRemoved || evClosed;
     const isNew    = !!p._isNew;
     const acDays   = (isClosed && p.dateAdded && p.dateRemoved)
       ? daysBetween(p.dateAdded, p.dateRemoved) : null;
@@ -16978,7 +16980,9 @@ function renderEeActivePaddocks(){
             return '<div style="font-size:11px;color:var(--text3);margin-top:3px;">📏 '+parts.join(' · ')+'</div>';
           })()}
         </div>
-        <span style="font-size:11px;font-weight:600;color:var(--green-d);">● Active</span>
+        ${isOpen
+          ?'<span style="font-size:11px;font-weight:600;color:var(--green-d);">● Active</span>'
+          :'<span style="font-size:11px;font-weight:500;color:var(--text3);">Closed</span>'}
       </div>
       ${closeArea}
     </div>`;
