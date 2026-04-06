@@ -3,6 +3,7 @@
 
 | Build | File | Change |
 |---|---|---|
+| b20260406.NEXT | HTML | Fix: Heat events excluded from general "Treatment history" list on animal edit card (shown in separate "Heat history" section). Added "Treatment history" header to health events section. Delete heat record: fixed ID comparison to use String() for robust matching. |
 | b20260406.NEXT | HTML | OI-0185 Task 1: `animal_health_events` Supabase write path wired. Created `_animalHealthEventRow()` shape function mapping all 24 columns. Added `_SB_ALLOWED_COLS` entry. `saveAnimalEvent()` now calls `queueWrite`. `deleteAnimalEvent()` now queues Supabase delete. `pushAllToSupabase()` iterates all animal health events. All health event types (note, treatment, breeding, heat, bcs) now sync to Supabase. |
 | b20260406.NEXT | HTML | OI-0185 Task 2: Heat history section in animal edit card. Shows below confirmed bred section for female animals. Lists all heat events newest first with date, time, notes, Edit button. "Record heat" button opens dedicated heat sheet. |
 | b20260406.NEXT | HTML | OI-0185 Task 3: Heat record sheet (`#heat-record-wrap`). Standalone sheet for recording/editing heat events. Date, time, notes fields. Edit mode shows delete button. Toast confirmation on save. |

@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260406.0823" id="app-version-meta"/>
+<meta name="app-version" content="b20260406.0848" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -11540,8 +11540,9 @@ function deleteHeatRecord(){
   if(!editId) return;
   if(!confirm('Delete this heat record?')) return;
   const a = getAnimalById(animalId); if(!a) return;
-  queueWrite('_delete:animal_health_events', {id: parseInt(editId), operation_id: _sbOperationId});
-  a.healthEvents = (a.healthEvents||[]).filter(e=>e.id!==parseInt(editId));
+  const numId = parseInt(editId);
+  queueWrite('_delete:animal_health_events', {id: numId, operation_id: _sbOperationId});
+  a.healthEvents = (a.healthEvents||[]).filter(e=>String(e.id)!==String(editId));
   a.updatedAt = new Date().toISOString();
   save(); closeHeatRecordSheet();
   if(document.getElementById('ae-sheet-wrap')?.classList.contains('open')) openAnimalEdit(animalId);
@@ -12592,10 +12593,10 @@ function openAnimalEdit(animalId){
   const displayName=a.tagNum||(a.systemId||'Animal');
   document.getElementById('ae-title').innerHTML=displayName+
     (a.confirmedBred?` <span style="font-size:11px;font-weight:400;background:var(--teal-l,#e0f5f2);color:var(--teal);border-radius:4px;padding:1px 6px;vertical-align:middle;">✓ bred</span>`:'');
-  // Health event history
+  // Health event history (exclude heats — shown in separate Heat History section)
   const healthEl = document.getElementById('ae-health-events');
   if(healthEl){
-    const evts = [...(a.healthEvents||[])].reverse();
+    const evts = [...(a.healthEvents||[])].filter(e=>e.type!=='heat').reverse();
     if(!evts.length){
       healthEl.innerHTML='<div style="font-size:13px;color:var(--text2);">No events logged yet</div>';
     } else {
@@ -19836,8 +19837,9 @@ window.addEventListener('offline', ()=>{
       <div class="sec" style="margin-bottom:6px;">Weight history</div>
       <div id="ae-wt-history-list" style="font-size:12px;color:var(--text2);max-height:120px;overflow-y:auto;"></div>
     </div>
-    <!-- Health events history -->
+    <!-- Health events history (treatments, breeding, bcs, notes — heats shown separately) -->
     <div class="div"></div>
+    <div class="sec" style="margin-bottom:6px;">Treatment history</div>
     <div id="ae-health-events" style="font-size:13px;color:var(--text2);margin-bottom:4px;"></div>
     <!-- Cull/reactivate section -->
     <div id="ae-cull-section" style="margin-top:10px;"></div>
