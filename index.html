@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260406.1158" id="app-version-meta"/>
+<meta name="app-version" content="b20260406.2214" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -3253,7 +3253,7 @@ async function loadFromSupabase(operationId){
       treatmentTypeRows, aiBullRows, todoRows, submissionRows,
       paddockObsRows, weightRecordRows, groupMemberRows,
       inputAppLocRows, manureTxRows, surveyRows, farmRes,
-      soilTestRows, forageTypeRes, harvestEvRes,
+      soilTestRows, forageTypeRes, harvestEvRes, batchNutProfileRows,
     ] = await Promise.all([
       // Hierarchical — nested select handles sub-table FKs automatically
       _sbClient.from('events').select(
@@ -3297,6 +3297,7 @@ async function loadFromSupabase(operationId){
       // indistinguishable — migrateHomeFarm() needs to know the difference to avoid
       // creating duplicate Home Farms when Supabase is temporarily unreachable.
       _sbClient.from('farms').select('*').eq('operation_id', operationId),
+      _sbFetch('batch_nutritional_profiles', operationId),
     ]);
 
     // Log any errors on primary hierarchical fetches
@@ -3428,6 +3429,7 @@ async function loadFromSupabase(operationId){
     S.animalGroupMemberships    = (groupMemberRows     || []).map(_sbToCamel);
     S.inputApplicationLocations = (inputAppLocRows     || []).map(_sbToCamel);
     S.manureBatchTransactions   = (manureTxRows        || []).map(_sbToCamel);
+    S.batchNutritionalProfiles  = (batchNutProfileRows || []).map(_sbToCamel);
     // OI-0115: assemble surveys from Supabase — parse draftRatings JSONB back to object
     S.surveys = (surveyRows || []).map(r => {
       const sv = _sbToCamel(r);
@@ -3608,6 +3610,29 @@ function _soilTestRow(t, opId){
     lab:            t.lab   ?? null,
     notes:          t.notes ?? null,
     created_at:     t.createdAt ?? new Date().toISOString(),
+  };
+}
+
+// Batch nutritional profiles — per-batch NPK data with feed test support
+function _batchNutritionalProfileRow(p, opId){
+  return {
+    id:             p.id,
+    operation_id:   opId,
+    batch_id:       p.batchId ?? null,
+    date:           p.date ?? null,
+    source:         p.source ?? 'default',
+    n_pct:          p.nPct  != null ? parseFloat(p.nPct)  : null,
+    p_pct:          p.pPct  != null ? parseFloat(p.pPct)  : null,
+    k_pct:          p.kPct  != null ? parseFloat(p.kPct)  : null,
+    dm_pct:         p.dmPct != null ? parseFloat(p.dmPct) : null,
+    protein_pct:    p.proteinPct != null ? parseFloat(p.proteinPct) : null,
+    adf_pct:        p.adfPct     != null ? parseFloat(p.adfPct)     : null,
+    ndf_pct:        p.ndfPct     != null ? parseFloat(p.ndfPct)     : null,
+    tdn_pct:        p.tdnPct     != null ? parseFloat(p.tdnPct)     : null,
+    rfv:            p.rfv        != null ? parseFloat(p.rfv)        : null,
+    lab:            p.lab   ?? null,
+    notes:          p.notes ?? null,
+    created_at:     p.createdAt ?? new Date().toISOString(),
   };
 }
 
@@ -4106,6 +4131,7 @@ const _SB_ALLOWED_COLS = {
   // OI-0180/0181: maps JS model fields after schema migration adds these columns
   manure_batches:       new Set(['id','operation_id','name','label','location_name','mode','n_lbs','p_lbs','k_lbs','estimated_volume_lbs','remaining_lbs','created_at']),
   animal_health_events: new Set(['id','animal_id','operation_id','type','date','time','bcs_score','treatment_type_id','treatment_name','treatment_dose','treatment_unit','treatment_batch','withdrawal_date','breeding_subtype','ai_bull_id','bull_animal_id','sire_name','sire_reg_num','semen_id','ai_tech','expected_calving','calving_calf_id','calving_stillbirth','notes','recorded_at','likely_cull']),
+  batch_nutritional_profiles: new Set(['id','operation_id','batch_id','date','source','n_pct','p_pct','k_pct','dm_pct','protein_pct','adf_pct','ndf_pct','tdn_pct','rfv','lab','notes','created_at']),
 };
 // OI-0175: FK dependency tiers for ordered flush. Each tier must complete before the next begins.
 // Tier 0 = root tables (no FK deps). Tier 4 = leaf tables (deepest FK chains).
@@ -4114,7 +4140,7 @@ const FLUSH_TIERS = [
   ['farms','feed_types','animals','animal_groups','submissions'],
   ['pastures','batches','manure_batches','events','animal_weight_records','animal_group_memberships','animal_group_class_compositions','animal_health_events'],
   ['soil_tests','harvest_events','todos','surveys','paddock_observations','input_applications','event_group_memberships','event_paddock_windows','event_sub_moves'],
-  ['harvest_event_fields','event_feed_deliveries','event_feed_residual_checks','event_npk_deposits','input_application_locations','manure_batch_transactions'],
+  ['harvest_event_fields','event_feed_deliveries','event_feed_residual_checks','event_npk_deposits','input_application_locations','manure_batch_transactions','batch_nutritional_profiles'],
 ];
 const _FLUSH_TIER_MAP = new Map();
 FLUSH_TIERS.forEach((tables, tier) => tables.forEach(t => _FLUSH_TIER_MAP.set(t, tier)));
@@ -4288,6 +4314,8 @@ async function pushAllToSupabase(){
   (S.animals||[]).forEach(a => {
     (a.healthEvents||[]).forEach(evt => queueWrite('animal_health_events', _animalHealthEventRow(evt, a.id, opId)));
   });
+  // Batch nutritional profiles
+  (S.batchNutritionalProfiles||[]).forEach(p => queueWrite('batch_nutritional_profiles', _batchNutritionalProfileRow(p, opId)));
   // M7-F: harvest events + per-field sub-records
   (S.harvestEvents||[]).forEach(ev => {
     queueWrite('harvest_events', _harvestEventRow(ev, opId));
@@ -4367,6 +4395,14 @@ function calcConsumedDMI(entries,resid){
   let t=0;
   entries.forEach((e,i)=>{const r=(i===entries.length-1)?(resid/100):0;e.lines.forEach(l=>{const b=S.batches.find(x=>x.id===l.batchId);if(!b)return;const af=b.wt?l.qty*b.wt:l.qty;t+=af*(b.dm/100)*(1-r);});});
   return t;
+}
+
+// Latest batch nutritional profile — most recent record by date wins
+function latestBatchProfile(batchId){
+  return (S.batchNutritionalProfiles || [])
+    .filter(p => String(p.batchId) === String(batchId))
+    .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+    [0] || null;
 }
 
 // Organic matter left on paddock from unconsumed bale residual
@@ -4607,7 +4643,8 @@ function ensureDataArrays(){
                 'farms',          // M7-A: farm grouping for all land
                 'soilTests',      // M7-D: soil test anchor per field
                 'forageTypes',    // M7-E: forage nutritional reference library
-                'harvestEvents']; // M7-F: machine harvest events
+                'harvestEvents',  // M7-F: machine harvest events
+                'batchNutritionalProfiles']; // per-batch NPK data
   arrays.forEach(k=>{if(!Array.isArray(S[k]))S[k]=[];});
   if(!S.herd)S.herd={name:'',type:'',count:0,weight:0,dmi:2.5};
   if(S._paddocksMigrated===undefined)S._paddocksMigrated=false;
@@ -6926,10 +6963,28 @@ function wizCloseEvent(){
     // M0b-K: feed residual OM entry for primary paddock (uneaten feed DM deposited)
     if(_residOM>0){
       const _primPad=evPrimaryPaddock(ae);
+      // Compute NPK deposited from residual feed using batch profiles → feed type fallback
+      let _residN=0,_residP=0,_residK=0;
+      const _lastFE=(ae.feedEntries||[])[(ae.feedEntries||[]).length-1];
+      if(_lastFE&&_lastFE.lines){
+        _lastFE.lines.forEach(l=>{
+          const b=S.batches.find(x=>x.id===l.batchId);if(!b||!l.qty)return;
+          const prof=latestBatchProfile(l.batchId);
+          const ft=b.typeId?(S.feedTypes||[]).find(f=>String(f.id)===String(b.typeId)):null;
+          const nPct=prof?.nPct??ft?.nPct??null;
+          const pPct=prof?.pPct??ft?.pPct??null;
+          const kPct=prof?.kPct??ft?.kPct??null;
+          const asFed=b.wt?l.qty*b.wt:l.qty;
+          const residDM=asFed*(b.dm/100)*(feedRes/100);
+          if(nPct)_residN+=residDM*(nPct/100);
+          if(pPct)_residP+=residDM*(pPct/100);
+          if(kPct)_residK+=residDM*(kPct/100);
+        });
+      }
       ae.npkLedger.push({id:_nlId++,paddockName:_primPad.pastureName,
         pastureId:_primPad.pastureId||null,periodStart:ae.dateIn,periodEnd:outDate,
         head:ae.head||0,avgWeight:ae.wt||0,days,acres:_totalAcres||null,
-        nLbs:0,pLbs:0,kLbs:0,
+        nLbs:_residN,pLbs:_residP,kLbs:_residK,
         source:'feed_residual',dmLbsDeposited:_residOM});
     }
   }
@@ -9497,11 +9552,128 @@ function openBatchAdjSheet(batchId, mode){
   // Archive button — only show if batch is depleted or user might want to close it out
   document.getElementById('ba-archive-wrap').style.display = b.remaining <= 0 ? 'block' : 'none';
 
+  // Nutritional profile section
+  _renderBatchProfileSection(batchId);
+
   document.getElementById('batch-adj-wrap').classList.add('open');
 }
 
 function closeBatchAdjSheet(){
   document.getElementById('batch-adj-wrap').classList.remove('open');
+}
+
+function _renderBatchProfileSection(batchId){
+  const profiles=(S.batchNutritionalProfiles||[]).filter(p=>String(p.batchId)===String(batchId))
+    .sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const latest=profiles[0]||null;
+  const b=S.batches.find(x=>x.id===batchId);
+  const ft=b&&b.typeId?(S.feedTypes||[]).find(f=>String(f.id)===String(b.typeId)):null;
+
+  // Current profile display
+  const dispEl=document.getElementById('ba-nutrition-display');
+  if(latest){
+    const srcColors={default:'var(--blue)',feed_test:'var(--green)',manual:'var(--amber-d)'};
+    const srcLabels={default:'Default',feed_test:'Feed test',manual:'Manual'};
+    const src=latest.source||'default';
+    const vals=[];
+    if(latest.dmPct!=null)vals.push('DM '+latest.dmPct+'%');
+    if(latest.nPct!=null)vals.push('N '+latest.nPct);
+    if(latest.pPct!=null)vals.push('P '+latest.pPct);
+    if(latest.kPct!=null)vals.push('K '+latest.kPct);
+    dispEl.innerHTML=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+      <span style="font-size:10px;font-weight:600;color:white;background:${srcColors[src]||'var(--text2)'};border-radius:8px;padding:2px 8px;">${srcLabels[src]||src}</span>
+      <span style="font-size:12px;color:var(--text);">${vals.join(' · ')||'No values'}</span>
+    </div>
+    <button class="btn btn-outline btn-sm" onclick="_toggleFeedTestForm(true)">Record feed test</button>`;
+  } else if(ft&&(ft.nPct||ft.pPct||ft.kPct)){
+    const vals=[];
+    if(ft.dm!=null)vals.push('DM '+ft.dm+'%');
+    if(ft.nPct!=null)vals.push('N '+ft.nPct);
+    if(ft.pPct!=null)vals.push('P '+ft.pPct);
+    if(ft.kPct!=null)vals.push('K '+ft.kPct);
+    dispEl.innerHTML=`<div style="font-size:12px;color:var(--text2);margin-bottom:8px;">Using feed type defaults: ${vals.join(' · ')}</div>
+    <button class="btn btn-outline btn-sm" onclick="_toggleFeedTestForm(true)">Record feed test</button>`;
+  } else {
+    dispEl.innerHTML=`<div style="font-size:12px;color:var(--text3);margin-bottom:8px;">No nutritional data</div>
+    <button class="btn btn-outline btn-sm" onclick="_toggleFeedTestForm(true)">Record feed test</button>`;
+  }
+
+  // Pre-fill feed test form from latest profile or feed type
+  const pre=latest||{};
+  document.getElementById('ba-ft-date').value=todayStr();
+  document.getElementById('ba-ft-lab').value='';
+  document.getElementById('ba-ft-dm').value=pre.dmPct!=null?pre.dmPct:(ft?ft.dm:'');
+  document.getElementById('ba-ft-n').value=pre.nPct!=null?pre.nPct:(ft?ft.nPct:'');
+  document.getElementById('ba-ft-p').value=pre.pPct!=null?pre.pPct:(ft?ft.pPct:'');
+  document.getElementById('ba-ft-k').value=pre.kPct!=null?pre.kPct:(ft?ft.kPct:'');
+  document.getElementById('ba-ft-protein').value=pre.proteinPct!=null?pre.proteinPct:'';
+  document.getElementById('ba-ft-adf').value=pre.adfPct!=null?pre.adfPct:'';
+  document.getElementById('ba-ft-ndf').value=pre.ndfPct!=null?pre.ndfPct:'';
+  document.getElementById('ba-ft-tdn').value=pre.tdnPct!=null?pre.tdnPct:'';
+  document.getElementById('ba-ft-rfv').value=pre.rfv!=null?pre.rfv:'';
+  document.getElementById('ba-ft-notes').value='';
+  document.getElementById('ba-feed-test-form').style.display='none';
+
+  // Profile history
+  const histEl=document.getElementById('ba-nutrition-history');
+  if(profiles.length){
+    const srcColors={default:'var(--blue)',feed_test:'var(--green)',manual:'var(--amber-d)'};
+    const srcLabels={default:'Default',feed_test:'Feed test',manual:'Manual'};
+    histEl.innerHTML='<div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:6px;">Profile history</div>'+
+      profiles.map(p=>{
+        const src=p.source||'default';
+        const vals=[];
+        if(p.dmPct!=null)vals.push('DM '+p.dmPct+'%');
+        if(p.nPct!=null)vals.push('N '+p.nPct);
+        if(p.pPct!=null)vals.push('P '+p.pPct);
+        if(p.kPct!=null)vals.push('K '+p.kPct);
+        return `<div style="padding:6px 0;border-bottom:0.5px solid var(--border);font-size:12px;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:10px;font-weight:600;color:white;background:${srcColors[src]||'var(--text2)'};border-radius:8px;padding:1px 6px;">${srcLabels[src]||src}</span>
+            <span style="color:var(--text2);">${dLabel(p.date)}</span>
+            ${p.lab?`<span style="color:var(--text3);">· ${p.lab}</span>`:''}
+          </div>
+          <div style="color:var(--text);margin-top:2px;">${vals.join(' · ')||'—'}</div>
+        </div>`;
+      }).join('');
+  } else {
+    histEl.innerHTML='';
+  }
+}
+
+function _toggleFeedTestForm(show){
+  document.getElementById('ba-feed-test-form').style.display=show?'block':'none';
+}
+
+function saveBatchFeedTest(){
+  const batchId=parseInt(document.getElementById('ba-batch-id').value);
+  const b=S.batches.find(x=>x.id===batchId);
+  if(!b){alert('Batch not found');return;}
+  const date=document.getElementById('ba-ft-date').value;
+  if(!date){alert('Enter a date');return;}
+  const prof={
+    id:String(Date.now())+Math.floor(Math.random()*1000),
+    batchId:batchId,
+    date,
+    source:'feed_test',
+    nPct:parseFloat(document.getElementById('ba-ft-n').value)||null,
+    pPct:parseFloat(document.getElementById('ba-ft-p').value)||null,
+    kPct:parseFloat(document.getElementById('ba-ft-k').value)||null,
+    dmPct:parseFloat(document.getElementById('ba-ft-dm').value)||null,
+    proteinPct:parseFloat(document.getElementById('ba-ft-protein').value)||null,
+    adfPct:parseFloat(document.getElementById('ba-ft-adf').value)||null,
+    ndfPct:parseFloat(document.getElementById('ba-ft-ndf').value)||null,
+    tdnPct:parseFloat(document.getElementById('ba-ft-tdn').value)||null,
+    rfv:parseFloat(document.getElementById('ba-ft-rfv').value)||null,
+    lab:document.getElementById('ba-ft-lab').value.trim()||null,
+    notes:document.getElementById('ba-ft-notes').value.trim()||null,
+    createdAt:new Date().toISOString(),
+  };
+  S.batchNutritionalProfiles.push(prof);
+  if(_sbOperationId) queueWrite('batch_nutritional_profiles',_batchNutritionalProfileRow(prof,_sbOperationId));
+  save();
+  _toggleFeedTestForm(false);
+  _renderBatchProfileSection(batchId);
 }
 
 function onBaReasonChange(){
@@ -10287,6 +10459,7 @@ function _deleteFeedTypeFromEdit(){
 // OI-0127: inline harvest-active toggle — one tap, immediate save, re-renders harvest tile grid if open
 function toggleFeedTypeHarvestActive(idx){
   const ft=S.feedTypes[idx];if(!ft)return;
+  console.log('toggleFeedTypeHarvestActive', idx, ft.name, ft.harvestActive, '→', !ft.harvestActive, '_sbOpId:', !!_sbOperationId);
   ft.harvestActive=!ft.harvestActive;
   stampSetup();queueWrite('feed_types',_feedTypeRow(ft,_sbOperationId));save();
   renderFeedTypes();
@@ -10299,7 +10472,7 @@ function renderFeedTypes(){
     ?`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);opacity:0.45;"><span style="font-size:13px;">${ft.name} <span class="badge bb">archived</span></span><button class="btn btn-outline btn-xs" onclick="unarchive('feedType','${ft.id}')">Unarchive</button></div>`
     :`<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:7px 0;border-bottom:0.5px solid var(--border);font-size:13px;">
         <span style="flex:1;min-width:0;">${ft.name} <span class="badge bb">${ft.unit}</span> <span class="badge bg">${ft.dm}% DM</span>${ft.defaultWeightLbs?` <span class="badge bt">${ft.defaultWeightLbs} lbs</span>`:''}${(ft.nPct||ft.pPct||ft.kPct)?` <span class="badge bt">N${ft.nPct??'?'} P${ft.pPct??'?'} K${ft.kPct??'?'}</span>`:''}${ft.cuttingNum!=null?` <span class="badge ba">C${ft.cuttingNum}</span>`:''}</span>
-        <button onclick="toggleFeedTypeHarvestActive(${i})" style="flex-shrink:0;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;border:1.5px solid ${ft.harvestActive?'var(--green)':'var(--border2)'};background:${ft.harvestActive?'var(--green)':'transparent'};color:${ft.harvestActive?'white':'var(--text2)'};">${ft.harvestActive?'🌾 Active':'○ Inactive'}</button>
+        <button onclick="toggleFeedTypeHarvestActive(${i})" style="flex-shrink:0;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;border:1.5px solid ${ft.harvestActive?'var(--green)':'var(--border2)'};background:${ft.harvestActive?'var(--green)':'transparent'};color:${ft.harvestActive?'white':'var(--text2)'};">${ft.harvestActive?'🌾 Harvest: Active':'○ Harvest: Inactive'}</button>
         <button class="btn btn-outline btn-xs" style="flex-shrink:0;" onclick="openEditFeedType(${i})">Edit</button>
       </div>`
   ).join('');
@@ -10362,6 +10535,9 @@ let _harvestTiles = [];
 
 // Kept for legacy compatibility (cleared on open)
 let _harvestRows = [];
+// Field mode: pre-selected field from picker step
+let _harvestFieldModeFieldId = null;
+let _harvestFieldFilter = 'all'; // 'all' | 'crop' | 'mixed-use'
 
 function _generateBatchId(landId, feedTypeId, date){
   const p=(S.pastures||[]).find(p=>String(p.id)===String(landId));
@@ -10382,11 +10558,18 @@ function _generateBatchId(landId, feedTypeId, date){
 function openHarvestSheet(){
   _harvestTiles=[];
   _harvestRows=[];
+  _harvestFieldModeFieldId=null;
+  _harvestFieldFilter='all';
   document.getElementById('harvest-sheet-date').value=todayStr();
   document.getElementById('harvest-sheet-notes').value='';
-  _renderHarvestTileGrid();
-  // Field mode: full-screen, close/cancel → field home; backdrop non-interactive
+  // Field mode: show field picker first; normal mode: go straight to tile grid
   const isField = document.body.classList.contains('field-mode');
+  if(isField){
+    _renderHarvestFieldPicker();
+  } else {
+    _renderHarvestTileGrid();
+  }
+  // Field mode: full-screen, close/cancel → field home; backdrop non-interactive
   const backdrop = document.getElementById('harvest-sheet-backdrop');
   const closeBtn = document.getElementById('harvest-sheet-close');
   const cancelBtn = document.getElementById('harvest-sheet-cancel');
@@ -10401,7 +10584,73 @@ function closeHarvestSheet(){
   document.getElementById('harvest-sheet-wrap').classList.remove('open');
   _harvestTiles=[];
   _harvestRows=[];
+  _harvestFieldModeFieldId=null;
   if(document.body.classList.contains('field-mode')) _fieldModeGoHome();
+}
+
+// Field mode harvest: field picker step — crop + mixed-use fields
+function _renderHarvestFieldPicker(){
+  const el=document.getElementById('harvest-row-list');
+  const q=(document.getElementById('harvest-field-search')?.value||'').toLowerCase();
+  const filter=_harvestFieldFilter;
+  const fields=sortedPastures().filter(p=>{
+    const lu=p.landUse||(p.locationType==='confinement'?'confinement':'pasture');
+    if(filter==='all') { if(lu!=='crop'&&lu!=='mixed-use') return false; }
+    else if(lu!==filter) return false;
+    if(q&&!p.name.toLowerCase().includes(q)&&!(p.fieldCode||'').toLowerCase().includes(q)) return false;
+    return true;
+  });
+  const pills=[
+    {k:'all',label:'All crop & mixed-use'},
+    {k:'crop',label:'Crop'},
+    {k:'mixed-use',label:'Mixed-Use'},
+  ].map(c=>{
+    const active=filter===c.k;
+    return `<button onclick="_harvestFieldFilter='${c.k}';_renderHarvestFieldPicker()"
+      style="padding:4px 12px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;
+      border:1.5px solid ${active?'var(--green)':'var(--border2)'};
+      background:${active?'var(--green)':'transparent'};
+      color:${active?'white':'var(--text2)'};">${c.label}</button>`;
+  }).join('');
+
+  let html=`<div style="font-size:17px;font-weight:600;margin-bottom:4px;">Pick a field</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Select the field this harvest came from</div>
+    <input type="text" id="harvest-field-search" placeholder="Search fields..."
+      oninput="_renderHarvestFieldPicker()" value="${q.replace(/"/g,'&quot;')}"
+      style="width:100%;padding:10px 12px;border:1px solid var(--border2);border-radius:var(--radius);font-size:14px;margin-bottom:10px;background:var(--bg2);color:var(--text);"/>
+    <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;">${pills}</div>`;
+
+  if(!fields.length){
+    html+=`<div style="padding:16px;text-align:center;background:var(--bg2);border-radius:var(--radius);">
+      <div style="font-size:13px;color:var(--text2);">No fields found${q?' matching "'+q+'"':''}</div>
+    </div>`;
+  } else {
+    html+=fields.map(p=>{
+      const farm=p.farmId?(S.farms||[]).find(f=>String(f.id)===String(p.farmId)):null;
+      const farmHint=farm?' · '+farm.name:'';
+      const acresHint=p.acres?' · '+p.acres+' ac':'';
+      return `<div onclick="_harvestPickField(${typeof p.id==='string'?"'"+p.id+"'":p.id})"
+        style="padding:12px;background:var(--bg2);border:0.5px solid var(--border);
+        border-radius:var(--radius);cursor:pointer;margin-bottom:6px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="font-size:20px;">🌾</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;font-weight:600;">${p.name}${acresHint}</div>
+            <div style="font-size:11px;color:var(--text2);">${landUseBadge(p)}${farmHint}${p.fieldCode?' · '+p.fieldCode:''}</div>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  el.innerHTML=html;
+  // Restore focus to search input if it exists
+  const searchInput=document.getElementById('harvest-field-search');
+  if(searchInput&&q) { searchInput.focus(); searchInput.setSelectionRange(q.length,q.length); }
+}
+
+function _harvestPickField(pastureId){
+  _harvestFieldModeFieldId=pastureId;
+  _renderHarvestTileGrid();
 }
 
 function _renderHarvestTileGrid(){
@@ -10504,11 +10753,24 @@ function _harvestAddFieldRow(tileIdx){
   const tile=_harvestTiles[tileIdx];
   const ft=(S.feedTypes||[]).find(f=>f.id===tile.feedTypeId);
   const defaultWt=ft&&ft.defaultWeightLbs?ft.defaultWeightLbs:null;
+  // Pre-populate from field mode picker if this is the first row
+  let preId=null,preName=null,preCode=null,preFarm=null;
+  if(_harvestFieldModeFieldId&&tile.fieldRows.length===0){
+    const _fp=(S.pastures||[]).find(p=>String(p.id)===String(_harvestFieldModeFieldId));
+    if(_fp){
+      preId=_fp.id;preName=_fp.name;preCode=_fp.fieldCode||null;
+      const _ff=_fp.farmId?(S.farms||[]).find(f=>String(f.id)===String(_fp.farmId)):null;
+      preFarm=_ff?_ff.name:null;
+    }
+    _harvestFieldModeFieldId=null; // consume — only pre-fills first row
+  }
+  const date=document.getElementById('harvest-sheet-date').value;
   tile.fieldRows.push({
     id:String(Date.now()+tile.fieldRows.length),
-    landId:null,landName:null,fieldCode:null,farmName:null,
-    quantity:null,weightPerUnitKg:defaultWt, // pre-populated from feed type default (lbs)
-    batchId:null,batchIdDirty:false,notes:null,
+    landId:preId,landName:preName,fieldCode:preCode,farmName:preFarm,
+    quantity:null,weightPerUnitKg:defaultWt,
+    batchId:preId?(_generateBatchId(preId,tile.feedTypeId,date)||null):null,
+    batchIdDirty:false,notes:null,
     createdAt:new Date().toISOString(),
   });
   _renderHarvestTileGrid();
@@ -10601,6 +10863,14 @@ function saveHarvestEvent(){
     };
     S.batches.push(batch);
     queueWrite('batches',_batchRow(batch,_sbOperationId));
+    // Auto-seed nutritional profile from feed type NPK defaults
+    if(ft && (ft.nPct || ft.pPct || ft.kPct)){
+      const _prof={id:String(Date.now())+S.batches.length+Math.floor(Math.random()*1000),batchId:batch.id,date:batch.date||todayStr(),source:'default',
+        nPct:ft.nPct??null,pPct:ft.pPct??null,kPct:ft.kPct??null,dmPct:ft.dm??null,
+        proteinPct:null,adfPct:null,ndfPct:null,tdnPct:null,rfv:null,lab:null,notes:null,createdAt:new Date().toISOString()};
+      S.batchNutritionalProfiles.push(_prof);
+      if(_sbOperationId) queueWrite('batch_nutritional_profiles',_batchNutritionalProfileRow(_prof,_sbOperationId));
+    }
   });
 
   save();
@@ -10807,6 +11077,14 @@ function addBatch(){
   S.batches.push({id:Date.now(),archived:false,typeId,typeName:ft.name,unit:ft.unit,dm:ft.dm,qty,remaining:qty,wt:parseFloat(document.getElementById('b-wt').value)||null,cpu:parseFloat(document.getElementById('b-cpu').value)||0,label,date:todayStr()});
   const _nb=S.batches[S.batches.length-1];
   queueWrite('batches',_batchRow(_nb,_sbOperationId));
+  // Auto-seed nutritional profile from feed type NPK defaults
+  if(ft.nPct || ft.pPct || ft.kPct){
+    const _prof={id:String(Date.now())+Math.floor(Math.random()*1000),batchId:_nb.id,date:_nb.date||todayStr(),source:'default',
+      nPct:ft.nPct??null,pPct:ft.pPct??null,kPct:ft.kPct??null,dmPct:ft.dm??null,
+      proteinPct:null,adfPct:null,ndfPct:null,tdnPct:null,rfv:null,lab:null,notes:null,createdAt:new Date().toISOString()};
+    S.batchNutritionalProfiles.push(_prof);
+    if(_sbOperationId) queueWrite('batch_nutritional_profiles',_batchNutritionalProfileRow(_prof,_sbOperationId));
+  }
   save();renderBatchListS();renderFeedOverview();['b-qty','b-wt','b-cpu','b-tcost','b-label'].forEach(id=>document.getElementById(id).value='');
 }
 function renderBatchListS(){
@@ -23091,7 +23369,13 @@ function saveEditSubMove(){
     <div style="font-size:16px;font-weight:600;margin-bottom:4px;">Feed types</div>
     <div style="font-size:12px;color:var(--text2);margin-bottom:14px;">Define each type once — batches reference them for DM% and unit.</div>
 
-    <!-- ── Create / Edit form (always visible at top) ── -->
+    <!-- ── Existing types list (shown first) ── -->
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Existing types</div>
+    <div id="ft-list"></div>
+
+    <div class="div" style="margin-top:16px;"></div>
+
+    <!-- ── Create / Edit form ── -->
     <input type="hidden" id="ft-edit-idx" value=""/>
     <div id="ft-form-title" style="font-size:13px;font-weight:600;margin-bottom:8px;">Add feed type</div>
     <div class="two">
@@ -23152,7 +23436,7 @@ function saveEditSubMove(){
     <!-- Create mode buttons -->
     <div id="ft-create-btns" class="btn-row" style="margin-top:8px;">
       <button class="btn btn-green" onclick="addFeedTypeFromSheet()">Add type</button>
-      <button class="btn btn-outline" onclick="closeFeedTypesSheet()">Done</button>
+      <button class="btn btn-outline" onclick="_clearFeedTypeForm()">Cancel</button>
     </div>
     <!-- Edit mode buttons (hidden until editing) -->
     <div id="ft-edit-btns" class="btn-row" style="margin-top:8px;display:none;">
@@ -23161,9 +23445,9 @@ function saveEditSubMove(){
       <button class="btn btn-outline" id="ft-delete-btn" style="color:var(--red);border-color:var(--red);margin-left:auto;" onclick="_deleteFeedTypeFromEdit()">Delete</button>
     </div>
 
-    <div class="div" style="margin-top:16px;"></div>
-    <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Existing types</div>
-    <div id="ft-list"></div>
+    <div style="margin-top:16px;text-align:center;">
+      <button class="btn btn-outline" onclick="closeFeedTypesSheet()">Done</button>
+    </div>
   </div>
 </div>
 
@@ -23219,6 +23503,48 @@ function saveEditSubMove(){
         <div class="field"><label>Cost per unit ($)</label><input type="number" id="ba-cpu" step="0.01" placeholder="0.00"/></div>
       </div>
       <div style="font-size:12px;color:var(--text2);margin-bottom:12px;" id="ba-edit-note"></div>
+    </div>
+
+    <!-- ── Nutritional profile section ── -->
+    <div id="ba-nutrition-wrap">
+      <div class="div"></div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Nutritional profile</div>
+      <div id="ba-nutrition-display"></div>
+      <div id="ba-feed-test-form" style="display:none;margin-top:10px;background:var(--bg2);border-radius:var(--radius);padding:12px;">
+        <div style="font-size:12px;font-weight:600;margin-bottom:8px;">Record feed test</div>
+        <div class="two">
+          <div class="field"><label>Lab name</label><input type="text" id="ba-ft-lab" placeholder="Optional"/></div>
+          <div class="field"><label>Date</label><input type="date" id="ba-ft-date"/></div>
+        </div>
+        <div class="two">
+          <div class="field"><label>DM %</label><input type="number" id="ba-ft-dm" step="0.1" min="0" max="100"/></div>
+          <div class="field"><label>N %</label><input type="number" id="ba-ft-n" step="0.01" min="0" max="10"/></div>
+        </div>
+        <div class="two">
+          <div class="field"><label>P %</label><input type="number" id="ba-ft-p" step="0.01" min="0" max="10"/></div>
+          <div class="field"><label>K %</label><input type="number" id="ba-ft-k" step="0.01" min="0" max="10"/></div>
+        </div>
+        <details style="margin-top:6px;margin-bottom:8px;">
+          <summary style="font-size:11px;font-weight:600;color:var(--text2);cursor:pointer;">Extended analysis — optional</summary>
+          <div style="margin-top:8px;">
+            <div class="two">
+              <div class="field"><label>Protein %</label><input type="number" id="ba-ft-protein" step="0.1" min="0" max="50"/></div>
+              <div class="field"><label>ADF %</label><input type="number" id="ba-ft-adf" step="0.1" min="0" max="80"/></div>
+            </div>
+            <div class="two">
+              <div class="field"><label>NDF %</label><input type="number" id="ba-ft-ndf" step="0.1" min="0" max="90"/></div>
+              <div class="field"><label>TDN %</label><input type="number" id="ba-ft-tdn" step="0.1" min="0" max="100"/></div>
+            </div>
+            <div class="field"><label>RFV</label><input type="number" id="ba-ft-rfv" step="1" min="0" max="500"/></div>
+          </div>
+        </details>
+        <div class="field"><label>Notes</label><input type="text" id="ba-ft-notes" placeholder="Optional"/></div>
+        <div class="btn-row" style="margin-top:8px;">
+          <button class="btn btn-green btn-sm" onclick="saveBatchFeedTest()">Save feed test</button>
+          <button class="btn btn-outline btn-sm" onclick="_toggleFeedTestForm(false)">Cancel</button>
+        </div>
+      </div>
+      <div id="ba-nutrition-history" style="margin-top:10px;"></div>
     </div>
 
     <!-- ── Adjustment fields (shown in both modes) ── -->
