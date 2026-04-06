@@ -1,6 +1,6 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260405.0134
-**Reconciled against build:** b20260405.0134
+**Last updated:** b20260406.NEXT
+**Reconciled against build:** b20260406.NEXT
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
 > **Two input streams:**
@@ -19,9 +19,9 @@
 | Status | Count |
 |---|---|
 | 🔴 Open — Roadblock | 0 |
-| 🔴 Open — Bug | 10 |
-| 🟡 Open — Polish | 2 |
-| 🔵 Open — Enhancement | 19 |
+| 🔴 Open — Bug | 12 |
+| 🟡 Open — Polish | 3 |
+| 🔵 Open — Enhancement | 20 |
 | ⚪ Open — Debt | 9 |
 | ✅ Closed | 125 |
 
@@ -2954,6 +2954,52 @@ Three feed check sheet UI issues:
 - **Fix 7:** Percent field fires oninput on every keystroke, rewrites field, prevents multi-digit entry
 
 **Acceptance criteria:** Can't increase remaining above last check; stepper steps at 0.10; can type "45" in percent field without cursor reset.
+
+---
+
+### OI-0187 — Batch nutritional profiles
+**Source:** Claude.ai design conversation — b20260406
+**Area:** Feed/Batch
+**Severity:** Enhancement
+**Status:** 🔵 Open
+
+New `S.batchNutritionalProfiles[]` collection and Supabase table for per-batch NPK data with feed test support. Auto-seeds default profile on batch creation from feed type NPK. `latestBatchProfile()` helper provides batch→profile→feed type fallback chain. Feed test entry UI in batch edit sheet. NPK call site updates for feed residual OM credit calculation.
+
+**Acceptance criteria:** Farmer can create a batch, see default NPK inherited from feed type, enter a feed test result in the batch edit sheet, and see updated values used in OM credit calculations.
+
+---
+
+### OI-0188 — Feed type sheet UX improvements
+**Source:** Claude.ai design conversation — b20260406
+**Area:** Feed Types
+**Severity:** Polish
+**Status:** 🟡 Open
+
+Layout flip (existing types list on top, add form below), harvest active label → "Harvest: Active/Inactive", cancel button on add form, Done button at bottom.
+
+**Acceptance criteria:** Feed type sheet opens with existing types visible first; add form has Cancel button; harvest labels read "Harvest: Active" / "Harvest: Inactive"; Done button at sheet bottom.
+
+---
+
+### OI-0189 — Harvest active toggle bug investigation
+**Source:** Claude.ai design conversation — b20260406
+**Area:** Feed Types
+**Severity:** Bug
+**Status:** 🔴 Open
+
+Toggle appears to work in code inspection but user reports it is not working. Needs hands-on reproduction in DevTools. Console.log tracing added. Check both inline toggle pill and form checkbox paths. May be mobile touch event issue.
+
+---
+
+### OI-0190 — Field mode harvest skips field picker
+**Source:** User report — b20260406
+**Area:** Field Mode / Harvest
+**Severity:** Bug
+**Status:** 🔴 Open
+
+Field mode harvest button opens the harvest sheet directly without letting user pick which field the harvest is from. Added field picker step (crop + mixed-use filter pills, search) as first step in field mode harvest flow. After picking a field, proceeds to tile grid with field pre-selected on first row.
+
+**Acceptance criteria:** Field mode harvest tap shows field picker with crop/mixed-use filter; selecting a field advances to tile grid; first field row is pre-populated with selected field.
 
 ---
 

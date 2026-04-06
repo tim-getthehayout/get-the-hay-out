@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260406.1158`
+**Current build:** `b20260406.2214`
 **Last updated:** 2026-04-05
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -1062,7 +1062,7 @@ across reloads via `sb-*` localStorage — rate limit only affects new sign-in a
 **Fix:** 12 shape functions (one per affected table) map JS fields to exact Supabase column names and exclude JS-only fields (`animalIds`, `weightHistory`, `calvingRecords`, etc.). All `queueWrite` call sites for these tables updated.
 **Pattern:** Every table that has any field name divergence between JS and Supabase MUST use a shape function — never `_sbToSnake` directly. `_pastureRow()` is the reference implementation. When adding a new table to the write path, always cross-reference field names against the migration script (`migrate-to-supabase.js`) which is the ground truth for Supabase column names.
 **Safe tables** (schema matches JS exactly, `_sbToSnake` still fine): `manure_batches`, `paddock_observations`, `input_application_locations`.
-**Shape functions:** `_animalRow`, `_batchRow`, `_feedTypeRow`, `_animalClassRow`, `_animalGroupRow`, `_aiBullRow`, `_inputProductRow`, `_todoRow`, `_treatmentTypeRow`, `_animalGroupMembershipRow`, `_animalWeightRecordRow`, `_manureBatchTransactionRow` — all at ~L2512 alongside `_pastureRow`.
+**Shape functions:** `_animalRow`, `_batchRow`, `_feedTypeRow`, `_animalClassRow`, `_animalGroupRow`, `_aiBullRow`, `_inputProductRow`, `_todoRow`, `_treatmentTypeRow`, `_animalGroupMembershipRow`, `_animalWeightRecordRow`, `_manureBatchTransactionRow`, `_batchNutritionalProfileRow` — all at ~L2512 alongside `_pastureRow`.
 
 
 ### Todos `assignedTo` String Crash — OI-0091 (Fixed b20260329.1855)
@@ -1151,6 +1151,19 @@ Location edit sheet has Field code input with help text.
 - `latestSoilTest(landId)` — returns most recent test by date for a field
 - Field card shows last-tested date + N/P/K/unit; "🧪 Soil" button opens `openSoilTestSheet(landId)`
 - NPK ledger anchor: most recent soil test resets the baseline for per-field NPK replay (query-time; not yet wired to reports — Post-M7)
+
+### S.batchNutritionalProfiles[]
+```javascript
+{ id, batchId, date, source, nPct, pPct, kPct, dmPct, proteinPct, adfPct, ndfPct, tdnPct, rfv, lab, notes, createdAt }
+```
+- `source`: `'default'` | `'feed_test'` | `'manual'`
+- Shape function: `_batchNutritionalProfileRow(p, opId)`
+- `latestBatchProfile(batchId)` — returns most recent profile by date (batch→profile→feed type fallback chain)
+- Auto-seeded on batch creation (`addBatch()`, `saveHarvestEvent()`) when feed type has NPK data
+- Feed test entry UI in batch edit sheet (`openBatchAdjSheet` → `_renderBatchProfileSection`)
+- `saveBatchFeedTest()` — creates `source:'feed_test'` profile from inline form
+- Feed residual NPK credit in `wizCloseEvent()` reads batch profile before falling back to `ft.nPct/pPct/kPct`
+- FLUSH_TIERS: Tier 4 (leaf table — child of batches)
 
 ### S.forageTypes[] (M7-E)
 ```javascript
