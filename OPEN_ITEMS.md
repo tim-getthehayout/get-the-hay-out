@@ -44,6 +44,7 @@ Recommended work order as of b20260405.0100. Updated after OI-0171 Phase 1.5 (au
 | 8 | OI-0182 | `input_applications` field name mismatches with Supabase schema | `total_qty` vs `quantity`, missing NPK totals |
 | 9 | OI-0183 | DMI calculation redesign (Fixes 1-4) | typeChecks anchor, synthetic transfer check, carried rate, gray bars |
 | 10 | OI-0184 | Feed check UI fixes (Fixes 5-7) | Max cap at last check, stepper 0.10, pct multi-digit typing |
+| 11 | OI-0185 | Heat recording — edit card, quick sheet, field mode picker | Full spec in SESSION_BRIEF |
 
 ### 🔧 Bucket 2 — Missing fields & quick CRUD
 | Priority | OI | Title | Notes |

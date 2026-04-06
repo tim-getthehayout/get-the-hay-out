@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260405.2320" id="app-version-meta"/>
+<meta name="app-version" content="b20260406.0823" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -3851,6 +3851,38 @@ function _surveyRow(sv, opId){
   };
 }
 
+// OI-0185/Task1: _animalHealthEventRow — maps health events to Supabase animal_health_events
+function _animalHealthEventRow(evt, animalId, opId){
+  return {
+    id:                evt.id,
+    animal_id:         animalId,
+    operation_id:      opId,
+    type:              evt.type ?? null,
+    date:              evt.date ?? null,
+    time:              evt.time ?? null,
+    bcs_score:         evt.score ?? null,
+    treatment_type_id: evt.treatmentTypeId ?? null,
+    treatment_name:    evt.treatmentName ?? null,
+    treatment_dose:    evt.dose != null ? parseFloat(evt.dose) : null,
+    treatment_unit:    evt.treatmentUnit ?? null,
+    treatment_batch:   evt.product ?? null,
+    withdrawal_date:   evt.withdrawalDate ?? null,
+    breeding_subtype:  evt.subtype ?? null,
+    ai_bull_id:        evt.aiBullId ?? null,
+    bull_animal_id:    evt.bullAnimalId ?? null,
+    sire_name:         evt.sireName ?? null,
+    sire_reg_num:      evt.sireRegNum ?? null,
+    semen_id:          evt.semenId ?? null,
+    ai_tech:           evt.tech ?? null,
+    expected_calving:  evt.expectedCalving ?? null,
+    calving_calf_id:   evt.calvingCalfId ?? null,
+    calving_stillbirth:evt.calvingStillbirth ?? null,
+    notes:             evt.notes ?? evt.text ?? null,
+    likely_cull:       evt.likelyCull ?? false,
+    recorded_at:       evt.createdAt ?? new Date().toISOString(),
+  };
+}
+
 // OI-0180/0182: _inputApplicationRow — maps S.inputApplications[] to Supabase input_applications
 // Strips nested locations[] (those go to input_application_locations separately)
 function _inputApplicationRow(r, opId){
@@ -4038,6 +4070,7 @@ const _SB_ALLOWED_COLS = {
   input_applications:   new Set(['id','operation_id','product_id','product_name','source_type','manure_batch_id','date','quantity','unit','n_lbs_total','p_lbs_total','k_lbs_total','total_cost','notes']),
   // OI-0180/0181: maps JS model fields after schema migration adds these columns
   manure_batches:       new Set(['id','operation_id','name','label','location_name','mode','n_lbs','p_lbs','k_lbs','estimated_volume_lbs','remaining_lbs','created_at']),
+  animal_health_events: new Set(['id','animal_id','operation_id','type','date','time','bcs_score','treatment_type_id','treatment_name','treatment_dose','treatment_unit','treatment_batch','withdrawal_date','breeding_subtype','ai_bull_id','bull_animal_id','sire_name','sire_reg_num','semen_id','ai_tech','expected_calving','calving_calf_id','calving_stillbirth','notes','recorded_at','likely_cull']),
 };
 // OI-0175: FK dependency tiers for ordered flush. Each tier must complete before the next begins.
 // Tier 0 = root tables (no FK deps). Tier 4 = leaf tables (deepest FK chains).
@@ -4216,6 +4249,10 @@ async function pushAllToSupabase(){
   (S.forageTypes||[]).forEach(ft => queueWrite('forage_types', _forageTypeRow(ft, opId)));
   // OI-0179: manure batches (parent table — was missing)
   (S.manureBatches||[]).forEach(b => queueWrite('manure_batches', _manureBatchRow(b, opId)));
+  // OI-0185: animal health events (nested in animals — flatten for Supabase)
+  (S.animals||[]).forEach(a => {
+    (a.healthEvents||[]).forEach(evt => queueWrite('animal_health_events', _animalHealthEventRow(evt, a.id, opId)));
+  });
   // M7-F: harvest events + per-field sub-records
   (S.harvestEvents||[]).forEach(ev => {
     queueWrite('harvest_events', _harvestEventRow(ev, opId));
@@ -4908,6 +4945,7 @@ const FIELD_MODULES = [
   { key:'feedcheck', icon:'📋', label:'Feed Check',    handler:()=>{ _fieldModeFeedCheckHandler(); } },
   { key:'survey',    icon:'📋', label:'Survey',        handler:()=>{ nav('pastures',document.getElementById('bn-pastures')); setTimeout(openBulkSurveySheet,120); } },
   { key:'animals',   icon:'🐄', label:'Animals',       handler:()=>{ nav('animals',document.getElementById('bn-animals')); } },
+  { key:'heat',      icon:'🌡', label:'Record Heat',   handler:()=>{ _fieldModeHeatHandler(); } },
 ];
 const FIELD_MODULES_DEFAULT = ['feed','harvest','survey','animals'];
 
@@ -11413,6 +11451,7 @@ function saveAnimalEvent(){
     a.healthEvents.push(evt);
   }
   a.updatedAt=new Date().toISOString();
+  queueWrite('animal_health_events', _animalHealthEventRow(evt, animalId, _sbOperationId));
   save();
   closeAnimalEventSheet();
   
@@ -11426,9 +11465,10 @@ function deleteAnimalEvent(){
   const a = getAnimalById(animalId);
   if(!a||!editId) return;
   if(!confirm('Delete this event record?')) return;
+  queueWrite('_delete:animal_health_events', {id: parseInt(editId), operation_id: _sbOperationId});
   a.healthEvents = (a.healthEvents||[]).filter(e=>e.id!==editId);
   a.updatedAt=new Date().toISOString();
-  save(); closeAnimalEventSheet(); 
+  save(); closeAnimalEventSheet();
 }
 
 function showAnimalEventToast(evt){
@@ -11440,6 +11480,185 @@ function showAnimalEventToast(evt){
   el.style.opacity='1';
   setTimeout(()=>el.style.opacity='0',2500);
 }
+
+// ── HEAT RECORD SHEET (Task 3) ──────────────────────────────────────────────
+function openHeatRecordSheet(animalId, editEventId){
+  const a = getAnimalById(animalId); if(!a) return;
+  document.getElementById('hr-animal-id').value = animalId;
+  document.getElementById('hr-animal-label').textContent = a.tagNum||a.systemId||'Animal '+animalId;
+  document.getElementById('hr-edit-id').value = editEventId||'';
+  if(editEventId){
+    const evt = (a.healthEvents||[]).find(e=>e.id===editEventId);
+    document.getElementById('hr-title').textContent = 'Edit heat record';
+    document.getElementById('hr-date').value = evt?.date||todayStr();
+    document.getElementById('hr-time').value = evt?.time||'';
+    document.getElementById('hr-notes').value = evt?.notes||'';
+    document.getElementById('hr-delete-wrap').style.display = 'block';
+  } else {
+    document.getElementById('hr-title').textContent = 'Record heat';
+    document.getElementById('hr-date').value = todayStr();
+    document.getElementById('hr-time').value = new Date().toTimeString().slice(0,5);
+    document.getElementById('hr-notes').value = '';
+    document.getElementById('hr-delete-wrap').style.display = 'none';
+  }
+  document.getElementById('heat-record-wrap').classList.add('open');
+}
+function closeHeatRecordSheet(){
+  document.getElementById('heat-record-wrap').classList.remove('open');
+}
+function saveHeatRecord(){
+  const animalId = parseInt(document.getElementById('hr-animal-id').value);
+  const editId = document.getElementById('hr-edit-id').value||null;
+  const date = document.getElementById('hr-date').value;
+  if(!date){ alert('Date is required'); return; }
+  const a = getAnimalById(animalId); if(!a) return;
+  ensureAnimalHealthEvents(a);
+  const evt = {
+    id: editId ? parseInt(editId) : Date.now(),
+    type: 'heat', date,
+    time: document.getElementById('hr-time').value||null,
+    notes: document.getElementById('hr-notes').value.trim()||null,
+    createdAt: new Date().toISOString(),
+  };
+  if(editId){
+    const idx = a.healthEvents.findIndex(e=>e.id===parseInt(editId));
+    if(idx>=0) a.healthEvents[idx]=evt; else a.healthEvents.push(evt);
+  } else {
+    a.healthEvents.push(evt);
+  }
+  a.updatedAt = new Date().toISOString();
+  queueWrite('animal_health_events', _animalHealthEventRow(evt, animalId, _sbOperationId));
+  save();
+  closeHeatRecordSheet();
+  if(document.getElementById('ae-sheet-wrap')?.classList.contains('open')) openAnimalEdit(animalId);
+  const toast = document.getElementById('survey-toast');
+  if(toast){ toast.textContent='Heat recorded \u2014 '+(a.tagNum||a.systemId); toast.style.opacity='1'; setTimeout(()=>toast.style.opacity='0',2500); }
+}
+function deleteHeatRecord(){
+  const animalId = parseInt(document.getElementById('hr-animal-id').value);
+  const editId = document.getElementById('hr-edit-id').value;
+  if(!editId) return;
+  if(!confirm('Delete this heat record?')) return;
+  const a = getAnimalById(animalId); if(!a) return;
+  queueWrite('_delete:animal_health_events', {id: parseInt(editId), operation_id: _sbOperationId});
+  a.healthEvents = (a.healthEvents||[]).filter(e=>e.id!==parseInt(editId));
+  a.updatedAt = new Date().toISOString();
+  save(); closeHeatRecordSheet();
+  if(document.getElementById('ae-sheet-wrap')?.classList.contains('open')) openAnimalEdit(animalId);
+}
+
+// ── HEAT HISTORY in animal edit (Task 2) ────────────────────────────────────
+function renderAeHeatHistory(a){
+  const section = document.getElementById('ae-heat-section');
+  if(!section) return;
+  if(a.sex !== 'female'){ section.style.display='none'; return; }
+  section.style.display='block';
+  const list = document.getElementById('ae-heat-list'); if(!list) return;
+  const heats = (a.healthEvents||[]).filter(e=>e.type==='heat').sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  if(!heats.length){
+    list.innerHTML='<div style="font-size:13px;color:var(--text2);">No heat events recorded</div>';
+    return;
+  }
+  list.innerHTML = heats.map(h=>{
+    const fDate = new Date(h.date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    const timeStr = h.time ? ' \u00b7 '+h.time : '';
+    const notesLine = h.notes ? `<div style="font-size:11px;color:var(--text2);">${escHtml(h.notes.slice(0,40))}${h.notes.length>40?'\u2026':''}</div>` : '';
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:0.5px solid var(--border);">
+      <div><div style="font-size:13px;font-weight:500;">${fDate}${timeStr}</div>${notesLine}</div>
+      <button class="btn btn-outline btn-xs" onclick="openHeatRecordSheet(${a.id},${h.id})">Edit</button>
+    </div>`;
+  }).join('');
+}
+
+// ── HEAT BADGE helper (Task 4) ──────────────────────────────────────────────
+function _getLastHeatDate(a){
+  const heats = (a.healthEvents||[]).filter(e=>e.type==='heat');
+  if(!heats.length) return null;
+  heats.sort((a,b)=>b.date.localeCompare(a.date));
+  return heats[0].date;
+}
+function _heatBadgeHtml(a){
+  if(a.sex !== 'female') return '';
+  const last = _getLastHeatDate(a);
+  if(!last) return '';
+  const daysAgo = Math.round((new Date()-new Date(last+'T12:00:00'))/86400000);
+  if(daysAgo > 3) return '';
+  return ' <span style="background:#fce4ec;color:#c62828;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:500;">\ud83c\udf21 Heat</span>';
+}
+
+// ── HEAT PICKER SHEET — field mode (Task 5) ─────────────────────────────────
+function openHeatPickerSheet(){
+  document.getElementById('hp-search').value='';
+  _hpFilterAnimals();
+  document.getElementById('hp-step1').style.display='block';
+  document.getElementById('hp-step2').style.display='none';
+  document.getElementById('heat-picker-wrap').classList.add('open');
+}
+function closeHeatPickerSheet(){
+  document.getElementById('heat-picker-wrap').classList.remove('open');
+}
+function _hpFilterAnimals(){
+  const q = (document.getElementById('hp-search').value||'').toLowerCase();
+  const females = (S.animals||[]).filter(a=>a.sex==='female'&&a.status!=='culled'&&a.active!==false);
+  const filtered = q ? females.filter(a=>
+    (a.tagNum||'').toLowerCase().includes(q)||
+    (a.name||'').toLowerCase().includes(q)||
+    (a.systemId||'').toLowerCase().includes(q)
+  ) : females;
+  filtered.sort((a,b)=>(a.tagNum||a.systemId||'').localeCompare(b.tagNum||b.systemId||'',undefined,{numeric:true}));
+  const el = document.getElementById('hp-animal-list');
+  if(!filtered.length){ el.innerHTML='<div style="padding:20px;text-align:center;color:var(--text2);">No matching animals</div>'; return; }
+  el.innerHTML = filtered.map(a=>{
+    const tag = a.tagNum||a.systemId||'#'+a.id;
+    const membership = (S.animalGroupMemberships||[]).find(m=>m.animalId===a.id&&!m.dateLeft);
+    const grp = membership ? getGroupById(membership.groupId) : null;
+    const grpName = grp ? grp.name : '';
+    const lastHeat = _getLastHeatDate(a);
+    const lastStr = lastHeat ? 'Last: '+new Date(lastHeat+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '';
+    return `<div onclick="_hpSelectAnimal(${a.id})" style="padding:12px 8px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;justify-content:space-between;align-items:center;min-height:44px;">
+      <div><div style="font-size:15px;font-weight:600;">${escHtml(tag)}</div>
+        <div style="font-size:12px;color:var(--text2);">${escHtml(a.name||'')}${a.name&&grpName?' \u00b7 ':''}${escHtml(grpName)}</div></div>
+      <div style="font-size:11px;color:var(--text3);">${lastStr}</div>
+    </div>`;
+  }).join('');
+}
+function _hpSelectAnimal(animalId){
+  const a = getAnimalById(animalId); if(!a) return;
+  document.getElementById('hp-animal-id').value = animalId;
+  document.getElementById('hp-animal-label').textContent = (a.tagNum||a.systemId||'Animal')+' '+(a.name||'');
+  document.getElementById('hp-date').value = todayStr();
+  document.getElementById('hp-time').value = new Date().toTimeString().slice(0,5);
+  document.getElementById('hp-notes').value = '';
+  document.getElementById('hp-step1').style.display='none';
+  document.getElementById('hp-step2').style.display='block';
+}
+function _hpBackToStep1(){
+  document.getElementById('hp-step1').style.display='block';
+  document.getElementById('hp-step2').style.display='none';
+  document.getElementById('hp-search')?.focus();
+}
+function _hpSaveHeat(){
+  const animalId = parseInt(document.getElementById('hp-animal-id').value);
+  const date = document.getElementById('hp-date').value;
+  if(!date){ alert('Date is required'); return; }
+  const a = getAnimalById(animalId); if(!a) return;
+  ensureAnimalHealthEvents(a);
+  const evt = {
+    id: Date.now(), type: 'heat', date,
+    time: document.getElementById('hp-time').value||null,
+    notes: document.getElementById('hp-notes').value.trim()||null,
+    createdAt: new Date().toISOString(),
+  };
+  a.healthEvents.push(evt);
+  a.updatedAt = new Date().toISOString();
+  queueWrite('animal_health_events', _animalHealthEventRow(evt, animalId, _sbOperationId));
+  save();
+  const toast = document.getElementById('survey-toast');
+  if(toast){ toast.textContent='Heat recorded \u2014 '+(a.tagNum||a.systemId); toast.style.opacity='1'; setTimeout(()=>toast.style.opacity='0',2500); }
+  _hpBackToStep1();
+  _hpFilterAnimals(); // refresh list to show updated "Last:" date
+}
+function _fieldModeHeatHandler(){ openHeatPickerSheet(); }
 
 function openAnimalWeightSheet(animalId){
   const a = getAnimalById(animalId);
@@ -12407,6 +12626,11 @@ function openAnimalEdit(animalId){
       }).join('');
     }
   }
+
+  // Heat history section (females only)
+  renderAeHeatHistory(a);
+  const heatAddBtn = document.getElementById('ae-heat-add-btn');
+  if(heatAddBtn) heatAddBtn.onclick = ()=>openHeatRecordSheet(a.id);
 
   // Cull section
   const cullEl=document.getElementById('ae-cull-section');
@@ -16964,6 +17188,7 @@ function renderAnimalsScreen(){
             ${isCulled?`<span class="badge br" style="font-size:10px;">${a.cullRecord?a.cullRecord.reason:'culled'}</span>`:''}
             ${ae?`<span class="badge bt" style="font-size:10px;">${ae.pasture}</span>`:''}
             ${a.confirmedBred?`<span class="badge" style="font-size:10px;background:var(--teal-l,#e0f5f2);color:var(--teal);border-radius:4px;padding:1px 5px;">✓ bred</span>`:''}
+            ${_heatBadgeHtml(a)}
             ${(()=>{const _nt=S.todos.filter(t=>t.animalId===a.id&&t.status!=='closed').length;return _nt>0?`<span class="badge" style="font-size:10px;background:var(--amber-l,#fff8e1);color:var(--amber-d);border-radius:4px;padding:1px 5px;">📋 ${_nt}</span>`:'';})()}
           </div>
           <div style="font-size:11px;color:var(--text2);">${cls?cls.name:'No class'} · ${grp?grp.name:'unassigned'}</div>
@@ -19595,6 +19820,15 @@ window.addEventListener('offline', ()=>{
         <label>Date confirmed</label>
         <input type="date" id="ae-confirmed-bred-date"/>
       </div>
+    </div>
+    <!-- Heat history (females only) -->
+    <div id="ae-heat-section" style="display:none;">
+      <div class="div"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <div class="sec" style="margin:0;">Heat history</div>
+        <button class="btn btn-teal btn-xs" id="ae-heat-add-btn">+ Record heat</button>
+      </div>
+      <div id="ae-heat-list"></div>
     </div>
     <!-- Weight history -->
     <div id="ae-wt-history" style="display:none;">
@@ -22702,6 +22936,63 @@ function saveEditSubMove(){
   <div class="sheet" style="padding:16px 16px 24px;">
     <div class="sheet-handle"></div>
     <div id="fc-content"></div>
+  </div>
+</div>
+
+<!-- ── HEAT RECORD SHEET ──────────────────────────────────────────────────────── -->
+<div id="heat-record-wrap" class="sheet-wrap">
+  <div class="sheet-backdrop" onclick="closeHeatRecordSheet()"></div>
+  <div class="sheet" style="max-width:420px;">
+    <div class="sheet-handle"></div>
+    <h3 id="hr-title">Record heat</h3>
+    <div id="hr-animal-label" style="font-size:14px;color:var(--text2);margin-bottom:12px;"></div>
+    <input type="hidden" id="hr-animal-id"/>
+    <input type="hidden" id="hr-edit-id"/>
+    <div class="field"><label>Date</label><input type="date" id="hr-date"/></div>
+    <div class="field"><label>Time</label><input type="time" id="hr-time"/></div>
+    <div class="field"><label>Notes <span style="font-weight:400;color:var(--text3);">(optional)</span></label>
+      <textarea id="hr-notes" rows="2" placeholder="Behavior observed, standing heat, etc."></textarea></div>
+    <div id="hr-delete-wrap" style="display:none;margin-top:8px;">
+      <button class="btn btn-outline" style="color:var(--red);border-color:var(--red);width:100%;" onclick="deleteHeatRecord()">Delete this record</button>
+    </div>
+    <div class="btn-row" style="margin-top:12px;">
+      <button class="btn btn-outline" onclick="closeHeatRecordSheet()">Cancel</button>
+      <button class="btn btn-green" onclick="saveHeatRecord()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── HEAT PICKER SHEET (field mode) ─────────────────────────────────────────── -->
+<div id="heat-picker-wrap" class="sheet-wrap field-mode-sheet">
+  <div class="sheet-backdrop"></div>
+  <div class="sheet" style="max-width:500px;">
+    <div class="sheet-handle"></div>
+    <div id="hp-step1">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <h3 style="margin:0;">Select Animal</h3>
+        <button class="btn btn-outline btn-xs" onclick="closeHeatPickerSheet()">Done</button>
+      </div>
+      <input type="text" id="hp-search" placeholder="Search by tag, name, or ID"
+        style="width:100%;padding:10px 12px;font-size:15px;border:1.5px solid var(--border2);border-radius:8px;margin-bottom:8px;"
+        oninput="_hpFilterAnimals()"/>
+      <div id="hp-animal-list" style="max-height:60vh;overflow-y:auto;-webkit-overflow-scrolling:touch;"></div>
+    </div>
+    <div id="hp-step2" style="display:none;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <button class="btn btn-outline btn-xs" onclick="_hpBackToStep1()">&#8592; Back</button>
+        <h3 style="margin:0;">Record Heat</h3>
+      </div>
+      <div id="hp-animal-label" style="font-size:15px;font-weight:600;margin-bottom:12px;"></div>
+      <input type="hidden" id="hp-animal-id"/>
+      <div class="field"><label>Date</label><input type="date" id="hp-date"/></div>
+      <div class="field"><label>Time</label><input type="time" id="hp-time"/></div>
+      <div class="field"><label>Notes <span style="font-weight:400;color:var(--text3);">(optional)</span></label>
+        <textarea id="hp-notes" rows="2" placeholder="Behavior observed, standing heat, etc."></textarea></div>
+      <div class="btn-row" style="margin-top:12px;">
+        <button class="btn btn-outline" onclick="_hpBackToStep1()">Cancel</button>
+        <button class="btn btn-green" onclick="_hpSaveHeat()">Save</button>
+      </div>
+    </div>
   </div>
 </div>
 
