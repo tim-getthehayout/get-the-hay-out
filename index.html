@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260406.2225" id="app-version-meta"/>
+<meta name="app-version" content="b20260406.2230" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -15316,6 +15316,7 @@ function saveSubMove(){
     timeOut: document.getElementById('sm-time-out')?.value||null,
     durationHours: hrs,
     locationName: locName,
+    pastureId: loc?loc.id:null,
     noPasture: smNoPasture,
     feedEntries,
     feedResidual,
@@ -15486,7 +15487,7 @@ function getEffectiveFeedResidual(evOrSm){
 // each re-save generates a new ID, bypasses queueWrite dedup, and accumulates duplicate
 // queue entries (and eventually duplicate Supabase rows).
 function _writePaddockObservation(obs){
-  if(!obs.pastureId) return; // Skip observations without a pasture — NOT NULL constraint in Supabase
+  if(!obs.pastureId) return; // Skip if no pasture — Supabase NOT NULL constraint on pasture_id
   if(!Array.isArray(S.paddockObservations)) S.paddockObservations=[];
   const idx = S.paddockObservations.findIndex(o=>
     o.source===obs.source &&
@@ -18254,6 +18255,13 @@ function migrateSystemIds(){
       const p=findPastureByName(ev.pasture);
       if(p){ev.pastureId=p.id;flagChanged=true;}
     }
+    // Back-fill pastureId on sub-moves — was never stored at creation time
+    (ev.subMoves||[]).forEach(sm=>{
+      if(!sm.pastureId&&sm.locationName){
+        const p=S.pastures.find(pp=>pp.name===sm.locationName);
+        if(p){sm.pastureId=p.id;flagChanged=true;}
+      }
+    });
   });
   // Only stampSetup when genuinely new IDs were generated (first-time migration).
   // Stamping on every flag backfill causes local to win over Drive on every app open,
