@@ -3,6 +3,8 @@
 
 | Build | File | Change |
 |---|---|---|
+| b20260406.NEXT | HTML | Auto-uncheck "100% stored feed" when a grazing sub-move is added to a stored-feed event. `saveSubMove()` clears `ev.noPasture` if the sub-move is not noPasture, shows toast notification. Prevents events from staying flagged as stored-feed-only when sub-moves prove pasture is being used. |
+| b20260406.NEXT | HTML | Feed checks in event edit now sorted chronologically (most recent at top). `renderEeFeedChecks` sorts by date descending before rendering. |
 | b20260406.NEXT | HTML | Multi-group AUD calculation: `_memberWeightedDays` now handles multi-group events using group-level `headSnapshot × daysPresent` (clamped to event window via `dateJoined`/`dateRemoved`). Returns time-weighted average weight across groups. Both NPK call sites (`calcEventTotalsWithSubMoves`, `recalcEventTotals`) updated to use `effectiveWt`. Previously multi-group events returned null and fell back to `head × days` — but `head` was null on closed events where all groups had `dateRemoved` set. |
 | b20260406.NEXT | HTML | Fix: closed event paddock status. `renderEeActivePaddocks` now shows "Closed" instead of hardcoded "Active" when event status is closed. `renderEePaddockChips` checks event status when determining paddock close state (previously only checked `dateRemoved`). |
 | b20260406.NEXT | HTML | Fix: `assembleEvents` head/wt backfill now uses ALL groups for closed events (not just active ones). Closed events had all groups with `dateRemoved` set, causing activeGroups to be empty and head/wt to stay null. |
