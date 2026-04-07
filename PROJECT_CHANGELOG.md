@@ -3,6 +3,7 @@
 
 | Build | File | Change |
 |---|---|---|
+| b20260407.NEXT | HTML | Move Animals picker changed from group-based to event-based — shows open events (paddock + group names), taps "Move all" for that event. Single-pasture survey: added forage condition buttons (Poor/Fair/Good/Excellent) matching move wizard arrival survey. Move All button now shows on ALL events regardless of group count — both field home collapsed cards and detail home location cards. |
 | b20260407.2312 | HTML | Field mode phases 5+7. Survey module split: `survey` renamed to `surveybulk`, new `surveysingle` (Pasture Survey) module added with picker sheet. `FIELD_MODULES_DEFAULT` updated. Migration in `_getUserFieldModules` maps legacy `survey` → `surveybulk`. Pasture Survey picker: farm/type/search filters, active paddocks sorted first, excludes crop-only. Heat picker: event/group filter pills added, field-mode full-screen treatment (backdrop, handle, close→home), `_hpFilterAnimals` filters by event then group. |
 | b20260407.2243 | HTML | Fix: harvest field picker crash — `landUseBadge` is a local function inside `renderPastures()`, not global. Replaced with inline land use text. |
 | b20260407.2238 | HTML | Fix: move wizard arrival paddock observation used wrong field names (`date` instead of `observedAt`, `type` instead of `source`). Caused `observed_at: null, source: null` in Supabase — NOT NULL violation, stuck queue entry. Changed to `observedAt: moveDate, source: 'event_open'`. |
