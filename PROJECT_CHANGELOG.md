@@ -3,7 +3,7 @@
 
 | Build | File | Change |
 |---|---|---|
-| b20260407.NEXT | HTML | Fix: broadened NOT NULL constraint drop in `_flushOneOp` to also match `null value in column` (exact Postgres error phrasing). Clears legacy orphan observations with null `observed_at`/`source`. |
+| b20260407.1459 | HTML | Fix: broadened NOT NULL constraint drop in `_flushOneOp` to also match `null value in column` (exact Postgres error phrasing). Clears legacy orphan observations with null `observed_at`/`source`. |
 | b20260407.1424 | HTML | Fix: Supabase SDK not loading on mobile. jsdelivr updated the file at `@2` URL, breaking the SRI integrity hash. Browser silently blocked the script. Pinned to `@2.102.0` (specific version) and removed SRI hash. |
 | b20260407.1320 | HTML | Fix: sign-in not available on mobile after initial load. Auth overlay was `remove()`'d from DOM on load for signed-in users — once removed, tapping avatar with no session did nothing. Changed to `display:none` (hide, not remove). `openSignOutSheet` now re-shows the overlay when `_sbSession` is null. `_dismissAuthOverlay` also changed to hide instead of remove. |
 | b20260407.0145 | HTML | Event edit dialog: `renderEeAudSummary` now shows "Estimated Summary" for open events (head, weight, AU, capacity AUDs, days remaining, DM breakdown) instead of actual AU/AUD consumption data. Closed events keep the existing "AU / AUD Summary" with actual totals. |
