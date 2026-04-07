@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260407.1459" id="app-version-meta"/>
+<meta name="app-version" content="b20260407.2112" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -5123,38 +5123,97 @@ function renderMobilePerformanceStrip(){
 // All available field modules. Future modules stub here with handler:null
 // to indicate "not yet implemented — tap does nothing beyond showing label".
 const FIELD_MODULES = [
-  { key:'feed',      icon:'🥩', label:'Feed Animals',  handler:()=>{ nav('feed',document.getElementById('bn-feed')); setTimeout(openQuickFeedSheet,120); } },
-  { key:'move',      icon:'🚜', label:'Move Animals',  handler:()=>{ _fieldModeMoveHandler(); } },
-  { key:'harvest',   icon:'🌾', label:'Harvest',       handler:()=>{ nav('pastures',document.getElementById('bn-pastures')); setTimeout(openHarvestSheet,120); } },
+  { key:'feed',      icon:'🌾', label:'Feed Animals',  handler:()=>{
+    if(document.body.classList.contains('field-mode')){ openQuickFeedSheet(); }
+    else { nav('feed',document.getElementById('bn-feed')); setTimeout(openQuickFeedSheet,120); }
+  }},
+  { key:'move',      icon:'🐄', label:'Move Animals',  handler:()=>{ _fieldModeMoveHandler(); } },
+  { key:'harvest',   icon:'🚜', label:'Harvest',       handler:()=>{
+    if(document.body.classList.contains('field-mode')){ openHarvestSheet(); }
+    else { nav('pastures',document.getElementById('bn-pastures')); setTimeout(openHarvestSheet,120); }
+  }},
   { key:'feedcheck', icon:'📋', label:'Feed Check',    handler:()=>{ _fieldModeFeedCheckHandler(); } },
-  { key:'survey',    icon:'📋', label:'Survey',        handler:()=>{ nav('pastures',document.getElementById('bn-pastures')); setTimeout(openBulkSurveySheet,120); } },
+  { key:'survey',    icon:'📋', label:'Survey',        handler:()=>{
+    if(document.body.classList.contains('field-mode')){ openBulkSurveySheet(); }
+    else { nav('pastures',document.getElementById('bn-pastures')); setTimeout(openBulkSurveySheet,120); }
+  }},
   { key:'animals',   icon:'🐄', label:'Animals',       handler:()=>{ nav('animals',document.getElementById('bn-animals')); } },
   { key:'heat',      icon:'🌡', label:'Record Heat',   handler:()=>{ _fieldModeHeatHandler(); } },
 ];
 const FIELD_MODULES_DEFAULT = ['feed','harvest','survey','animals'];
 
-// ── Field mode move handler: pick event to move from, then launch wizard ──────
+// ── Field mode move handler: flat group picker before move wizard ──────
 function _fieldModeMoveHandler(){
-  const openEvs = S.events.filter(e=>e.status==='open');
-  if(!openEvs.length){ alert('No open events to move from.'); return; }
-  if(openEvs.length === 1){
-    const ev = openEvs[0];
-    const grps = evGroups(ev).filter(g=>!g.dateRemoved);
-    if(grps.length === 1) openMoveWizSheet(ev.id, grps[0].groupId);
-    else openMoveWizSheet(ev.id, null, true);
-    return;
-  }
-  // Multiple events — open the first one's move-all for now (future: event picker)
-  openMoveWizSheet(openEvs[0].id, null, true);
+  const rows=[];
+  S.events.filter(e=>e.status==='open').forEach(ev=>{
+    const padName=evDisplayName(ev);
+    evGroups(ev).filter(g=>!g.dateRemoved).forEach(g=>{
+      const grp=getGroupById(g.groupId);
+      rows.push({eventId:ev.id, groupId:g.groupId, groupName:grp?grp.name:g.groupName||'Group', paddockName:padName});
+    });
+  });
+  if(!rows.length){ alert('No groups on pasture to move.'); return; }
+  if(rows.length===1){ openMoveWizSheet(rows[0].eventId, rows[0].groupId); return; }
+  openMovePickerSheet(rows);
 }
 
-// ── Field mode feed check handler: open first event with stored feed ──────────
+function openMovePickerSheet(rows){
+  const el=document.getElementById('move-picker-list');
+  el.innerHTML=rows.map(r=>`<div onclick="closeMovePickerSheet();openMoveWizSheet(${r.eventId},${r.groupId})"
+    style="padding:12px;background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius);cursor:pointer;margin-bottom:6px;">
+    <div style="font-size:14px;font-weight:600;">${escHtml(r.groupName)}</div>
+    <div style="font-size:12px;color:var(--text2);">${escHtml(r.paddockName)}</div>
+  </div>`).join('');
+  const wrap=document.getElementById('move-picker-wrap');
+  const isField=document.body.classList.contains('field-mode');
+  const backdrop=wrap.querySelector('.sheet-backdrop');
+  const handle=wrap.querySelector('.sheet-handle');
+  const closeBtn=wrap.querySelector('.sheet-close');
+  if(backdrop) backdrop.onclick=isField?null:closeMovePickerSheet;
+  if(handle) handle.style.display=isField?'none':'';
+  if(closeBtn) closeBtn.textContent=isField?'\u2302 Done':'\u2715';
+  wrap.classList.add('open');
+}
+
+function closeMovePickerSheet(){
+  document.getElementById('move-picker-wrap').classList.remove('open');
+  if(document.body.classList.contains('field-mode')) _fieldModeGoHome();
+}
+
+// ── Field mode feed check handler: event picker for events with stored feed ──
 function _fieldModeFeedCheckHandler(){
-  const openEvs = S.events.filter(e=>e.status==='open');
-  const withFeed = openEvs.find(e=>allFeedEntries(e).length > 0);
-  if(withFeed) openFeedCheckSheet(withFeed.id);
-  else if(openEvs.length) openFeedCheckSheet(openEvs[0].id);
-  else alert('No open events.');
+  const rows=[];
+  S.events.filter(e=>e.status==='open'&&allFeedEntries(e).length>0).forEach(ev=>{
+    const padName=evDisplayName(ev);
+    const grpNames=evGroups(ev).filter(g=>!g.dateRemoved).map(g=>{const grp=getGroupById(g.groupId);return grp?grp.name:'';}).filter(Boolean).join(', ');
+    rows.push({eventId:ev.id, paddockName:padName, groupNames:grpNames});
+  });
+  if(!rows.length){ alert('No groups with stored feed to check.'); return; }
+  if(rows.length===1){ openFeedCheckSheet(rows[0].eventId); return; }
+  openFeedCheckPickerSheet(rows);
+}
+
+function openFeedCheckPickerSheet(rows){
+  const el=document.getElementById('feedcheck-picker-list');
+  el.innerHTML=rows.map(r=>`<div onclick="closeFeedCheckPickerSheet();openFeedCheckSheet(${r.eventId})"
+    style="padding:12px;background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius);cursor:pointer;margin-bottom:6px;">
+    <div style="font-size:14px;font-weight:600;">${escHtml(r.paddockName)}</div>
+    <div style="font-size:12px;color:var(--text2);">${escHtml(r.groupNames)}</div>
+  </div>`).join('');
+  const wrap=document.getElementById('feedcheck-picker-wrap');
+  const isField=document.body.classList.contains('field-mode');
+  const backdrop=wrap.querySelector('.sheet-backdrop');
+  const handle=wrap.querySelector('.sheet-handle');
+  const closeBtn=wrap.querySelector('.sheet-close');
+  if(backdrop) backdrop.onclick=isField?null:closeFeedCheckPickerSheet;
+  if(handle) handle.style.display=isField?'none':'';
+  if(closeBtn) closeBtn.textContent=isField?'\u2302 Done':'\u2715';
+  wrap.classList.add('open');
+}
+
+function closeFeedCheckPickerSheet(){
+  document.getElementById('feedcheck-picker-wrap').classList.remove('open');
+  if(document.body.classList.contains('field-mode')) _fieldModeGoHome();
 }
 
 function _getUserFieldModules(){
@@ -10772,6 +10831,7 @@ let _harvestRows = [];
 // Field mode: pre-selected field from picker step
 let _harvestFieldModeFieldId = null;
 let _harvestFieldFilter = 'all'; // 'all' | 'crop' | 'mixed-use'
+let _harvestFarmFilter = 'all'; // 'all' | farmId
 
 function _generateBatchId(landId, feedTypeId, date){
   const p=(S.pastures||[]).find(p=>String(p.id)===String(landId));
@@ -10794,6 +10854,7 @@ function openHarvestSheet(){
   _harvestRows=[];
   _harvestFieldModeFieldId=null;
   _harvestFieldFilter='all';
+  _harvestFarmFilter='all';
   document.getElementById('harvest-sheet-date').value=todayStr();
   document.getElementById('harvest-sheet-notes').value='';
   // Field mode: show field picker first; normal mode: go straight to tile grid
@@ -10822,19 +10883,32 @@ function closeHarvestSheet(){
   if(document.body.classList.contains('field-mode')) _fieldModeGoHome();
 }
 
-// Field mode harvest: field picker step — crop + mixed-use fields
+// Field mode harvest: field picker step — crop + mixed-use fields with farm filter
 function _renderHarvestFieldPicker(){
   const el=document.getElementById('harvest-row-list');
   const q=(document.getElementById('harvest-field-search')?.value||'').toLowerCase();
   const filter=_harvestFieldFilter;
+  const isField=document.body.classList.contains('field-mode');
   const fields=sortedPastures().filter(p=>{
     const lu=p.landUse||(p.locationType==='confinement'?'confinement':'pasture');
     if(filter==='all') { if(lu!=='crop'&&lu!=='mixed-use') return false; }
     else if(lu!==filter) return false;
+    if(_harvestFarmFilter!=='all'&&String(p.farmId)!==_harvestFarmFilter) return false;
     if(q&&!p.name.toLowerCase().includes(q)&&!(p.fieldCode||'').toLowerCase().includes(q)) return false;
     return true;
   });
-  const pills=[
+  // Farm filter pills (only if >1 farm)
+  const farms=(S.farms||[]).filter(f=>!f.archived);
+  const farmPills=farms.length>1?[{k:'all',label:'All farms'},...farms.map(f=>({k:String(f.id),label:f.name}))].map(c=>{
+    const active=_harvestFarmFilter===c.k;
+    return `<button onclick="_harvestFarmFilter='${c.k}';_renderHarvestFieldPicker()"
+      style="padding:4px 12px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;
+      border:1.5px solid ${active?'var(--teal)':'var(--border2)'};
+      background:${active?'var(--teal)':'transparent'};
+      color:${active?'white':'var(--text2)'};">${escHtml(c.label)}</button>`;
+  }).join(''):'';
+  // Type filter pills
+  const typePills=[
     {k:'all',label:'All crop & mixed-use'},
     {k:'crop',label:'Crop'},
     {k:'mixed-use',label:'Mixed-Use'},
@@ -10847,12 +10921,16 @@ function _renderHarvestFieldPicker(){
       color:${active?'white':'var(--text2)'};">${c.label}</button>`;
   }).join('');
 
-  let html=`<div style="font-size:17px;font-weight:600;margin-bottom:4px;">Pick a field</div>
-    <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Select the field this harvest came from</div>
+  let html='';
+  // Done button at top in field mode
+  if(isField) html+=`<div style="text-align:right;margin-bottom:10px;"><button class="btn btn-green btn-sm" onclick="_fieldModeGoHome()">\u2302 Done</button></div>`;
+  html+=`<div style="font-size:17px;font-weight:600;margin-bottom:4px;">Pick a field</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Select the field this harvest came from</div>`;
+  if(farmPills) html+=`<div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;">${farmPills}</div>`;
+  html+=`<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">${typePills}</div>
     <input type="text" id="harvest-field-search" placeholder="Search fields..."
       oninput="_renderHarvestFieldPicker()" value="${q.replace(/"/g,'&quot;')}"
-      style="width:100%;padding:10px 12px;border:1px solid var(--border2);border-radius:var(--radius);font-size:14px;margin-bottom:10px;background:var(--bg2);color:var(--text);"/>
-    <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;">${pills}</div>`;
+      style="width:100%;padding:10px 12px;border:1px solid var(--border2);border-radius:var(--radius);font-size:14px;margin-bottom:10px;background:var(--bg2);color:var(--text);"/>`;
 
   if(!fields.length){
     html+=`<div style="padding:16px;text-align:center;background:var(--bg2);border-radius:var(--radius);">
@@ -10861,23 +10939,22 @@ function _renderHarvestFieldPicker(){
   } else {
     html+=fields.map(p=>{
       const farm=p.farmId?(S.farms||[]).find(f=>String(f.id)===String(p.farmId)):null;
-      const farmHint=farm?' · '+farm.name:'';
-      const acresHint=p.acres?' · '+p.acres+' ac':'';
+      const farmHint=farm?' \u00b7 '+farm.name:'';
+      const acresHint=p.acres?' \u00b7 '+p.acres+' ac':'';
       return `<div onclick="_harvestPickField(${typeof p.id==='string'?"'"+p.id+"'":p.id})"
         style="padding:12px;background:var(--bg2);border:0.5px solid var(--border);
         border-radius:var(--radius);cursor:pointer;margin-bottom:6px;">
         <div style="display:flex;align-items:center;gap:8px;">
-          <div style="font-size:20px;">🌾</div>
+          <div style="font-size:20px;">\ud83d\ude9c</div>
           <div style="flex:1;min-width:0;">
             <div style="font-size:13px;font-weight:600;">${p.name}${acresHint}</div>
-            <div style="font-size:11px;color:var(--text2);">${landUseBadge(p)}${farmHint}${p.fieldCode?' · '+p.fieldCode:''}</div>
+            <div style="font-size:11px;color:var(--text2);">${landUseBadge(p)}${farmHint}${p.fieldCode?' \u00b7 '+p.fieldCode:''}</div>
           </div>
         </div>
       </div>`;
     }).join('');
   }
   el.innerHTML=html;
-  // Restore focus to search input if it exists
   const searchInput=document.getElementById('harvest-field-search');
   if(searchInput&&q) { searchInput.focus(); searchInput.setSelectionRange(q.length,q.length); }
 }
@@ -11109,8 +11186,14 @@ function saveHarvestEvent(){
 
   save();
   const _wasFieldMode = document.body.classList.contains('field-mode');
-  closeHarvestSheet(); // resets tiles; in field mode calls _fieldModeGoHome
-  if(!_wasFieldMode){
+  if(_wasFieldMode){
+    // Return to picker instead of going home — filters preserved
+    _harvestTiles=[];
+    _harvestRows=[];
+    _harvestFieldModeFieldId=null;
+    _renderHarvestFieldPicker();
+  } else {
+    closeHarvestSheet();
     renderPastures();
     renderBatchListS();
   }
@@ -24062,6 +24145,32 @@ function saveEditSubMove(){
       <button class="btn btn-outline" onclick="closeHeatRecordSheet()">Cancel</button>
       <button class="btn btn-green" onclick="saveHeatRecord()">Save</button>
     </div>
+  </div>
+</div>
+
+<!-- ── MOVE PICKER SHEET (field mode) ──────────────────────────────────────────── -->
+<div id="move-picker-wrap" class="sheet-wrap field-mode-sheet">
+  <div class="sheet-backdrop" onclick="closeMovePickerSheet()"></div>
+  <div class="sheet" style="max-width:500px;">
+    <div class="sheet-handle"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div style="font-size:16px;font-weight:600;">Move which group?</div>
+      <button class="sheet-close" onclick="closeMovePickerSheet()" style="border:none;background:transparent;font-size:18px;cursor:pointer;color:var(--text2);">&#x2715;</button>
+    </div>
+    <div id="move-picker-list"></div>
+  </div>
+</div>
+
+<!-- ── FEED CHECK PICKER SHEET (field mode) ───────────────────────────────────── -->
+<div id="feedcheck-picker-wrap" class="sheet-wrap field-mode-sheet">
+  <div class="sheet-backdrop" onclick="closeFeedCheckPickerSheet()"></div>
+  <div class="sheet" style="max-width:500px;">
+    <div class="sheet-handle"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div style="font-size:16px;font-weight:600;">Check feed for which group?</div>
+      <button class="sheet-close" onclick="closeFeedCheckPickerSheet()" style="border:none;background:transparent;font-size:18px;cursor:pointer;color:var(--text2);">&#x2715;</button>
+    </div>
+    <div id="feedcheck-picker-list"></div>
   </div>
 </div>
 
