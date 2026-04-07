@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260407.2312" id="app-version-meta"/>
+<meta name="app-version" content="b20260407.2351" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -5148,22 +5148,20 @@ function _fieldModeMoveHandler(){
   const rows=[];
   S.events.filter(e=>e.status==='open').forEach(ev=>{
     const padName=evDisplayName(ev);
-    evGroups(ev).filter(g=>!g.dateRemoved).forEach(g=>{
-      const grp=getGroupById(g.groupId);
-      rows.push({eventId:ev.id, groupId:g.groupId, groupName:grp?grp.name:g.groupName||'Group', paddockName:padName});
-    });
+    const grpNames=evGroups(ev).filter(g=>!g.dateRemoved).map(g=>{const grp=getGroupById(g.groupId);return grp?grp.name:'';}).filter(Boolean).join(', ');
+    rows.push({eventId:ev.id, paddockName:padName, groupNames:grpNames});
   });
-  if(!rows.length){ alert('No groups on pasture to move.'); return; }
-  if(rows.length===1){ openMoveWizSheet(rows[0].eventId, rows[0].groupId); return; }
+  if(!rows.length){ alert('No open events to move from.'); return; }
+  if(rows.length===1){ openMoveWizSheet(rows[0].eventId, null, true); return; }
   openMovePickerSheet(rows);
 }
 
 function openMovePickerSheet(rows){
   const el=document.getElementById('move-picker-list');
-  el.innerHTML=rows.map(r=>`<div onclick="closeMovePickerSheet();openMoveWizSheet(${r.eventId},${r.groupId})"
+  el.innerHTML=rows.map(r=>`<div onclick="closeMovePickerSheet();openMoveWizSheet(${r.eventId},null,true)"
     style="padding:12px;background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius);cursor:pointer;margin-bottom:6px;">
-    <div style="font-size:14px;font-weight:600;">${escHtml(r.groupName)}</div>
-    <div style="font-size:12px;color:var(--text2);">${escHtml(r.paddockName)}</div>
+    <div style="font-size:14px;font-weight:600;">${escHtml(r.paddockName)}</div>
+    <div style="font-size:12px;color:var(--text2);">${escHtml(r.groupNames)}</div>
   </div>`).join('');
   const wrap=document.getElementById('move-picker-wrap');
   const isField=document.body.classList.contains('field-mode');
@@ -5454,16 +5452,17 @@ function renderFieldHome(){
         </div>`;
       } else {
         // Collapsed card
-        return `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg);border:0.5px solid var(--border);border-radius:10px;margin-bottom:6px;cursor:pointer;" onclick="_fhToggleEvent(${ev.id})">
-          <div style="width:4px;border-radius:2px;flex-shrink:0;align-self:stretch;background:${isCon?'#888':'var(--green)'};height:36px;"></div>
-          <div style="flex:1;">
+        return `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg);border:0.5px solid var(--border);border-radius:10px;margin-bottom:6px;">
+          <div style="width:4px;border-radius:2px;flex-shrink:0;align-self:stretch;background:${isCon?'#888':'var(--green)'};height:36px;cursor:pointer;" onclick="_fhToggleEvent(${ev.id})"></div>
+          <div style="flex:1;cursor:pointer;" onclick="_fhToggleEvent(${ev.id})">
             <div style="display:flex;gap:6px;">
               <span style="font-size:13px;font-weight:500;">${locIcon} ${escHtml(locName)}</span>
               <span style="font-size:10px;color:var(--text2);">${acres?acres+' ac':''}</span>
             </div>
             <div style="font-size:11px;color:var(--text2);margin-top:2px;">${escHtml(grpNames)} \u00b7 Day ${days}${smLine}</div>
           </div>
-          <div style="font-size:14px;color:var(--text3);">\u203a</div>
+          <button class="btn btn-teal btn-sm" style="padding:3px 8px;flex-shrink:0;" onclick="event.stopPropagation();openMoveWizSheet(${ev.id},null,true)">Move all</button>
+          <div style="font-size:14px;color:var(--text3);cursor:pointer;" onclick="_fhToggleEvent(${ev.id})">\u203a</div>
         </div>`;
       }
     }).join('');
@@ -5653,7 +5652,7 @@ function renderLocationCard(ev, opts){
 
   // ── HEADER ──────────────────────────────────────────────────
   const editBtn = `<button class="btn btn-outline btn-sm" style="padding:3px 8px;" onclick="event.stopPropagation();openEventEdit(${ev.id})">Edit</button>`;
-  const moveAllBtn = activeEvGroups.length >= 2 ? `<button class="btn btn-teal btn-sm" style="padding:3px 8px;" onclick="event.stopPropagation();openMoveWizSheet(${ev.id},null,true)">Move all</button>` : '';
+  const moveAllBtn = `<button class="btn btn-teal btn-sm" style="padding:3px 8px;" onclick="event.stopPropagation();openMoveWizSheet(${ev.id},null,true)">Move all</button>`;
   const headerBtns = compact ? '' : `<div style="display:flex;gap:4px;flex-shrink:0;">${editBtn}${moveAllBtn}</div>`;
   const header = `<div style="display:flex;gap:10px;padding:12px 14px 0;align-items:flex-start;">
     <div style="width:4px;border-radius:2px;flex-shrink:0;align-self:stretch;min-height:56px;background:${isCon?'#888':'var(--green)'};"></div>
@@ -7921,6 +7920,7 @@ let surveyNotes      = {}; // pastureId -> notes
 let surveyRecovery   = {}; // pastureId -> {min, max}
 let surveyVegHeight  = {}; // pastureId -> avg vegetative height (inches)
 let surveyForageCover= {}; // pastureId -> avg forage cover (%)
+let surveyForageQuality={}; // pastureId -> 'Poor' | 'Fair' | 'Good' | 'Excellent'
 let surveyFocusPastureId = null; // null = all pastures, string = single pasture mode
 let _surveyEditId    = null;     // surveyId being edited (null = new)
 let _surveyDraftTimer = null;    // debounce timer for auto-save
@@ -7988,7 +7988,7 @@ function openBulkSurveySheet(){
     queueWrite('surveys', _surveyRow(S.surveys[S.surveys.length-1], _sbOperationId));
     saveLocal();
     _surveyEditId = newId;
-    surveyRatings={}; surveyNotes={}; surveyRecovery={}; surveyVegHeight={}; surveyForageCover={};
+    surveyRatings={}; surveyNotes={}; surveyRecovery={}; surveyVegHeight={}; surveyForageCover={}; surveyForageQuality={};
     surveyFocusPastureId = null;
     document.getElementById('survey-date').value = today;
     _setSurveySheetMode('bulk', today);
@@ -8001,7 +8001,7 @@ function openBulkSurveySheet(){
 // pastureId = the paddock to filter to
 // surveyId = existing survey to pre-populate (for editing a committed reading)
 function openSurveySheet(pastureId, surveyId){
-  surveyRatings={}; surveyNotes={}; surveyRecovery={}; surveyVegHeight={}; surveyForageCover={};
+  surveyRatings={}; surveyNotes={}; surveyRecovery={}; surveyVegHeight={}; surveyForageCover={}; surveyForageQuality={};
   surveyFocusPastureId = pastureId || null;
   _surveyEditId = surveyId || null;
 
@@ -8068,7 +8068,7 @@ function completeBulkSurvey(){
       confidenceRank: 3,
       vegHeight:       surveyVegHeight[pid]??null,
       forageCoverPct:  surveyForageCover[pid]??null,
-      forageQuality:   surveyRatings[pid]??null,
+      forageQuality:   surveyForageQuality[pid]||surveyRatings[pid]??null,
       recoveryMinDays: surveyRecovery[pid]?.min??null,
       recoveryMaxDays: surveyRecovery[pid]?.max??null,
       notes:           surveyNotes[pid]||null,
@@ -8307,7 +8307,7 @@ function openBulkSurveyEdit(surveyId){
   // Temporarily mark as draft so the sheet knows to show Complete/Discard
   // We don't actually change status — just load it for editing
   _surveyEditId = sv.id;
-  surveyRatings={}; surveyNotes={}; surveyRecovery={}; surveyVegHeight={}; surveyForageCover={};
+  surveyRatings={}; surveyNotes={}; surveyRecovery={}; surveyVegHeight={}; surveyForageCover={}; surveyForageQuality={};
   // Pre-populate from existing paddock_observations
   const obsForSv = (S.paddockObservations||[]).filter(o=>
     o.source==='survey' && String(o.sourceId)===String(surveyId)
@@ -8485,6 +8485,21 @@ function renderSurveyPaddocks(){
               oninput="surveyForageCover['${p.id}']=parseFloat(this.value)||null"
               style="width:100%;padding:8px;border:0.5px solid var(--border2);border-radius:var(--radius);
                      font-size:16px;background:var(--bg);color:var(--text);font-family:inherit;text-align:center;box-sizing:border-box;"/>
+          </div>
+        </div>
+
+        <div style="margin-top:14px;">
+          <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:5px;">FORAGE CONDITION</div>
+          <div style="display:flex;gap:4px;" id="survey-quality-${p.id}">
+            ${['Poor','Fair','Good','Excellent'].map(q2=>{
+              const active=surveyForageQuality[p.id]===q2;
+              return `<button type="button" onclick="surveyForageQuality['${p.id}']='${q2}';renderSurveyPaddocks()"
+                style="flex:1;padding:6px 0;font-size:12px;border-radius:6px;cursor:pointer;font-family:inherit;
+                border:0.5px solid ${active?'var(--green)':'var(--border2)'};
+                background:${active?'var(--green-l)':'transparent'};
+                color:${active?'var(--green-d)':'var(--text2)'};
+                font-weight:${active?'500':'400'};">${q2==='Excellent'?'Exc.':q2}</button>`;
+            }).join('')}
           </div>
         </div>
 
