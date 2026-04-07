@@ -21,7 +21,7 @@
 | 🔴 Open — Roadblock | 0 |
 | 🔴 Open — Bug | 11 |
 | 🟡 Open — Polish | 3 |
-| 🔵 Open — Enhancement | 22 |
+| 🔵 Open — Enhancement | 23 |
 | ⚪ Open — Debt | 9 |
 | ✅ Closed | 126 |
 
@@ -3024,6 +3024,18 @@ Double-entry feed transfers via `createFeedTransfer()` helper. When feed is tran
 **Status:** 🔵 Open (deferred)
 
 Load-time integrity check that verifies all `transferPairId` groups have exactly one negative + one positive with matching abs(qty) and batchId. Surfaces orphans as a review nudge with Delete / Link / Dismiss actions. Deferred until ledger model ships and has real data to verify against.
+
+---
+
+### OI-0193 — Active event AUD refinement
+**Source:** Claude.ai design conversation — b20260406
+**Area:** Calculation Engine / Location Card / Move Wizard / Pasture Cards
+**Severity:** Bug
+**Status:** 🔵 Open
+
+Active event cards displayed `(dmiTarget × days - storedFeed) / dmPerAUD` as "Pasture AUDs" — meaningless on day 1. Replaced with estimated capacity from opening forage data and days remaining estimate. New utility functions: `estimateAvailableDMForEvent`, `estimateAvailableAUDsForEvent`, `eventDailyDMIDemand`, `estimateDaysRemaining`. Move wizard step 3 live preview. Pasture view extended to active paddocks. Capacity snapshot at close (`ev.totals.estimatedCapacityDM/AUDs`).
+
+**Acceptance criteria:** Open events show "Est. capacity: N AUDs · ~N days remaining"; closed events unchanged; move wizard shows live preview; pasture cards show estimate on active paddocks; graceful "No forage estimate" nudge.
 
 ---
 
