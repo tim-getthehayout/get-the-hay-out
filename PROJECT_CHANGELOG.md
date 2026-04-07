@@ -3,6 +3,7 @@
 
 | Build | File | Change |
 |---|---|---|
+| b20260407.NEXT | HTML | Fix: harvest field picker crash — `landUseBadge` is a local function inside `renderPastures()`, not global. Replaced with inline land use text. |
 | b20260407.2238 | HTML | Fix: move wizard arrival paddock observation used wrong field names (`date` instead of `observedAt`, `type` instead of `source`). Caused `observed_at: null, source: null` in Supabase — NOT NULL violation, stuck queue entry. Changed to `observedAt: moveDate, source: 'event_open'`. |
 | b20260407.2232 | HTML | Fix: harvest picker wouldn't launch — tractor emoji was rendered as unicode escape `\\ud83d\\ude9c` in template literal instead of actual emoji character. Reverted to crop + mixed-use field filter (not all fields). Added empty state message when no crop/mixed-use fields exist: "No crop or mixed-use fields set up. Edit a pasture and set its land use..." |
 | b20260407.2219 | HTML | Fix: harvest field picker now shows ALL non-confinement pastures by default (was filtering to crop + mixed-use only, which excluded farms with only pasture-type fields). Type filter pills dynamically include Crop/Mixed-Use only when those land use types exist. |
