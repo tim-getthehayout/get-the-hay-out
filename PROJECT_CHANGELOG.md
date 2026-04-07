@@ -3,7 +3,7 @@
 
 | Build | File | Change |
 |---|---|---|
-| b20260407.NEXT | HTML | Event edit dialog: `renderEeAudSummary` now shows "Estimated Summary" for open events (head, weight, AU, capacity AUDs, days remaining, DM breakdown) instead of actual AU/AUD consumption data. Closed events keep the existing "AU / AUD Summary" with actual totals. |
+| b20260407.0145 | HTML | Event edit dialog: `renderEeAudSummary` now shows "Estimated Summary" for open events (head, weight, AU, capacity AUDs, days remaining, DM breakdown) instead of actual AU/AUD consumption data. Closed events keep the existing "AU / AUD Summary" with actual totals. |
 | b20260407.0139 | HTML | Fix: weight/AU line was overwritten by capacity estimate block. Both `line2` assignments (capacity available + nudge fallback) now prepend `_weightLine` instead of replacing it. |
 | b20260407.0126 | HTML | Location card: added "Weight: X lbs · Y AU" line for open events above the capacity estimate. Removed AU from the Day/In/Cost line to avoid duplication. Event edit dialog (`updateEventEditPreview`) now shows the estimated capacity summary for open events (weight, AU, capacity AUDs, days remaining, DM breakdown) instead of hiding the preview. Closed events continue showing actual totals. `estimateDaysRemaining` rounding fixed: values between 0.5-1.0 days now show 1 instead of 0. |
 | b20260407.0107 | HTML | Flush lock: `flushToSupabase` now uses `_flushPromise` to prevent concurrent flush calls. If a flush is already running, callers await the existing promise instead of starting a second concurrent flush that could corrupt the queue. Extracted inner logic to `_flushToSupabaseInner()` with try/finally cleanup. |
