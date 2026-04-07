@@ -3,7 +3,8 @@
 
 | Build | File | Change |
 |---|---|---|
-| b20260407.NEXT | HTML | Fix: broadened NOT NULL constraint drop in `_flushOneOp` to also match `null value in column` (exact Postgres error phrasing). Clears legacy orphan observations with null `observed_at`/`source`. |
+| b20260407.NEXT | HTML | Field mode UI refinement (phases 1-4). Icons swapped: Feed 🥩→🌾, Move 🚜→🐄, Harvest 🌾→🚜. Flash fix: Feed/Harvest/Survey skip `nav()` in field mode — sheet opens directly without rendering the underlying screen. New Move Animals picker: flat group list with paddock context, single-entry shortcut. New Feed Check picker: event list filtered to events with stored feed, shows group names. Harvest picker: farm filter pills (if >1 farm), Done button at top in field mode, return-to-picker after save instead of going home. |
+| b20260407.1459 | HTML | Fix: broadened NOT NULL constraint drop in `_flushOneOp` to also match `null value in column` (exact Postgres error phrasing). Clears legacy orphan observations with null `observed_at`/`source`. |
 | b20260407.1424 | HTML | Fix: Supabase SDK not loading on mobile. jsdelivr updated the file at `@2` URL, breaking the SRI integrity hash. Browser silently blocked the script. Pinned to `@2.102.0` (specific version) and removed SRI hash. |
 | b20260407.1320 | HTML | Fix: sign-in not available on mobile after initial load. Auth overlay was `remove()`'d from DOM on load for signed-in users — once removed, tapping avatar with no session did nothing. Changed to `display:none` (hide, not remove). `openSignOutSheet` now re-shows the overlay when `_sbSession` is null. `_dismissAuthOverlay` also changed to hide instead of remove. |
 | b20260407.0145 | HTML | Event edit dialog: `renderEeAudSummary` now shows "Estimated Summary" for open events (head, weight, AU, capacity AUDs, days remaining, DM breakdown) instead of actual AU/AUD consumption data. Closed events keep the existing "AU / AUD Summary" with actual totals. |
