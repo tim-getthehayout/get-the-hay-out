@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260407.2219" id="app-version-meta"/>
+<meta name="app-version" content="b20260407.2232" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -10890,9 +10890,9 @@ function _renderHarvestFieldPicker(){
   const filter=_harvestFieldFilter;
   const isField=document.body.classList.contains('field-mode');
   const fields=sortedPastures().filter(p=>{
-    if(p.locationType==='confinement') return false;
-    const lu=p.landUse||'pasture';
-    if(filter!=='all'&&lu!==filter) return false;
+    const lu=p.landUse||(p.locationType==='confinement'?'confinement':'pasture');
+    if(filter==='all') { if(lu!=='crop'&&lu!=='mixed-use') return false; }
+    else if(lu!==filter) return false;
     if(_harvestFarmFilter!=='all'&&String(p.farmId)!==_harvestFarmFilter) return false;
     if(q&&!p.name.toLowerCase().includes(q)&&!(p.fieldCode||'').toLowerCase().includes(q)) return false;
     return true;
@@ -10908,11 +10908,10 @@ function _renderHarvestFieldPicker(){
       color:${active?'white':'var(--text2)'};">${escHtml(c.label)}</button>`;
   }).join(''):'';
   // Type filter pills
-  const hasCropOrMixed=sortedPastures().some(p=>{const lu=p.landUse||'pasture';return lu==='crop'||lu==='mixed-use';});
   const typePills=[
-    {k:'all',label:'All fields'},
-    ...(hasCropOrMixed?[{k:'crop',label:'Crop'},{k:'mixed-use',label:'Mixed-Use'}]:[]),
-    {k:'pasture',label:'Pasture'},
+    {k:'all',label:'All crop & mixed-use'},
+    {k:'crop',label:'Crop'},
+    {k:'mixed-use',label:'Mixed-Use'},
   ].map(c=>{
     const active=filter===c.k;
     return `<button onclick="_harvestFieldFilter='${c.k}';_renderHarvestFieldPicker()"
@@ -10934,8 +10933,12 @@ function _renderHarvestFieldPicker(){
       style="width:100%;padding:10px 12px;border:1px solid var(--border2);border-radius:var(--radius);font-size:14px;margin-bottom:10px;background:var(--bg2);color:var(--text);"/>`;
 
   if(!fields.length){
+    const _anyCropMixed=sortedPastures().some(p=>{const lu=p.landUse||'pasture';return lu==='crop'||lu==='mixed-use';});
+    const _emptyMsg=!_anyCropMixed
+      ?'No crop or mixed-use fields set up. Edit a pasture and set its land use to Crop or Mixed-Use to use it for harvest.'
+      :'No fields found'+(q?' matching \u201c'+q+'\u201d':'');
     html+=`<div style="padding:16px;text-align:center;background:var(--bg2);border-radius:var(--radius);">
-      <div style="font-size:13px;color:var(--text2);">No fields found${q?' matching "'+q+'"':''}</div>
+      <div style="font-size:13px;color:var(--text2);">${_emptyMsg}</div>
     </div>`;
   } else {
     html+=fields.map(p=>{
@@ -10946,7 +10949,7 @@ function _renderHarvestFieldPicker(){
         style="padding:12px;background:var(--bg2);border:0.5px solid var(--border);
         border-radius:var(--radius);cursor:pointer;margin-bottom:6px;">
         <div style="display:flex;align-items:center;gap:8px;">
-          <div style="font-size:20px;">\ud83d\ude9c</div>
+          <div style="font-size:20px;">🚜</div>
           <div style="flex:1;min-width:0;">
             <div style="font-size:13px;font-weight:600;">${p.name}${acresHint}</div>
             <div style="font-size:11px;color:var(--text2);">${landUseBadge(p)}${farmHint}${p.fieldCode?' \u00b7 '+p.fieldCode:''}</div>
