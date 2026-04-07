@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260407.0139" id="app-version-meta"/>
+<meta name="app-version" content="b20260407.0145" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -17501,7 +17501,6 @@ function renderEeAudSummary(ev){
   const dateIn = ev.dateIn;
   const dateOut = ev.dateOut || todayStr();
   const days = Math.max(1, daysBetween(dateIn, dateOut));
-  // Compute total AU from all active groups
   const grps = evGroups(ev).filter(g=>!g.dateRemoved);
   let totalHead=0, totalLiveWt=0;
   grps.forEach(g=>{
@@ -17511,14 +17510,43 @@ function renderEeAudSummary(ev){
     totalHead += t.totalHead||0;
     totalLiveWt += t.totalLiveWeight||0;
   });
-  // Fallback to event-stamped head/wt
   if(!totalHead){ totalHead = ev.head||0; totalLiveWt = (ev.head||0)*(ev.wt||0); }
   const totalAUs = auWt > 0 ? totalLiveWt / auWt : 0;
+
+  // Open events: show estimated capacity summary (matches home card)
+  if(ev.status==='open'){
+    const _isCon=ev.locationType==='confinement';
+    const _isNoP=ev.noPasture;
+    let html='<div style="font-weight:600;margin-bottom:2px;">Estimated Summary</div>';
+    html+='<div>'+totalHead+' head \u00b7 '+Math.round(totalLiveWt).toLocaleString()+' lbs \u00b7 '+totalAUs.toFixed(1)+' AU \u00b7 Day '+days+'</div>';
+    if(!_isCon && !_isNoP){
+      const _estDM=estimateAvailableDMForEvent(ev);
+      const _estAUDs=estimateAvailableAUDsForEvent(ev);
+      const _daysRes=estimateDaysRemaining(ev);
+      if((_estAUDs!=null&&_estAUDs>0)||(_daysRes&&_daysRes.days>0)){
+        const _hDisp=ev.heightIn!=null?ev.heightIn+'\u2033':'';
+        const _cDisp=ev.forageCoverIn!=null?ev.forageCoverIn+'% cover':'';
+        const _condParts=[_hDisp,_cDisp].filter(Boolean).join(' @ ');
+        const _remTxt=_daysRes!=null?' \u00b7 ~'+_daysRes.days+' days remaining':'';
+        const _sfNote=_daysRes&&_daysRes.includesStoredFeed?' (incl. stored feed)':'';
+        const _capTxt=_estAUDs!=null&&_estAUDs>0?'Est. capacity: '+Math.round(_estAUDs)+' AUDs':'';
+        html+='<div style="margin-top:3px;color:var(--green-d);">'+_capTxt+_remTxt+_sfNote+(_condParts?' \u00b7 '+_condParts:'')+'</div>';
+        const _parts=[];
+        if(_estDM!=null) _parts.push('Pasture: '+Math.round(_estDM).toLocaleString()+' lbs DM');
+        if(_daysRes&&_daysRes.storedFeedDM>0) _parts.push('Stored feed: '+_daysRes.storedFeedDM.toLocaleString()+' lbs DM');
+        if(_daysRes) _parts.push('DMI demand: '+_daysRes.dailyDMI.toLocaleString()+' lbs/day');
+        if(_parts.length) html+='<div style="font-size:10px;color:var(--text3);margin-top:1px;">'+_parts.join(' \u00b7 ')+'</div>';
+      }
+    }
+    el.style.display='block';
+    el.innerHTML=html;
+    return;
+  }
+
+  // Closed events: actual AU/AUD summary
   const totalAUDs = totalAUs * days;
-  // Per-paddock AUDs (pro-rate by time in each paddock)
   const paddocks = evPaddocks(ev);
   let padLines = '';
-  // DM from stored feed vs pasture
   const _allEntries = allFeedEntries(ev);
   const _storedDM = calcConsumedDMI(_allEntries, getEffectiveFeedResidual(ev));
   const _dmiTarget = grps.reduce((s,g)=>{const grp=getGroupById(g.groupId);return s+(grp?getGroupTotals(grp).dmiTarget:0);},0);
@@ -17527,11 +17555,9 @@ function renderEeAudSummary(ev){
   const _dmPerAUD = S.settings.dmPerAUD || 26;
   const _pastureAUDs = _dmPerAUD > 0 ? _pastureDM / _dmPerAUD : 0;
   const _pastureFrac = _totalDMTarget > 0 ? _pastureDM / _totalDMTarget : 0;
-  // ADA — pasture AUDs per acre
   const _padAcres = paddocks.reduce((s,p)=>s+(p.acres||0),0) || (evPaddocks(ev)[0]?.acres||0);
   const _ada = _padAcres > 0 ? _pastureAUDs / _padAcres : 0;
 
-  // Rebuild sub-move padLines now that _dmiTarget and _dmPerAUD are defined
   if(paddocks.length > 1 || (ev.subMoves||[]).length){
     padLines = '<div style="margin-top:4px;">';
     paddocks.forEach(p=>{
