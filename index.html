@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260407.0145" id="app-version-meta"/>
+<meta name="app-version" content="b20260407.1320" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -607,7 +607,7 @@ input[type=number] { -moz-appearance: textfield; }
   try{
     var k='sb-oihivpwftpngbhwpjsqt-auth-token';
     var t=localStorage.getItem(k);
-    if(t){var o=document.getElementById('auth-overlay');if(o)o.remove();}
+    if(t){var o=document.getElementById('auth-overlay');if(o)o.style.display='none';}
   }catch(e){}
 })();
 </script>
@@ -2590,7 +2590,7 @@ function _dismissAuthOverlay(){
   const step3 = document.getElementById('ao-step3');
   if(step3 && step3.style.display !== 'none') return;
   const el = document.getElementById('auth-overlay');
-  if(el) el.remove();
+  if(el) el.style.display='none';
 }
 
 function _renderAuthOverlay(){
@@ -2665,7 +2665,12 @@ function _renderAuthOverlay(){
 // ── SIGN-OUT SHEET (OI-0171) ────────────────────────────────────────────────
 
 function openSignOutSheet(){
-  if(!_sbSession) return; // not signed in — no-op
+  if(!_sbSession){
+    // Not signed in — show auth overlay
+    const ao=document.getElementById('auth-overlay');
+    if(ao){ ao.style.display=''; const s1=document.getElementById('ao-step1'); if(s1)s1.style.display=''; }
+    return;
+  }
   const user = _sbSession.user;
   const cached = _sbLoadCachedIdentity();
   const displayName = cached?.displayName || '';
