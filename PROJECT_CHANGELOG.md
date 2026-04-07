@@ -3,6 +3,7 @@
 
 | Build | File | Change |
 |---|---|---|
+| b20260407.NEXT | HTML | Fix: `estimateDaysRemaining` rewritten. Formula is now `(remainingPastureDM + storedFeedRemainingDM) / dailyDMI`. Previously used consumption-rate subtraction that undercounted stored feed. Returns audit data: `pastureDM`, `storedFeedDM`, `dailyDMI`. Location card shows DM breakdown line: "Pasture: X lbs DM · Stored feed: Y lbs DM · DMI demand: Z lbs/day". Works even when pasture estimate is unavailable (stored-feed-only events still get days remaining). |
 | b20260407.0023 | HTML | Critical fix: `loadFromSupabase` now flushes pending local changes before loading. The 800ms debounce timer on `supabaseSyncDebounced` created a window where JWT refresh / app-wake SIGNED_IN events could trigger a load that overwrites localStorage with stale Supabase data. Root cause of feed entries, feed checks, and paddock observations disappearing after save. |
 | b20260407.0023 | HTML | Location card nudge now differentiates: "Link a forage type" when no forage type set, vs "No forage estimate — pre-graze height needed · Set pre-graze data" when forage type exists but opening height is missing. Link opens event edit sheet. |
 | b20260407.0023 | HTML | Critical fix: `flushToSupabase` race condition. Within each tier, DELETE operations now complete before INSERT/UPSERT operations. Previously both ran in parallel via `Promise.all`, so a DELETE WHERE event_id=X could wipe rows that were just INSERT'd for the same event. Root cause of feed entries disappearing after save. |
