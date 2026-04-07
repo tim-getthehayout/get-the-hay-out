@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260407.0019" id="app-version-meta"/>
+<meta name="app-version" content="b20260407.0023" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -3226,6 +3226,13 @@ function assembleInputApplications(rows){
 //
 async function loadFromSupabase(operationId){
   if(!_sbClient || !operationId) return;
+  // Flush any pending local changes BEFORE loading — prevents the load from
+  // overwriting localStorage with stale Supabase data that doesn't have recent saves.
+  // The debounced flush timer (800ms) creates a window where local changes exist in
+  // localStorage but haven't reached Supabase yet. Without this guard, a JWT refresh
+  // or app-wake SIGNED_IN event triggers loadFromSupabase mid-window, reads the old
+  // server state, and silently discards the pending local changes.
+  if(_supabaseTimer){ clearTimeout(_supabaseTimer); _supabaseTimer=null; await flushToSupabase(); }
   setSyncStatus('pending', 'Loading from Supabase…');
   try{
     // Pre-flight: iOS wakes the app before the network stack is fully ready.
@@ -5495,9 +5502,18 @@ function renderLocationCard(ev, opts){
                   const _adaTxt=_acVal>0?' \u00b7 ADA est: '+(_estAUDs/_acVal).toFixed(1)+'/ac':'';
                   line2='<div style="font-size:11px;color:var(--green-d);margin-top:2px;">Est. capacity: '+Math.round(_estAUDs)+' AUDs'+_remTxt+_sfNote+(_condParts?' \u00b7 '+_condParts:'')+_adaTxt+'</div>';
                 } else {
+                  // Determine why estimate is unavailable — forage type missing or height data missing
+                  const _hasFT=loc&&loc.forageTypeId&&(S.forageTypes||[]).some(f=>String(f.id)===String(loc.forageTypeId)&&f.dmLbsPerInchPerAcre);
                   const _padIdx=loc?(S.pastures||[]).findIndex(p=>String(p.id)===String(loc.id)):-1;
-                  const _nudge=!compact&&_padIdx>=0?'<a href="#" onclick="event.preventDefault();event.stopPropagation();openLocEdit('+_padIdx+');return false;" style="color:var(--teal);text-decoration:underline;">Link a forage type</a>':'';
-                  line2='<div style="font-size:11px;color:var(--text3);margin-top:2px;">No forage estimate'+(_nudge?' \u00b7 '+_nudge:'')+'</div>';
+                  let _nudgeMsg,_nudgeLink;
+                  if(!_hasFT){
+                    _nudgeMsg='No forage estimate';
+                    _nudgeLink=!compact&&_padIdx>=0?'<a href="#" onclick="event.preventDefault();event.stopPropagation();openLocEdit('+_padIdx+');return false;" style="color:var(--teal);text-decoration:underline;">Link a forage type</a>':'';
+                  } else {
+                    _nudgeMsg='No forage estimate \u2014 pre-graze height needed';
+                    _nudgeLink=!compact?'<a href="#" onclick="event.preventDefault();event.stopPropagation();openEventEdit('+ev.id+');return false;" style="color:var(--teal);text-decoration:underline;">Set pre-graze data</a>':'';
+                  }
+                  line2='<div style="font-size:11px;color:var(--text3);margin-top:2px;">'+_nudgeMsg+(_nudgeLink?' \u00b7 '+_nudgeLink:'')+'</div>';
                 }
               }
               return line1+line2;
