@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260406.2340`
+**Current build:** `b20260407.0000`
 **Last updated:** 2026-04-05
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -251,6 +251,10 @@ All sheets are always in the DOM. Toggle: add/remove `.open` on the `-wrap` div.
 | `calcNPK(head, wt, days)` | NPK deposit calculation |
 | `calcEntryCost(entries)` | Feed cost total from batch entries |
 | `createFeedTransfer(srcEv, destEv, items, moveDate, moveTime)` | Double-entry feed transfer — creates paired neg/pos entries with shared `transferPairId`, `kind:'transfer'`. Two-phase: resolve all batchIds first, then mutate. Returns `{success, pairs}` or `{success:false, errors}`. |
+| `estimateAvailableDMForEvent(ev)` | Estimate available DM (lbs) using event's opening data (`heightIn`, `forageCoverIn`) with fallback to latest observation. Returns null when inputs missing. |
+| `estimateAvailableAUDsForEvent(ev)` | Wrapper: `estimateAvailableDMForEvent(ev) / dmPerAUD` |
+| `eventDailyDMIDemand(ev)` | Total daily DMI demand (lbs/day) across active groups in event |
+| `estimateDaysRemaining(ev)` | Projected days remaining: `(availableDM - pastureConsumed) / dailyDMI`. Open events only. |
 | `nav(screen, btn)` | Navigate to screen, update active nav state |
 | `renderCurrentScreen()` | Master screen router — call after every nav change or data restore |
 | `evPaddocks(ev)` | Returns paddock records for an event (handles old string format + new paddocks[] array) |

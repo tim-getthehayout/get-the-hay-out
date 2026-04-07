@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260406.2340" id="app-version-meta"/>
+<meta name="app-version" content="b20260407.0000" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -5469,7 +5469,41 @@ function renderLocationCard(ev, opts){
       <div style="display:flex;align-items:center;justify-content:space-between;margin-top:3px;">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
           ${badgeHtml}
-          <span style="font-size:11px;color:var(--text2);">Day ${days} \u00b7 In ${dLabel(ev.dateIn)} \u00b7 $${costAll.toFixed(2)} \u00b7 ${(()=>{const _aw3=S.settings.auWeight||1000;const _au3=totalBW/_aw3;const _sf3=calcConsumedDMI(entries,getEffectiveFeedResidual(ev));const _pDM3=ev.noPasture?0:Math.max(0,totalDMITarget*days-_sf3);const _pAUD3=(S.settings.dmPerAUD||26)>0?_pDM3/(S.settings.dmPerAUD||26):0;const _ac3=acres?parseFloat(acres):0;const _ada3=_ac3>0?_pAUD3/_ac3:0;return _au3.toFixed(1)+' AU \u00b7 Pasture AUDs: '+_pAUD3.toFixed(1)+(_ac3>0?' \u00b7 ADA: '+_ada3.toFixed(1)+'/ac':'')+' \u00b7 Pasture: '+Math.round(_pDM3).toLocaleString()+' lbs DMI \u00b7 Stored Feed: '+Math.round(_sf3).toLocaleString()+' lbs DMI';})()}</span>
+          ${(()=>{
+            const _aw=S.settings.auWeight||1000;
+            const _au=totalBW/_aw;
+            if(ev.status==='open'){
+              // Open event: capacity estimate + days remaining
+              let line1='<span style="font-size:11px;color:var(--text2);">Day '+days+' \u00b7 In '+dLabel(ev.dateIn)+' \u00b7 $'+costAll.toFixed(2)+' \u00b7 '+_au.toFixed(1)+' AU</span>';
+              let line2='';
+              if(!isCon && !isNoP){
+                const _estAUDs=estimateAvailableAUDsForEvent(ev);
+                const _daysRem=estimateDaysRemaining(ev);
+                if(_estAUDs!=null && _estAUDs>0){
+                  const _hDisp=ev.heightIn!=null?ev.heightIn+'\u2033':'';
+                  const _cDisp=ev.forageCoverIn!=null?ev.forageCoverIn+'% cover':'';
+                  const _condParts=[_hDisp,_cDisp].filter(Boolean).join(' @ ');
+                  const _remTxt=_daysRem!=null?' \u00b7 ~'+_daysRem+' days remaining':'';
+                  const _acVal=acres?parseFloat(acres):0;
+                  const _adaTxt=_acVal>0?' \u00b7 ADA est: '+(_estAUDs/_acVal).toFixed(1)+'/ac':'';
+                  line2='<div style="font-size:11px;color:var(--green-d);margin-top:2px;">Est. capacity: '+Math.round(_estAUDs)+' AUDs'+_remTxt+(_condParts?' \u00b7 '+_condParts:'')+_adaTxt+'</div>';
+                } else {
+                  const _padIdx=loc?(S.pastures||[]).findIndex(p=>String(p.id)===String(loc.id)):-1;
+                  const _nudge=!compact&&_padIdx>=0?'<a href="#" onclick="event.preventDefault();event.stopPropagation();openLocEdit('+_padIdx+');return false;" style="color:var(--teal);text-decoration:underline;">Link a forage type</a>':'';
+                  line2='<div style="font-size:11px;color:var(--text3);margin-top:2px;">No forage estimate'+(_nudge?' \u00b7 '+_nudge:'')+'</div>';
+                }
+              }
+              return line1+line2;
+            } else {
+              // Closed event: actual totals
+              const _sf=calcConsumedDMI(entries,getEffectiveFeedResidual(ev));
+              const _pDM=ev.noPasture?0:Math.max(0,totalDMITarget*days-_sf);
+              const _pAUD=(S.settings.dmPerAUD||26)>0?_pDM/(S.settings.dmPerAUD||26):0;
+              const _ac=acres?parseFloat(acres):0;
+              const _ada=_ac>0?_pAUD/_ac:0;
+              return '<span style="font-size:11px;color:var(--text2);">Day '+days+' \u00b7 In '+dLabel(ev.dateIn)+' \u00b7 $'+costAll.toFixed(2)+' \u00b7 '+_au.toFixed(1)+' AU \u00b7 Pasture AUDs: '+_pAUD.toFixed(1)+(_ac>0?' \u00b7 ADA: '+_ada.toFixed(1)+'/ac':'')+' \u00b7 Pasture: '+Math.round(_pDM).toLocaleString()+' lbs DMI \u00b7 Stored Feed: '+Math.round(_sf).toLocaleString()+' lbs DMI</span>';
+            }
+          })()}
         </div>
         ${headerBtns}
       </div>
@@ -5687,6 +5721,65 @@ function estimateGrazeDays(pastureId, groupId){
   const t = getGroupTotals(g);
   if(!t || !t.dmiTarget) return null;
   return Math.floor(availableDM / t.dmiTarget);
+}
+
+// Estimate available DM for a specific event using its opening pasture data
+function estimateAvailableDMForEvent(ev){
+  if(!ev || ev.noPasture || ev.locationType==='confinement') return null;
+  const pastureId=ev.pastureId||(ev.paddocks&&ev.paddocks[0]?.pastureId);
+  if(!pastureId) return null;
+  const pad=findPastureById(pastureId);
+  if(!pad||!pad.acres) return null;
+  const ft=pad.forageTypeId?(S.forageTypes||[]).find(f=>String(f.id)===String(pad.forageTypeId)):null;
+  if(!ft||!ft.dmLbsPerInchPerAcre) return null;
+  // Prefer event-stamped opening data, fall back to latest observation
+  let useHeight=ev.heightIn!=null?ev.heightIn:null;
+  let useCover=ev.forageCoverIn!=null?ev.forageCoverIn:null;
+  if(useHeight==null){
+    const obs=getLatestVegObservation(pastureId);
+    if(!obs||obs.vegHeight==null) return null;
+    useHeight=obs.vegHeight;
+    if(useCover==null) useCover=obs.forageCoverPct;
+  }
+  if(useCover==null) useCover=100;
+  const residual=getEffectiveResidual(pastureId);
+  const availableInches=Math.max(0,useHeight-residual);
+  const utilizationPct=S.settings.forageUtilizationPct||50;
+  const grossDM=availableInches*ft.dmLbsPerInchPerAcre*pad.acres*(useCover/100);
+  return grossDM*(utilizationPct/100);
+}
+
+function estimateAvailableAUDsForEvent(ev){
+  const dm=estimateAvailableDMForEvent(ev);
+  if(dm==null) return null;
+  return dm/(S.settings.dmPerAUD||26);
+}
+
+// Total daily DMI demand (lbs/day) for all active groups in the event
+function eventDailyDMIDemand(ev){
+  if(!ev) return 0;
+  let total=0;
+  evGroups(ev).forEach(g=>{
+    if(g.dateRemoved) return;
+    const grpObj=getGroupById(g.groupId);
+    if(grpObj){ const t=getGroupTotals(grpObj); total+=(t.dmiTarget||0); }
+  });
+  return total;
+}
+
+// Estimated days remaining for an active event
+function estimateDaysRemaining(ev){
+  if(!ev||ev.status!=='open') return null;
+  const totalAvailDM=estimateAvailableDMForEvent(ev);
+  if(totalAvailDM==null) return null;
+  const dailyDMI=eventDailyDMIDemand(ev);
+  if(!dailyDMI) return null;
+  const daysElapsed=Math.max(0,daysBetween(ev.dateIn,todayStr()));
+  const storedDMI=calcConsumedDMI(allFeedEntries(ev),getEffectiveFeedResidual(ev));
+  const projectedTotalDMI=dailyDMI*daysElapsed;
+  const pastureConsumed=Math.max(0,projectedTotalDMI-storedDMI);
+  const remainingDM=Math.max(0,totalAvailDM-pastureConsumed);
+  return Math.floor(remainingDM/dailyDMI);
 }
 
 // Stocking efficiency: actual consumed ÷ estimated available
@@ -6922,6 +7015,10 @@ function wizCloseEvent(){
              pFraction:Math.round(pFraction*100),subMoveHours:subHrs,totalHours:totalHrs,
              pastureAcres:_totalAcres,
              organicMatterLbs:_residOM};
+  // Snapshot estimated capacity for future calibration reporting
+  const _estCapDM=estimateAvailableDMForEvent(ae);
+  const _estCapAUDs=estimateAvailableAUDsForEvent(ae);
+  if(_estCapDM!=null){ae.totals.estimatedCapacityDM=Math.round(_estCapDM);ae.totals.estimatedCapacityAUDs=Math.round(_estCapAUDs*10)/10;}
   // Per-paddock grass DMI attribution (checkpoint-driven, if checkpoints were recorded)
   const grassDMIByPaddock = calcGrassDMIByWindow(ae, outDate, feedRes);
   if(grassDMIByPaddock.length) ae.totals.grassDMIByPaddock = grassDMIByPaddock;
@@ -10300,7 +10397,7 @@ function renderPastures(){
       const remLbs=batches.reduce((s,b)=>s+getBatchRemaining(b),0);
       if(remLbs>0){const vol=volLbsToDisplay(remLbs);manureLine=`<div style="font-size:11px;color:var(--amber-d);margin-top:3px;">~${vol.val} ${vol.unit} in storage</div>`;}
     }
-    return `<div class="chip"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><div style="font-size:14px;font-weight:600;">${p.name}${landUseBadge(p)}${fieldCodeBadge} ${isActive?'<span class="badge bt">active</span>':''} ${isCon?'<span class="badge bb">confinement</span>':''}</div><div style="font-size:12px;color:var(--text2);margin-top:2px;">${detail}</div>${soilLine}${npkLine}${manureLine}${(()=>{if(isCon||isActive)return '';const _estDM=estimateAvailableDM(p.id);if(_estDM==null)return '';const _estAUDs=estimateAvailableAUDs(p.id);const _obs=getLatestVegObservation(p.id);const _res=getEffectiveResidual(p.id);const _util=S.settings.forageUtilizationPct||50;return `<div style="font-size:11px;color:var(--green-d);margin-top:3px;">\ud83c\udf3f Est. available: ${Math.round(_estDM).toLocaleString()} lbs DM${_estAUDs!=null?' \u00b7 ~'+Math.round(_estAUDs)+' AUDs':''}</div><div style="font-size:10px;color:var(--text3);margin-top:1px;">at ${_util}% util${_obs?' \u00b7 Survey '+dLabel(_obs.date)+' \u00b7 '+_obs.vegHeight+'\u2033':''} \u00b7 Residual: ${_res}\u2033</div>`;})()}${(()=>{return !isCon?recoveryDateLine(p,true):'';})()}${harvestLog}</div><div style="display:flex;gap:6px;align-items:center;">${typeBadge}${avg!==null?`<span class="badge ${avg>=60?'bg':'ba'}">${avg}% avg</span>`:''} ${openTasks?`<span class="badge ba">${openTasks} task${openTasks!==1?'s':''}</span>`:''}${(()=>{const lr=latestSurveyRating(p.id,p.name);return lr?`<span style="font-size:11px;font-weight:700;color:${surveyRatingColor(lr.rating)};background:${surveyRatingBg(lr.rating)};padding:2px 7px;border-radius:10px;" title="Survey ${dLabel(lr.date)}">${lr.rating}</span>`:'';})()}<button class="btn btn-outline btn-xs" onclick="openLocEdit(${i})">Edit</button><button class="btn btn-outline btn-xs" onclick="openSurveySheet('${p.id}')">📋 Survey</button>${!isCon?`<button class="btn btn-outline btn-xs" onclick="openSoilTestSheet('${p.id}')">🧪 Soil</button>`:''}</div></div></div>`;
+    return `<div class="chip"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><div style="font-size:14px;font-weight:600;">${p.name}${landUseBadge(p)}${fieldCodeBadge} ${isActive?'<span class="badge bt">active</span>':''} ${isCon?'<span class="badge bb">confinement</span>':''}</div><div style="font-size:12px;color:var(--text2);margin-top:2px;">${detail}</div>${soilLine}${npkLine}${manureLine}${(()=>{if(isCon)return '';let _estDM,_estAUDs,_obs,_label='Est. available',_suffix='';if(isActive){const _aev=(S.events||[]).find(e=>e.status==='open'&&(String(e.pastureId)===String(p.id)||(e.paddocks||[]).some(pd=>String(pd.pastureId)===String(p.id))));if(_aev){_estDM=estimateAvailableDMForEvent(_aev);_estAUDs=estimateAvailableAUDsForEvent(_aev);_obs=_aev.heightIn!=null?{vegHeight:_aev.heightIn,forageCoverPct:_aev.forageCoverIn,date:_aev.dateIn}:getLatestVegObservation(p.id);_label='Est. opening';_suffix=' <span style="color:var(--text3);font-weight:400;">(active event)</span>';} else return '';}else{_estDM=estimateAvailableDM(p.id);_estAUDs=estimateAvailableAUDs(p.id);_obs=getLatestVegObservation(p.id);}if(_estDM==null)return '';const _res=getEffectiveResidual(p.id);const _util=S.settings.forageUtilizationPct||50;const _srcLabel=isActive?'Opening':'Survey';return `<div style="font-size:11px;color:var(--green-d);margin-top:3px;">\ud83c\udf3f ${_label}: ${Math.round(_estDM).toLocaleString()} lbs DM${_estAUDs!=null?' \u00b7 ~'+Math.round(_estAUDs)+' AUDs':''}${_suffix}</div><div style="font-size:10px;color:var(--text3);margin-top:1px;">at ${_util}% util${_obs?' \u00b7 '+_srcLabel+' '+dLabel(_obs.date)+' \u00b7 '+_obs.vegHeight+'\u2033':''} \u00b7 Residual: ${_res}\u2033</div>`;})()}${(()=>{return !isCon?recoveryDateLine(p,true):'';})()}${harvestLog}</div><div style="display:flex;gap:6px;align-items:center;">${typeBadge}${avg!==null?`<span class="badge ${avg>=60?'bg':'ba'}">${avg}% avg</span>`:''} ${openTasks?`<span class="badge ba">${openTasks} task${openTasks!==1?'s':''}</span>`:''}${(()=>{const lr=latestSurveyRating(p.id,p.name);return lr?`<span style="font-size:11px;font-weight:700;color:${surveyRatingColor(lr.rating)};background:${surveyRatingBg(lr.rating)};padding:2px 7px;border-radius:10px;" title="Survey ${dLabel(lr.date)}">${lr.rating}</span>`:'';})()}<button class="btn btn-outline btn-xs" onclick="openLocEdit(${i})">Edit</button><button class="btn btn-outline btn-xs" onclick="openSurveySheet('${p.id}')">📋 Survey</button>${!isCon?`<button class="btn btn-outline btn-xs" onclick="openSoilTestSheet('${p.id}')">🧪 Soil</button>`:''}</div></div></div>`;
   }
 
   if(multipleF){
@@ -21886,8 +21983,8 @@ function _mwRenderStep3(){
         </div>
         <div style="font-size:11px;font-weight:600;color:var(--text2);letter-spacing:0.03em;margin-bottom:10px;">ARRIVAL PASTURE SURVEY</div>
         <div style="display:flex;gap:10px;margin-bottom:10px;">
-          <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px;">Forage height (in)</label><input type="number" id="mw-arr-height" placeholder="e.g. 7" style="width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
-          <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px;">Forage cover (%)</label><input type="number" id="mw-arr-cover" placeholder="e.g. 65" min="0" max="100" style="width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+          <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px;">Forage height (in)</label><input type="number" id="mw-arr-height" placeholder="e.g. 7" oninput="_mwUpdateForagePreview()" style="width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
+          <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px;">Forage cover (%)</label><input type="number" id="mw-arr-cover" placeholder="e.g. 65" min="0" max="100" oninput="_mwUpdateForagePreview()" style="width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:13px;background:var(--bg);box-sizing:border-box;font-family:inherit;"></div>
         </div>
         <div><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Forage condition</label>
           <div style="display:flex;gap:4px;" id="mw-arr-quality-row">
@@ -21897,7 +21994,12 @@ function _mwRenderStep3(){
             <button style="flex:1;padding:6px 0;font-size:12px;border-radius:6px;border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;" type="button" onclick="_mwArrSetQuality(this,'Excellent')">Exc.</button>
           </div>
         </div>
+        <div id="mw-forage-preview" style="margin-top:14px;padding-top:12px;border-top:0.5px solid var(--border);">
+          <div style="font-size:11px;font-weight:600;color:var(--text2);letter-spacing:0.03em;margin-bottom:6px;">FORAGE ESTIMATE</div>
+          <div id="mw-forage-preview-body" style="font-size:12px;color:var(--text2);"></div>
+        </div>
       </div>`;
+      setTimeout(_mwUpdateForagePreview,50);
     } else if(arrDp){
       // Confinement destination — show TO header only, no survey
       toSectionHtml = `<div class="card" style="padding:14px;margin-bottom:14px;">
@@ -22192,6 +22294,39 @@ function _mwArrSetQuality(btn, val){
     b.style.color = isActive ? 'var(--green-d)' : 'var(--text2)';
     b.style.fontWeight = isActive ? '500' : '400';
   });
+}
+
+function _mwUpdateForagePreview(){
+  const body=document.getElementById('mw-forage-preview-body');
+  if(!body) return;
+  const dp=(S.pastures||[]).find(p=>String(p.id)===String(_mwDestPaddockId));
+  if(!dp||dp.locationType==='confinement'){if(body.parentElement)body.parentElement.style.display='none';return;}
+  if(body.parentElement)body.parentElement.style.display='';
+  const ft=dp.forageTypeId?(S.forageTypes||[]).find(f=>String(f.id)===String(dp.forageTypeId)):null;
+  if(!ft||!ft.dmLbsPerInchPerAcre){
+    const padIdx=(S.pastures||[]).findIndex(p=>String(p.id)===String(dp.id));
+    body.innerHTML='<span style="color:var(--text3);">No forage type linked.</span> <a href="#" onclick="event.preventDefault();closeMoveWizSheet();openLocEdit('+padIdx+');return false;" style="color:var(--teal);text-decoration:underline;">Set up this field</a>';
+    return;
+  }
+  const heightVal=parseFloat(document.getElementById('mw-arr-height')?.value);
+  const coverVal=parseFloat(document.getElementById('mw-arr-cover')?.value);
+  if(!heightVal||heightVal<=0){body.innerHTML='<span style="color:var(--text3);">Enter forage height to estimate</span>';return;}
+  const cover=(coverVal&&coverVal>0)?coverVal:100;
+  const residual=getEffectiveResidual(dp.id);
+  const availableInches=Math.max(0,heightVal-residual);
+  if(availableInches===0){body.innerHTML='<span style="color:var(--amber-d);">Height ('+heightVal+'\u2033) is at or below residual ('+residual+'\u2033) \u2014 no usable forage</span>';return;}
+  const utilPct=S.settings.forageUtilizationPct||50;
+  const grossDM=availableInches*ft.dmLbsPerInchPerAcre*dp.acres*(cover/100);
+  const usableDM=grossDM*(utilPct/100);
+  const dmPerAUD=S.settings.dmPerAUD||26;
+  const capacityAUDs=usableDM/dmPerAUD;
+  let dailyDMI=0,totalAU=0;
+  const auWt=S.settings.auWeight||1000;
+  _mwGroupIds.forEach(gId=>{const g=getGroupById(gId);if(g){const t=getGroupTotals(g);dailyDMI+=(t.dmiTarget||0);totalAU+=(t.totalLiveWeight||0)/auWt;}});
+  const grazeDays=dailyDMI>0?Math.floor(usableDM/dailyDMI):null;
+  body.innerHTML=`<div style="color:var(--green-d);font-weight:500;margin-bottom:3px;">~${Math.round(usableDM).toLocaleString()} lbs DM available \u00b7 ~${Math.round(capacityAUDs)} AUDs</div>
+    <div style="color:var(--text2);">${grazeDays!=null?'~'+grazeDays+' days grazing for '+totalAU.toFixed(1)+' AU ('+Math.round(dailyDMI)+' lbs/day)':'No groups selected'}</div>
+    <div style="color:var(--text3);font-size:10px;margin-top:3px;">${heightVal}\u2033 - ${residual}\u2033 residual \u00d7 ${ft.dmLbsPerInchPerAcre} lbs/in/ac \u00d7 ${dp.acres} ac \u00d7 ${Math.round(cover)}% cover \u00d7 ${utilPct}% util</div>`;
 }
 
 function _mwSave(){
