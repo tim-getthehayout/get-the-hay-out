@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260407.0107" id="app-version-meta"/>
+<meta name="app-version" content="b20260407.0126" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -5495,8 +5495,9 @@ function renderLocationCard(ev, opts){
             const _au=totalBW/_aw;
             if(ev.status==='open'){
               // Open event: capacity estimate + days remaining
-              let line1='<span style="font-size:11px;color:var(--text2);">Day '+days+' \u00b7 In '+dLabel(ev.dateIn)+' \u00b7 $'+costAll.toFixed(2)+' \u00b7 '+_au.toFixed(1)+' AU</span>';
-              let line2='';
+              let line1='<span style="font-size:11px;color:var(--text2);">Day '+days+' \u00b7 In '+dLabel(ev.dateIn)+' \u00b7 $'+costAll.toFixed(2)+'</span>';
+              const _weightLine='<div style="font-size:11px;color:var(--text2);margin-top:2px;">Weight: '+Math.round(totalBW).toLocaleString()+' lbs \u00b7 '+_au.toFixed(1)+' AU</div>';
+              let line2=_weightLine;
               if(!isCon && !isNoP){
                 const _estDM=estimateAvailableDMForEvent(ev);
                 const _estAUDs=estimateAvailableAUDsForEvent(ev);
@@ -5838,7 +5839,8 @@ function estimateDaysRemaining(ev){
   }
   const totalRemaining=remainingPastureDM+storedFeedDM;
   if(totalRemaining<=0&&pastureDM==null) return null;
-  return {days:Math.floor(totalRemaining/dailyDMI), includesStoredFeed:hasStoredFeed,
+  const _rawDays=totalRemaining/dailyDMI;
+  return {days:_rawDays>=0.5?Math.round(_rawDays):(_rawDays>0?1:0), includesStoredFeed:hasStoredFeed,
     pastureDM:pastureDM!=null?Math.round(pastureDM):null, storedFeedDM:Math.round(storedFeedDM), dailyDMI:Math.round(dailyDMI)};
 }
 
@@ -17565,16 +17567,52 @@ function updateEventEditPreview(ev){
   if(!ev) ev=S.events.find(e=>e.id===evId);
   if(!ev){document.getElementById('ee-preview').style.display='none';return;}
   const isClosed=ev.status==='closed';
-  if(!isClosed){document.getElementById('ee-preview').style.display='none';return;}
+  const previewEl=document.getElementById('ee-preview');
+  const contentEl=document.getElementById('ee-preview-content');
+
+  // Open events: show estimated capacity summary (same data as home card)
+  if(!isClosed){
+    const _aw=S.settings.auWeight||1000;
+    const _activeGs=evGroups(ev).filter(g=>!g.dateRemoved);
+    let _totalBW=0,_totalDMI=0;
+    _activeGs.forEach(ge=>{const gr=getGroupById(ge.groupId);if(!gr)return;const t=getGroupTotals(gr);_totalBW+=(t.totalHead||0)*(t.avgWeight||0);_totalDMI+=(t.dmiTarget||0);});
+    const _au=_totalBW/_aw;
+    const _isCon=ev.locationType==='confinement';
+    const _isNoP=ev.noPasture;
+    let html='<div style="font-size:12px;color:var(--text2);">Weight: '+Math.round(_totalBW).toLocaleString()+' lbs \u00b7 '+_au.toFixed(1)+' AU</div>';
+    if(!_isCon && !_isNoP){
+      const _estDM=estimateAvailableDMForEvent(ev);
+      const _estAUDs=estimateAvailableAUDsForEvent(ev);
+      const _daysRes=estimateDaysRemaining(ev);
+      if((_estAUDs!=null&&_estAUDs>0)||(_daysRes&&_daysRes.days>0)){
+        const _hDisp=ev.heightIn!=null?ev.heightIn+'\u2033':'';
+        const _cDisp=ev.forageCoverIn!=null?ev.forageCoverIn+'% cover':'';
+        const _condParts=[_hDisp,_cDisp].filter(Boolean).join(' @ ');
+        const _remTxt=_daysRes!=null?' \u00b7 ~'+_daysRes.days+' days remaining':'';
+        const _sfNote=_daysRes&&_daysRes.includesStoredFeed?' (incl. stored feed)':'';
+        const _capTxt=_estAUDs!=null&&_estAUDs>0?'Est. capacity: '+Math.round(_estAUDs)+' AUDs':'';
+        html+='<div style="font-size:12px;color:var(--green-d);margin-top:3px;">'+_capTxt+_remTxt+_sfNote+(_condParts?' \u00b7 '+_condParts:'')+'</div>';
+        const _parts=[];
+        if(_estDM!=null) _parts.push('Pasture: '+Math.round(_estDM).toLocaleString()+' lbs DM');
+        if(_daysRes&&_daysRes.storedFeedDM>0) _parts.push('Stored feed: '+_daysRes.storedFeedDM.toLocaleString()+' lbs DM');
+        if(_daysRes) _parts.push('DMI demand: '+_daysRes.dailyDMI.toLocaleString()+' lbs/day');
+        if(_parts.length) html+='<div style="font-size:10px;color:var(--text3);margin-top:1px;">'+_parts.join(' \u00b7 ')+'</div>';
+      }
+    }
+    previewEl.style.display='block';
+    contentEl.innerHTML=html;
+    return;
+  }
+
+  // Closed events: show actual totals
   const dateIn=document.getElementById('ee-date-in').value||ev.dateIn;
   const dateOut=document.getElementById('ee-date-out').value||ev.dateOut;
   const head=parseFloat(document.getElementById('ee-head').value)||ev.head||0;
   const wt=parseFloat(document.getElementById('ee-wt').value)||ev.wt||0;
-  if(!dateIn||!dateOut||!head||!wt){document.getElementById('ee-preview').style.display='none';return;}
+  if(!dateIn||!dateOut||!head||!wt){previewEl.style.display='none';return;}
   const noPasture=document.getElementById('ee-no-pasture')?.checked||false;
   const feedRes=parseInt(document.getElementById('ee-feed-res')?.value)||0;
   const days=Math.max(1,Math.round((new Date(dateOut+'T12:00:00')-new Date(dateIn+'T12:00:00'))/86400000));
-  // Use aggregated DMI% from active groups in eeGroups working copy
   const _activeEeGs=eeGroups.filter(g=>!g.dateRemoved);
   let dmiPct=0.025;
   if(_activeEeGs.length){
@@ -17592,8 +17630,8 @@ function updateEventEditPreview(ev){
   const p2=bw/1000*(st.pExc||0.09)*days;
   const k=bw/1000*(st.kExc||0.30)*days;
   const npkVal=n*(st.nPrice||0.55)+p2*(st.pPrice||0.65)+k*(st.kPrice||0.42);
-  document.getElementById('ee-preview').style.display='block';
-  document.getElementById('ee-preview-content').innerHTML=
+  previewEl.style.display='block';
+  contentEl.innerHTML=
     `${days} days · Stored DMI: ${Math.round(storedDMI).toLocaleString()} lbs`+
     (noPasture?' · <strong>100% stored feed</strong>':`· Pasture DMI: ${pastureDMI!==null?Math.round(pastureDMI).toLocaleString()+' lbs':'--'}`)+
     `<br>${pct!==null?pct+'% pasture':'--'} · NPK: N${n.toFixed(1)}/P${p2.toFixed(1)}/K${k.toFixed(1)} · $${npkVal.toFixed(2)} fert value`+
