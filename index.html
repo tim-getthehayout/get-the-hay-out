@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260407.0000" id="app-version-meta"/>
+<meta name="app-version" content="b20260407.0019" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -4251,15 +4251,19 @@ async function flushToSupabase(){
       if(!byTable.has(key)) byTable.set(key, []);
       byTable.get(key).push(op);
     }
-    // Process each tier sequentially; within a tier, fire all ops in parallel
+    // Process each tier sequentially; within a tier, deletes run FIRST, then inserts/upserts.
+    // Without this ordering, a DELETE WHERE event_id=X can race against INSERT rows for the
+    // same event_id, causing the INSERT to succeed then immediately be wiped by the DELETE.
     for(let tier = 0; tier < FLUSH_TIERS.length; tier++){
-      const tierOps = [];
+      const tierDeletes = [];
+      const tierUpserts = [];
       for(const table of FLUSH_TIERS[tier]){
-        if(byTable.has(table)){ tierOps.push(...byTable.get(table)); byTable.delete(table); }
+        if(byTable.has(table)){ tierUpserts.push(...byTable.get(table)); byTable.delete(table); }
         const delKey = '_delete:' + table;
-        if(byTable.has(delKey)){ tierOps.push(...byTable.get(delKey)); byTable.delete(delKey); }
+        if(byTable.has(delKey)){ tierDeletes.push(...byTable.get(delKey)); byTable.delete(delKey); }
       }
-      if(tierOps.length) await Promise.all(tierOps.map(op => _flushOneOp(op, failed)));
+      if(tierDeletes.length) await Promise.all(tierDeletes.map(op => _flushOneOp(op, failed)));
+      if(tierUpserts.length) await Promise.all(tierUpserts.map(op => _flushOneOp(op, failed)));
     }
     // Safety net: any tables not in FLUSH_TIERS flush last
     for(const [table, ops] of byTable){
@@ -4464,15 +4468,17 @@ function createFeedTransfer(srcEv, destEv, items, moveDate, moveTime){
   // Phase 2: if ANY lookup failed, bail entirely
   if(errors.length) return {success:false, errors};
   // Phase 3: create paired entries — IDs must differ by ≥1000 to avoid assembly merge
+  // (assembleEvents groups by Math.floor(id/1000)). Keep IDs < 10^13 so ×1000 stays
+  // within MAX_SAFE_INTEGER. Use Date.now() + i*2000 spacing.
   const now=new Date().toISOString();
-  const baseId=Date.now()*10;
+  const baseId=Date.now();
   if(!srcEv.feedEntries)  srcEv.feedEntries=[];
   if(!destEv.feedEntries) destEv.feedEntries=[];
   const pairs=[];
   resolved.forEach((item,i)=>{
     const transferPairId=String(Date.now())+'-'+Math.floor(Math.random()*1000000)+'-'+i;
-    const srcEntryId=baseId+i*2;
-    const destEntryId=baseId+i*2+1;
+    const srcEntryId=baseId+i*2000;
+    const destEntryId=baseId+i*2000+1000;
     // Negative entry on source
     srcEv.feedEntries.push({
       id:srcEntryId, date:moveDate, time:moveTime||null,
@@ -5478,15 +5484,16 @@ function renderLocationCard(ev, opts){
               let line2='';
               if(!isCon && !isNoP){
                 const _estAUDs=estimateAvailableAUDsForEvent(ev);
-                const _daysRem=estimateDaysRemaining(ev);
+                const _daysRes=estimateDaysRemaining(ev);
                 if(_estAUDs!=null && _estAUDs>0){
                   const _hDisp=ev.heightIn!=null?ev.heightIn+'\u2033':'';
                   const _cDisp=ev.forageCoverIn!=null?ev.forageCoverIn+'% cover':'';
                   const _condParts=[_hDisp,_cDisp].filter(Boolean).join(' @ ');
-                  const _remTxt=_daysRem!=null?' \u00b7 ~'+_daysRem+' days remaining':'';
+                  const _remTxt=_daysRes!=null?' \u00b7 ~'+_daysRes.days+' days remaining':'';
+                  const _sfNote=_daysRes&&_daysRes.includesStoredFeed?' <span style="font-size:10px;color:var(--text3);">(incl. stored feed)</span>':'';
                   const _acVal=acres?parseFloat(acres):0;
                   const _adaTxt=_acVal>0?' \u00b7 ADA est: '+(_estAUDs/_acVal).toFixed(1)+'/ac':'';
-                  line2='<div style="font-size:11px;color:var(--green-d);margin-top:2px;">Est. capacity: '+Math.round(_estAUDs)+' AUDs'+_remTxt+(_condParts?' \u00b7 '+_condParts:'')+_adaTxt+'</div>';
+                  line2='<div style="font-size:11px;color:var(--green-d);margin-top:2px;">Est. capacity: '+Math.round(_estAUDs)+' AUDs'+_remTxt+_sfNote+(_condParts?' \u00b7 '+_condParts:'')+_adaTxt+'</div>';
                 } else {
                   const _padIdx=loc?(S.pastures||[]).findIndex(p=>String(p.id)===String(loc.id)):-1;
                   const _nudge=!compact&&_padIdx>=0?'<a href="#" onclick="event.preventDefault();event.stopPropagation();openLocEdit('+_padIdx+');return false;" style="color:var(--teal);text-decoration:underline;">Link a forage type</a>':'';
@@ -5768,18 +5775,33 @@ function eventDailyDMIDemand(ev){
 }
 
 // Estimated days remaining for an active event
+// Returns {days, includesStoredFeed} or null
 function estimateDaysRemaining(ev){
   if(!ev||ev.status!=='open') return null;
-  const totalAvailDM=estimateAvailableDMForEvent(ev);
-  if(totalAvailDM==null) return null;
+  const pastureDM=estimateAvailableDMForEvent(ev);
+  if(pastureDM==null) return null;
   const dailyDMI=eventDailyDMIDemand(ev);
   if(!dailyDMI) return null;
   const daysElapsed=Math.max(0,daysBetween(ev.dateIn,todayStr()));
-  const storedDMI=calcConsumedDMI(allFeedEntries(ev),getEffectiveFeedResidual(ev));
+  const entries=allFeedEntries(ev);
+  const storedConsumed=calcConsumedDMI(entries,getEffectiveFeedResidual(ev));
   const projectedTotalDMI=dailyDMI*daysElapsed;
-  const pastureConsumed=Math.max(0,projectedTotalDMI-storedDMI);
-  const remainingDM=Math.max(0,totalAvailDM-pastureConsumed);
-  return Math.floor(remainingDM/dailyDMI);
+  const pastureConsumed=Math.max(0,projectedTotalDMI-storedConsumed);
+  const remainingPastureDM=Math.max(0,pastureDM-pastureConsumed);
+  // Add remaining stored feed (total delivered DM minus consumed DM)
+  let storedRemainingDM=0;
+  let hasStoredFeed=false;
+  if(entries.length){
+    let totalDeliveredDM=0;
+    entries.forEach(e=>{(e.lines||[]).forEach(l=>{
+      const b=S.batches.find(x=>x.id===l.batchId);
+      if(b&&l.qty>0){const af=b.wt?l.qty*b.wt:l.qty;totalDeliveredDM+=af*((b.dm||100)/100);}
+    });});
+    storedRemainingDM=Math.max(0,totalDeliveredDM-storedConsumed);
+    hasStoredFeed=storedRemainingDM>0;
+  }
+  const totalRemaining=remainingPastureDM+storedRemainingDM;
+  return {days:Math.floor(totalRemaining/dailyDMI), includesStoredFeed:hasStoredFeed};
 }
 
 // Stocking efficiency: actual consumed ÷ estimated available
