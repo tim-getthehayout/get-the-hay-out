@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260407.0035" id="app-version-meta"/>
+<meta name="app-version" content="b20260407.0048" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -5490,17 +5490,26 @@ function renderLocationCard(ev, opts){
               let line1='<span style="font-size:11px;color:var(--text2);">Day '+days+' \u00b7 In '+dLabel(ev.dateIn)+' \u00b7 $'+costAll.toFixed(2)+' \u00b7 '+_au.toFixed(1)+' AU</span>';
               let line2='';
               if(!isCon && !isNoP){
+                const _estDM=estimateAvailableDMForEvent(ev);
                 const _estAUDs=estimateAvailableAUDsForEvent(ev);
                 const _daysRes=estimateDaysRemaining(ev);
-                if(_estAUDs!=null && _estAUDs>0){
+                // Show estimate if we have either pasture DM or stored feed data
+                if((_estAUDs!=null && _estAUDs>0) || (_daysRes && _daysRes.days>0)){
                   const _hDisp=ev.heightIn!=null?ev.heightIn+'\u2033':'';
                   const _cDisp=ev.forageCoverIn!=null?ev.forageCoverIn+'% cover':'';
                   const _condParts=[_hDisp,_cDisp].filter(Boolean).join(' @ ');
                   const _remTxt=_daysRes!=null?' \u00b7 ~'+_daysRes.days+' days remaining':'';
                   const _sfNote=_daysRes&&_daysRes.includesStoredFeed?' <span style="font-size:10px;color:var(--text3);">(incl. stored feed)</span>':'';
                   const _acVal=acres?parseFloat(acres):0;
-                  const _adaTxt=_acVal>0?' \u00b7 ADA est: '+(_estAUDs/_acVal).toFixed(1)+'/ac':'';
-                  line2='<div style="font-size:11px;color:var(--green-d);margin-top:2px;">Est. capacity: '+Math.round(_estAUDs)+' AUDs'+_remTxt+_sfNote+(_condParts?' \u00b7 '+_condParts:'')+_adaTxt+'</div>';
+                  const _adaTxt=_estAUDs!=null&&_acVal>0?' \u00b7 ADA est: '+(_estAUDs/_acVal).toFixed(1)+'/ac':'';
+                  const _capTxt=_estAUDs!=null&&_estAUDs>0?'Est. capacity: '+Math.round(_estAUDs)+' AUDs':'';
+                  // Audit line: pasture DM + stored feed DM breakdown
+                  const _auditParts=[];
+                  if(_estDM!=null) _auditParts.push('Pasture: '+Math.round(_estDM).toLocaleString()+' lbs DM');
+                  if(_daysRes&&_daysRes.storedFeedDM>0) _auditParts.push('Stored feed: '+_daysRes.storedFeedDM.toLocaleString()+' lbs DM');
+                  if(_daysRes) _auditParts.push('DMI demand: '+_daysRes.dailyDMI.toLocaleString()+' lbs/day');
+                  const _auditLine=_auditParts.length?'<div style="font-size:10px;color:var(--text3);margin-top:1px;">'+_auditParts.join(' \u00b7 ')+'</div>':'';
+                  line2='<div style="font-size:11px;color:var(--green-d);margin-top:2px;">'+(_capTxt?_capTxt:'')+((_capTxt&&_remTxt)?'':'')+_remTxt+_sfNote+(_condParts?' \u00b7 '+_condParts:'')+_adaTxt+'</div>'+_auditLine;
                 } else {
                   // Determine why estimate is unavailable — forage type missing or height data missing
                   const _hasFT=loc&&loc.forageTypeId&&(S.forageTypes||[]).some(f=>String(f.id)===String(loc.forageTypeId)&&f.dmLbsPerInchPerAcre);
@@ -5791,21 +5800,15 @@ function eventDailyDMIDemand(ev){
 }
 
 // Estimated days remaining for an active event
-// Returns {days, includesStoredFeed} or null
+// Returns {days, includesStoredFeed, pastureDM, storedFeedDM, dailyDMI} or null
 function estimateDaysRemaining(ev){
   if(!ev||ev.status!=='open') return null;
   const pastureDM=estimateAvailableDMForEvent(ev);
-  if(pastureDM==null) return null;
   const dailyDMI=eventDailyDMIDemand(ev);
   if(!dailyDMI) return null;
-  const daysElapsed=Math.max(0,daysBetween(ev.dateIn,todayStr()));
+  // Remaining stored feed: total delivered DM minus consumed DM
   const entries=allFeedEntries(ev);
-  const storedConsumed=calcConsumedDMI(entries,getEffectiveFeedResidual(ev));
-  const projectedTotalDMI=dailyDMI*daysElapsed;
-  const pastureConsumed=Math.max(0,projectedTotalDMI-storedConsumed);
-  const remainingPastureDM=Math.max(0,pastureDM-pastureConsumed);
-  // Add remaining stored feed (total delivered DM minus consumed DM)
-  let storedRemainingDM=0;
+  let storedFeedDM=0;
   let hasStoredFeed=false;
   if(entries.length){
     let totalDeliveredDM=0;
@@ -5813,11 +5816,22 @@ function estimateDaysRemaining(ev){
       const b=S.batches.find(x=>x.id===l.batchId);
       if(b&&l.qty>0){const af=b.wt?l.qty*b.wt:l.qty;totalDeliveredDM+=af*((b.dm||100)/100);}
     });});
-    storedRemainingDM=Math.max(0,totalDeliveredDM-storedConsumed);
-    hasStoredFeed=storedRemainingDM>0;
+    const storedConsumed=calcConsumedDMI(entries,getEffectiveFeedResidual(ev));
+    storedFeedDM=Math.max(0,totalDeliveredDM-storedConsumed);
+    hasStoredFeed=storedFeedDM>0;
   }
-  const totalRemaining=remainingPastureDM+storedRemainingDM;
-  return {days:Math.floor(totalRemaining/dailyDMI), includesStoredFeed:hasStoredFeed};
+  // Remaining pasture DM: opening estimate minus pasture consumed to date
+  let remainingPastureDM=0;
+  if(pastureDM!=null){
+    const daysElapsed=Math.max(0,daysBetween(ev.dateIn,todayStr()));
+    const storedConsumed=entries.length?calcConsumedDMI(entries,getEffectiveFeedResidual(ev)):0;
+    const pastureConsumed=Math.max(0,dailyDMI*daysElapsed-storedConsumed);
+    remainingPastureDM=Math.max(0,pastureDM-pastureConsumed);
+  }
+  const totalRemaining=remainingPastureDM+storedFeedDM;
+  if(totalRemaining<=0&&pastureDM==null) return null;
+  return {days:Math.floor(totalRemaining/dailyDMI), includesStoredFeed:hasStoredFeed,
+    pastureDM:pastureDM!=null?Math.round(pastureDM):null, storedFeedDM:Math.round(storedFeedDM), dailyDMI:Math.round(dailyDMI)};
 }
 
 // Stocking efficiency: actual consumed ÷ estimated available
