@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260407.0126" id="app-version-meta"/>
+<meta name="app-version" content="b20260407.0139" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -5518,7 +5518,7 @@ function renderLocationCard(ev, opts){
                   if(_daysRes&&_daysRes.storedFeedDM>0) _auditParts.push('Stored feed: '+_daysRes.storedFeedDM.toLocaleString()+' lbs DM');
                   if(_daysRes) _auditParts.push('DMI demand: '+_daysRes.dailyDMI.toLocaleString()+' lbs/day');
                   const _auditLine=_auditParts.length?'<div style="font-size:10px;color:var(--text3);margin-top:1px;">'+_auditParts.join(' \u00b7 ')+'</div>':'';
-                  line2='<div style="font-size:11px;color:var(--green-d);margin-top:2px;">'+(_capTxt?_capTxt:'')+((_capTxt&&_remTxt)?'':'')+_remTxt+_sfNote+(_condParts?' \u00b7 '+_condParts:'')+_adaTxt+'</div>'+_auditLine;
+                  line2=_weightLine+'<div style="font-size:11px;color:var(--green-d);margin-top:2px;">'+(_capTxt?_capTxt:'')+((_capTxt&&_remTxt)?'':'')+_remTxt+_sfNote+(_condParts?' \u00b7 '+_condParts:'')+_adaTxt+'</div>'+_auditLine;
                 } else {
                   // Determine why estimate is unavailable — forage type missing or height data missing
                   const _hasFT=loc&&loc.forageTypeId&&(S.forageTypes||[]).some(f=>String(f.id)===String(loc.forageTypeId)&&f.dmLbsPerInchPerAcre);
@@ -5531,7 +5531,7 @@ function renderLocationCard(ev, opts){
                     _nudgeMsg='No forage estimate \u2014 pre-graze height needed';
                     _nudgeLink=!compact?'<a href="#" onclick="event.preventDefault();event.stopPropagation();openEventEdit('+ev.id+');return false;" style="color:var(--teal);text-decoration:underline;">Set pre-graze data</a>':'';
                   }
-                  line2='<div style="font-size:11px;color:var(--text3);margin-top:2px;">'+_nudgeMsg+(_nudgeLink?' \u00b7 '+_nudgeLink:'')+'</div>';
+                  line2=_weightLine+'<div style="font-size:11px;color:var(--text3);margin-top:2px;">'+_nudgeMsg+(_nudgeLink?' \u00b7 '+_nudgeLink:'')+'</div>';
                 }
               }
               return line1+line2;
