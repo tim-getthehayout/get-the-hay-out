@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260407.2243" id="app-version-meta"/>
+<meta name="app-version" content="b20260407.2312" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -5133,14 +5133,15 @@ const FIELD_MODULES = [
     else { nav('pastures',document.getElementById('bn-pastures')); setTimeout(openHarvestSheet,120); }
   }},
   { key:'feedcheck', icon:'📋', label:'Feed Check',    handler:()=>{ _fieldModeFeedCheckHandler(); } },
-  { key:'survey',    icon:'📋', label:'Survey',        handler:()=>{
+  { key:'surveybulk',   icon:'📋', label:'Survey',        handler:()=>{
     if(document.body.classList.contains('field-mode')){ openBulkSurveySheet(); }
     else { nav('pastures',document.getElementById('bn-pastures')); setTimeout(openBulkSurveySheet,120); }
   }},
+  { key:'surveysingle', icon:'📋', label:'Pasture Survey', handler:()=>{ _fieldModePastureSurveyHandler(); } },
   { key:'animals',   icon:'🐄', label:'Animals',       handler:()=>{ nav('animals',document.getElementById('bn-animals')); } },
   { key:'heat',      icon:'🌡', label:'Record Heat',   handler:()=>{ _fieldModeHeatHandler(); } },
 ];
-const FIELD_MODULES_DEFAULT = ['feed','harvest','survey','animals'];
+const FIELD_MODULES_DEFAULT = ['feed','harvest','surveybulk','animals'];
 
 // ── Field mode move handler: flat group picker before move wizard ──────
 function _fieldModeMoveHandler(){
@@ -5216,11 +5217,121 @@ function closeFeedCheckPickerSheet(){
   if(document.body.classList.contains('field-mode')) _fieldModeGoHome();
 }
 
+// ── Field mode pasture survey handler + picker ──────────────────────────────
+let _psPickerFarmFilter = 'all';
+let _psPickerTypeFilter = 'all';
+
+function _fieldModePastureSurveyHandler(){
+  openPastureSurveyPickerSheet();
+}
+
+function openPastureSurveyPickerSheet(){
+  _psPickerFarmFilter='all';
+  _psPickerTypeFilter='all';
+  _renderPastureSurveyPicker();
+  const wrap=document.getElementById('pasture-survey-picker-wrap');
+  const isField=document.body.classList.contains('field-mode');
+  const backdrop=wrap.querySelector('.sheet-backdrop');
+  const handle=wrap.querySelector('.sheet-handle');
+  const closeBtn=wrap.querySelector('.sheet-close');
+  if(backdrop) backdrop.onclick=isField?null:closePastureSurveyPickerSheet;
+  if(handle) handle.style.display=isField?'none':'';
+  if(closeBtn) closeBtn.textContent=isField?'\u2302 Done':'\u2715';
+  wrap.classList.add('open');
+}
+
+function closePastureSurveyPickerSheet(){
+  document.getElementById('pasture-survey-picker-wrap').classList.remove('open');
+  if(document.body.classList.contains('field-mode')) _fieldModeGoHome();
+}
+
+function _renderPastureSurveyPicker(){
+  const el=document.getElementById('pasture-survey-picker-list');
+  const q=(document.getElementById('ps-picker-search')?.value||'').toLowerCase();
+  const isField=document.body.classList.contains('field-mode');
+  const pastures=sortedPastures().filter(p=>{
+    if(p.locationType==='confinement') return false;
+    const lu=p.landUse||'pasture';
+    if(_psPickerTypeFilter!=='all'){
+      if(_psPickerTypeFilter==='non-crop'){ if(lu==='crop') return false; }
+      else if(lu!==_psPickerTypeFilter) return false;
+    } else { if(lu==='crop') return false; } // 'all' excludes crop
+    if(_psPickerFarmFilter!=='all'&&String(p.farmId)!==_psPickerFarmFilter) return false;
+    if(q&&!p.name.toLowerCase().includes(q)&&!(p.fieldCode||'').toLowerCase().includes(q)) return false;
+    return true;
+  });
+  // Sort: active paddocks first
+  const activeIds=new Set(S.events.filter(e=>e.status==='open').flatMap(e=>(e.paddocks||[]).map(pd=>String(pd.pastureId))));
+  pastures.sort((a,b)=>{
+    const aActive=activeIds.has(String(a.id));const bActive=activeIds.has(String(b.id));
+    if(aActive!==bActive) return aActive?-1:1;
+    return a.name.localeCompare(b.name,'en',{numeric:true});
+  });
+  // Farm pills
+  const farms=(S.farms||[]).filter(f=>!f.archived);
+  const farmPills=farms.length>1?[{k:'all',label:'All farms'},...farms.map(f=>({k:String(f.id),label:f.name}))].map(c=>{
+    const active=_psPickerFarmFilter===c.k;
+    return `<button onclick="_psPickerFarmFilter='${c.k}';_renderPastureSurveyPicker()"
+      style="padding:4px 12px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;
+      border:1.5px solid ${active?'var(--teal)':'var(--border2)'};
+      background:${active?'var(--teal)':'transparent'};
+      color:${active?'white':'var(--text2)'};">${escHtml(c.label)}</button>`;
+  }).join(''):'';
+  // Type pills
+  const typePills=[
+    {k:'all',label:'All'},
+    {k:'pasture',label:'Pasture'},
+    {k:'mixed-use',label:'Mixed-Use'},
+  ].map(c=>{
+    const active=_psPickerTypeFilter===c.k;
+    return `<button onclick="_psPickerTypeFilter='${c.k}';_renderPastureSurveyPicker()"
+      style="padding:4px 12px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;
+      border:1.5px solid ${active?'var(--green)':'var(--border2)'};
+      background:${active?'var(--green)':'transparent'};
+      color:${active?'white':'var(--text2)'};">${c.label}</button>`;
+  }).join('');
+
+  let html='';
+  if(isField) html+=`<div style="text-align:right;margin-bottom:10px;"><button class="btn btn-green btn-sm" onclick="closePastureSurveyPickerSheet()">\u2302 Done</button></div>`;
+  html+=`<div style="font-size:17px;font-weight:600;margin-bottom:4px;">Survey a pasture</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Select a pasture to record conditions</div>`;
+  if(farmPills) html+=`<div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;">${farmPills}</div>`;
+  html+=`<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">${typePills}</div>
+    <input type="text" id="ps-picker-search" placeholder="Search pastures..."
+      oninput="_renderPastureSurveyPicker()" value="${q.replace(/"/g,'&quot;')}"
+      style="width:100%;padding:10px 12px;border:1px solid var(--border2);border-radius:var(--radius);font-size:14px;margin-bottom:10px;background:var(--bg2);color:var(--text);"/>`;
+  if(!pastures.length){
+    html+=`<div style="padding:16px;text-align:center;background:var(--bg2);border-radius:var(--radius);">
+      <div style="font-size:13px;color:var(--text2);">No pastures found${q?' matching \u201c'+q+'\u201d':''}</div></div>`;
+  } else {
+    html+=pastures.map(p=>{
+      const isActive=activeIds.has(String(p.id));
+      const farm=p.farmId?(S.farms||[]).find(f=>String(f.id)===String(p.farmId)):null;
+      const farmHint=farm?' \u00b7 '+farm.name:'';
+      const acresHint=p.acres?' \u00b7 '+p.acres+' ac':'';
+      return `<div onclick="closePastureSurveyPickerSheet();openSurveySheet('${p.id}')"
+        style="padding:12px;background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius);cursor:pointer;margin-bottom:6px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="font-size:20px;">📋</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;font-weight:600;">${p.name}${acresHint}${isActive?' <span class="badge bg" style="font-size:9px;">active</span>':''}</div>
+            <div style="font-size:11px;color:var(--text2);">${p.landUse||'pasture'}${farmHint}</div>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  el.innerHTML=html;
+  const searchInput=document.getElementById('ps-picker-search');
+  if(searchInput&&q) { searchInput.focus(); searchInput.setSelectionRange(q.length,q.length); }
+}
+
 function _getUserFieldModules(){
-  // Read directly from gthy-identity cache — getActiveUser() returns a fresh object
-  // each call so mutating it doesn't persist. The cache is the durable store.
   const c = _sbLoadCachedIdentity();
-  if(c && Array.isArray(c.fieldModules)) return c.fieldModules;
+  if(c && Array.isArray(c.fieldModules)){
+    // Migration: legacy 'survey' key → 'surveybulk'
+    return c.fieldModules.map(k => k === 'survey' ? 'surveybulk' : k);
+  }
   return FIELD_MODULES_DEFAULT;
 }
 function _setUserFieldModules(keys){
@@ -12383,24 +12494,95 @@ function _heatBadgeHtml(a){
 }
 
 // ── HEAT PICKER SHEET — field mode (Task 5) ─────────────────────────────────
+let _hpEventFilter = 'all';
+let _hpGroupFilter = 'all';
+
 function openHeatPickerSheet(){
+  _hpEventFilter='all';
+  _hpGroupFilter='all';
   document.getElementById('hp-search').value='';
+  _hpRenderFilters();
   _hpFilterAnimals();
   document.getElementById('hp-step1').style.display='block';
   document.getElementById('hp-step2').style.display='none';
-  document.getElementById('heat-picker-wrap').classList.add('open');
+  // Field-mode treatment
+  const isField=document.body.classList.contains('field-mode');
+  const wrap=document.getElementById('heat-picker-wrap');
+  const backdrop=wrap.querySelector('.sheet-backdrop');
+  const handle=wrap.querySelector('.sheet-handle');
+  const closeBtn=wrap.querySelector('.sheet-close');
+  if(backdrop) backdrop.onclick=isField?null:closeHeatPickerSheet;
+  if(handle) handle.style.display=isField?'none':'';
+  if(closeBtn) closeBtn.textContent=isField?'\u2302 Done':'\u2715';
+  wrap.classList.add('open');
 }
 function closeHeatPickerSheet(){
   document.getElementById('heat-picker-wrap').classList.remove('open');
+  if(document.body.classList.contains('field-mode')) _fieldModeGoHome();
 }
+
+function _hpRenderFilters(){
+  // Event pills
+  const epEl=document.getElementById('hp-event-pills');
+  if(epEl){
+    const openEvs=S.events.filter(e=>e.status==='open');
+    const pills=[{k:'all',label:'All events'},...openEvs.map(e=>{
+      const p=(S.pastures||[]).find(p=>String(p.id)===String(e.pastureId||(e.paddocks&&e.paddocks[0]?.pastureId)));
+      return {k:String(e.id),label:p?p.name:'Event'};
+    })];
+    epEl.innerHTML=pills.map(c=>{
+      const active=_hpEventFilter===c.k;
+      return `<button onclick="_hpEventFilter='${c.k}';_hpGroupFilter='all';_hpRenderFilters();_hpFilterAnimals()"
+        style="padding:4px 12px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;
+        border:1.5px solid ${active?'var(--green)':'var(--border2)'};
+        background:${active?'var(--green)':'transparent'};
+        color:${active?'white':'var(--text2)'};">${escHtml(c.label)}</button>`;
+    }).join('');
+  }
+  // Group pills
+  const gpEl=document.getElementById('hp-group-pills');
+  if(gpEl){
+    let groups;
+    if(_hpEventFilter==='all'){
+      groups=(S.animalGroups||[]).filter(g=>!g.archived);
+    } else {
+      const ev=S.events.find(e=>String(e.id)===_hpEventFilter);
+      groups=ev?evGroups(ev).filter(g=>!g.dateRemoved).map(g=>getGroupById(g.groupId)).filter(Boolean):[];
+    }
+    if(_hpGroupFilter!=='all'&&!groups.some(g=>String(g.id)===_hpGroupFilter)) _hpGroupFilter='all';
+    const pills=[{k:'all',label:'All groups'},...groups.map(g=>({k:String(g.id),label:g.name}))];
+    gpEl.innerHTML=pills.map(c=>{
+      const active=_hpGroupFilter===c.k;
+      return `<button onclick="_hpGroupFilter='${c.k}';_hpFilterAnimals()"
+        style="padding:4px 12px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;
+        border:1.5px solid ${active?'var(--teal)':'var(--border2)'};
+        background:${active?'var(--teal)':'transparent'};
+        color:${active?'white':'var(--text2)'};">${escHtml(c.label)}</button>`;
+    }).join('');
+  }
+}
+
 function _hpFilterAnimals(){
   const q = (document.getElementById('hp-search').value||'').toLowerCase();
-  const females = (S.animals||[]).filter(a=>a.sex==='female'&&a.status!=='culled'&&a.active!==false);
-  const filtered = q ? females.filter(a=>
+  let pool = (S.animals||[]).filter(a=>a.sex==='female'&&a.status!=='culled'&&a.active!==false);
+  // Event filter
+  if(_hpEventFilter!=='all'){
+    const ev=S.events.find(e=>String(e.id)===_hpEventFilter);
+    if(ev){
+      const evGids=new Set(evGroups(ev).filter(g=>!g.dateRemoved).map(g=>String(g.groupId)));
+      pool=pool.filter(a=>{const m=(S.animalGroupMemberships||[]).find(m=>m.animalId===a.id&&!m.dateLeft);return m&&evGids.has(String(m.groupId));});
+    } else pool=[];
+  }
+  // Group filter
+  if(_hpGroupFilter!=='all'){
+    pool=pool.filter(a=>{const m=(S.animalGroupMemberships||[]).find(m=>m.animalId===a.id&&!m.dateLeft);return m&&String(m.groupId)===_hpGroupFilter;});
+  }
+  // Search
+  const filtered = q ? pool.filter(a=>
     (a.tagNum||'').toLowerCase().includes(q)||
     (a.name||'').toLowerCase().includes(q)||
     (a.systemId||'').toLowerCase().includes(q)
-  ) : females;
+  ) : pool;
   filtered.sort((a,b)=>(a.tagNum||a.systemId||'').localeCompare(b.tagNum||b.systemId||'',undefined,{numeric:true}));
   const el = document.getElementById('hp-animal-list');
   if(!filtered.length){ el.innerHTML='<div style="padding:20px;text-align:center;color:var(--text2);">No matching animals</div>'; return; }
@@ -24179,6 +24361,19 @@ function saveEditSubMove(){
 </div>
 
 <!-- ── HEAT PICKER SHEET (field mode) ─────────────────────────────────────────── -->
+<!-- ── PASTURE SURVEY PICKER SHEET (field mode) ────────────────────────────────── -->
+<div id="pasture-survey-picker-wrap" class="sheet-wrap field-mode-sheet">
+  <div class="sheet-backdrop" onclick="closePastureSurveyPickerSheet()"></div>
+  <div class="sheet" style="max-width:500px;">
+    <div class="sheet-handle"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div style="font-size:16px;font-weight:600;">Survey a pasture</div>
+      <button class="sheet-close" onclick="closePastureSurveyPickerSheet()" style="border:none;background:transparent;font-size:18px;cursor:pointer;color:var(--text2);">&#x2715;</button>
+    </div>
+    <div id="pasture-survey-picker-list"></div>
+  </div>
+</div>
+
 <div id="heat-picker-wrap" class="sheet-wrap field-mode-sheet">
   <div class="sheet-backdrop"></div>
   <div class="sheet" style="max-width:500px;">
@@ -24186,12 +24381,14 @@ function saveEditSubMove(){
     <div id="hp-step1">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <h3 style="margin:0;">Select Animal</h3>
-        <button class="btn btn-outline btn-xs" onclick="closeHeatPickerSheet()">Done</button>
+        <button class="sheet-close btn btn-outline btn-xs" onclick="closeHeatPickerSheet()">Done</button>
       </div>
+      <div id="hp-event-pills" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;"></div>
+      <div id="hp-group-pills" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;"></div>
       <input type="text" id="hp-search" placeholder="Search by tag, name, or ID"
         style="width:100%;padding:10px 12px;font-size:15px;border:1.5px solid var(--border2);border-radius:8px;margin-bottom:8px;"
         oninput="_hpFilterAnimals()"/>
-      <div id="hp-animal-list" style="max-height:60vh;overflow-y:auto;-webkit-overflow-scrolling:touch;"></div>
+      <div id="hp-animal-list" style="max-height:55vh;overflow-y:auto;-webkit-overflow-scrolling:touch;"></div>
     </div>
     <div id="hp-step2" style="display:none;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
