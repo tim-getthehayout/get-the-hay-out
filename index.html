@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260407.0058" id="app-version-meta"/>
+<meta name="app-version" content="b20260407.0107" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -4229,6 +4229,13 @@ async function _flushOneOp(op, failed){
 }
 
 async function flushToSupabase(){
+  // Flush lock — if a flush is already running, wait for it instead of starting a concurrent one.
+  // Concurrent flushes reading/writing the same queue can corrupt it.
+  if(_flushPromise) return _flushPromise;
+  _flushPromise = _flushToSupabaseInner();
+  try { await _flushPromise; } finally { _flushPromise = null; }
+}
+async function _flushToSupabaseInner(){
   if(!_sbClient || !_sbOperationId) return;
   const rawQueue = JSON.parse(localStorage.getItem('gthy-sync-queue') || '[]');
   // Patch any items queued before sign-in resolved (operation_id was null at write time).
@@ -4384,6 +4391,7 @@ async function deleteOperationData(opId){
 
 // M3: debounced flush — replaces driveSyncDebounced
 let _supabaseTimer;
+let _flushPromise = null; // flush lock — prevents concurrent flushToSupabase calls
 function supabaseSyncDebounced(){
   setSyncStatus('pending', 'Saving…');
   if(_supabaseTimer) clearTimeout(_supabaseTimer);
