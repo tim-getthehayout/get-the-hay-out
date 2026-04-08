@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260407.2351" id="app-version-meta"/>
+<meta name="app-version" content="b20260408.0009" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -3886,6 +3886,7 @@ function _paddockObservationRow(obs, opId){
     veg_height:        obs.vegHeight ?? null,
     forage_cover_pct:  obs.forageCoverPct ?? null,
     forage_quality:    obs.forageQuality ?? null,
+    forage_condition:  obs.forageCondition ?? null,
     recovery_min_days: obs.recoveryMinDays ?? null,
     recovery_max_days: obs.recoveryMaxDays ?? null,
     notes:             obs.notes ?? null,
@@ -4125,7 +4126,7 @@ function queueEventWrite(ev){
 // Keeps stale pre-fix queue items from failing permanently due to schema changes.
 const _SB_ALLOWED_COLS = {
   surveys:              new Set(['id','operation_id','date','status','draft_ratings','notes','created_at']),
-  paddock_observations: new Set(['id','operation_id','pasture_id','observed_at','source','source_id','confidence_rank','veg_height','forage_cover_pct','forage_quality','recovery_min_days','recovery_max_days','notes','recorded_at']),
+  paddock_observations: new Set(['id','operation_id','pasture_id','observed_at','source','source_id','confidence_rank','veg_height','forage_cover_pct','forage_quality','forage_condition','recovery_min_days','recovery_max_days','notes','recorded_at']),
   submissions:          new Set(['id','operation_id','app','type','cat','area','screen','priority','status','note','tester','version','ts','submitter_id','dev_response','dev_response_ts','first_response_at','thread','oi_number','resolved_in_version','resolution_note','linked_to']),
   animals:              new Set(['id','operation_id','tag','name','sex','class_id','birth_date','weaned','weaned_date','wean_target_date','confirmed_bred','confirmed_bred_date','dam_id','status','cull_date','cull_reason','notes','updated_at']),
   batches:              new Set(['id','operation_id','feed_type_id','name','quantity','unit','wt','dm_pct','cost_per_unit','purchase_date','archived','notes','updated_at']),
@@ -7942,14 +7943,16 @@ function saveSurveyDraft(surveyId){
   if(!sv || sv.status!=='draft') return;
   // Persist current UI state into draftRatings
   sv.draftRatings = {};
-  Object.keys(surveyRatings).forEach(pid=>{
+  const _allPids = new Set([...Object.keys(surveyRatings),...Object.keys(surveyForageQuality),...Object.keys(surveyVegHeight),...Object.keys(surveyForageCover)]);
+  _allPids.forEach(pid=>{
     sv.draftRatings[pid] = {
-      rating:       surveyRatings[pid]??null,
-      vegHeight:    surveyVegHeight[pid]??null,
-      forageCover:  surveyForageCover[pid]??null,
-      notes:        surveyNotes[pid]??null,
-      recoveryMin:  surveyRecovery[pid]?.min??null,
-      recoveryMax:  surveyRecovery[pid]?.max??null,
+      rating:        surveyRatings[pid]??null,
+      vegHeight:     surveyVegHeight[pid]??null,
+      forageCover:   surveyForageCover[pid]??null,
+      forageQuality: surveyForageQuality[pid]??null,
+      notes:         surveyNotes[pid]??null,
+      recoveryMin:   surveyRecovery[pid]?.min??null,
+      recoveryMax:   surveyRecovery[pid]?.max??null,
     };
   });
   sv.date = document.getElementById('survey-date')?.value || sv.date;
@@ -7974,6 +7977,7 @@ function openBulkSurveySheet(){
       if(v.notes    != null) surveyNotes[pid]        = v.notes;
       if(v.vegHeight!= null) surveyVegHeight[pid]    = v.vegHeight;
       if(v.forageCover!=null) surveyForageCover[pid] = v.forageCover;
+      if(v.forageQuality!=null) surveyForageQuality[pid] = v.forageQuality;
       if(v.recoveryMin!=null||v.recoveryMax!=null) surveyRecovery[pid]={min:v.recoveryMin,max:v.recoveryMax};
     });
     surveyFocusPastureId = null;
@@ -8017,6 +8021,7 @@ function openSurveySheet(pastureId, surveyId){
       if(obs.forageQuality  != null) surveyRatings[pid]     = obs.forageQuality;
       if(obs.vegHeight      != null) surveyVegHeight[pid]    = obs.vegHeight;
       if(obs.forageCoverPct != null) surveyForageCover[pid]  = obs.forageCoverPct;
+      if(obs.forageCondition!= null) surveyForageQuality[pid]= obs.forageCondition;
       if(obs.notes          != null) surveyNotes[pid]        = obs.notes;
       // Pre-populate recovery from existing survey date
       const sv = (S.surveys||[]).find(s=>String(s.id)===String(surveyId));
@@ -8068,7 +8073,8 @@ function completeBulkSurvey(){
       confidenceRank: 3,
       vegHeight:       surveyVegHeight[pid]??null,
       forageCoverPct:  surveyForageCover[pid]??null,
-      forageQuality:   surveyForageQuality[pid]||surveyRatings[pid]??null,
+      forageQuality:   surveyRatings[pid]??null,
+      forageCondition: surveyForageQuality[pid]??null,
       recoveryMinDays: surveyRecovery[pid]?.min??null,
       recoveryMaxDays: surveyRecovery[pid]?.max??null,
       notes:           surveyNotes[pid]||null,
@@ -8317,6 +8323,7 @@ function openBulkSurveyEdit(surveyId){
     if(o.forageQuality  != null) surveyRatings[pid]    = o.forageQuality;
     if(o.vegHeight      != null) surveyVegHeight[pid]   = o.vegHeight;
     if(o.forageCoverPct != null) surveyForageCover[pid] = o.forageCoverPct;
+    if(o.forageCondition!= null) surveyForageQuality[pid]= o.forageCondition;
     if(o.notes          != null) surveyNotes[pid]       = o.notes;
   });
   surveyFocusPastureId = null;
@@ -22842,7 +22849,7 @@ function _mwSave(){
       const _arrObs = {
         id: Date.now()+99, pastureId: dp.id, observedAt: moveDate, source:'event_open',
         sourceId: newEvId, confidenceRank:1, vegHeight: arrHeight,
-        forageCoverPct: arrCover || null, forageQuality: arrQuality || null,
+        forageCoverPct: arrCover || null, forageCondition: arrQuality || null,
       };
       S.paddockObservations.push(_arrObs);
       queueWrite('paddock_observations', _paddockObservationRow(_arrObs, _sbOperationId));
