@@ -1,5 +1,5 @@
 # Get The Hay Out — Session Rules (Design Sessions)
-**Doc version:** 19 — last meaningful update b20260408
+**Doc version:** 18 — last meaningful update b20260405
 **These rules govern Claude.ai design sessions on this project.**
 Upload this file to the Claude Project alongside OPEN_ITEMS.md.
 
@@ -7,10 +7,9 @@ Upload this file to the Claude Project alongside OPEN_ITEMS.md.
 > It does NOT increment for build stamp bumps or line number updates.
 > The §0 Rules Changelog shows what changed in each version.
 
-> **Scope change (v19):** Cowork added as a third workflow column between Claude.ai and
-> Claude Code. Cowork has direct repo access, edits OPEN_ITEMS.md directly, and writes
-> spec files to `github/issues/` for Claude Code handoff. Claude.ai rules preserved in
-> `SESSION_RULES_v18_claude-ai-only.md` for reference.
+> **Scope change (v18):** Code implementation has moved to Claude Code. Claude.ai sessions
+> are now exclusively for design, brainstorming, specs, and triage. This file no longer
+> governs code delivery, build stamps, or ARCHITECTURE.md updates.
 
 ---
 
@@ -22,7 +21,6 @@ Read this to understand why a rule exists or when it was introduced.
 
 | Doc v | Build | Change |
 |---|---|---|
-| v19 | b20260408 | Cowork added as third workflow column in §2. Cowork has direct repo access — edits OPEN_ITEMS.md directly (no longer routed through SESSION_BRIEF → Claude Code). Writes spec files to `github/issues/` for Claude Code handoff (unfiled specs have no `GH-` prefix; Claude Code renames to `GH-{number}_` after creating issue). §4d updated: OPEN_ITEMS changes section optional when using Cowork (already applied). §7d delivery gate updated with new deliverable rows (OPEN_ITEMS.md direct edit, spec files). GitHub issue label protocol added. Claude.ai-only rules archived as `SESSION_RULES_v18_claude-ai-only.md`. |
 | v18 | b20260405 | Major scope change: Claude.ai sessions are now design-only. Code implementation moved to Claude Code. Removed: §2 Build Stamp Protocol, §3 Before Touching Any Function, §6 UI Sheet Pattern, §7 Code Quality checks, §8a-8c (stamp/ARCHITECTURE/dead code), §8e-8f (file delivery/push.command), §9 Stale Base Problem. Simplified: §1 Start of Session (no HTML or ARCHITECTURE needed), §7 End of Session (deliver briefs only). Added: §2 Workflow Split (Claude.ai vs Claude Code responsibilities). OPEN_ITEMS.md is no longer edited directly by Claude.ai — all changes (add/close/update) are captured in the SESSION_BRIEF and applied by Claude Code. Renumbered remaining sections. |
 | v17 | b20260404 | §4d — SESSION_BRIEF filename convention changed from `SESSION_BRIEF_bYYYYMMDD_HHMM.md` to `SESSION_BRIEF_[subject-slug].md` (subject naming; timestamp lives in file header only). |
 | v16 | b20260329 | §8e delivery table — rename-before-copy note + bash snippet added; rename step added to delivery checklist. |
@@ -78,50 +76,35 @@ If the user asks you to patch a specific version but a different version is pres
 
 ---
 
-## 2. Workflow Split — Claude.ai / Cowork / Claude Code
+## 2. Workflow Split — Claude.ai vs Claude Code
 
-**Claude.ai** handles:
-- Design, brainstorming, UX decisions (when Cowork is not available)
-- SESSION_RULES and MASTER_TEMPLATE governance
-- Writing session briefs and build specs (OPEN_ITEMS changes captured in brief for Claude Code to apply)
-
-**Cowork** handles:
-- Design sessions with live repo access (reads OPEN_ITEMS.md, ARCHITECTURE.md directly)
-- Editing OPEN_ITEMS.md directly in the repo (add, close, update entries)
-- Writing spec files to `github/issues/` for Claude Code handoff
-- Feedback import and analysis (reads JSON from repo)
+**Claude.ai** (this session) handles:
+- Design, brainstorming, UX decisions
+- Writing session briefs and build specs
 - Triage and prioritization of OPEN_ITEMS
-- GitHub issue template and label protocol management
+- Feedback import and analysis
+- SESSION_RULES and MASTER_TEMPLATE governance
 
 **Claude Code** handles:
 - All code changes to `index.html`
 - ARCHITECTURE.md updates (line numbers, function map, screen map)
 - PROJECT_CHANGELOG.md updates
-- Creating GitHub issues from spec files in `github/issues/` (renames filed specs with `GH-{number}_` prefix)
+- Closing OPEN_ITEMS entries when implemented
 - Git operations (commit, branch, deploy)
 - Code quality checks and testing
 
-### What Cowork does NOT do
-- ❌ Edit `index.html` — Claude Code owns all code
-- ❌ Edit `ARCHITECTURE.md` or `PROJECT_CHANGELOG.md` — Claude Code owns these
-- ❌ Create GitHub issues directly — sandbox limitation; writes spec files for Claude Code to file
-- ❌ Bump build stamps or deploy — `deploy.py` handles this
+### What Claude.ai does NOT do (as of v18)
+- ❌ Edit or deliver `index.html` — code lives in the repo, Claude Code edits it directly
+- ❌ Edit or deliver `ARCHITECTURE.md` — Claude Code owns this doc
+- ❌ Edit or deliver `PROJECT_CHANGELOG.md` — Claude Code owns this doc
+- ❌ Bump build stamps — `deploy.py` handles this automatically
 - ❌ Run syntax checks or code quality gates — Claude Code handles this
-
-### What Claude.ai does NOT do
-- ❌ Edit or deliver `index.html` — Claude Code owns all code
-- ❌ Edit or deliver `ARCHITECTURE.md` or `PROJECT_CHANGELOG.md` — Claude Code owns these
-- ❌ Edit `OPEN_ITEMS.md` directly — changes captured in SESSION_BRIEF for Claude Code (or use Cowork instead)
-- ❌ Bump build stamps or deploy — `deploy.py` handles this
-
-### The output of a Cowork session is:
-1. **Updated OPEN_ITEMS.md** — changes applied directly to the repo
-2. **Spec files in `github/issues/`** — ready for Claude Code to create issues and implement
-3. **Session brief** (if needed) — implementation guidance beyond what the spec captures
+- ❌ Deliver files via `push.command` — Claude Code commits and pushes directly
 
 ### The output of a Claude.ai session is:
-1. **A session brief** — what to implement and why, including OPEN_ITEMS changes for Claude Code to apply
-2. **Design decisions** — captured in the brief, not in code
+1. **A session brief or build spec** — what to implement and why
+2. **Updated OPEN_ITEMS.md** — new items added, priorities adjusted
+3. **Design decisions** — captured in the brief, not in code
 
 ---
 
@@ -290,11 +273,9 @@ Do **not** generate one when the session only produced closed OPEN_ITEMS entries
 - UPDATE OI-XXXX: [what changed]
 ```
 
-### OPEN_ITEMS changes — Cowork vs Claude.ai
+### OPEN_ITEMS changes go in the brief, not in the file
 
-**Cowork** edits `OPEN_ITEMS.md` directly in the repo during the session. The `## OPEN_ITEMS changes` section in the session brief is **omitted** since changes are already committed. The brief focuses purely on implementation guidance.
-
-**Claude.ai** does not have repo access, so OPEN_ITEMS changes are captured in the session brief:
+Claude.ai **does not edit OPEN_ITEMS.md directly.** Instead, capture all OPEN_ITEMS changes in the session brief under a dedicated section:
 
 ```markdown
 ## OPEN_ITEMS changes
@@ -303,7 +284,7 @@ Do **not** generate one when the session only produced closed OPEN_ITEMS entries
 - UPDATE OI-XXXX: [what changed — priority, description, severity, etc.]
 ```
 
-When the user pastes the brief into Claude Code, Claude Code applies these changes to `OPEN_ITEMS.md` in the repo.
+When the user pastes the brief into Claude Code, Claude Code applies these changes to `OPEN_ITEMS.md` in the repo. This eliminates file transfer between platforms.
 
 ### Delivery
 - Filename: `SESSION_BRIEF_[subject-slug].md`
@@ -367,25 +348,8 @@ If the rules themselves changed this session:
 
 **Before delivering outputs, write the following block:**
 
-**Cowork delivery gate:**
 ```
-── §7d DELIVERY GATE (Cowork) ─────────────────────────────────
-DESIGN DECISIONS THIS SESSION:
-- [decision / area]: [what was decided and why]
-- [repeat for every significant decision]
-
-DELIVERABLES:
-- OPEN_ITEMS.md        updated directly in repo:                 ✓/✗ (or N/A)
-- Spec files           written to github/issues/:                ✓/✗ (or N/A)
-- SESSION_BRIEF        generated for Claude Code handoff:        ✓/✗ (or N/A)
-- SESSION_RULES        updated only if rules changed:            ✓/✗ (or N/A)
-- MASTER_TEMPLATE      updated only if rules changed:            ✓/✗ (or N/A)
-───────────────────────────────────────────────────────────────
-```
-
-**Claude.ai delivery gate:**
-```
-── §7d DELIVERY GATE (Claude.ai) ──────────────────────────────
+── §7d DELIVERY GATE ──────────────────────────────────────────
 DESIGN DECISIONS THIS SESSION:
 - [decision / area]: [what was decided and why]
 - [repeat for every significant decision]

@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260408.1029`
+**Current build:** `b20260408.1137`
 **Last updated:** 2026-04-05
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -1418,9 +1418,24 @@ Status/category filters plus area filter and a `has-response` pseudo-filter — 
 ### Admin console (delivered b20260401.2037)
 Standalone `gthy-admin-console.html` — open locally in any browser, no deployment needed. Connects to Supabase via a Deno Edge Function (`admin-submissions`) deployed to the GTHY Supabase project. Edge Function holds the service role key server-side as an env var; console authenticates with a lightweight `ADMIN_SECRET` UUID pasted at session open.
 
-**Edge Function** (`supabase/functions/admin-submissions/index.ts`): actions `list` (GET, filterable), `respond` (PATCH — dev_response + thread), `update` (PATCH — cat/type/status/area/priority/oi_number), `delete` (DELETE). JWT verification disabled on function — auth handled by `x-admin-secret` header check only.
+**Edge Function** (`supabase/functions/admin-submissions/index.ts`): actions `list` (GET, filterable), `respond` (PATCH — dev_response + thread), `update` (PATCH — cat/type/status/area/priority/oi_number), `resolve-release` (PATCH — bulk-resolve feedback + create release note), `delete` (DELETE). JWT verification disabled on function — auth handled by `x-admin-secret` header check only.
 
 **Console features:** filter by type/status/cat/priority/area/operation, two-pane list+detail, edit all fields, send dev responses, full thread view, AI triage (Claude Haiku via Anthropic API — key pasted into toolbar), export JSON in standard session-import format.
+
+### Release manifest (GH-2, b20260408)
+
+Closes the feedback loop: after a deploy that resolves feedback items, the app auto-routes resolutions by submitter.
+
+**Edge Function action `resolve-release`:** `PATCH ?action=resolve-release` with body `{version, resolved_items[{feedbackId, oiNumber, ghIssue, note}], notes}`. Updates each submission to `status='resolved'` + `resolved_in_version`, inserts a `release_notes` row.
+
+**Supabase table `release_notes`:** `{id, operation_id, version, resolved_items (jsonb), notes, created_at}`. RLS: all authenticated users can SELECT (app reads on load). Inserts via edge function (service role).
+
+**`checkReleaseUpdates()`:** Runs after `loadFromSupabase` in the sign-in flow. Compares app version against `localStorage['gthy-lastCheckedReleaseVersion']`. Queries `release_notes` for new entries. Routes each resolved item:
+- **Submitter** (`f.submitterId === userId`): sets `status='resolved'`, shows toast, existing confirm/reopen UI handles the rest
+- **Anonymous + admin** (`!f.submitterId && isAdmin()`): same as submitter — admin reviews
+- **All others**: auto-close (`status='closed'`, `confirmedBy='auto-closed'`)
+
+**`deploy.py` integration:** `publish_release_manifest(stamp)` checks for `/tmp/gthy-resolved.json` + env vars `GTHY_ADMIN_SECRET`/`GTHY_EDGE_FN_URL`. If present, calls edge function, prints result, deletes temp file. Claude Code writes the resolved file before deploying when feedback items are being resolved.
 
 ### Stream 2 — Claude Observations (Session Notes)
 Developer-level observations made by Claude during coding sessions — things noticed off the current task.
