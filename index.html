@@ -4521,6 +4521,11 @@ function createFeedTransfer(srcEv, destEv, items, moveDate, moveTime){
     });
     pairs.push({transferPairId, batchId:item.batchId, qty:item.qty});
   });
+  // Decrement batch.remaining to reflect feed moved out of source inventory
+  resolved.forEach(item=>{
+    const batch=S.batches.find(b=>b.id===item.batchId);
+    if(batch && item.qty>0) batch.remaining=Math.max(0,+(batch.remaining-item.qty).toFixed(2));
+  });
   srcEv.updatedAt=now;
   destEv.updatedAt=now;
   return {success:true, pairs};
@@ -7506,6 +7511,13 @@ function wizSaveNew(){
       _oldEv.status='closed';
       _oldEv.dateOut=_oldEv.dateOut||inDate;
       _oldEv.feedResidual=_oldEv.feedResidual||0;
+      // Write closing feed check from last known residual so feed-in/out calcs work
+      if(allFeedEntries(_oldEv).length){
+        if(!Array.isArray(_oldEv.feedResidualChecks)) _oldEv.feedResidualChecks=[];
+        const _acLastCk=(_oldEv.feedResidualChecks||[]).filter(c=>!c.isCloseReading&&c.notes!=='transfer_opening').sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];
+        const _acResPct=_acLastCk?(_acLastCk.balesRemainingPct??_acLastCk.residualPct??_oldEv.feedResidual):_oldEv.feedResidual;
+        _oldEv.feedResidualChecks.push({id:Date.now(),date:inDate,residualPct:_acResPct,balesRemainingPct:_acResPct,typeChecks:_acLastCk?.typeChecks||null,notes:'move_close',isCloseReading:true});
+      }
       recalcEventTotals(_oldEv);
     }
     queueEventWrite(_oldEv);
@@ -23171,6 +23183,34 @@ function _mwSave(){
     queueEventWrite(srcEv);
 
     // ── 1b. Save inline feed check if shown ─────────────────────
+    // Fallback: if _fcTypeData wasn't populated by the render step (e.g. wizard entered
+    // a code path that skipped the feed check UI), build it now from the event's feed
+    // entries so the closing check is never silently dropped.
+    if(isLastGroup && !_fcTypeData.length && srcEv && allFeedEntries(srcEv).length){
+      const _ftMap={};
+      allFeedEntries(srcEv).forEach(entry=>{
+        (entry.lines||[]).forEach(line=>{
+          const batch=S.batches.find(b=>b.id===line.batchId);
+          if(!batch) return;
+          const ftId=batch.feedTypeId||batch.typeId;
+          if(!ftId) return;
+          if(!_ftMap[ftId]){
+            const ft=(S.feedTypes||[]).find(f=>f.id===ftId);
+            _ftMap[ftId]={feedTypeId:ftId,feedTypeName:ft?ft.name:(batch.label||'Feed'),unit:ft?ft.unit:(batch.unit||'unit'),totalUnits:0,lbsPerUnit:batch.wt||0,dmPct:batch.dm||85};
+          }
+          _ftMap[ftId].totalUnits+=Math.max(0,line.qty||0);
+        });
+      });
+      const _fbLastCk=(srcEv.feedResidualChecks||[]).filter(c=>!c.isCloseReading&&c.notes!=='transfer_opening').sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];
+      const _fbPct=_fbLastCk?(_fbLastCk.balesRemainingPct??_fbLastCk.residualPct??100):100;
+      const _fbTypeCks=_fbLastCk?.typeChecks||null;
+      _fcTypeData=Object.values(_ftMap).filter(t=>t.totalUnits>0).map(t=>{
+        let lastUnits;
+        if(_fbTypeCks){const tc=_fbTypeCks.find(c=>String(c.feedTypeId)===String(t.feedTypeId));lastUnits=tc?tc.remaining:t.totalUnits*(_fbPct/100);}
+        else{lastUnits=t.totalUnits*(_fbPct/100);}
+        return{...t,startedUnits:t.totalUnits,lastCheckUnits:parseFloat(lastUnits.toFixed(2)),lastCheckDate:_fbLastCk?.date||null,remaining:parseFloat(lastUnits.toFixed(2))};
+      });
+    }
     if(isLastGroup && _fcTypeData.length){
       // Read latest values from DOM inputs (user may have adjusted since render)
       _fcTypeData.forEach((t,idx)=>{
