@@ -154,11 +154,17 @@ Claude Code owns these docs:
 Claude.ai owns:
 - **SESSION_RULES.md** — design session governance
 
-Shared:
-- **OPEN_ITEMS.md** — Claude.ai proposes changes (add/close/update) in session briefs. Claude Code applies them to the file in the repo.
+Cowork owns:
+- **OPEN_ITEMS.md** — Cowork edits directly in the repo (add/close/update entries, bump counts). Claude Code may also close items when implementing fixes.
+- **`github/issues/`** — spec files for Claude Code handoff. See `_TEMPLATE.md` for format and `LABELS.md` for label protocol.
 
-### Session Brief Handoff
-When the user pastes a SESSION_BRIEF from Claude.ai, look for the `## OPEN_ITEMS changes` section and apply all entries to `OPEN_ITEMS.md` before starting implementation work.
+### Spec File Handoff (from Cowork)
+Cowork writes spec files to `github/issues/`. Files without a `GH-` prefix are unfiled — Claude Code should:
+1. Create a GitHub issue from the spec: `gh issue create --title "TITLE" --body "$(cat github/issues/FILENAME.md)" --label "LABELS"`
+2. Rename the file with the issue number: `FILENAME.md` → `GH-{number}_FILENAME.md`
+
+### Session Brief Handoff (from Claude.ai)
+When the user pastes a SESSION_BRIEF from Claude.ai, look for the `## OPEN_ITEMS changes` section and apply all entries to `OPEN_ITEMS.md` before starting implementation work. (This path is used when Cowork is not available.)
 
 ### Deploy Gate — Mandatory Before Every Deploy
 Before running `deploy.py deploy` or `deploy.py release`, complete ALL of the following:

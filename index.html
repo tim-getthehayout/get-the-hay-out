@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260408.1029" id="app-version-meta"/>
+<meta name="app-version" content="b20260408.1137" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -2977,6 +2977,7 @@ async function sbPostSignInCheck(user){
       sbCacheIdentity(member.display_name, _sbOperationId);
       await loadFromSupabase(_sbOperationId);
       subscribeRealtime(_sbOperationId);
+      checkReleaseUpdates();
     } else if(!_sbOperationId){
       // New user — no pending invite claimed, no existing member row, no cached op.
       // Bootstrap their own operation directly (don't rely on onAuthStateChange race).
@@ -2984,6 +2985,7 @@ async function sbPostSignInCheck(user){
       if(opId){
         await loadFromSupabase(opId);
         subscribeRealtime(opId);
+        checkReleaseUpdates();
       }
     }
   } catch(e){
@@ -11959,6 +11961,68 @@ function reopenIssue(id){
   queueWrite('submissions',_submissionRow(orig,_sbOperationId));
   queueWrite('submissions',_submissionRow(_rf,_sbOperationId));
   save();renderFeedbackTab();updateFeedbackBadge();
+}
+
+// ── Release manifest — auto-resolve feedback on version update ──────────────
+async function checkReleaseUpdates(){
+  if(!_sbClient || !_sbSession) return;
+  const curVersion = document.getElementById('app-version-meta')?.getAttribute('content') || '';
+  const lastChecked = localStorage.getItem('gthy-lastCheckedReleaseVersion') || '';
+  if(!curVersion || curVersion === lastChecked) return;
+
+  try{
+    const { data: notes, error } = await _sbClient
+      .from('release_notes')
+      .select('*')
+      .gt('version', lastChecked || '0')
+      .order('created_at', { ascending: true });
+    if(error || !notes?.length){
+      localStorage.setItem('gthy-lastCheckedReleaseVersion', curVersion);
+      return;
+    }
+
+    const userId = _sbSession?.user?.id;
+    const admin = isAdmin();
+    let confirmCount = 0;
+
+    for(const rn of notes){
+      const items = rn.resolved_items || [];
+      for(const ri of items){
+        const f = (S.feedback||[]).find(fb => String(fb.id) === String(ri.feedbackId));
+        if(!f || f.status === 'closed') continue;
+
+        const isSubmitter = f.submitterId && String(f.submitterId) === String(userId);
+        const isAnonymousForAdmin = (!f.submitterId) && admin;
+
+        if(isSubmitter || isAnonymousForAdmin){
+          f.status = 'resolved';
+          f.resolvedInVersion = rn.version;
+          f.resolutionNote = ri.note || null;
+          f.resolvedAt = new Date().toISOString();
+          queueWrite('submissions', _submissionRow(f, _sbOperationId));
+          confirmCount++;
+        } else {
+          f.status = 'closed';
+          f.resolvedInVersion = rn.version;
+          f.resolutionNote = ri.note || null;
+          f.resolvedAt = new Date().toISOString();
+          f.confirmedBy = 'auto-closed';
+          f.confirmedAt = new Date().toISOString();
+          queueWrite('submissions', _submissionRow(f, _sbOperationId));
+        }
+      }
+    }
+
+    save();
+    localStorage.setItem('gthy-lastCheckedReleaseVersion', curVersion);
+    if(confirmCount > 0){
+      showSurveyToast(confirmCount + ' of your reported issues were fixed in this update');
+      renderFeedbackTab();
+      updateFeedbackBadge();
+    }
+  }catch(e){
+    logError('check-release-updates', e.message, '');
+  }
 }
 function openResolveSheet(id){
   document.getElementById('resolve-id').value=id;document.getElementById('resolve-note').value='';

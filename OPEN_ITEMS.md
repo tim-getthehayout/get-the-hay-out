@@ -21,7 +21,7 @@
 | 🔴 Open — Roadblock | 0 |
 | 🔴 Open — Bug | 7 |
 | 🟡 Open — Polish | 3 |
-| 🔵 Open — Enhancement | 23 |
+| 🔵 Open — Enhancement | 24 |
 | ⚪ Open — Debt | 9 |
 | ✅ Closed | 132 |
 
@@ -72,6 +72,7 @@ Recommended work order as of b20260405.0100. Updated after OI-0171 Phase 1.5 (au
 | Priority | OI | Title | Notes |
 |---|---|---|---|
 | — | OI-0138 | Admin console artifact — submissions management | One session; enables bulk-resolve via UI |
+| — | OI-0201 | Release manifest with per-user feedback auto-resolve | After OI-0138 edge function; closes the feedback loop |
 | — | OI-0139 | Thread reply UI in-app | After OI-0138 |
 
 ### 🔭 Deferred — design first
@@ -3132,6 +3133,20 @@ Arrival paddock observation was written BEFORE the event push in `_mwSave`, crea
 Bulk survey sheet redesigned: sticky header with Cancel/Expand all/Close action buttons + farm filter pills + type filter pills + search box. Cards collapsed by default (accordion — one expanded at a time, Expand all toggle). Snapshot-on-open / restore-on-cancel for session edits. Close prompts "Save changes?" → Yes commits via `completeBulkSurvey()`, No retains auto-saved draft. Bottom "Survey Complete" button removed. Forage condition buttons (Poor/Fair/Good/Excellent) added to bulk cards for field parity with single-pasture mode. Auto-save triggers added to veg height, forage cover, and recovery inputs.
 
 **Acceptance criteria:** Accordion cards, filter pills, search, Cancel restores snapshot, Close commits, forage condition in bulk cards, auto-save on all inputs.
+
+### OI-0201 — Release manifest with per-user feedback auto-resolve
+**Source:** Cowork design session — b20260408
+**Area:** Developer Tooling / Feedback Loop
+**Severity:** Enhancement
+**Status:** 🔵 Open — Enhancement
+**Found:** b20260408
+**Closed:** —
+
+Closes the feedback loop end-to-end. After a deploy that fixes feedback items, Claude Code calls the existing `admin-submissions` edge function (OI-0138) with a new `resolve-release` action. This writes a release manifest to a new `release_notes` Supabase table and marks resolved submissions. On next app load, `checkReleaseUpdates()` detects the new version and routes items: original submitters see a confirmation prompt (confirm or reopen), anonymous/null-submitter items route to admin (`isAdmin()`), all other users see items silently auto-closed. Depends on OI-0138 edge function being deployed. Full spec in `github/issues/release-manifest-auto-resolve.md`.
+
+**Depends on:** OI-0138 (admin-submissions edge function must be deployed)
+
+**Acceptance criteria:** Edge function accepts `?action=resolve-release`. Claude Code calls it post-deploy. Original submitter sees toast + confirmation. Anonymous items route to admin. Non-submitter items auto-close. All syncs via queueWrite. Multiple accumulated deploys process in order.
 
 ---
 

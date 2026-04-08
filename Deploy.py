@@ -8,6 +8,8 @@ Usage:
   python3 deploy.py release      Stamp, commit, merge dev → main, push, tag + release
 """
 
+import json
+import os
 import re
 import sys
 import subprocess
@@ -105,6 +107,8 @@ def deploy(stamp):
     run('git push origin main')
     print(f'  Pushed to main — live on GitHub Pages')
 
+    publish_release_manifest(stamp)
+
     # Return to dev
     run(f'git checkout {branch}')
     print(f'  Back on {branch}')
@@ -158,10 +162,56 @@ def release(stamp):
         print(f'  For now, create one manually at:')
         print(f'  https://github.com/timjoseph/get-the-hay-out/releases/new?tag={stamp}')
 
+    publish_release_manifest(stamp)
+
     # Return to dev
     run(f'git checkout {branch}')
     print(f'  Back on {branch}')
     print(f'\nReleased: {stamp}')
+
+
+RESOLVED_FILE = '/tmp/gthy-resolved.json'
+
+
+def publish_release_manifest(stamp):
+    """If resolved items exist and env vars are set, call the edge function."""
+    secret = os.environ.get('GTHY_ADMIN_SECRET')
+    fn_url = os.environ.get('GTHY_EDGE_FN_URL')
+    if not secret or not fn_url:
+        return
+    if not os.path.exists(RESOLVED_FILE):
+        return
+
+    try:
+        with open(RESOLVED_FILE, 'r') as f:
+            resolved = json.load(f)
+        if not isinstance(resolved, list) or not resolved:
+            os.remove(RESOLVED_FILE)
+            return
+
+        payload = json.dumps({
+            'version': stamp,
+            'resolved_items': resolved,
+            'notes': None,
+        })
+
+        result = subprocess.run(
+            ['curl', '-s', '-X', 'PATCH',
+             f'{fn_url}?action=resolve-release',
+             '-H', f'x-admin-secret: {secret}',
+             '-H', 'Content-Type: application/json',
+             '-d', payload],
+            capture_output=True, text=True, timeout=15
+        )
+        resp = json.loads(result.stdout) if result.stdout else {}
+        if resp.get('ok'):
+            print(f'  Release manifest: {resp.get("updated", 0)} items resolved, '
+                  f'note id={resp.get("releaseNoteId")}')
+            os.remove(RESOLVED_FILE)
+        else:
+            print(f'  Release manifest failed: {resp.get("error", "unknown")}')
+    except Exception as e:
+        print(f'  Release manifest error: {e}')
 
 
 if __name__ == '__main__':
