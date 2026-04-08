@@ -26,6 +26,16 @@
 ### Deploy prompt
 After completing a bug fix or feature change, always ask the user if they want to deploy to main. Changes in `dev` are not live until deployed.
 
+## Fix Root Causes, Not Symptoms
+
+When encountering a bug or missing capability, always identify and fix the root cause. Do not use workarounds (overloading existing fields, stuffing data into wrong columns, skipping schema changes) unless the user explicitly chooses that path after seeing the options.
+
+**Before implementing a fix, present the options:**
+1. **Root cause fix** — what the correct structural change is (new column, proper field, schema update)
+2. **Workaround** (if applicable) — what a quicker but less correct approach would be, and what it sacrifices
+
+Let the user choose. Default to root cause unless time pressure or complexity makes a workaround the pragmatic choice. If you catch yourself mapping new data into an existing field that wasn't designed for it, stop and flag it.
+
 ## Before Touching Any Function
 
 1. Read `ARCHITECTURE.md` — check the Screen Map for the authoritative render function
@@ -67,6 +77,18 @@ Backup (`exportDataJSON`) serializes the entire `S` object. Restore (`importData
 | New migration function | Called in `importDataJSON` restore path? (Currently runs `migrateSystemIds`, `migrateToPaddocksField`, `ensureDataArrays`.) |
 
 **Rule:** If a change touches any of the above, update the backup/restore path in the same deploy. Flag it to the user if uncertain whether a migration is needed for old backups.
+
+## New UI Fields → Supabase Column Rule
+
+**Every new data field displayed in the UI must have a corresponding Supabase column before deploying.** Adding a JS state variable and form input without a Supabase column causes silent data loss — the value is captured locally but never syncs. Checklist for every new field:
+
+1. **Supabase column** — `ALTER TABLE ... ADD COLUMN` SQL ready for user to run
+2. **`_SB_ALLOWED_COLS`** — column name added to the table's allowed set
+3. **Shape function** — maps JS camelCase → Supabase snake_case
+4. **Assembly layer** — `loadFromSupabase` / `assembleEvents` reads the column back
+5. **Draft save/hydrate** — if the field is part of a draft system (e.g., surveys), include in both save and hydrate paths
+
+Do NOT deploy UI that captures data without completing all 5 steps.
 
 ## Supabase Sync — Mandatory queueWrite Rule
 
