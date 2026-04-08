@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260408.1013" id="app-version-meta"/>
+<meta name="app-version" content="b20260408.1029" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -4221,8 +4221,10 @@ async function _flushOneOp(op, failed){
       if(error){
         // Drop entries with constraint violations — they'll never succeed
         const msg = error.message||'';
-        if(msg.includes('not-null constraint') || msg.includes('violates not-null') || msg.includes('null value in column') || error.code === '23502'){
-          logError('supabase-flush', op.table+': DROPPED (not-null violation): '+msg, '');
+        if(msg.includes('not-null constraint') || msg.includes('violates not-null') || msg.includes('null value in column') || error.code === '23502'
+          || msg.includes('invalid input syntax')){
+          const recSummary = op.record ? ` | id=${op.record.id}, ${Object.entries(op.record).filter(([k,v])=>k!=='id'&&k!=='operation_id'&&v!=null).map(([k,v])=>k+'='+JSON.stringify(v)).join(', ')}` : '';
+          logError('supabase-flush', op.table+': DROPPED (constraint/type violation): '+msg+recSummary, '');
         } else {
           failed.push(op);
           logError('supabase-flush', op.table+': '+msg, '');
@@ -19194,6 +19196,16 @@ function migrateSystemIds(){
         if(p){sm.pastureId=p.id;flagChanged=true;}
       }
     });
+  });
+  // Fix observations where forageQuality has a text value (Poor/Fair/Good/Excellent)
+  // that belongs in forageCondition. Created by pre-b20260408.0009 move wizard.
+  (S.paddockObservations||[]).forEach(obs=>{
+    if(obs.forageQuality && typeof obs.forageQuality === 'string' && ['Poor','Fair','Good','Excellent'].includes(obs.forageQuality)){
+      obs.forageCondition = obs.forageQuality;
+      obs.forageQuality = null;
+      queueWrite('paddock_observations', _paddockObservationRow(obs, _sbOperationId));
+      flagChanged = true;
+    }
   });
   // Only stampSetup when genuinely new IDs were generated (first-time migration).
   // Stamping on every flag backfill causes local to win over Drive on every app open,
