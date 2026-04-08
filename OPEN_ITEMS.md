@@ -19,11 +19,11 @@
 | Status | Count |
 |---|---|
 | 🔴 Open — Roadblock | 0 |
-| 🔴 Open — Bug | 11 |
+| 🔴 Open — Bug | 7 |
 | 🟡 Open — Polish | 3 |
 | 🔵 Open — Enhancement | 23 |
 | ⚪ Open — Debt | 9 |
-| ✅ Closed | 126 |
+| ✅ Closed | 132 |
 
 ---
 
@@ -479,13 +479,13 @@ Two field mode bugs fixed together:
 **Source:** User report / design session — b20260331.2335
 **Area:** Field Mode — per-module sheets
 **Severity:** Enhancement
-**Status:** 🔵 Open
+**Status:** ✅ Closed
 **Found:** b20260331.2335
-**Closed:** —
+**Closed:** b20260407.2312
 
-Each field mode tile currently calls the existing full-featured sheet (Quick Feed, Harvest, Survey, Animals). For true field-optimized UX, each module may benefit from a simplified sheet variant: larger tap targets, fewer secondary actions, single-task flow. Deferred until field mode is used in practice and specific friction points are identified.
+Resolved by b20260407 field-mode UI refinement session. Each module reviewed and friction points addressed: pickers added for Move/Feed Check/Pasture Survey, full-screen treatment extended to Heat picker, harvest farm filter and return-to-picker added, bulk survey rolled-up accordion + snapshot-restore Cancel + anchored header, single-pasture survey split out as new tile, flash bugs fixed on Feed/Harvest handlers, icons reshuffled.
 
-**Acceptance criteria:** At least one module has a documented streamlined variant that differs meaningfully from the existing sheet. Design session required first.
+**Acceptance criteria:** Met — all 8 field mode modules have optimized handlers, pickers, and field-mode-specific UX treatment.
 
 ---
 
@@ -3036,6 +3036,102 @@ Load-time integrity check that verifies all `transferPairId` groups have exactly
 Active event cards displayed `(dmiTarget × days - storedFeed) / dmPerAUD` as "Pasture AUDs" — meaningless on day 1. Replaced with estimated capacity from opening forage data and days remaining estimate. New utility functions: `estimateAvailableDMForEvent`, `estimateAvailableAUDsForEvent`, `eventDailyDMIDemand`, `estimateDaysRemaining`. Move wizard step 3 live preview. Pasture view extended to active paddocks. Capacity snapshot at close (`ev.totals.estimatedCapacityDM/AUDs`).
 
 **Acceptance criteria:** Open events show "Est. capacity: N AUDs · ~N days remaining"; closed events unchanged; move wizard shows live preview; pasture cards show estimate on active paddocks; graceful "No forage estimate" nudge.
+
+---
+
+### OI-0194 — Field mode icon art strategy
+**Source:** Claude.ai design session — b20260407
+**Area:** Field Mode
+**Severity:** Enhancement
+**Status:** 🔵 Open
+**Found:** b20260407.2112
+
+Three 📋 in the field mode tile grid (Feed Check, Bulk Survey, Pasture Survey) is visually confusing. 🐄 on Move and 🌾 on Feed are placeholders. Design a unified icon system for field mode tiles — options: curated emoji palette with no collisions, custom SVG icon set, or icon font.
+
+**Acceptance criteria:** Each field mode tile has a visually distinct icon with no duplicates.
+
+---
+
+### OI-0195 — Field mode FIELD_MODULES_DEFAULT review
+**Source:** Claude.ai design session — b20260407
+**Area:** Field Mode / Settings
+**Severity:** Enhancement
+**Status:** 🔵 Open
+**Found:** b20260407.2112
+
+Current default is `['feed','harvest','surveybulk','animals']`. Move, Feed Check, Pasture Survey, and Record Heat are all off by default and require Settings opt-in. Review whether Move and Pasture Survey should be in the default — they are core grazing-management actions.
+
+**Acceptance criteria:** Decision documented; defaults updated if warranted.
+
+---
+
+### OI-0196 — Move wizard state hygiene
+**Source:** Claude.ai design session — b20260408
+**Area:** Move Wizard
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260408.0029
+**Closed:** b20260408.0029
+
+`closeMoveWizSheet` and `openMoveWizSheet` now reset all wizard-owned state (`_fcTypeData`, `_mwFeedDisposition`, all `_mw*` vars). Cancel is silent discard. Previously stale `_fcTypeData` from prior abandoned sessions carried forward due to `if(!_fcTypeData.length)` guard in the init path.
+
+**Acceptance criteria:** Met — cancel a move wizard, reopen, `_fcTypeData` is empty.
+
+---
+
+### OI-0197 — Forage type link stacks pasture edit over wizard
+**Source:** Claude.ai design session — b20260408
+**Area:** Move Wizard / Pasture Edit
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260408.0029
+**Closed:** b20260408.0029
+
+Removed `closeMoveWizSheet()` call from the forage link in `_mwUpdateForagePreview`. Pasture edit opens as a stacked sheet (z-index:220 via `.stacked` class). Save refreshes forage preview; close removes stacked class. Previously the link explicitly closed the wizard, abandoning mid-flow state.
+
+**Acceptance criteria:** Met — forage link opens pasture edit on top, wizard stays open underneath, forage preview refreshes on save.
+
+---
+
+### OI-0198 — Hard block save on unverified feed check
+**Source:** Claude.ai design session — b20260408
+**Area:** Move Wizard / Feed Check
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260408.0029
+**Closed:** b20260408.0029
+
+When the source event has no prior real feed check (excludes `transfer_opening`), the inline feed check shows red warning "No prior check — verify current amount" and the Save button is disabled until the user interacts with the feed check inputs. `userVerified` flag on `_fcTypeData` entries flips on any interaction; UI updates without full re-render.
+
+**Acceptance criteria:** Met — move with no prior check shows red warning, save disabled until user adjusts values; move with prior check works normally.
+
+---
+
+### OI-0199 — Move wizard observation ordering
+**Source:** Claude.ai design session — b20260408
+**Area:** Move Wizard
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260408.0029
+**Closed:** b20260408.0029
+
+Arrival paddock observation was written BEFORE the event push in `_mwSave`, creating orphan observations when the event push failed or the move was cancelled. Moved observation write to AFTER `S.events.push(newEv)`.
+
+**Acceptance criteria:** Met — orphan observations no longer created on cancelled/failed moves.
+
+---
+
+### OI-0200 — Bulk survey UI overhaul
+**Source:** Claude.ai design session — b20260407 (field-mode-ui-refinement brief, Module 5)
+**Area:** Survey / Field Mode
+**Severity:** Enhancement
+**Status:** ✅ Closed
+**Found:** b20260407.2112
+**Closed:** b20260408
+
+Bulk survey sheet redesigned: sticky header with Cancel/Expand all/Close action buttons + farm filter pills + type filter pills + search box. Cards collapsed by default (accordion — one expanded at a time, Expand all toggle). Snapshot-on-open / restore-on-cancel for session edits. Close prompts "Save changes?" → Yes commits via `completeBulkSurvey()`, No retains auto-saved draft. Bottom "Survey Complete" button removed. Forage condition buttons (Poor/Fair/Good/Excellent) added to bulk cards for field parity with single-pasture mode. Auto-save triggers added to veg height, forage cover, and recovery inputs.
+
+**Acceptance criteria:** Accordion cards, filter pills, search, Cancel restores snapshot, Close commits, forage condition in bulk cards, auto-save on all inputs.
 
 ---
 

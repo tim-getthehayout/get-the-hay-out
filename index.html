@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260408.0029" id="app-version-meta"/>
+<meta name="app-version" content="b20260408.0959" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -7926,6 +7926,12 @@ let surveyForageQuality={}; // pastureId -> 'Poor' | 'Fair' | 'Good' | 'Excellen
 let surveyFocusPastureId = null; // null = all pastures, string = single pasture mode
 let _surveyEditId    = null;     // surveyId being edited (null = new)
 let _surveyDraftTimer = null;    // debounce timer for auto-save
+let _bulkSurveyExpandedId = null;   // currently expanded card pastureId (accordion)
+let _bulkSurveyExpandAll  = false;  // true = all cards expanded
+let _bulkSurveySnapshot   = null;   // JSON snapshot for Cancel restore
+let _bulkSurveyFarmFilter = 'all';  // farm filter: 'all' or farmId string
+let _bulkSurveyTypeFilter = 'pasture'; // type filter: 'pasture' | 'mixed-use' | 'all'
+let _bulkSurveySearch     = '';     // search query for pasture name / field code
 
 // Pastures screen view: 'list' | 'surveys'
 let pasturesView = 'list';
@@ -7998,6 +8004,13 @@ function openBulkSurveySheet(){
     document.getElementById('survey-date').value = today;
     _setSurveySheetMode('bulk', today);
   }
+  // Snapshot current state for Cancel restore + reset UI filter state
+  _bulkSurveySnapshot = JSON.stringify({surveyRatings, surveyNotes, surveyRecovery: JSON.parse(JSON.stringify(surveyRecovery)), surveyVegHeight, surveyForageCover, surveyForageQuality});
+  _bulkSurveyExpandedId = null;
+  _bulkSurveyExpandAll  = false;
+  _bulkSurveyFarmFilter = 'all';
+  _bulkSurveyTypeFilter = 'pasture';
+  _bulkSurveySearch     = '';
   renderSurveyPaddocks();
   document.getElementById('survey-sheet-wrap').classList.add('open');
 }
@@ -8040,13 +8053,84 @@ function openSurveySheet(pastureId, surveyId){
 
 
 function closeSurveySheet(){
-  // Auto-save draft state when closing bulk survey
+  // In bulk draft mode, route through the dedicated Close flow
+  if(_surveyEditId !== null && !surveyFocusPastureId){
+    const sv = (S.surveys||[]).find(s=>String(s.id)===String(_surveyEditId)&&s.status==='draft');
+    if(sv){ _bulkSurveyClose(); return; }
+  }
+  // Auto-save draft state when closing (single/bulk-edit)
   if(_surveyEditId !== null){
     const sv = (S.surveys||[]).find(s=>String(s.id)===String(_surveyEditId)&&s.status==='draft');
     if(sv) saveSurveyDraft(sv.id);
   }
   _surveyEditId = null;
   document.getElementById('survey-sheet-wrap').classList.remove('open');
+}
+
+function _bulkSurveyCancel(){
+  if(confirm('Discard changes from this session?')){
+    // Yes → restore snapshot, persist restored state, close
+    if(_bulkSurveySnapshot){
+      const snap = JSON.parse(_bulkSurveySnapshot);
+      surveyRatings       = snap.surveyRatings       || {};
+      surveyNotes         = snap.surveyNotes         || {};
+      surveyRecovery      = snap.surveyRecovery      || {};
+      surveyVegHeight     = snap.surveyVegHeight     || {};
+      surveyForageCover   = snap.surveyForageCover   || {};
+      surveyForageQuality = snap.surveyForageQuality || {};
+      if(_surveyEditId !== null){
+        const sv = (S.surveys||[]).find(s=>String(s.id)===String(_surveyEditId)&&s.status==='draft');
+        if(sv) saveSurveyDraft(sv.id);
+      }
+    }
+  }
+  // Either way, close — No just leaves auto-saved draft
+  _surveyEditId = null;
+  document.getElementById('survey-sheet-wrap').classList.remove('open');
+  _resetBulkSurveyUIState();
+}
+
+function _bulkSurveyClose(){
+  if(confirm('Save changes?')){
+    // Yes → commit (completeBulkSurvey handles close + cleanup)
+    completeBulkSurvey();
+    _resetBulkSurveyUIState();
+    return;
+  }
+  // No → just close, draft retained via auto-save
+  if(_surveyEditId !== null){
+    const sv = (S.surveys||[]).find(s=>String(s.id)===String(_surveyEditId)&&s.status==='draft');
+    if(sv) saveSurveyDraft(sv.id);
+  }
+  _surveyEditId = null;
+  document.getElementById('survey-sheet-wrap').classList.remove('open');
+  _resetBulkSurveyUIState();
+}
+
+function _resetBulkSurveyUIState(){
+  _bulkSurveyExpandedId = null;
+  _bulkSurveyExpandAll  = false;
+  _bulkSurveySnapshot   = null;
+  _bulkSurveyFarmFilter = 'all';
+  _bulkSurveyTypeFilter = 'pasture';
+  _bulkSurveySearch     = '';
+}
+
+function _toggleBulkSurveyExpandAll(){
+  _bulkSurveyExpandAll = !_bulkSurveyExpandAll;
+  _bulkSurveyExpandedId = null;
+  renderSurveyPaddocks();
+  _renderBulkSurveyHeader();
+}
+
+function _expandSurveyCard(pastureId){
+  if(_bulkSurveyExpandAll) return;
+  _bulkSurveyExpandedId = (_bulkSurveyExpandedId === String(pastureId)) ? null : String(pastureId);
+  renderSurveyPaddocks();
+  if(_bulkSurveyExpandedId){
+    const el = document.getElementById('survey-row-'+_bulkSurveyExpandedId);
+    if(el) setTimeout(()=>el.scrollIntoView({behavior:'smooth',block:'start'}),50);
+  }
 }
 
 // ── Complete bulk survey — commit all rated paddocks ─────────────────────────
@@ -8336,38 +8420,109 @@ function openBulkSurveyEdit(surveyId){
 }
 
 function _setSurveySheetMode(mode, draftDate, pastureName){
-  const titleEl    = document.getElementById('survey-sheet-title');
-  const subtitleEl = document.getElementById('survey-sheet-subtitle');
-  const recSection = document.getElementById('survey-recovery-section-hdr');
-  const saveBtn    = document.getElementById('survey-save-btn');
-  const completeBtn= document.getElementById('survey-complete-btn');
-  const discardBtn = document.getElementById('survey-discard-btn');
-  const draftTag   = document.getElementById('survey-draft-tag');
+  const titleEl       = document.getElementById('survey-sheet-title');
+  const subtitleEl    = document.getElementById('survey-sheet-subtitle');
+  const recSection    = document.getElementById('survey-recovery-section-hdr');
+  const saveBtn       = document.getElementById('survey-save-btn');
+  const discardWrap   = document.getElementById('survey-discard-wrap');
+  const draftTag      = document.getElementById('survey-draft-tag');
+  const bulkHeader    = document.getElementById('survey-bulk-header');
+  const classicHeader = document.getElementById('survey-classic-header');
   if(mode==='bulk'){
-    if(titleEl) titleEl.textContent = 'Pasture survey';
-    if(subtitleEl) subtitleEl.textContent = 'Rate each paddock. Changes auto-save as you go.';
-    if(recSection) recSection.style.display = '';
-    if(saveBtn)    saveBtn.style.display    = 'none';
-    if(completeBtn)completeBtn.style.display= '';
-    if(discardBtn) discardBtn.style.display = '';
-    if(draftTag)   draftTag.style.display   = '';
+    if(bulkHeader)    bulkHeader.style.display    = '';
+    if(classicHeader) classicHeader.style.display = 'none';
+    if(recSection)    recSection.style.display     = 'none'; // recovery is embedded per card
+    if(saveBtn)       saveBtn.style.display        = 'none';
+    if(discardWrap)   discardWrap.style.display    = 'none';
+    if(draftTag)      draftTag.style.display       = 'none'; // shown in bulk header instead
+    _renderBulkSurveyHeader();
   } else if(mode==='bulk-edit'){
-    if(titleEl) titleEl.textContent = 'Edit survey';
+    if(bulkHeader)    bulkHeader.style.display    = 'none';
+    if(classicHeader) classicHeader.style.display = '';
+    if(titleEl)  titleEl.textContent = 'Edit survey';
     if(subtitleEl) subtitleEl.textContent = 'Edit ratings and tap Save Survey to update.';
     if(recSection) recSection.style.display = '';
     if(saveBtn)    saveBtn.style.display    = '';
-    if(completeBtn)completeBtn.style.display= 'none';
-    if(discardBtn) discardBtn.style.display = 'none';
+    if(discardWrap)discardWrap.style.display= 'none';
     if(draftTag)   draftTag.style.display   = 'none';
   } else {
+    if(bulkHeader)    bulkHeader.style.display    = 'none';
+    if(classicHeader) classicHeader.style.display = '';
     if(titleEl) titleEl.textContent = pastureName ? 'Survey: '+pastureName : 'Paddock survey';
     if(subtitleEl) subtitleEl.textContent = 'Rate forage availability and set recovery window.';
     if(recSection) recSection.style.display = 'none';
     if(saveBtn)    saveBtn.style.display    = '';
-    if(completeBtn)completeBtn.style.display= 'none';
-    if(discardBtn) discardBtn.style.display = 'none';
+    if(discardWrap)discardWrap.style.display= 'none';
     if(draftTag)   draftTag.style.display   = 'none';
   }
+}
+
+function _renderBulkSurveyHeader(){
+  const el = document.getElementById('survey-bulk-header');
+  if(!el) return;
+  const surveyDate = document.getElementById('survey-date')?.value || todayStr();
+
+  // Row 1: Action buttons + date
+  const expandLabel = _bulkSurveyExpandAll ? 'Collapse all' : 'Expand all';
+  let row1 = `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0 6px;">
+    <button type="button" onclick="_bulkSurveyCancel()" style="background:none;border:none;color:var(--red);font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;padding:4px 0;">Cancel</button>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span style="font-size:10px;font-weight:600;color:var(--amber-d,#92400e);background:var(--amber-l,#fffbeb);border:1px solid var(--amber,#f59e0b);padding:2px 8px;border-radius:10px;">DRAFT</span>
+      <button type="button" onclick="_toggleBulkSurveyExpandAll()" style="background:none;border:0.5px solid var(--border2);color:var(--text2);font-size:11px;cursor:pointer;font-family:inherit;padding:4px 10px;border-radius:6px;">${expandLabel}</button>
+    </div>
+    <button type="button" onclick="_bulkSurveyClose()" style="background:none;border:none;color:var(--teal);font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;padding:4px 0;">✕ Close</button>
+  </div>`;
+
+  // Date row — uses survey-bulk-date ID to avoid duplicate with classic header's survey-date
+  let dateRow = `<div style="display:flex;align-items:center;gap:8px;padding:0 0 8px;">
+    <span style="font-size:13px;font-weight:600;">Survey date:</span>
+    <input type="date" id="survey-bulk-date" value="${surveyDate}"
+      onchange="document.getElementById('survey-date').value=this.value"
+      style="max-width:160px;padding:4px 6px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;"/>
+  </div>`;
+
+  // Row 2: Farm filter pills (only if >1 farm)
+  const farms = (S.farms||[]).filter(f=>!f.archived);
+  let farmRow = '';
+  if(farms.length > 1){
+    const pills = [{k:'all',label:'All farms'},...farms.map(f=>({k:String(f.id),label:f.name||'Farm'}))];
+    farmRow = `<div style="display:flex;gap:4px;flex-wrap:wrap;padding:4px 0;">
+      ${pills.map(p=>{
+        const active = _bulkSurveyFarmFilter === p.k;
+        return `<button type="button" onclick="_bulkSurveyFarmFilter='${p.k}';renderSurveyPaddocks()"
+          style="padding:4px 10px;font-size:11px;border-radius:12px;cursor:pointer;font-family:inherit;
+          border:0.5px solid ${active?'var(--amber)':'var(--border2)'};
+          background:${active?'var(--amber-l)':'transparent'};
+          color:${active?'var(--amber-d)':'var(--text2)'};
+          font-weight:${active?'600':'400'};">${p.label}</button>`;
+      }).join('')}
+    </div>`;
+  }
+
+  // Row 3: Type filter pills
+  const types = [{k:'pasture',label:'Pasture'},{k:'mixed-use',label:'Mixed-Use'},{k:'all',label:'All'}];
+  let typeRow = `<div style="display:flex;gap:4px;flex-wrap:wrap;padding:4px 0;">
+    ${types.map(t=>{
+      const active = _bulkSurveyTypeFilter === t.k;
+      return `<button type="button" onclick="_bulkSurveyTypeFilter='${t.k}';renderSurveyPaddocks()"
+        style="padding:4px 10px;font-size:11px;border-radius:12px;cursor:pointer;font-family:inherit;
+        border:0.5px solid ${active?'var(--green)':'var(--border2)'};
+        background:${active?'var(--green-l)':'transparent'};
+        color:${active?'var(--green-d)':'var(--text2)'};
+        font-weight:${active?'600':'400'};">${t.label}</button>`;
+    }).join('')}
+  </div>`;
+
+  // Row 4: Search box
+  let searchRow = `<div style="padding:4px 0;">
+    <input type="text" id="survey-bulk-search" placeholder="Search by name or field code..."
+      value="${_bulkSurveySearch}"
+      oninput="_bulkSurveySearch=this.value.trim().toLowerCase();renderSurveyPaddocks()"
+      style="width:100%;padding:6px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);
+      font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;box-sizing:border-box;"/>
+  </div>`;
+
+  el.innerHTML = row1 + dateRow + farmRow + typeRow + searchRow;
 }
 
 // ── Tab toggle for Pastures screen ────────────────────────────────────────────
@@ -8548,6 +8703,34 @@ function renderSurveyPaddocks(){
   if(recHdr2) recHdr2.style.display = 'none';
   if(recEl) recEl.innerHTML = '';
 
+  // Apply bulk survey filters (not in single-pasture mode)
+  if(!surveyFocusPastureId){
+    if(_bulkSurveyFarmFilter !== 'all'){
+      pastures = pastures.filter(p=>{
+        const pFarm = p.farmId ? String(p.farmId) : ((S.farms||[])[0] ? String(S.farms[0].id) : null);
+        return pFarm === _bulkSurveyFarmFilter;
+      });
+    }
+    if(_bulkSurveyTypeFilter !== 'all'){
+      pastures = pastures.filter(p=>(p.landUse||'pasture') === _bulkSurveyTypeFilter);
+    } else {
+      pastures = pastures.filter(p=>(p.landUse||'pasture') !== 'crop');
+    }
+    if(_bulkSurveySearch){
+      const q = _bulkSurveySearch;
+      pastures = pastures.filter(p=>
+        p.name.toLowerCase().includes(q) ||
+        (p.fieldCode||'').toLowerCase().includes(q)
+      );
+    }
+  }
+
+  if(!pastures.length){
+    listEl.innerHTML='<div class="empty" style="padding:24px 0;text-align:center;color:var(--text2);">No pastures match your filters.</div>';
+    if(recEl) recEl.innerHTML='';
+    return;
+  }
+
   // Single consolidated pass: forage quality + measurements + recovery per card
   listEl.innerHTML = pastures.map(p=>{
     const st      = S.settings;
@@ -8556,9 +8739,36 @@ function renderSurveyPaddocks(){
     const activeEv= S.events.find(e=>e.status==='open'&&evMatchesPasture(e,p.name,p.id));
     const daysSince = lastEv&&lastEv.dateOut ?
       Math.round((new Date(todayStr()+'T12:00:00')-new Date(lastEv.dateOut+'T12:00:00'))/86400000) : null;
-
-    // Rating slider
     const curRating = surveyRatings[p.id]??null;
+    const isExpanded = _bulkSurveyExpandAll || _bulkSurveyExpandedId === String(p.id);
+
+    const activeNote = activeEv
+      ? `<span class="badge bt" style="font-size:10px;">Active</span>`
+      : '';
+
+    const ratingBadge = curRating != null
+      ? `<span style="font-size:11px;font-weight:600;color:${surveyRatingColor(curRating)};">${curRating}/100</span>`
+      : '';
+
+    // Collapsed card header (always shown)
+    const chevronDeg = isExpanded ? '180' : '0';
+    const headerHtml = `<div onclick="_expandSurveyCard('${p.id}')" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:${isExpanded?'0':'0'};">
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0;">
+        <span style="font-size:14px;font-weight:600;">${p.name}</span>
+        <span style="font-size:11px;color:var(--text2);">${p.acres||0} ac</span>
+        ${activeNote}
+        ${ratingBadge}
+      </div>
+      <div style="font-size:16px;color:var(--text2);transform:rotate(${chevronDeg}deg);transition:transform 0.2s;flex-shrink:0;margin-left:8px;">⌃</div>
+    </div>`;
+
+    if(!isExpanded){
+      return `<div style="padding:12px 0;border-bottom:0.5px solid var(--border);" id="survey-row-${p.id}">
+        ${headerHtml}
+      </div>`;
+    }
+
+    // Expanded card — full form
     const ratingBtns = `
       <div style="display:flex;align-items:center;gap:10px;">
         <input type="range" id="survey-slider-${p.id}" min="0" max="100" step="1"
@@ -8576,13 +8786,22 @@ function renderSurveyPaddocks(){
         <div id="survey-bar-${p.id}" style="height:100%;width:${curRating??0}%;background:${surveyRatingColor(curRating??0)};border-radius:3px;transition:width 0.15s,background 0.15s;"></div>
       </div>`;
 
-    const activeNote = activeEv
-      ? `<span class="badge bt" style="font-size:10px;">Active · Day ${daysBetween(activeEv.dateIn,todayStr())}</span>`
-      : (daysSince!==null ? `<span style="font-size:11px;color:var(--text2);">${daysSince}d ago</span>` : '');
-
     const latestNote = latest
-      ? `<span style="font-size:11px;color:${surveyRatingColor(latest.rating)};">Last: ${latest.rating}/100 ${dLabel(latest.date)}</span>`
+      ? `<div style="font-size:11px;color:${surveyRatingColor(latest.rating)};margin-top:2px;">Last: ${latest.rating}/100 ${dLabel(latest.date)}</div>`
       : '';
+
+    // Forage condition buttons (field parity with single-pasture mode)
+    const curCondition = surveyForageQuality[p.id]||null;
+    const conditionBtns = ['Poor','Fair','Good','Excellent'].map(q=>{
+      const active = curCondition === q;
+      return `<button type="button" onclick="surveyForageQuality['${p.id}']='${q}';_triggerSurveyDraftSave();_renderBulkConditionBtns('${p.id}')"
+        id="survey-cond-${p.id}-${q}"
+        style="flex:1;padding:6px 0;font-size:12px;border-radius:6px;cursor:pointer;font-family:inherit;
+        border:0.5px solid ${active?'var(--green)':'var(--border2)'};
+        background:${active?'var(--green-l)':'transparent'};
+        color:${active?'var(--green-d)':'var(--text2)'};
+        font-weight:${active?'500':'400'};">${q==='Excellent'?'Exc.':q}</button>`;
+    }).join('');
 
     // Recovery window values — relative to survey date, not lastEv.dateOut
     const surveyDate = document.getElementById('survey-date')?.value || todayStr();
@@ -8591,13 +8810,11 @@ function renderSurveyPaddocks(){
       : 0;
     const srcMin = lastEv ? lastEv.recoveryMinDays : p.recoveryMinDays;
     const srcMax = lastEv ? lastEv.recoveryMaxDays : p.recoveryMaxDays;
-    // Convert stored event-date-relative values to survey-date-relative for display
     const displayMin = Math.max(0, (srcMin ?? st.recoveryMinDays ?? 30) - daysAlreadyRested);
     const displayMax = Math.max(0, (srcMax ?? st.recoveryMaxDays ?? 60) - daysAlreadyRested);
     const curMin = surveyRecovery[p.id]?.min ?? displayMin;
     const curMax = surveyRecovery[p.id]?.max ?? displayMax;
 
-    // Graze window preview (from survey date)
     let nextGrazeHtml = '';
     if(curMin && curMax){
       const base = new Date(surveyDate+'T12:00:00');
@@ -8617,77 +8834,91 @@ function renderSurveyPaddocks(){
     }
 
     return `<div style="padding:12px 0;border-bottom:0.5px solid var(--border);" id="survey-row-${p.id}">
-
-      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px;">
-        <div>
-          <span style="font-size:14px;font-weight:600;">${p.name}</span>
-          <span style="font-size:11px;color:var(--text2);margin-left:6px;">${p.acres||0} ac</span>
-        </div>
-        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
-          ${activeNote} ${latestNote}
-        </div>
-      </div>
-
-      <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:5px;letter-spacing:0.03em;">FORAGE QUALITY</div>
-      <div style="display:flex;gap:4px;flex-wrap:wrap;" id="rating-btns-${p.id}">
-        ${ratingBtns}
-      </div>
-      <div id="survey-selected-${p.id}" style="font-size:11px;margin-top:4px;min-height:16px;"></div>
-
-      <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;">
-        <div style="flex:1;min-width:110px;">
-          <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;letter-spacing:0.03em;">AVG VEG HEIGHT (in)</div>
-          <input type="number" id="survey-veght-${p.id}" min="0" max="72" step="0.5"
-            value="${surveyVegHeight[p.id]??''}" placeholder="inches"
-            oninput="surveyVegHeight['${p.id}']=parseFloat(this.value)||null"
-            style="width:100%;padding:6px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);
-                   font-size:14px;background:var(--bg);color:var(--text);font-family:inherit;text-align:center;box-sizing:border-box;"/>
-        </div>
-        <div style="flex:1;min-width:110px;">
-          <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;letter-spacing:0.03em;">AVG FORAGE COVER (%)</div>
-          <input type="number" id="survey-cover-${p.id}" min="0" max="100" step="1"
-            value="${surveyForageCover[p.id]??''}" placeholder="%"
-            oninput="surveyForageCover['${p.id}']=parseFloat(this.value)||null"
-            style="width:100%;padding:6px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);
-                   font-size:14px;background:var(--bg);color:var(--text);font-family:inherit;text-align:center;box-sizing:border-box;"/>
-        </div>
-      </div>
-
+      ${headerHtml}
       <div style="margin-top:10px;">
-        <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:5px;letter-spacing:0.03em;">RECOVERY WINDOW</div>
-        <div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;">
-          <div style="text-align:center;">
-            <div style="font-size:9px;color:var(--text2);margin-bottom:2px;">MIN days</div>
-            <input type="number" placeholder="${st.recoveryMinDays||30}" min="1" max="365"
-              value="${curMin}"
-              oninput="surveyRecovery['${p.id}']={...(surveyRecovery['${p.id}']||{}),min:parseInt(this.value)||null};renderSurveyRecoveryPreview('${p.id}')"
-              id="rec-min-${p.id}"
-              style="width:60px;padding:5px 7px;border:0.5px solid var(--border2);border-radius:var(--radius);
-                     font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;text-align:center;"/>
-            <div id="rec-min-date-${p.id}" style="font-size:11px;font-weight:600;color:var(--green-d);margin-top:3px;min-height:14px;">
-              ${(()=>{if(!curMin)return'';const d=new Date(surveyDate+'T12:00:00');d.setDate(d.getDate()+curMin);return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});})()}
-            </div>
-          </div>
-          <div style="font-size:14px;color:var(--text2);padding-top:18px;">–</div>
-          <div style="text-align:center;">
-            <div style="font-size:9px;color:var(--text2);margin-bottom:2px;">MAX days</div>
-            <input type="number" placeholder="${st.recoveryMaxDays||60}" min="1" max="365"
-              value="${curMax}"
-              oninput="surveyRecovery['${p.id}']={...(surveyRecovery['${p.id}']||{}),max:parseInt(this.value)||null};renderSurveyRecoveryPreview('${p.id}')"
-              id="rec-max-${p.id}"
-              style="width:60px;padding:5px 7px;border:0.5px solid var(--border2);border-radius:var(--radius);
-                     font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;text-align:center;"/>
-            <div id="rec-max-date-${p.id}" style="font-size:11px;font-weight:600;color:var(--amber-d);margin-top:3px;min-height:14px;">
-              ${(()=>{if(!curMax)return'';const d=new Date(surveyDate+'T12:00:00');d.setDate(d.getDate()+curMax);return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});})()}
-            </div>
-          </div>
-          <div style="font-size:11px;color:var(--text2);padding-top:18px;">days from ${dLabel(surveyDate)}</div>
-        </div>
-        <div id="rec-preview-${p.id}">${nextGrazeHtml}</div>
-      </div>
 
+        <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:5px;letter-spacing:0.03em;">FORAGE QUALITY</div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;" id="rating-btns-${p.id}">
+          ${ratingBtns}
+        </div>
+        <div id="survey-selected-${p.id}" style="font-size:11px;margin-top:4px;min-height:16px;">${latestNote}</div>
+
+        <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;">
+          <div style="flex:1;min-width:110px;">
+            <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;letter-spacing:0.03em;">AVG VEG HEIGHT (in)</div>
+            <input type="number" id="survey-veght-${p.id}" min="0" max="72" step="0.5"
+              value="${surveyVegHeight[p.id]??''}" placeholder="inches"
+              oninput="surveyVegHeight['${p.id}']=parseFloat(this.value)||null;_triggerSurveyDraftSave()"
+              style="width:100%;padding:6px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);
+                     font-size:14px;background:var(--bg);color:var(--text);font-family:inherit;text-align:center;box-sizing:border-box;"/>
+          </div>
+          <div style="flex:1;min-width:110px;">
+            <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;letter-spacing:0.03em;">AVG FORAGE COVER (%)</div>
+            <input type="number" id="survey-cover-${p.id}" min="0" max="100" step="1"
+              value="${surveyForageCover[p.id]??''}" placeholder="%"
+              oninput="surveyForageCover['${p.id}']=parseFloat(this.value)||null;_triggerSurveyDraftSave()"
+              style="width:100%;padding:6px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);
+                     font-size:14px;background:var(--bg);color:var(--text);font-family:inherit;text-align:center;box-sizing:border-box;"/>
+          </div>
+        </div>
+
+        <div style="margin-top:10px;">
+          <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:5px;letter-spacing:0.03em;">FORAGE CONDITION</div>
+          <div style="display:flex;gap:4px;" id="survey-quality-${p.id}">
+            ${conditionBtns}
+          </div>
+        </div>
+
+        <div style="margin-top:10px;">
+          <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:5px;letter-spacing:0.03em;">RECOVERY WINDOW</div>
+          <div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;">
+            <div style="text-align:center;">
+              <div style="font-size:9px;color:var(--text2);margin-bottom:2px;">MIN days</div>
+              <input type="number" placeholder="${st.recoveryMinDays||30}" min="1" max="365"
+                value="${curMin}"
+                oninput="surveyRecovery['${p.id}']={...(surveyRecovery['${p.id}']||{}),min:parseInt(this.value)||null};_triggerSurveyDraftSave();renderSurveyRecoveryPreview('${p.id}')"
+                id="rec-min-${p.id}"
+                style="width:60px;padding:5px 7px;border:0.5px solid var(--border2);border-radius:var(--radius);
+                       font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;text-align:center;"/>
+              <div id="rec-min-date-${p.id}" style="font-size:11px;font-weight:600;color:var(--green-d);margin-top:3px;min-height:14px;">
+                ${(()=>{if(!curMin)return'';const d=new Date(surveyDate+'T12:00:00');d.setDate(d.getDate()+curMin);return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});})()}
+              </div>
+            </div>
+            <div style="font-size:14px;color:var(--text2);padding-top:18px;">–</div>
+            <div style="text-align:center;">
+              <div style="font-size:9px;color:var(--text2);margin-bottom:2px;">MAX days</div>
+              <input type="number" placeholder="${st.recoveryMaxDays||60}" min="1" max="365"
+                value="${curMax}"
+                oninput="surveyRecovery['${p.id}']={...(surveyRecovery['${p.id}']||{}),max:parseInt(this.value)||null};_triggerSurveyDraftSave();renderSurveyRecoveryPreview('${p.id}')"
+                id="rec-max-${p.id}"
+                style="width:60px;padding:5px 7px;border:0.5px solid var(--border2);border-radius:var(--radius);
+                       font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;text-align:center;"/>
+              <div id="rec-max-date-${p.id}" style="font-size:11px;font-weight:600;color:var(--amber-d);margin-top:3px;min-height:14px;">
+                ${(()=>{if(!curMax)return'';const d=new Date(surveyDate+'T12:00:00');d.setDate(d.getDate()+curMax);return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});})()}
+              </div>
+            </div>
+            <div style="font-size:11px;color:var(--text2);padding-top:18px;">days from ${dLabel(surveyDate)}</div>
+          </div>
+          <div id="rec-preview-${p.id}">${nextGrazeHtml}</div>
+        </div>
+
+      </div>
     </div>`;
   }).join('');
+}
+
+// Helper: update forage condition button styles without full re-render
+function _renderBulkConditionBtns(pastureId){
+  const cur = surveyForageQuality[pastureId]||null;
+  ['Poor','Fair','Good','Excellent'].forEach(q=>{
+    const btn = document.getElementById('survey-cond-'+pastureId+'-'+q);
+    if(!btn) return;
+    const active = cur === q;
+    btn.style.border = '0.5px solid '+(active?'var(--green)':'var(--border2)');
+    btn.style.background = active?'var(--green-l)':'transparent';
+    btn.style.color = active?'var(--green-d)':'var(--text2)';
+    btn.style.fontWeight = active?'500':'400';
+  });
 }
 
 
@@ -21932,30 +22163,37 @@ window.addEventListener('offline', ()=>{
 <!-- PASTURE SURVEY SHEET -->
 <div class="sheet-wrap" id="survey-sheet-wrap">
   <div class="sheet-backdrop" onclick="closeSurveySheet()"></div>
-  <div class="sheet" style="max-height:90vh;overflow-y:auto;">
+  <div class="sheet" style="max-height:90vh;overflow:hidden;display:flex;flex-direction:column;">
     <div class="sheet-handle"></div>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-      <div style="font-size:16px;font-weight:600;" id="survey-sheet-title">Pasture survey</div>
-      <span id="survey-draft-tag" style="display:none;font-size:10px;font-weight:600;color:var(--amber-d,#92400e);background:var(--amber-l,#fffbeb);border:1px solid var(--amber,#f59e0b);padding:2px 8px;border-radius:10px;">DRAFT</span>
+    <!-- Bulk mode header (dynamically populated) -->
+    <div id="survey-bulk-header" style="display:none;background:var(--bg);padding:0 0 6px;border-bottom:0.5px solid var(--border);"></div>
+    <!-- Classic header (single/bulk-edit modes) -->
+    <div id="survey-classic-header">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <div style="font-size:16px;font-weight:600;" id="survey-sheet-title">Pasture survey</div>
+        <span id="survey-draft-tag" style="display:none;font-size:10px;font-weight:600;color:var(--amber-d,#92400e);background:var(--amber-l,#fffbeb);border:1px solid var(--amber,#f59e0b);padding:2px 8px;border-radius:10px;">DRAFT</span>
+      </div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:14px;" id="survey-sheet-subtitle">
+        Rate each paddock 1–10 for forage availability. Tap a number to select.
+      </div>
+      <div class="field" style="margin-bottom:14px;">
+        <label>Survey date</label>
+        <input type="date" id="survey-date" style="max-width:180px;"/>
+      </div>
     </div>
-    <div style="font-size:13px;color:var(--text2);margin-bottom:14px;" id="survey-sheet-subtitle">
-      Rate each paddock 1–10 for forage availability. Tap a number to select.
-    </div>
-    <div class="field" style="margin-bottom:14px;">
-      <label>Survey date</label>
-      <input type="date" id="survey-date" style="max-width:180px;"/>
-    </div>
-    <div id="survey-paddock-list"></div>
-    <div class="div"></div>
-    <div id="survey-recovery-section-hdr" style="font-size:13px;font-weight:600;margin-bottom:8px;">Recovery window edits <span style="font-size:11px;font-weight:400;color:var(--text2);">(optional — updates the last closed event per paddock)</span></div>
-    <div id="survey-recovery-list"></div>
-    <div class="btn-row" style="margin-top:16px;">
-      <button class="btn btn-green" id="survey-save-btn" onclick="saveSurvey()">Save survey</button>
-      <button class="btn btn-green" id="survey-complete-btn" style="display:none;" onclick="completeBulkSurvey()">Survey Complete</button>
-      <button class="btn btn-outline" onclick="closeSurveySheet()">Close</button>
-    </div>
-    <div style="margin-top:10px;text-align:center;" id="survey-discard-wrap">
-      <button id="survey-discard-btn" style="display:none;background:none;border:none;color:var(--red);font-size:13px;cursor:pointer;text-decoration:underline;" onclick="discardSurvey()">Discard survey</button>
+    <!-- Scrollable content -->
+    <div id="survey-scroll-body" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 0 16px;">
+      <div id="survey-paddock-list"></div>
+      <div class="div"></div>
+      <div id="survey-recovery-section-hdr" style="font-size:13px;font-weight:600;margin-bottom:8px;">Recovery window edits <span style="font-size:11px;font-weight:400;color:var(--text2);">(optional — updates the last closed event per paddock)</span></div>
+      <div id="survey-recovery-list"></div>
+      <div class="btn-row" style="margin-top:16px;">
+        <button class="btn btn-green" id="survey-save-btn" onclick="saveSurvey()">Save survey</button>
+        <button class="btn btn-outline" onclick="closeSurveySheet()">Close</button>
+      </div>
+      <div style="margin-top:10px;text-align:center;" id="survey-discard-wrap">
+        <button id="survey-discard-btn" style="display:none;background:none;border:none;color:var(--red);font-size:13px;cursor:pointer;text-decoration:underline;" onclick="discardSurvey()">Discard survey</button>
+      </div>
     </div>
   </div>
 </div>

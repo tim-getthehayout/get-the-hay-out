@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260408.0029`
+**Current build:** `b20260408.0959`
 **Last updated:** 2026-04-05
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -49,7 +49,7 @@ build = 'b' + datetime.now().strftime('%Y%m%d') + '.' + datetime.now().strftime(
 | ~2532 | Home screen + group cards + `renderFieldHome()` (field mode: tiles + tasks + events) |
 | ~2627 | Home view toggle (`renderHomeViewToggle`, `setHomeViewMode`) + Locations view (`renderLocationsView`, `renderLocationCard`, `renderUnplacedGroupsSection`) |
 > **Event tile redesign (b20260403.0022):** `renderLocationCard(ev, opts)` fully rewritten — section-based layout: header (color bar, name + acreage, badge, day/date/cost, Edit + Move All buttons) → SUB-PADDOCKS (conditional, active = green dot with halo) → GROUPS (per-group Move → move wizard + ⚖ weigh) → stacked DMI bars (`_renderDMIBars()`, 3-day, green grazing / amber stored) → Feed check button (amber, conditional on stored feed) → DMI summary + progress bar → NPK (pasture only) → Feed button. `opts.compact` mode for field mode expanded cards (no ⚖, no NPK, compact action row). Badge logic: "grazing" (pure pasture), "stored feed" (noPasture/confinement), "stored feed & grazing" (has feed entries + pasture time, split gradient). Move buttons call `openMoveWizSheet()` not `openEventEdit()` (OI-0150 fix).
-> **FIELD_MODULES (b20260403.0022):** Added `move` (Move Animals 🚜, `_fieldModeMoveHandler`) and `feedcheck` (Feed Check 📋, `_fieldModeFeedCheckHandler`). Default active set unchanged (`['feed','harvest','survey','animals']`).
+> **FIELD_MODULES (b20260407.2312):** 8 modules: `feed` 🌾, `move` 🐄, `harvest` 🚜, `feedcheck` 📋, `surveybulk` 📋, `surveysingle` 📋, `animals` 🐄, `heat` 🌡. Default active set: `['feed','harvest','surveybulk','animals']`. Legacy `'survey'` key mapped to `'surveybulk'` in `_getUserFieldModules()`.
 > **Quick Feed picker (b20260324.1730):** `qfShowEventStep()` is now location-centric — shows location name + type badge as primary, group names as secondary. Cancel button (`#qf-step1-cancel`) added to step-1 picker, hidden on step-2.
 > **Desktop grid fix (b20260405.0134):** `renderHomeViewToggle` and `renderUnplacedGroupsSection` now emit `grid-column:1/-1` so they span both columns of the desktop 2-column `#home-groups` grid. Previously the toggle occupied one grid cell, pushing the first location card into column 2 and leaving dead space in column 1.
 | ~2921 | To-Do system |
@@ -1485,20 +1485,24 @@ A stripped-down layout for focused phone use in the field. Activated by any of t
 | Constant / Function | Purpose |
 |---|---|
 | `FIELD_MODULES` | Array of `{key, icon, label, handler}` — all available modules |
-| `FIELD_MODULES_DEFAULT` | `['feed','harvest','survey','animals']` — default when user has no prefs |
+| `FIELD_MODULES_DEFAULT` | `['feed','harvest','surveybulk','animals']` — default when user has no prefs |
 | `_getUserFieldModules()` | Returns `user.fieldModules[]` or default |
 | `_setUserFieldModules(keys)` | Writes to `user.fieldModules`, calls `save()` |
 | `toggleFieldModule(key)` | Adds/removes a module key, saves, re-renders |
 | `renderFieldModules()` | Settings card — per-module on/off toggle pills |
 | `renderFieldHome()` | 3-section field mode home: tiles (2-col grid) → tasks (compact todos, max 4, inline completion) → events (collapsed cards, expand-on-tap with compact renderLocationCard) |
 
-**Module keys:** `feed` · `harvest` · `survey` · `animals`. Future modules added to `FIELD_MODULES` constant — stub with `handler:null` until implemented.
+**Module keys:** `feed` · `move` · `harvest` · `feedcheck` · `surveybulk` · `surveysingle` · `animals` · `heat`. Migration in `_getUserFieldModules()` maps legacy `'survey'` key to `'surveybulk'`.
 
 **Per-user storage:** `user.fieldModules[]` — array of active module keys. Stored in `gthy-identity` localStorage cache (alongside `fieldMode`, `role`, `color`, etc.). **Not** stored on the `getActiveUser()` return object — that is rebuilt fresh on every call and mutations to it are discarded. `_getUserFieldModules()` reads directly from `_sbLoadCachedIdentity()`. `_setUserFieldModules(keys)` writes directly into `gthy-identity` via `JSON.parse → spread → JSON.stringify`. `sbCacheIdentity()` preserves `fieldModules` when it refreshes identity on sign-in. `null` = no preference saved yet → use `FIELD_MODULES_DEFAULT`.
 
 **Settings card:** "Field mode" card added to Settings screen (above Farm users). Shows each module as a toggle row. `renderFieldModules()` called from the settings render chain.
 
-**Field-mode full-screen sheets (OI-0132, b20260401.0044 / regression fix b20260401.0055):** Class `field-mode-sheet` is added to `#harvest-sheet-wrap` and `#quick-feed-wrap`. Both open functions detect `body.field-mode` and configure context-sensitive UI at open time: backdrop tap-to-close disabled, handle hidden, close/cancel button labels updated.
+**Field-mode full-screen sheets (OI-0132, b20260401.0044 / regression fix b20260401.0055):** Class `field-mode-sheet` is added to `#harvest-sheet-wrap`, `#quick-feed-wrap`, `#heat-picker-wrap`, `#move-picker-wrap`, `#feedcheck-picker-wrap`, and `#pasture-survey-picker-wrap`. Open functions detect `body.field-mode` and configure context-sensitive UI at open time: backdrop tap-to-close disabled, handle hidden, close/cancel button labels updated.
+
+**Picker sheets (b20260407.2112):** Move Animals (`#move-picker-wrap`), Feed Check (`#feedcheck-picker-wrap`), and Pasture Survey (`#pasture-survey-picker-wrap`) each have picker sheets that list events/groups/pastures for selection before opening the main action sheet. Single-entry shortcut skips the picker.
+
+**Stacked sheet pattern (b20260408.0029):** CSS class `.stacked` (z-index:220) used when one sheet opens on top of another. Currently used by pasture edit opening over the move wizard (forage type link). The stacked class is added on open and removed on close/cancel.
 
 **⚠️ CSS rule:** `body.field-mode .field-mode-sheet.open .sheet { width/height:100%; border-radius:0 }` — targets the inner `.sheet` only when the outer wrap has the `.open` class. **Do NOT** use `body.field-mode .field-mode-sheet { display:flex }` — this would force sheets visible the moment field mode activates (regression in b20260401.0044/0047, fixed in b20260401.0055).
 
@@ -1507,6 +1511,8 @@ A stripped-down layout for focused phone use in the field. Activated by any of t
 **Harvest sheet in field mode:** Close/cancel → "⌂ Done". After `saveHarvestEvent()` in field mode, calls `_fieldModeGoHome()` instead of `renderPastures()`. Alert replaced with `showSurveyToast`.
 
 **Quick Feed sheet in field mode (OI-0132):** Tile label "Log Feed" → "Feed Animals". Step 1 shows "⌂ Done" button (closes to field home); Cancel button hidden. Step 2 "← Back" returns to event picker (does NOT close sheet). After `saveQuickFeed()` in field mode, stays on event picker with toast — user can feed another group or tap "⌂ Done" to return to field home. `closeQuickFeedSheet()` in field mode always calls `_fieldModeGoHome()`.
+
+**Bulk survey overhaul (OI-0200, b20260408):** Sheet restructured to flex column layout with two header zones: `#survey-bulk-header` (bulk mode — dynamically populated by `_renderBulkSurveyHeader()`) and `#survey-classic-header` (single/bulk-edit modes). Scrollable content in `#survey-scroll-body`. Bulk header has 4 rows: action buttons (Cancel / Expand all / Close) + DRAFT tag, survey date, farm filter pills (if >1 farm), type filter pills (Pasture/Mixed-Use/All), search box. Cards are accordion — collapsed by default, one expanded at a time (`_bulkSurveyExpandedId`), Expand all toggle (`_bulkSurveyExpandAll`). Snapshot captured on open (`_bulkSurveySnapshot`); Cancel restores snapshot, Close prompts commit via `completeBulkSurvey()`. Forage condition buttons (Poor/Fair/Good/Excellent) added to bulk cards for field parity with single-pasture mode. `#survey-complete-btn` removed from HTML — commit only via Close→Yes.
 
 ---
 
