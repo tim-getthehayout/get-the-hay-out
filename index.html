@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260408.0009" id="app-version-meta"/>
+<meta name="app-version" content="b20260408.0029" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -131,6 +131,7 @@ body.field-mode .field-mode-sheet.open .sheet{
 }
 .sheet-wrap{display:none;position:fixed;inset:0;z-index:200;}
 #move-wiz-wrap,#close-sub-paddock-wrap,#feed-check-wrap,#sm-sheet-wrap{z-index:210;}
+.sheet-wrap.stacked{z-index:220;}
 .sheet-wrap.open{display:flex;align-items:center;justify-content:center;}
 .sheet-backdrop{position:absolute;inset:0;background:rgba(0,0,0,0.4);}
 .sheet{position:relative;width:min(92vw,680px);background:var(--bg);border-radius:var(--radius-xl);padding:16px 16px 24px;max-height:90vh;overflow-y:auto;z-index:1;}
@@ -13233,9 +13234,19 @@ function openLocEdit(idx){
   const histWrap = document.getElementById('le-survey-history-wrap');
   if(histWrap) histWrap.style.display = isCon ? 'none' : 'block';
   if(!isCon) renderPastureEditHistory(String(p.id));
-  document.getElementById('loc-edit-wrap').classList.add('open');
+  // Stack above move wizard if it's open underneath
+  const _leWrap=document.getElementById('loc-edit-wrap');
+  if(document.getElementById('move-wiz-wrap')?.classList.contains('open')) _leWrap.classList.add('stacked');
+  _leWrap.classList.add('open');
 }
-function closeLocEdit(){document.getElementById('loc-edit-wrap').classList.remove('open');}
+function closeLocEdit(){
+  const _leWrap=document.getElementById('loc-edit-wrap');
+  _leWrap.classList.remove('open','stacked');
+  // Refresh move wizard forage preview if it's open underneath
+  if(document.getElementById('move-wiz-wrap')?.classList.contains('open')){
+    if(typeof _mwUpdateForagePreview==='function') _mwUpdateForagePreview();
+  }
+}
 
 function onLeLocTypeChange(){
   const v=document.getElementById('le-loctype').value;
@@ -22045,6 +22056,7 @@ function openMoveWizSheet(evId, groupId, moveAll){
   _mwArrQuality = null;
   _mwFeedDisposition = {};
   _mwSubMoveMode = false;
+  _fcTypeData = []; // defense in depth against stale state from prior session
   const ev = S.events.find(e=>e.id===evId && e.status==='open');
   if(moveAll && ev){
     _mwGroupIds = evGroups(ev).filter(g=>!g.dateRemoved).map(g=>g.groupId);
@@ -22077,6 +22089,19 @@ function openSubMoveWiz(evId){
 
 function closeMoveWizSheet(){
   document.getElementById('move-wiz-wrap').classList.remove('open');
+  // Clear all wizard-owned state so next open starts fresh
+  _fcTypeData = [];
+  _mwFeedDisposition = {};
+  _mwSourceEvId = null;
+  _mwMoveAll = false;
+  _mwDestType = null;
+  _mwDestPaddockId = null;
+  _mwDestEventId = null;
+  _mwGroupIds = [];
+  _mwCloseOutData = {};
+  _mwArrQuality = null;
+  _mwSubMoveMode = false;
+  _mwStep = 1;
 }
 
 function _mwBack(){
@@ -22466,7 +22491,7 @@ function _mwRenderStep3(){
   ${fromSectionHtml}
   ${_mwRenderInlineFeedCheck(srcEv, isLastGroup, hasStoredFeed)}
   ${toSectionHtml}
-  <button style="width:100%;padding:12px;font-size:14px;font-weight:600;border-radius:8px;border:none;background:var(--teal);color:white;cursor:pointer;font-family:inherit;" onclick="_mwSave()">${saveLabel}</button>`;
+  ${(()=>{const _allV=_fcTypeData.every(t=>t.userVerified!==false);const _dis=_fcTypeData.length&&!_allV;return `<button id="mw-save-btn" ${_dis?'disabled':''} style="width:100%;padding:12px;font-size:14px;font-weight:600;border-radius:8px;border:none;background:${_dis?'var(--text3)':'var(--teal)'};color:white;cursor:${_dis?'not-allowed':'pointer'};font-family:inherit;" onclick="_mwSave()">${saveLabel}</button>`;})()}`;
 }
 
 // ── Inline feed check + disposition for step 3 ──────────────────────────────
@@ -22490,7 +22515,8 @@ function _mwRenderInlineFeedCheck(srcEv, isLastGroup, hasStoredFeed){
         typeMap[ftId].totalUnits += Math.max(0, line.qty||0);
       });
     });
-    const lastCheck = (srcEv.feedResidualChecks||[]).filter(c=>!c.isCloseReading).sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];
+    const lastCheck = (srcEv.feedResidualChecks||[]).filter(c=>!c.isCloseReading&&c.notes!=='transfer_opening').sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];
+    const hasPriorCheck = !!lastCheck;
     const lastPct = lastCheck ? (lastCheck.balesRemainingPct ?? lastCheck.residualPct ?? 100) : 100;
     const lastDate = lastCheck?.date || null;
     const lastTypeChecks = lastCheck?.typeChecks || null;
@@ -22498,7 +22524,8 @@ function _mwRenderInlineFeedCheck(srcEv, isLastGroup, hasStoredFeed){
       let lastUnits;
       if(lastTypeChecks){ const tc=lastTypeChecks.find(c=>String(c.feedTypeId)===String(t.feedTypeId)); lastUnits=tc?tc.remaining:t.totalUnits*(lastPct/100); }
       else { lastUnits=t.totalUnits*(lastPct/100); }
-      return { ...t, startedUnits:t.totalUnits, lastCheckUnits:parseFloat(lastUnits.toFixed(2)), lastCheckDate:lastDate, remaining:parseFloat(lastUnits.toFixed(2)) };
+      return { ...t, startedUnits:t.totalUnits, lastCheckUnits:parseFloat(lastUnits.toFixed(2)), lastCheckDate:lastDate, remaining:parseFloat(lastUnits.toFixed(2)),
+        hasPriorCheck, userVerified:hasPriorCheck };
     });
   }
 
@@ -22510,18 +22537,26 @@ function _mwRenderInlineFeedCheck(srcEv, isLastGroup, hasStoredFeed){
     const consumed = Math.max(0, t.lastCheckUnits - t.remaining);
     const consumedDMI = consumed * t.lbsPerUnit * (t.dmPct/100);
     const unitLabel = _fcUnitLabel(t.unit);
+    const _unverified=t.userVerified===false;
+    const _borderCol=_unverified?'var(--red)':'var(--amber)';
+    const _lastLabel=t.hasPriorCheck
+      ?'Last check: '+t.lastCheckUnits.toFixed(2)+' '+unitLabel
+      :'<span style="color:var(--red-d);font-weight:500;">\u26a0 No prior check \u2014 verify current amount</span>';
+    const _verifyBanner=_unverified
+      ?'<div id="fc-verify-banner-'+idx+'" style="margin-top:8px;padding:8px 10px;border-radius:8px;background:var(--red-l);border:0.5px solid var(--red);font-size:11px;color:var(--red-d);">\u26a0 Verify this amount matches what\u2019s physically in the field before saving.</div>'
+      :'';
     return `<div class="card" style="padding:14px;margin-bottom:10px;">
       <div style="margin-bottom:10px;"><div style="font-size:13px;font-weight:500;">${escHtml(t.feedTypeName)} (${escHtml(unitLabel)})</div>
-        <div style="font-size:11px;color:var(--text2);">Last check: ${t.lastCheckUnits.toFixed(2)} ${unitLabel}</div></div>
+        <div style="font-size:11px;color:var(--text2);">${_lastLabel}</div></div>
       <div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:12px;">
         <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Remaining ${unitLabel}</label>
-          <div style="display:flex;align-items:center;border:0.5px solid var(--amber);border-radius:8px;overflow:hidden;background:var(--bg);">
+          <div style="display:flex;align-items:center;border:0.5px solid ${_borderCol};border-radius:8px;overflow:hidden;background:var(--bg);">
             <button style="width:36px;height:38px;border:none;background:var(--amber-l);color:var(--amber-d);font-size:18px;cursor:pointer;font-weight:500;font-family:inherit;" onclick="_fcAdj(${idx},-0.10)">−</button>
             <input type="number" id="fc-units-${idx}" value="${t.remaining.toFixed(2)}" step="0.01" min="0" max="${t.lastCheckUnits}"
               style="flex:1;text-align:center;border:none;font-size:16px;font-weight:500;padding:8px 0;background:transparent;color:var(--text);outline:none;width:50px;font-family:inherit;"
               oninput="_fcUnitsChanged(${idx})">
             <button style="width:36px;height:38px;border:none;background:var(--amber-l);color:var(--amber-d);font-size:18px;cursor:pointer;font-weight:500;font-family:inherit;" onclick="_fcAdj(${idx},0.10)">+</button>
-          </div></div>
+          </div>${_verifyBanner}</div>
         <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Remaining %</label>
           <input type="number" id="fc-pct-${idx}" value="${pct.toFixed(1)}" min="0" max="100" step="0.5"
             style="width:100%;padding:10px 12px;border:0.5px solid var(--border2);border-radius:8px;font-size:16px;font-weight:500;background:var(--bg);text-align:center;box-sizing:border-box;font-family:inherit;color:var(--text);"
@@ -22725,7 +22760,7 @@ function _mwUpdateForagePreview(){
   const ft=dp.forageTypeId?(S.forageTypes||[]).find(f=>String(f.id)===String(dp.forageTypeId)):null;
   if(!ft||!ft.dmLbsPerInchPerAcre){
     const padIdx=(S.pastures||[]).findIndex(p=>String(p.id)===String(dp.id));
-    body.innerHTML='<span style="color:var(--text3);">No forage type linked.</span> <a href="#" onclick="event.preventDefault();closeMoveWizSheet();openLocEdit('+padIdx+');return false;" style="color:var(--teal);text-decoration:underline;">Set up this field</a>';
+    body.innerHTML='<span style="color:var(--text3);">No forage type linked.</span> <a href="#" onclick="event.preventDefault();openLocEdit('+padIdx+');return false;" style="color:var(--teal);text-decoration:underline;">Set up this field</a>';
     return;
   }
   const heightVal=parseFloat(document.getElementById('mw-arr-height')?.value);
@@ -22843,7 +22878,10 @@ function _mwSave(){
       feedEntries:[], subMoves:[], feedResidualChecks:[],
       createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
     };
-    // Write paddock observation for arrival survey
+    S.events.push(newEv);
+    queueEventWrite(newEv);
+    // Write paddock observation for arrival survey AFTER event is pushed
+    // (prevents orphan observations if event push fails)
     if(arrHeight && !isCon){
       if(!S.paddockObservations) S.paddockObservations = [];
       const _arrObs = {
@@ -22854,8 +22892,6 @@ function _mwSave(){
       S.paddockObservations.push(_arrObs);
       queueWrite('paddock_observations', _paddockObservationRow(_arrObs, _sbOperationId));
     }
-    S.events.push(newEv);
-    queueEventWrite(newEv);
   } else if(_mwDestType === 'existing' && _mwDestEventId){
     const destEv = S.events.find(e=>e.id===_mwDestEventId);
     if(!destEv){ alert('Destination event not found'); return; }
@@ -23276,6 +23312,20 @@ function _fcSliderChanged(idx){
 
 function _fcUpdateUI(idx, skipUnits, skipPct){
   const t = _fcTypeData[idx]; if(!t) return;
+  // Mark as verified on any user interaction
+  if(t.userVerified===false){
+    t.userVerified=true;
+    // Remove red border
+    const _wrapEl=document.getElementById('fc-units-'+idx)?.parentElement;
+    if(_wrapEl) _wrapEl.style.border='0.5px solid var(--amber)';
+    // Hide verify banner
+    const _bannerEl=document.getElementById('fc-verify-banner-'+idx);
+    if(_bannerEl) _bannerEl.style.display='none';
+    // Re-evaluate save button
+    const _allOk=_fcTypeData.every(tt=>tt.userVerified!==false);
+    const _saveBtn=document.getElementById('mw-save-btn');
+    if(_saveBtn){_saveBtn.disabled=!_allOk;_saveBtn.style.background=_allOk?'var(--teal)':'var(--text3)';_saveBtn.style.cursor=_allOk?'pointer':'not-allowed';}
+  }
   const pct = t.startedUnits > 0 ? (t.remaining / t.startedUnits * 100) : 0;
   if(!skipUnits){
     const unitsEl = document.getElementById('fc-units-'+idx);
