@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260408.0959" id="app-version-meta"/>
+<meta name="app-version" content="b20260408.1013" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -5135,7 +5135,7 @@ const FIELD_MODULES = [
     else { nav('pastures',document.getElementById('bn-pastures')); setTimeout(openHarvestSheet,120); }
   }},
   { key:'feedcheck', icon:'📋', label:'Feed Check',    handler:()=>{ _fieldModeFeedCheckHandler(); } },
-  { key:'surveybulk',   icon:'📋', label:'Survey',        handler:()=>{
+  { key:'surveybulk',   icon:'📋', label:'Multi-Pasture Survey',        handler:()=>{
     if(document.body.classList.contains('field-mode')){ openBulkSurveySheet(); }
     else { nav('pastures',document.getElementById('bn-pastures')); setTimeout(openBulkSurveySheet,120); }
   }},
@@ -8091,14 +8091,30 @@ function _bulkSurveyCancel(){
 }
 
 function _bulkSurveyClose(){
-  if(confirm('Save changes?')){
-    // Yes → commit (completeBulkSurvey handles close + cleanup)
-    completeBulkSurvey();
-    _resetBulkSurveyUIState();
-    return;
+  // Show inline confirm bar instead of native confirm()
+  const confirmEl = document.getElementById('survey-bulk-confirm');
+  const actionRow = document.getElementById('survey-bulk-actions');
+  if(confirmEl) confirmEl.style.display = '';
+  if(actionRow) actionRow.style.display = 'none';
+}
+
+function _bulkSurveyDoClose(save){
+  if(save){
+    const pastures = sortedPastures(false).filter(p=>p.locationType!=='confinement');
+    const rated = pastures.filter(p=>surveyRatings[String(p.id)]!=null);
+    if(rated.length){
+      completeBulkSurvey();
+      _resetBulkSurveyUIState();
+      return;
+    }
+    // Nothing rated — just save draft and close
+    if(_surveyEditId !== null){
+      const sv = (S.surveys||[]).find(s=>String(s.id)===String(_surveyEditId)&&s.status==='draft');
+      if(sv) saveSurveyDraft(sv.id);
+    }
   }
-  // No → just close, draft retained via auto-save
-  if(_surveyEditId !== null){
+  // Discard or empty save — close, draft retained via auto-save
+  if(!save && _surveyEditId !== null){
     const sv = (S.surveys||[]).find(s=>String(s.id)===String(_surveyEditId)&&s.status==='draft');
     if(sv) saveSurveyDraft(sv.id);
   }
@@ -8464,13 +8480,19 @@ function _renderBulkSurveyHeader(){
 
   // Row 1: Action buttons + date
   const expandLabel = _bulkSurveyExpandAll ? 'Collapse all' : 'Expand all';
-  let row1 = `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0 6px;">
+  let row1 = `<div id="survey-bulk-actions" style="display:flex;align-items:center;justify-content:space-between;padding:8px 0 6px;">
     <button type="button" onclick="_bulkSurveyCancel()" style="background:none;border:none;color:var(--red);font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;padding:4px 0;">Cancel</button>
     <div style="display:flex;align-items:center;gap:8px;">
       <span style="font-size:10px;font-weight:600;color:var(--amber-d,#92400e);background:var(--amber-l,#fffbeb);border:1px solid var(--amber,#f59e0b);padding:2px 8px;border-radius:10px;">DRAFT</span>
       <button type="button" onclick="_toggleBulkSurveyExpandAll()" style="background:none;border:0.5px solid var(--border2);color:var(--text2);font-size:11px;cursor:pointer;font-family:inherit;padding:4px 10px;border-radius:6px;">${expandLabel}</button>
     </div>
     <button type="button" onclick="_bulkSurveyClose()" style="background:none;border:none;color:var(--teal);font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;padding:4px 0;">✕ Close</button>
+  </div>
+  <div id="survey-bulk-confirm" style="display:none;padding:8px 0 6px;">
+    <div style="display:flex;gap:10px;justify-content:center;">
+      <button type="button" onclick="_bulkSurveyDoClose(false)" style="flex:1;padding:10px;font-size:13px;font-weight:600;border-radius:8px;border:0.5px solid var(--red);background:transparent;color:var(--red);cursor:pointer;font-family:inherit;">Discard Changes</button>
+      <button type="button" onclick="_bulkSurveyDoClose(true)" style="flex:1;padding:10px;font-size:13px;font-weight:600;border-radius:8px;border:none;background:var(--teal);color:white;cursor:pointer;font-family:inherit;">Save Changes</button>
+    </div>
   </div>`;
 
   // Date row — uses survey-bulk-date ID to avoid duplicate with classic header's survey-date
