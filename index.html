@@ -15232,6 +15232,14 @@ function openCalvingSheet(){
   const grp=getAnimalGroup(damId);
   document.getElementById('calving-group-note').textContent=
     grp?'Calf will be added to: '+grp.name:'Dam has no group assigned — calf will be unassigned';
+  const cls=(S.animalClasses||[]).find(c=>c.id===dam.classId)||{};
+  const birthTerm=birthTermForSpecies(cls.species);
+  const youngTerm=youngTermForSpecies(cls.species);
+  document.getElementById('calving-sheet-title').textContent='Record '+birthTerm.toLowerCase();
+  document.getElementById('calving-date-label').textContent=birthTerm+' date';
+  const sexSel=document.getElementById('calving-sex');
+  sexSel.options[0].text='Female ('+youngTerm.toLowerCase()+')';
+  sexSel.options[1].text='Male ('+youngTerm.toLowerCase()+')';
   const damLabel=dam.systemId+(dam.tagNum?' · '+dam.tagNum:'');
   document.getElementById('calving-dam-label').textContent='Dam: '+damLabel;
   document.getElementById('calving-sheet-wrap').classList.add('open');
@@ -18639,6 +18647,7 @@ function recalcNpkValues(){
       ev.totals.capturedNPK={n:newNPK.n*capPct,p:newNPK.p*capPct,k:newNPK.k*capPct};
       ev.totals.capturedNPKVal=ev.totals.capturedNPK.n*nPrice+ev.totals.capturedNPK.p*pPrice+ev.totals.capturedNPK.k*kPrice;
     }
+    queueEventWrite(ev);
     updated++;
   });
 
@@ -21527,10 +21536,10 @@ window.addEventListener('offline', ()=>{
   <div class="sheet-backdrop" onclick="closeCalvingSheet()"></div>
   <div class="sheet">
     <div class="sheet-handle"></div>
-    <div style="font-size:16px;font-weight:600;margin-bottom:4px;">Record calving</div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:4px;" id="calving-sheet-title">Record calving</div>
     <div style="font-size:13px;color:var(--text2);margin-bottom:14px;" id="calving-dam-label"></div>
     <div class="two">
-      <div class="field"><label>Calving date</label><input type="date" id="calving-date"/></div>
+      <div class="field"><label id="calving-date-label">Calving date</label><input type="date" id="calving-date"/></div>
       <div class="field"><label>Calf sex</label>
         <select id="calving-sex">
           <option value="female">Female (heifer calf)</option>

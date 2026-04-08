@@ -1174,19 +1174,11 @@ This will likely also have FK dependencies from other tables (`event_paddock_win
 **Source:** Claude observation — b20260330.1939
 **Area:** `flushToSupabase` (~L3039), `queueWrite` (~L2897), all write paths
 **Severity:** Debt
-**Status:** ⚪ Open
+**Status:** ✅ Closed
 **Found:** b20260330.1939
+**Closed:** b20260408 (this session)
 
-If `_sbOperationId` is null at the moment a record is queued (edge case: queue write fires before `sbGetOperationId` has resolved on a fresh device, or on first sign-in before the operation row exists), the queued record has `operation_id: null`. `flushToSupabase` silently discards it: `const queue = rawQueue.filter(op => op.record && op.record.operation_id != null)`. The item is permanently removed from the queue with no error logged and no retry path.
-
-Most likely to affect feedback, todos, and quick-feed entries made immediately after OTP sign-in on a new device before the operation row has been fetched.
-
-**Fix options:**
-1. Log a warning when stripping null-opId items (cheap — at minimum we should know when this happens).
-2. Re-queue null-opId items after `_sbOperationId` is resolved rather than discarding them (correct but more complex — requires a "pending requeue" list and a trigger after `sbGetOperationId` sets `_sbOperationId`).
-3. Guard `queueWrite` itself: if `_sbOperationId` is null, hold in a separate "pre-auth queue" that is replayed once `_sbOperationId` is set.
-
-Option 1 is a 2-line fix that should be done immediately. Options 2/3 are design-first.
+Fixed in `queueWrite`: null `operation_id` records are now self-healed by patching from `_sbOperationId || localStorage.getItem('gthy-operation-id')` before queuing. The silent-strip path (`rawQueue.filter(op => op.record.operation_id != null)`) no longer applies because records enter the queue with a valid opId. Covers the reconnect-window and first-sign-in edge cases. Option 2/3 full requeue-on-resolve not needed.
 
 ---
 
@@ -1194,12 +1186,11 @@ Option 1 is a 2-line fix that should be done immediately. Options 2/3 are design
 **Source:** Claude observation — b20260329.1630 (M4.5 audit)
 **Area:** Supabase write path — `recalcNpkValues()` bulk mutation
 **Severity:** Debt
-**Status:** ⚪ Open
+**Status:** ✅ Closed
 **Found:** b20260329.1630
+**Closed:** b20260408 (this session)
 
-`recalcNpkValues()` (~Settings) iterates past events, updates `ev.npkValue`, then calls `save()` — no per-row `queueWrite`. Bulk NPK price recalculations only update localStorage; Supabase events retain stale `npk_value`. Low-frequency operation (triggered manually from Settings when NPK prices change).
-
-**Fix:** After updating each event in the loop, call `queueWrite('events', _sbToSnake({...ev, operationId: _sbOperationId}))`. Can be combined with any future Settings or event edit session.
+Added `queueEventWrite(ev)` inside the `eligible.forEach` loop after all `ev.totals.*` updates. Each recalculated event is now queued for Supabase sync before `save()` is called.
 
 ---
 
@@ -1329,15 +1320,11 @@ Two bugs found and fixed during live verification:
 **Source:** Claude observation — b20260328.0140
 **Area:** Dev tooling — JS syntax check process
 **Severity:** Debt
-**Status:** ⚪ Open
+**Status:** ✅ Closed
 **Found:** b20260328.0140
-**Closed:** —
+**Closed:** b20260408 (this session)
 
-The app HTML contains two `<script>` blocks: the main app script (~L1453–L15142) and a service worker registration block (~L15143–L15800). The current `node --check` syntax verification step extracts only the first `<script>…</script>` match, so the service worker registration block is never syntax-checked.
-
-In practice the SW block is short and stable, but the gap in coverage is a latent risk — a stale extraction regex could silently skip a broken block on a future session.
-
-**Proposed fix:** Update the syntax check snippet in `deploy.py` (or the session-start check pattern) to extract and check both script blocks independently. A simple approach: use `re.findall(r'<script>(.*?)</script>', html, re.DOTALL)` and run `node --check` on each block in sequence. Flag if either fails.
+Added `syntax_check()` to `deploy.py`. Uses `re.findall(r'<script>(.*?)</script>', content, re.DOTALL)` to extract all script blocks, writes each to `/tmp/gthy_syntax_N.js`, and runs `node --check` on each. Fails deploy with error output if any block has a syntax error. Called at the start of both `deploy()` and `release()` modes before stamping.
 
 ---
 
@@ -1962,21 +1949,11 @@ Sub-moves are now rendered as a teal-threaded visual unit beneath their parent e
 **Source:** Claude observation — b20260322.2021
 **Area:** Calving Sheet / Animal Edit Sheet (~L8603 `openCalvingSheet`, ~L12382 sheet HTML)
 **Severity:** Polish
-**Status:** 🟡 Open
+**Status:** ✅ Closed
 **Found:** b20260322.2021
-**Closed:** —
+**Closed:** b20260408 (this session)
 
-The calving sheet title ("Record calving"), date label ("Calving date"), and calf sex options ("Female (heifer calf)" / "Male (bull/steer calf)") are hardcoded to cattle terminology. The `birthTermForSpecies()` and `youngTermForSpecies()` helpers introduced in b20260322.2021 are already in place but not yet wired to the sheet.
-
-**Fix:** In `openCalvingSheet()`, derive the dam's species from her class, call `birthTermForSpecies()` and `youngTermForSpecies()`, then update the sheet title, date label, and calf sex option text before opening. No data model changes required.
-
-**Affected elements:**
-- Sheet title: `<div …>Record calving</div>` → e.g. "Record lambing"
-- Date label: `<label>Calving date</label>` → "Lambing date" / "Kidding date" etc.
-- Calf sex options: "Female (heifer calf)" → "Female (ewe lamb)" etc.
-- `#calving-dam-label` prefix is already dynamic — no change needed there
-
-**Acceptance criteria:** When opening the calving sheet for a sheep dam, the title reads "Record lambing", date field reads "Lambing date", and sex options use lamb terminology. Cattle dams unchanged. Falls back gracefully to "Birth" for unknown species.
+`openCalvingSheet()` now looks up the dam's class, calls `birthTermForSpecies()` and `youngTermForSpecies()`, and updates 4 DOM elements before opening: `#calving-sheet-title` ("Record lambing"), `#calving-date-label` ("Lambing date"), and both `calving-sex` options ("Female (lamb)" / "Male (lamb)"). IDs added to the previously static title div and date label in sheet HTML.
 
 ---
 
