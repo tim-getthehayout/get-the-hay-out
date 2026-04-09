@@ -7966,7 +7966,7 @@ function saveSurveyDraft(surveyId){
   if(!sv || sv.status!=='draft') return;
   // Persist current UI state into draftRatings
   sv.draftRatings = {};
-  const _allPids = new Set([...Object.keys(surveyRatings),...Object.keys(surveyForageQuality),...Object.keys(surveyVegHeight),...Object.keys(surveyForageCover)]);
+  const _allPids = new Set([...Object.keys(surveyRatings),...Object.keys(surveyForageQuality),...Object.keys(surveyVegHeight),...Object.keys(surveyForageCover),...Object.keys(surveyNotes),...Object.keys(surveyRecovery)]);
   _allPids.forEach(pid=>{
     sv.draftRatings[pid] = {
       rating:        surveyRatings[pid]??null,
@@ -8069,18 +8069,15 @@ function openSurveySheet(pastureId, surveyId){
 
 
 function closeSurveySheet(){
-  // In bulk draft mode, route through the dedicated Close flow
-  if(_surveyEditId !== null && !surveyFocusPastureId){
-    const sv = (S.surveys||[]).find(s=>String(s.id)===String(_surveyEditId)&&s.status==='draft');
-    if(sv){ _bulkSurveyClose(); return; }
-  }
-  // Auto-save draft state when closing (single/bulk-edit)
+  // Auto-save draft state when closing
   if(_surveyEditId !== null){
     const sv = (S.surveys||[]).find(s=>String(s.id)===String(_surveyEditId)&&s.status==='draft');
     if(sv) saveSurveyDraft(sv.id);
   }
   _surveyEditId = null;
+  _resetBulkSurveyUIState();
   document.getElementById('survey-sheet-wrap').classList.remove('open');
+  if(document.body.classList.contains('field-mode')) _fieldModeGoHome();
 }
 
 function _bulkSurveyCancel(){
@@ -8219,6 +8216,7 @@ function completeBulkSurvey(){
   save();
   _surveyEditId = null;
   document.getElementById('survey-sheet-wrap').classList.remove('open');
+  if(document.body.classList.contains('field-mode')) _fieldModeGoHome();
   if(curScreen==='pastures') renderPastures();
   showSurveyToast(`Survey saved: ${rated.length} paddock${rated.length!==1?'s':''} rated.`);
 }
@@ -8502,12 +8500,9 @@ function _renderBulkSurveyHeader(){
       <span style="font-size:10px;font-weight:600;color:var(--amber-d,#92400e);background:var(--amber-l,#fffbeb);border:1px solid var(--amber,#f59e0b);padding:2px 8px;border-radius:10px;">DRAFT</span>
       <button type="button" onclick="_toggleBulkSurveyExpandAll()" style="background:none;border:0.5px solid var(--border2);color:var(--text2);font-size:11px;cursor:pointer;font-family:inherit;padding:4px 10px;border-radius:6px;">${expandLabel}</button>
     </div>
-    <button type="button" onclick="_bulkSurveyClose()" style="background:none;border:none;color:var(--teal);font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;padding:4px 0;">✕ Close</button>
-  </div>
-  <div id="survey-bulk-confirm" style="display:none;padding:8px 0 6px;">
-    <div style="display:flex;gap:10px;justify-content:center;">
-      <button type="button" onclick="_bulkSurveyDoClose(false)" style="flex:1;padding:10px;font-size:13px;font-weight:600;border-radius:8px;border:0.5px solid var(--red);background:transparent;color:var(--red);cursor:pointer;font-family:inherit;">Discard Changes</button>
-      <button type="button" onclick="_bulkSurveyDoClose(true)" style="flex:1;padding:10px;font-size:13px;font-weight:600;border-radius:8px;border:none;background:var(--teal);color:white;cursor:pointer;font-family:inherit;">Save Changes</button>
+    <div style="display:flex;gap:6px;">
+      <button type="button" class="btn btn-green btn-sm" onclick="_bulkSurveyDoClose(true)">Save</button>
+      <button type="button" class="btn btn-outline btn-sm" onclick="closeSurveySheet()">Close</button>
     </div>
   </div>`;
 
@@ -9027,6 +9022,7 @@ function setSurveyRating(pastureId, pastureName, rating){
     const color = surveyRatingColor(rating);
     selEl.innerHTML = `<span style="color:${color};font-weight:600;">${rating}/100 — ${surveyRatingLabel(rating)}</span>`;
   }
+  _triggerSurveyDraftSave();
 }
 
 // saveSurvey: routes to correct handler based on mode

@@ -23,7 +23,7 @@
 | 🟡 Open — Polish | 3 |
 | 🔵 Open — Enhancement | 24 |
 | ⚪ Open — Debt | 9 |
-| ✅ Closed | 132 |
+| ✅ Closed | 134 |
 
 ---
 
@@ -3158,6 +3158,30 @@ Closes the feedback loop end-to-end. After a deploy that fixes feedback items, C
 **Depends on:** OI-0138 (admin-submissions edge function must be deployed)
 
 **Acceptance criteria:** Edge function accepts `?action=resolve-release`. Claude Code calls it post-deploy. Original submitter sees toast + confirmation. Anonymous items route to admin. Non-submitter items auto-close. All syncs via queueWrite. Multiple accumulated deploys process in order.
+
+---
+
+### OI-0202 — Bulk survey header missing Save/Close buttons
+**Source:** Tim — b20260409
+**Area:** Surveys / UI
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260409
+**Closed:** b20260409
+
+The bulk survey sticky header had a Cancel button and a Close button that triggered a hidden confirmation bar (Discard/Save). This didn't match the universal sheet pattern — Save and Close should be separate, always-visible buttons. Fixed by replacing the hidden confirm bar approach with explicit `.btn.btn-green` Save and `.btn.btn-outline` Close buttons in the header. `closeSurveySheet()` updated to auto-save draft and reset bulk UI state; `completeBulkSurvey()` updated to call `_fieldModeGoHome()` if in field mode.
+
+---
+
+### OI-0203 — Bulk survey draft data not persisting all fields
+**Source:** Tim — b20260409
+**Area:** Surveys / Data
+**Severity:** Bug
+**Status:** ✅ Closed
+**Found:** b20260409
+**Closed:** b20260409
+
+Entering forage height, cover, condition, and rating data in the bulk survey, then saving and reopening the draft only retained a subset of fields. Two root causes: (1) `saveSurveyDraft()` built `_allPids` only from `surveyRatings`, `surveyForageQuality`, `surveyVegHeight`, and `surveyForageCover` — paddocks where only `surveyRecovery` or `surveyNotes` was changed were excluded from the save set. (2) `setSurveyRating()` did not call `_triggerSurveyDraftSave()`, so rating changes were not auto-saved to the draft. Fixed both.
 
 ---
 
