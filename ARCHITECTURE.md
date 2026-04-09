@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260409.1639`
+**Current build:** `b20260409.1704`
 **Last updated:** 2026-04-05
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -1530,6 +1530,8 @@ A stripped-down layout for focused phone use in the field. Activated by any of t
 **Quick Feed sheet in field mode (OI-0132):** Tile label "Log Feed" → "Feed Animals". Step 1 shows "⌂ Done" button (closes to field home); Cancel button hidden. Step 2 "← Back" returns to event picker (does NOT close sheet). After `saveQuickFeed()` in field mode, stays on event picker with toast — user can feed another group or tap "⌂ Done" to return to field home. `closeQuickFeedSheet()` in field mode always calls `_fieldModeGoHome()`.
 
 **Bulk survey overhaul (OI-0200, b20260408):** Sheet restructured to flex column layout with two header zones: `#survey-bulk-header` (bulk mode — dynamically populated by `_renderBulkSurveyHeader()`) and `#survey-classic-header` (single/bulk-edit modes). Scrollable content in `#survey-scroll-body`. Bulk header has 4 rows: action buttons (Cancel / Expand all / Close) + DRAFT tag, survey date, farm filter pills (if >1 farm), type filter pills (Pasture/Mixed-Use/All), search box. Cards are accordion — collapsed by default, one expanded at a time (`_bulkSurveyExpandedId`), Expand all toggle (`_bulkSurveyExpandAll`). Snapshot captured on open (`_bulkSurveySnapshot`); Cancel restores snapshot, Close prompts commit via `completeBulkSurvey()`. Forage condition buttons (Poor/Fair/Good/Excellent) added to bulk cards for field parity with single-pasture mode. `#survey-complete-btn` removed from HTML — commit only via Close→Yes.
+
+**Bulk survey card completion indicator (b20260409):** Card headers show a green "✓ Complete" badge (via `<span id="survey-status-{pid}">`) when all 5 required fields are filled: rating (0-100), veg height, forage cover, forage condition (Poor/Fair/Good/Excellent), and recovery window (min + max). The forage quality number badge (`curRating/100`) removed from card headers. Helpers: `_isBulkSurveyCardComplete(pid)` — checks all required fields including reading rec-min/max input values from DOM; `_updateBulkSurveyCardStatus(pid)` — updates the badge DOM without re-render. Called from `setSurveyRating`, veg height/forage cover oninput, condition button onclick, recovery min/max oninput.
 
 ---
 
