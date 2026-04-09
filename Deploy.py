@@ -74,6 +74,27 @@ def has_changes():
     return len(status) > 0
 
 
+def syntax_check():
+    """Check all <script> blocks in index.html for JS syntax errors."""
+    with open(HTML_FILE, 'r', encoding='utf-8') as f:
+        content = f.read()
+    blocks = re.findall(r'<script>(.*?)</script>', content, re.DOTALL)
+    if not blocks:
+        print('  Warning: no <script> blocks found in index.html')
+        return
+    print(f'  Syntax checking {len(blocks)} script block(s)...')
+    for i, block in enumerate(blocks, 1):
+        tmp = f'/tmp/gthy_syntax_{i}.js'
+        with open(tmp, 'w', encoding='utf-8') as f:
+            f.write(block)
+        result = subprocess.run(['node', '--check', tmp], capture_output=True, text=True)
+        if result.returncode != 0:
+            print(f'  FAIL: script block {i} has syntax errors:')
+            print(result.stderr.strip())
+            sys.exit(1)
+        print(f'  OK: script block {i} ({len(block):,} chars)')
+
+
 def stamp_only(stamp):
     """Mode 1: Just stamp the files (default)."""
     print(f'\nStamping build: {stamp}')
@@ -92,6 +113,7 @@ def deploy(stamp):
         sys.exit(1)
 
     print(f'\nDeploying build: {stamp}')
+    syntax_check()
     stamp_html(stamp)
     stamp_arch(stamp)
 
@@ -124,6 +146,7 @@ def release(stamp):
         sys.exit(1)
 
     print(f'\nReleasing build: {stamp}')
+    syntax_check()
     stamp_html(stamp)
     stamp_arch(stamp)
 
