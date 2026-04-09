@@ -1,4 +1,4 @@
-# Get The Hay Out — Cowork Session Rules
+# Tim Joseph — Cowork Session Rules
 **Doc version:** Cowork v1.0 (based on SESSION_RULES v19 — last meaningful update b20260408)
 **These rules govern Cowork design sessions on this project.**
 
@@ -93,7 +93,7 @@ If Tim asks you to patch a specific version but a different version is present, 
 - Triage and prioritization of OPEN_ITEMS
 - GitHub issue template and label protocol management
 
-**For all code changes, spin up a Claude Code session.** Pass context including relevant OI numbers, spec files written this session, and decisions made during planning. Claude Code will create the GitHub issue, implement the work, update docs, and deploy.
+**When operating in Dispatch mode:** For all code changes, spin up a Claude Code session. Pass context including relevant OI numbers, spec files written this session, and decisions made during planning. Claude Code will create the GitHub issue, implement the work, update docs, and deploy. *(Dispatch mode only — regular Cowork project chats cannot launch Claude Code sessions.)*
 
 **Claude.ai** handles (when Cowork is not available):
 - Design, brainstorming, UX decisions
