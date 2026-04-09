@@ -245,7 +245,8 @@ All sheets are always in the DOM. Toggle: add/remove `.open` on the `-wrap` div.
 | `save()` | **Always use this.** Saves to localStorage AND triggers Supabase sync debounce (when signed in). Never call `saveLocal()` directly except in the restore flow. |
 | `saveLocal()` | Saves to localStorage only. Used in `importDataJSON` restore to avoid triggering Drive merge. |
 | `stampSetup()` | Call whenever a config array (pastures, feedTypes, animalGroups, animalClasses, inputProducts) is modified. Updates `S.setupUpdatedAt` so Drive merge picks the newer side. |
-| `calcConsumedDMI(entries, resid)` | Core DMI calc — residual % applied to last entry only |
+| `calcConsumedDMI(entries, resid, lastCheck?)` | Core DMI calc. When `lastCheck` has `typeChecks[]`, uses absolute `(total-remaining)` per feed type so post-check feed additions don't inflate consumed DMI. Falls back to applying `resid%` to last entry by index when no typeChecks. |
+| `_lastFeedCheck(evOrSm)` | Returns last non-close `feedResidualChecks` entry (the one with `typeChecks[]`), or null if the last check is a close reading. Pass as third arg to `calcConsumedDMI` at all `getEffectiveFeedResidual` call sites. |
 | `getEffectiveFeedResidual(evOrSm)` | **M0a-A** Returns final residual % from `feedResidualChecks[]` last entry, or falls back to scalar `feedResidual`. Use this everywhere DMI is computed — never read `ev.feedResidual` directly for computation. |
 | `_writePaddockObservation(obs)` | **M0a-C** Appends one observation to `S.paddockObservations[]`. Deduplicates by `source + sourceId + pastureId` so re-saves are idempotent. |
 | `calcNPK(head, wt, days)` | NPK deposit calculation |
@@ -1305,7 +1306,7 @@ The FAB was hidden on mobile by OI-0147 to fix a badge z-index/overflow issue. R
 
 **Date + time (b20260403.1023):** Form includes date picker (default today) and time picker (default now). Allows backdating or recording exact check time for chronological tracking. Saved as `date` + `time` on the check record. Last check display shows time when available.
 
-**Data model bridge:** The existing `feedResidualChecks[]` model stores a single `balesRemainingPct` per check. The new dialog saves both the backward-compatible overall percentage (weighted by lbs value across types) AND a `typeChecks[]` array on the check record with per-type `{feedTypeId, remaining, total}`. This allows the existing `calcConsumedDMI()` to continue working unchanged while per-type data is available for future use.
+**Data model bridge:** The existing `feedResidualChecks[]` model stores a single `balesRemainingPct` per check. The new dialog saves both the backward-compatible overall percentage (weighted by lbs value across types) AND a `typeChecks[]` array on the check record with per-type `{feedTypeId, remaining, total}`. `calcConsumedDMI()` now uses `typeChecks[]` when available (via the `_lastFeedCheck()` helper passed as third arg) so feed added after a check doesn't inflate consumed DMI.
 
 **Supabase schema (b20260403.1023):** `event_feed_residual_checks` table has `check_date` (text), `check_time` (text, nullable), `residual_pct`, `bales_remaining_pct`, `is_close_reading`, `notes`, and `type_checks_json` (jsonb, nullable). The `type_checks_json` column stores the per-type breakdown as a JSON array. Assembly layer parses it back via `JSON.parse()`. **SQL migration required:** `ALTER TABLE event_feed_residual_checks ADD COLUMN IF NOT EXISTS check_time text; ALTER TABLE event_feed_residual_checks ADD COLUMN IF NOT EXISTS type_checks_json jsonb;`
 
