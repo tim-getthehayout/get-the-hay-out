@@ -3169,7 +3169,7 @@ Closes the feedback loop end-to-end. After a deploy that fixes feedback items, C
 **Found:** b20260409
 **Closed:** b20260409
 
-The bulk survey sticky header had a Cancel button and a Close button that triggered a hidden confirmation bar (Discard/Save). This didn't match the universal sheet pattern — Save and Close should be separate, always-visible buttons. Fixed by replacing the hidden confirm bar approach with explicit `.btn.btn-green` Save and `.btn.btn-outline` Close buttons in the header. `closeSurveySheet()` updated to auto-save draft and reset bulk UI state; `completeBulkSurvey()` updated to call `_fieldModeGoHome()` if in field mode.
+The bulk survey sticky header had a Cancel button and a Close button that triggered a hidden confirmation bar (Discard/Save). Replaced with three distinct actions: (1) **Save Draft** — calls `_bulkSurveySaveDraft()`, persists current data to draft state, shows toast, does not close; (2) **Finish & Save** — calls `_bulkSurveyFinishAndSave()`, checks for paddocks with no rating, shows inline confirm bar ("N of M paddocks have no data — finish anyway?" / Finish Anyway / Go Back) if any are empty, otherwise calls `completeBulkSurvey()` directly; (3) **✕** — calls `closeSurveySheet()`, auto-saves draft and closes. `closeSurveySheet()` updated to auto-save draft and reset bulk UI state; `completeBulkSurvey()` updated to call `_fieldModeGoHome()` if in field mode.
 
 ---
 
