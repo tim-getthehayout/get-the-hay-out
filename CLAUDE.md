@@ -35,6 +35,27 @@ This is a single-file PWA (`index.html`). Parallel branches and PRs are incompat
 ### Deploy prompt
 After completing a bug fix or feature change, always ask the user if they want to deploy to main. Changes in `dev` are not live until deployed.
 
+## GitHub Issues & PR Test Plans
+
+**After creating a PR that references a GitHub Issue, post the test plan as a comment on the linked issue.**
+
+Format:
+```
+## Test Plan (PR #N)
+
+- [ ] [test item 1]
+- [ ] [test item 2]
+...
+
+The issue should not be closed until all items above are verified by the user.
+```
+
+Rules:
+- Extract the test plan from the PR description's `## Test plan` section
+- Post the comment using: `gh issue comment <issue-number> --body "..."`
+- Do this immediately after `gh pr create` succeeds
+- If a PR does not reference any issue, skip this step (no issue to comment on)
+
 ## Fix Root Causes, Not Symptoms
 
 When encountering a bug or missing capability, always identify and fix the root cause. Do not use workarounds (overloading existing fields, stuffing data into wrong columns, skipping schema changes) unless the user explicitly chooses that path after seeing the options.
