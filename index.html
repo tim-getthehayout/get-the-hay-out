@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260409.1706" id="app-version-meta"/>
+<meta name="app-version" content="b20260409.1716" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -3448,10 +3448,19 @@ async function loadFromSupabase(operationId){
     S.manureBatchTransactions   = (manureTxRows        || []).map(_sbToCamel);
     S.batchNutritionalProfiles  = (batchNutProfileRows || []).map(_sbToCamel);
     // OI-0115: assemble surveys from Supabase — parse draftRatings JSONB back to object
+    // Guard: if local S.surveys has unsync'd draft data (Supabase empty, local has ratings),
+    // keep local draftRatings so a page refresh before queueWrite syncs doesn't wipe the draft.
+    const _localSurveys = S.surveys || [];
     S.surveys = (surveyRows || []).map(r => {
       const sv = _sbToCamel(r);
       if(sv.draftRatings && typeof sv.draftRatings === 'string'){
         try { sv.draftRatings = JSON.parse(sv.draftRatings); } catch(e){ sv.draftRatings = {}; }
+      }
+      if(sv.status === 'draft'){
+        const local = _localSurveys.find(l=>String(l.id)===String(sv.id));
+        const sbEmpty = !sv.draftRatings || Object.keys(sv.draftRatings).length === 0;
+        const localHasData = local?.draftRatings && Object.keys(local.draftRatings).length > 0;
+        if(sbEmpty && localHasData) sv.draftRatings = local.draftRatings;
       }
       return sv;
     });
@@ -7952,19 +7961,11 @@ let _bulkSurveySearch     = '';     // search query for pasture name / field cod
 // Pastures screen view: 'list' | 'surveys'
 let pasturesView = 'list';
 
-// ── Survey draft auto-save (debounced 1s) ────────────────────────────────────
-function _triggerSurveyDraftSave(){
-  if(_surveyEditId === null) return; // single-pasture immediate commit — no draft
-  const sv = (S.surveys||[]).find(s=>String(s.id)===String(_surveyEditId)&&s.status==='draft');
-  if(!sv) return;
-  if(_surveyDraftTimer) clearTimeout(_surveyDraftTimer);
-  _surveyDraftTimer = setTimeout(()=>saveSurveyDraft(sv.id), 1000);
-}
-
-function saveSurveyDraft(surveyId){
-  const sv = (S.surveys||[]).find(s=>String(s.id)===String(surveyId));
+// ── Survey draft auto-save ────────────────────────────────────────────────────
+// _persistSurveyDraftLocal: immediately snapshots UI state → S.surveys + localStorage.
+// Must be called before any page unload (refresh/update) or sheet close.
+function _persistSurveyDraftLocal(sv){
   if(!sv || sv.status!=='draft') return;
-  // Persist current UI state into draftRatings
   sv.draftRatings = {};
   const _allPids = new Set([...Object.keys(surveyRatings),...Object.keys(surveyForageQuality),...Object.keys(surveyVegHeight),...Object.keys(surveyForageCover),...Object.keys(surveyNotes),...Object.keys(surveyRecovery)]);
   _allPids.forEach(pid=>{
@@ -7979,8 +7980,25 @@ function saveSurveyDraft(surveyId){
     };
   });
   sv.date = document.getElementById('survey-date')?.value || sv.date;
-  queueWrite('surveys', _surveyRow(sv, _sbOperationId));
   saveLocal();
+}
+
+// _triggerSurveyDraftSave: immediate localStorage save + debounced Supabase write.
+// Immediate save ensures data survives page refresh/update even if Supabase hasn't synced.
+function _triggerSurveyDraftSave(){
+  if(_surveyEditId === null) return; // single-pasture immediate commit — no draft
+  const sv = (S.surveys||[]).find(s=>String(s.id)===String(_surveyEditId)&&s.status==='draft');
+  if(!sv) return;
+  _persistSurveyDraftLocal(sv); // immediate localStorage persist
+  if(_surveyDraftTimer) clearTimeout(_surveyDraftTimer);
+  _surveyDraftTimer = setTimeout(()=>saveSurveyDraft(sv.id), 1000); // debounced Supabase write
+}
+
+function saveSurveyDraft(surveyId){
+  const sv = (S.surveys||[]).find(s=>String(s.id)===String(surveyId));
+  if(!sv || sv.status!=='draft') return;
+  _persistSurveyDraftLocal(sv); // ensure state is current before queueing Supabase write
+  queueWrite('surveys', _surveyRow(sv, _sbOperationId));
 }
 
 // ── Open bulk survey (from Pastures screen or Surveys tab "+ New Survey") ────
