@@ -3,6 +3,7 @@
 
 | Build | File | Change |
 |---|---|---|
+| b20260409.next | HTML | Fix: bulk survey type filter defaulted to 'pasture', hiding mixed-use paddocks. Changed default from 'pasture' to 'all' (which shows pasture + mixed-use, excludes crop) in declaration, open reset, and close reset. |
 | b20260408.next | HTML | OI-0015: Calving sheet now uses species-appropriate terminology. `openCalvingSheet()` looks up the dam's class, calls `birthTermForSpecies()` and `youngTermForSpecies()`, and updates sheet title (`#calving-sheet-title`), date label (`#calving-date-label`), and both sex options before opening. IDs added to the previously static title div and date label in sheet HTML. Sheep show "Record lambing" / "Lambing date" / "Female (lamb)" etc. Falls back to "Birth"/"Young" for unknown species. Closes OI-0015. |
 | b20260408.next | deploy.py | OI-0073: `syntax_check()` added to `deploy.py`. Uses `re.findall()` to extract all `<script>` blocks from index.html and runs `node --check` on each via temp file. Halts deploy if any block fails. Called at the start of both `deploy()` and `release()` modes before stamping. Closes OI-0073. |
 | b20260408.next | HTML | OI-0085: `recalcNpkValues()` now calls `queueEventWrite(ev)` inside the `eligible.forEach` loop after updating `ev.totals.npk`, `ev.totals.npkVal`, and `ev.totals.capturedNPK`. Bulk NPK recalculations now sync to Supabase instead of only updating localStorage. Closes OI-0085. |
