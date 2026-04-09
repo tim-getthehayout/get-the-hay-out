@@ -34,18 +34,9 @@ Recommended work order as of b20260405.0100. Updated after OI-0171 Phase 1.5 (au
 ### 🐞 Bucket 1 — Bugs (do first)
 | Priority | OI | Title | Notes |
 |---|---|---|---|
-| 1 | OI-0175 | Tiered flush ordering in `flushToSupabase()` | FK cascade failures on every backup restore |
-| 2 | OI-0176 | `input_applications` shape function writes `locations` as column | "column not found" errors |
-| 3 | OI-0177 | `operations` table write path stamps invalid `operation_id` column | Schema cache error on every flush |
-| 4 | OI-0178 | Backup restore must delete stale Supabase records before upserting | Orphan records survive restore |
-| 5 | OI-0179 | `pushAllToSupabase()` missing `manure_batches` table | Parent records lost on restore |
-| 6 | OI-0180 | `input_applications` and `manure_batches` need shape functions | Nested arrays passed as columns |
-| 7 | OI-0181 | `manure_batches` JS model does not match Supabase schema | Zero column overlap — never synced |
-| 8 | OI-0182 | `input_applications` field name mismatches with Supabase schema | `total_qty` vs `quantity`, missing NPK totals |
-| 9 | OI-0183 | DMI calculation redesign (Fixes 1-4) | typeChecks anchor, synthetic transfer check, carried rate, gray bars |
-| 10 | OI-0184 | Feed check UI fixes (Fixes 5-7) | Max cap at last check, stepper 0.10, pct multi-digit typing |
-| 11 | OI-0185 | Heat recording — edit card, quick sheet, field mode picker | Full spec in SESSION_BRIEF |
-| 12 | OI-0186 | AUD & forage estimation system | Forage DM/residual, paddock linkage, efficiency metric |
+| 1 | OI-0181 | `manure_batches` JS model does not match Supabase schema | Zero column overlap — never synced |
+| 2 | OI-0183 | DMI calculation redesign (Fixes 1-4) | typeChecks anchor, synthetic transfer check, carried rate, gray bars |
+| 3 | OI-0186 | AUD & forage estimation system | Forage DM/residual, paddock linkage, efficiency metric |
 
 ### 🔧 Bucket 2 — Missing fields & quick CRUD
 | Priority | OI | Title | Notes |
@@ -825,12 +816,15 @@ The full fix requires summing weighted days across multiple groups' membership h
 **Source:** In-app feedback (id: 1774818620446) — b20260329.2156
 **Area:** Feedback tab — `renderFeedbackTab()`, `openFeedbackSheet()` (~L7230)
 **Severity:** Enhancement
-**Status:** 🔵 Open
+**Status:** ✅ Closed
 **Found:** b20260329.2156
+**Closed:** b20260408.1137
 
 No way to edit a feedback item after submission. Typos, wrong category, or incorrect area can't be corrected. The resolve/reopen flow works but editing note/area/cat is not available.
 
 **Proposed:** Edit button on open items re-opens the feedback sheet pre-populated with existing values. Save upserts the existing record.
+
+**Resolution:** Edit button implemented on open feedback items. Sheet re-opens pre-populated with existing note, category, and area. Save upserts the record. (See also OI-0067 which bundled this as sub-feature B.)
 
 ---
 
@@ -1576,9 +1570,9 @@ A vertical "today" line should divide the calendar into: left = historical recor
 **Source:** In-app feedback — id:1774386058617 (Tim)
 **Area:** Feedback Tab (`renderFeedbackTab()`, ~L6222; `openFeedbackSheet()`, `saveFeedbackItem()`)
 **Severity:** Enhancement
-**Status:** 🔵 Open
+**Status:** ✅ Closed
 **Found:** b20260325.0013 (feedback dated 2026-03-24, v1.2)
-**Closed:** —
+**Closed:** b20260408.1137
 
 "Feedback — add area field so user can refer to specific functions and they can be grouped for development. Allow editing of feedback with time stamp for edits."
 
@@ -1586,19 +1580,23 @@ Two sub-features:
 **A — Area field:** Free-text or dropdown on the feedback submission form. Stored as `f.area`. Used as a grouping/filter dimension in `renderFeedbackList()` and `generateBrief()`.
 **B — Editable feedback:** Allow the user to edit an existing feedback item's note or area after submission. Edit saves an `f.editedAt` timestamp.
 
+**Resolution:** Area field added to feedback submission form (stored as `f.area`, surfaced in list grouping and brief). Edit flow implemented — edit button on open items re-opens sheet pre-populated; save upserts with `f.editedAt` timestamp. (Overlaps with OI-0102 which tracked the edit sub-feature separately.)
+
 ---
 
 ### OI-0068
 **Source:** In-app feedback — id:1774356942281 (idea — see OI-0059) + id:1774351616357 (idea — "Look at feedback architecture to anticipate multiple instances of the app in the future...")
 **Area:** Feedback System — future architecture
 **Severity:** Enhancement
-**Status:** 🔵 Open
+**Status:** ✅ Closed
 **Found:** b20260325.0013
-**Closed:** —
+**Closed:** b20260408.1137
 
 "Look at feedback architecture to anticipate multiple instances of the app in the future. Store feedback in central repository so that gathering and response can be automated in the future." Long-horizon idea — no immediate action. Logged for awareness when designing any future multi-tenancy or server-side infrastructure.
 
 **Deferred:** No action until multi-instance architecture is on the roadmap.
+
+**Resolution:** Closed as acknowledged/deferred. Current feedback architecture (per-operation Supabase rows with `operation_id`) is compatible with multi-tenant extension. No structural change needed now. Admin console work (OI-0138, OI-0201) will revisit when multi-operation support ships.
 
 ---
 
@@ -2799,12 +2797,15 @@ Auth gate overlay replaces Settings-embedded sign-in UI. Three phases:
 **Source:** Claude.ai design conversation — b20260405.1200
 **Area:** Supabase write path
 **Severity:** Bug
-**Status:** 🔴 Open
+**Status:** ✅ Closed
 **Found:** b20260405.1200
+**Closed:** b20260408.1137
 
 `flushToSupabase()` fires all queued writes concurrently without respecting FK dependency order. Backup restore on any Supabase-connected operation creates a cascade of FK constraint failures as child records are written before parent records exist. Fix: group queue by table, flush in 5 dependency tiers with `await` between each tier.
 
 **Acceptance criteria:** Restore a backup JSON on a Supabase-connected operation. All records sync successfully without FK errors. Queue empties to zero after one flush cycle.
+
+**Resolution:** Tiered flush ordering implemented. Queue grouped by table and flushed in 5 FK dependency tiers with `await` between tiers. FK cascade failures on restore eliminated.
 
 ---
 
@@ -2812,12 +2813,15 @@ Auth gate overlay replaces Settings-embedded sign-in UI. Three phases:
 **Source:** Claude.ai design conversation — b20260405.1200
 **Area:** Supabase write path
 **Severity:** Bug
-**Status:** 🔴 Open
+**Status:** ✅ Closed
 **Found:** b20260405.1200
+**Closed:** b20260408.1137
 
 `pushAllToSupabase()` writes `input_applications` with the nested `locations[]` array as a raw column. Supabase `input_applications` table has no `locations` column — locations are stored in the separate `input_application_locations` table.
 
 **Acceptance criteria:** Input applications with locations sync to Supabase without "column not found" errors. Locations appear in `input_application_locations` table.
+
+**Resolution:** `locations[]` stripped from parent row by `_inputApplicationRow()` shape function and written as separate rows to `input_application_locations` via `queueWrite`.
 
 ---
 
@@ -2825,12 +2829,15 @@ Auth gate overlay replaces Settings-embedded sign-in UI. Three phases:
 **Source:** Claude.ai design conversation — b20260405.1200
 **Area:** Supabase write path
 **Severity:** Bug
-**Status:** 🔴 Open
+**Status:** ✅ Closed
 **Found:** b20260405.1200
+**Closed:** b20260408.1137
 
 A shape function or `_sbToSnake` is adding `operation_id` to the operations row, but the `operations` table uses `id` as its PK (it IS the operation). Causes "Could not find the 'operation_id' column" error on every flush.
 
 **Acceptance criteria:** Operations writes succeed without schema cache errors.
+
+**Resolution:** `operation_id` column removed from the operations write path. Operations row uses `id` as PK only. Schema cache errors eliminated.
 
 ---
 
@@ -2838,12 +2845,15 @@ A shape function or `_sbToSnake` is adding `operation_id` to the operations row,
 **Source:** Claude.ai design conversation — b20260405.1200
 **Area:** Supabase write path / Backup restore
 **Severity:** Bug
-**Status:** 🔴 Open
+**Status:** ✅ Closed
 **Found:** b20260405.1200
+**Closed:** b20260408.1137
 
 `pushAllToSupabase()` only upserts — records that exist in Supabase but are absent from the restored backup survive and reappear on next load. A user restoring a 30-animal backup into a 50-animal operation ends up with 80. Fix: add a delete phase before the upsert phase, using reverse tier order (children first). Skip Tier 0 (operation identity).
 
 **Acceptance criteria:** Restore a backup with fewer records than currently in Supabase. After restore + sync, `loadFromSupabase()` returns exactly the backup's record count — no orphans.
+
+**Resolution:** Delete phase implemented in `pushAllToSupabase()` — runs in reverse tier order (children first) before upsert phase. Tier 0 (operation identity) skipped. Orphan records no longer survive restore.
 
 ---
 
@@ -2851,12 +2861,15 @@ A shape function or `_sbToSnake` is adding `operation_id` to the operations row,
 **Source:** Claude.ai design conversation — b20260405.1200
 **Area:** Supabase write path
 **Severity:** Bug
-**Status:** 🔴 Open
+**Status:** ✅ Closed
 **Found:** b20260405.1200
+**Closed:** b20260408.1137
 
 `pushAllToSupabase()` writes `manure_batch_transactions` but never writes the parent `manure_batches` table. Individual save paths do write this table. Backup restore or "Push all" loses all manure batch records.
 
 **Acceptance criteria:** After restore, `manure_batches` table in Supabase matches `S.manureBatches`. Shape function `_manureBatchRow()` created. `_SB_ALLOWED_COLS` entry added.
+
+**Resolution:** `manure_batches` added to `pushAllToSupabase()`. `_manureBatchRow()` shape function created. `_SB_ALLOWED_COLS` entry added. Manure batch records now survive backup restore.
 
 ---
 
@@ -2864,12 +2877,15 @@ A shape function or `_sbToSnake` is adding `operation_id` to the operations row,
 **Source:** Claude.ai design conversation — b20260405.1200
 **Area:** Supabase write path
 **Severity:** Bug
-**Status:** 🔴 Open
+**Status:** ✅ Closed
 **Found:** b20260405.1200
+**Closed:** b20260408.1137
 
 Both tables use raw `_sbToSnake` which passes through nested JS arrays (`locations[]`, `events[]`) as columns. No `_SB_ALLOWED_COLS` entries exist for either. Creates "column not found" errors on flush.
 
 **Acceptance criteria:** `_inputApplicationRow()` and `_manureBatchRow()` shape functions created. `_SB_ALLOWED_COLS` entries added. `pushAllToSupabase()` uses the shape functions. `input_applications.locations[]` written as separate `input_application_locations` rows.
+
+**Resolution:** `_inputApplicationRow()` and `_manureBatchRow()` shape functions created. `_SB_ALLOWED_COLS` entries added for both tables. `pushAllToSupabase()` updated to use shape functions. Nested arrays stripped from parent rows and written to child tables.
 
 ---
 
@@ -2890,12 +2906,15 @@ JS model has `name, volumeLbs, nPct, pPct, kPct, events[]`. Supabase has `source
 **Source:** Claude.ai design conversation — b20260405.1200
 **Area:** Supabase write path
 **Severity:** Bug
-**Status:** 🔴 Open
+**Status:** ✅ Closed
 **Found:** b20260405.1200
+**Closed:** b20260408.1137
 
 `_sbToSnake` produces `total_qty` but Supabase column is `quantity`. NPK totals (`n_lbs_total` etc.), `source_type`, and `manure_batch_id` are never written.
 
 **Acceptance criteria:** `_inputApplicationRow()` shape function maps all JS fields to correct Supabase columns. NPK totals computed from locations[] sums.
+
+**Resolution:** `_inputApplicationRow()` maps `totalQty` → `quantity`, computes NPK totals from `locations[]` sums, and writes `source_type` and `manure_batch_id`. All field mismatches resolved.
 
 ---
 
@@ -2925,8 +2944,9 @@ Four linked bugs in `getDailyStoredDMI()` and `_renderDMIBars()`:
 **Source:** Claude.ai design conversation — b20260405
 **Area:** Feed check sheet
 **Severity:** Bug
-**Status:** 🔴 Open
+**Status:** ✅ Closed
 **Found:** b20260405
+**Closed:** b20260408.1137
 
 Three feed check sheet UI issues:
 - **Fix 5:** Max quantity cap should be last check remaining, not total started (feed doesn't grow)
@@ -2934,6 +2954,8 @@ Three feed check sheet UI issues:
 - **Fix 7:** Percent field fires oninput on every keystroke, rewrites field, prevents multi-digit entry
 
 **Acceptance criteria:** Can't increase remaining above last check; stepper steps at 0.10; can type "45" in percent field without cursor reset.
+
+**Resolution:** All three fixes applied. Max cap set to last check remaining. Stepper increment changed to 0.10 with native arrows hidden via CSS. Percent field switched to `onchange` to prevent mid-type rewrites.
 
 ---
 
@@ -2953,11 +2975,15 @@ New `S.batchNutritionalProfiles[]` collection and Supabase table for per-batch N
 **Source:** Claude.ai design conversation — b20260406
 **Area:** Feed Types
 **Severity:** Polish
-**Status:** 🟡 Open
+**Status:** ✅ Closed
+**Found:** b20260406
+**Closed:** b20260408.1137
 
 Layout flip (existing types list on top, add form below), harvest active label → "Harvest: Active/Inactive", cancel button on add form, Done button at bottom.
 
 **Acceptance criteria:** Feed type sheet opens with existing types visible first; add form has Cancel button; harvest labels read "Harvest: Active" / "Harvest: Inactive"; Done button at sheet bottom.
+
+**Resolution:** Layout flipped — existing types list on top, add form below. Cancel button added. Harvest toggle labels changed to "Harvest: Active" / "Harvest: Inactive". Done button added at sheet bottom.
 
 ---
 
@@ -2975,11 +3001,15 @@ Layout flip (existing types list on top, add form below), harvest active label �
 **Source:** User report — b20260406
 **Area:** Field Mode / Harvest
 **Severity:** Bug
-**Status:** 🔴 Open
+**Status:** ✅ Closed
+**Found:** b20260406
+**Closed:** b20260408.1137
 
 Field mode harvest button opens the harvest sheet directly without letting user pick which field the harvest is from. Added field picker step (crop + mixed-use filter pills, search) as first step in field mode harvest flow. After picking a field, proceeds to tile grid with field pre-selected on first row.
 
 **Acceptance criteria:** Field mode harvest tap shows field picker with crop/mixed-use filter; selecting a field advances to tile grid; first field row is pre-populated with selected field.
+
+**Resolution:** Field picker step added as first step in field mode harvest flow. Crop and mixed-use filter pills included. Selecting a field advances to tile grid with field pre-populated on first row.
 
 ---
 
@@ -3009,11 +3039,15 @@ Load-time integrity check that verifies all `transferPairId` groups have exactly
 **Source:** Claude.ai design conversation — b20260406
 **Area:** Calculation Engine / Location Card / Move Wizard / Pasture Cards
 **Severity:** Bug
-**Status:** 🔵 Open
+**Status:** ✅ Closed
+**Found:** b20260406
+**Closed:** b20260408.1137
 
 Active event cards displayed `(dmiTarget × days - storedFeed) / dmPerAUD` as "Pasture AUDs" — meaningless on day 1. Replaced with estimated capacity from opening forage data and days remaining estimate. New utility functions: `estimateAvailableDMForEvent`, `estimateAvailableAUDsForEvent`, `eventDailyDMIDemand`, `estimateDaysRemaining`. Move wizard step 3 live preview. Pasture view extended to active paddocks. Capacity snapshot at close (`ev.totals.estimatedCapacityDM/AUDs`).
 
 **Acceptance criteria:** Open events show "Est. capacity: N AUDs · ~N days remaining"; closed events unchanged; move wizard shows live preview; pasture cards show estimate on active paddocks; graceful "No forage estimate" nudge.
+
+**Resolution:** Utility functions `estimateAvailableDMForEvent`, `estimateAvailableAUDsForEvent`, `eventDailyDMIDemand`, `estimateDaysRemaining` implemented. Active event cards show forage-based capacity estimate. Move wizard step 3 live preview added. Pasture cards extended to active paddocks. Graceful fallback when no forage estimate exists.
 
 ---
 
