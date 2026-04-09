@@ -8,10 +8,11 @@
 //   SUPABASE_URL          — auto-injected by Supabase runtime
 //
 // Actions (all require X-Admin-Secret header matching ADMIN_SECRET):
-//   GET  ?action=list      — all submissions cross-tenant, with optional filters
-//   PATCH ?action=respond  — write dev_response, append thread entry
-//   PATCH ?action=update   — edit cat/type/status/area/priority/oi_number
-//   DELETE ?action=delete  — hard delete by id (body: { id })
+//   GET  ?action=list             — all submissions cross-tenant, with optional filters
+//   PATCH ?action=respond         — write dev_response, append thread entry
+//   PATCH ?action=update          — edit cat/type/status/area/priority/oi_number/resolution_note
+//   PATCH ?action=resolve-release — bulk-resolve submissions + insert release_notes record
+//   DELETE ?action=delete         — hard delete by id (body: { id })
 // ══════════════════════════════════════════════════════════════════════════════
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -117,6 +118,8 @@ Deno.serve(async (req) => {
         'cat', 'type', 'status', 'area', 'priority', 'oi_number',
         // Allow dev_response + thread via this path too (for direct edits)
         'dev_response', 'dev_response_ts', 'thread',
+        // Resolution fields
+        'resolution_note', 'resolved_in_version', 'resolved_at',
       ])
       const update: Record<string, unknown> = {}
       for (const [k, v] of Object.entries(rest)) {
@@ -127,6 +130,43 @@ Deno.serve(async (req) => {
       const { error } = await sb.from('submissions').update(update).eq('id', id)
       if (error) throw error
       return json({ ok: true })
+    }
+
+    // ── RESOLVE-RELEASE ───────────────────────────────────────────────────────
+    // Bulk-resolve submissions tied to a deploy and record a release manifest.
+    // Body: { version: string, resolved_items: Array<{feedbackId, oiNumber?, ghIssue?, note?}>, notes?: string }
+    // Returns: { ok: true, updated: N, releaseNoteId: bigint }
+    if (action === 'resolve-release' && req.method === 'PATCH') {
+      const { version, resolved_items, notes = null } = await req.json()
+      if (!version) throw new Error('version required')
+      if (!Array.isArray(resolved_items) || !resolved_items.length) {
+        throw new Error('resolved_items must be a non-empty array')
+      }
+
+      let updated = 0
+      for (const item of resolved_items) {
+        const { feedbackId, note = null } = item
+        if (!feedbackId) continue
+        const { error } = await sb
+          .from('submissions')
+          .update({
+            status: 'resolved',
+            resolved_in_version: version,
+            resolution_note: note,
+          })
+          .eq('id', feedbackId)
+        if (error) throw error
+        updated++
+      }
+
+      const { data: noteRow, error: noteErr } = await sb
+        .from('release_notes')
+        .insert({ version, resolved_items, notes })
+        .select('id')
+        .single()
+      if (noteErr) throw noteErr
+
+      return json({ ok: true, updated, releaseNoteId: noteRow.id })
     }
 
     // ── DELETE ────────────────────────────────────────────────────────────────
