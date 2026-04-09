@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260409.1718" id="app-version-meta"/>
+<meta name="app-version" content="b20260409.2304" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -4444,8 +4444,18 @@ function rawDaysBetween(a,b){return Math.max(0,(new Date(b+'T12:00:00')-new Date
 // getActive: see override in animal groups section
 function getDMITarget(){const h=S.herd;if(!h.count||!h.weight||!h.dmi)return null;return h.count*h.weight*(h.dmi/100);}
 function calcNPK(head,wt,days){const st=S.settings;const bw=head*wt;return{n:bw/1000*st.nExc*days,p:bw/1000*st.pExc*days,k:bw/1000*st.kExc*days};}
-function calcConsumedDMI(entries,resid){
+function calcConsumedDMI(entries,resid,lastCheck){
   if(!entries||!entries.length)return 0;
+  // When the last check has per-type unit counts, use those absolute amounts so feed
+  // added after the check doesn't inflate consumed DMI (bug: residual was applied to
+  // last entry by index, not to the feed that was actually measured).
+  if(lastCheck&&Array.isArray(lastCheck.typeChecks)&&lastCheck.typeChecks.length){
+    const batchForType={};
+    entries.forEach(entry=>{(entry.lines||[]).forEach(l=>{const b=S.batches.find(x=>x.id===l.batchId);if(!b)return;const ftId=String(b.feedTypeId||b.typeId||'');if(ftId&&!batchForType[ftId])batchForType[ftId]=b;});});
+    let t=0;
+    lastCheck.typeChecks.forEach(tc=>{const b=batchForType[String(tc.feedTypeId)];if(!b)return;const consumed=(tc.total||0)-(tc.remaining||0);if(consumed<=0)return;t+=consumed*(b.wt||0)*((b.dm||100)/100);});
+    return t;
+  }
   let t=0;
   entries.forEach((e,i)=>{const r=(i===entries.length-1)?(resid/100):0;e.lines.forEach(l=>{const b=S.batches.find(x=>x.id===l.batchId);if(!b)return;const af=b.wt?l.qty*b.wt:l.qty;t+=af*(b.dm/100)*(1-r);});});
   return t;
@@ -5591,7 +5601,7 @@ function renderHome(){
       const pc=t.pct>=60?'bg':t.pct>=30?'ba':'br';
       const isCon=e.locationType==='confinement';
       const _aw2=S.settings.auWeight||1000;const _au2=(e.head||0)*(e.wt||0)/_aw2;const _aud2=_au2*(t.days||1);
-      const _sFeed2=calcConsumedDMI(allFeedEntries(e),getEffectiveFeedResidual(e));const _dmiT2=((e.head||0)*(e.wt||0)*0.025)*(t.days||1);const _pDM2=e.noPasture?0:Math.max(0,_dmiT2-_sFeed2);const _pAUD2=(S.settings.dmPerAUD||26)>0?_pDM2/(S.settings.dmPerAUD||26):0;
+      const _sFeed2=calcConsumedDMI(allFeedEntries(e),getEffectiveFeedResidual(e),_lastFeedCheck(e));const _dmiT2=((e.head||0)*(e.wt||0)*0.025)*(t.days||1);const _pDM2=e.noPasture?0:Math.max(0,_dmiT2-_sFeed2);const _pAUD2=(S.settings.dmPerAUD||26)>0?_pDM2/(S.settings.dmPerAUD||26):0;
       const _ac2=t.pastureAcres||((S.pastures||[]).find(p=>evMatchesPasture(e,null,p.id))?.acres)||0;const _ada2=_ac2>0?_pAUD2/_ac2:0;
       return `<div class="row"><div class="row-head"><span style="font-size:14px;font-weight:600;">${evDisplayName(e)}</span><span class="badge ${isCon?'bb':pc}">${isCon?'confinement':t.pct!==undefined?t.pct+'% pasture':'--'}</span></div><div class="row-detail">${g?g.name+' · ':''}${dLabel(e.dateIn)} → ${dLabel(e.dateOut||'')} · ${t.days||'?'} days · $${(t.cost||0).toFixed(2)} · ${_au2.toFixed(1)} AU · Pasture AUDs: ${_pAUD2.toFixed(1)}${_ac2>0?' · ADA: '+_ada2.toFixed(1)+'/ac':''}</div><div class="row-detail" style="font-size:10px;">Pasture: ${Math.round(_pDM2).toLocaleString()} lbs DMI · Stored Feed: ${Math.round(_sFeed2).toLocaleString()} lbs DMI</div></div>`;
     }).join('');
@@ -5731,7 +5741,7 @@ function renderLocationCard(ev, opts){
               return line1+line2;
             } else {
               // Closed event: actual totals
-              const _sf=calcConsumedDMI(entries,getEffectiveFeedResidual(ev));
+              const _sf=calcConsumedDMI(entries,getEffectiveFeedResidual(ev),_lastFeedCheck(ev));
               const _pDM=ev.noPasture?0:Math.max(0,totalDMITarget*days-_sf);
               const _pAUD=(S.settings.dmPerAUD||26)>0?_pDM/(S.settings.dmPerAUD||26):0;
               const _ac=acres?parseFloat(acres):0;
@@ -5816,7 +5826,7 @@ function renderLocationCard(ev, opts){
   // ── DMI SUMMARY + NPK ──────────────────────────────────────
   let metricsHtml = '';
   if(totalDMITarget > 0){
-    const storedDMI = calcConsumedDMI(entries, getEffectiveFeedResidual(ev));
+    const storedDMI = calcConsumedDMI(entries, getEffectiveFeedResidual(ev), _lastFeedCheck(ev));
     const totalTarget = totalDMITarget * days;
     const fill = totalTarget > 0 ? Math.min(100, Math.round((storedDMI/totalTarget)*100)) : 0;
     const storedLabel = (isCon||isNoP) ? '<span style="color:var(--amber-d);">100% stored feed</span>' : `${fill}% stored \u00b7 ${Math.max(0,100-fill)}% est. pasture`;
@@ -6019,7 +6029,7 @@ function estimateDaysRemaining(ev){
       const b=S.batches.find(x=>x.id===l.batchId);
       if(b&&l.qty>0){const af=b.wt?l.qty*b.wt:l.qty;totalDeliveredDM+=af*((b.dm||100)/100);}
     });});
-    const storedConsumed=calcConsumedDMI(entries,getEffectiveFeedResidual(ev));
+    const storedConsumed=calcConsumedDMI(entries,getEffectiveFeedResidual(ev),_lastFeedCheck(ev));
     storedFeedDM=Math.max(0,totalDeliveredDM-storedConsumed);
     hasStoredFeed=storedFeedDM>0;
   }
@@ -6027,7 +6037,7 @@ function estimateDaysRemaining(ev){
   let remainingPastureDM=0;
   if(pastureDM!=null){
     const daysElapsed=Math.max(0,daysBetween(ev.dateIn,todayStr()));
-    const storedConsumed=entries.length?calcConsumedDMI(entries,getEffectiveFeedResidual(ev)):0;
+    const storedConsumed=entries.length?calcConsumedDMI(entries,getEffectiveFeedResidual(ev),_lastFeedCheck(ev)):0;
     const pastureConsumed=Math.max(0,dailyDMI*daysElapsed-storedConsumed);
     remainingPastureDM=Math.max(0,pastureDM-pastureConsumed);
   }
@@ -6304,7 +6314,7 @@ function renderGroupCard(g){
     locBar=`<div class="grp-loc-bar">
       <div style="flex:1;">
         <div style="font-size:13px;font-weight:600;">${locIcon} ${evDisplayName(ae)} ${locBadge}</div>
-        <div style="font-size:11px;color:var(--text2);margin-top:2px;">Day ${days} · ${dLabel(ae.dateIn)} · ${allEntries2.length} feeding${allEntries2.length!==1?'s':''} · $${costAll.toFixed(2)} · ${(()=>{const _aw=S.settings.auWeight||1000;const _au=t.totalLiveWeight/_aw;const _sf4=calcConsumedDMI(allEntries2,getEffectiveFeedResidual(ae));const _pDM4=ae.noPasture?0:Math.max(0,t.dmiTarget*days-_sf4);const _pAUD4=(S.settings.dmPerAUD||26)>0?_pDM4/(S.settings.dmPerAUD||26):0;const _ac4=ae.paddocks?.[0]?.acres||0;const _ada4=_ac4>0?_pAUD4/_ac4:0;return _au.toFixed(1)+' AU · Pasture AUDs: '+_pAUD4.toFixed(1)+(_ac4>0?' · ADA: '+_ada4.toFixed(1)+'/ac':'')+' · Pasture: '+Math.round(_pDM4).toLocaleString()+' lbs DMI · Stored Feed: '+Math.round(_sf4).toLocaleString()+' lbs DMI';})()}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px;">Day ${days} · ${dLabel(ae.dateIn)} · ${allEntries2.length} feeding${allEntries2.length!==1?'s':''} · $${costAll.toFixed(2)} · ${(()=>{const _aw=S.settings.auWeight||1000;const _au=t.totalLiveWeight/_aw;const _sf4=calcConsumedDMI(allEntries2,getEffectiveFeedResidual(ae),_lastFeedCheck(ae));const _pDM4=ae.noPasture?0:Math.max(0,t.dmiTarget*days-_sf4);const _pAUD4=(S.settings.dmPerAUD||26)>0?_pDM4/(S.settings.dmPerAUD||26):0;const _ac4=ae.paddocks?.[0]?.acres||0;const _ada4=_ac4>0?_pAUD4/_ac4:0;return _au.toFixed(1)+' AU · Pasture AUDs: '+_pAUD4.toFixed(1)+(_ac4>0?' · ADA: '+_ada4.toFixed(1)+'/ac':'')+' · Pasture: '+Math.round(_pDM4).toLocaleString()+' lbs DMI · Stored Feed: '+Math.round(_sf4).toLocaleString()+' lbs DMI';})()}</div>
         ${subMoves.length?`<div style="font-size:11px;color:var(--text2);margin-top:2px;">${subMoves.length} sub-move${subMoves.length!==1?'s':''} · ${subHrsTotal.toFixed(1)}h off-paddock · ${pastureHrsPct}% on pasture</div>`:''}
         ${currentAtLineGC}
       </div>
@@ -6320,7 +6330,7 @@ function renderGroupCard(g){
   if(ae){
     const days=daysBetween(ae.dateIn,todayStr());
     const allEntries=allFeedEntries(ae);
-    const sdmi=calcConsumedDMI(allEntries,getEffectiveFeedResidual(ae));
+    const sdmi=calcConsumedDMI(allEntries,getEffectiveFeedResidual(ae),_lastFeedCheck(ae));
     const st=S.settings;
     const pFrac=pastureFraction(ae);
     // OI-0050: use this group's own head/wt for NPK, not the event-level stamped aggregate
@@ -7730,7 +7740,7 @@ function aggregatePaddockPeriod(pastureName, pastureId, periodStart, periodEnd){
         const t2=g2?getGroupTotals(g2):null;
         const dmiT2=t2?t2.dmiTarget:((ev.head||0)*(ev.wt||0)*0.025);
         if(dmiT2>0){
-          const sFeed=calcConsumedDMI(allFeedEntries(ev),getEffectiveFeedResidual(ev));
+          const sFeed=calcConsumedDMI(allFeedEntries(ev),getEffectiveFeedResidual(ev),_lastFeedCheck(ev));
           pastureFrac2=Math.max(0,(dmiT2*daysInPeriod-sFeed))/(dmiT2*daysInPeriod);
         }
       }
@@ -10641,7 +10651,7 @@ function renderEventsLog(){
     const _evDays=e.dateIn?(e.dateOut?daysBetween(e.dateIn,e.dateOut):daysBetween(e.dateIn,todayStr())):1;
     const _evHead=e.head||0;const _evWt=e.wt||0;
     const _evAU=(_evHead*_evWt)/_evAuWt;
-    const _evStoredDM=calcConsumedDMI(allFeedEntries(e),getEffectiveFeedResidual(e));
+    const _evStoredDM=calcConsumedDMI(allFeedEntries(e),getEffectiveFeedResidual(e),_lastFeedCheck(e));
     const _evDmiT=(_evHead*_evWt*0.025)*_evDays;
     const _evPastureDM=e.noPasture?0:Math.max(0,_evDmiT-_evStoredDM);
     const _evPastureAUDs=(S.settings.dmPerAUD||26)>0?_evPastureDM/(S.settings.dmPerAUD||26):0;
@@ -16394,7 +16404,7 @@ function calcEventTotalsWithSubMoves(ae, outDate, feedRes){
 
   // DMI: main event entries use the wizard's feedRes; each sub-move uses its own feedResidual
   const mainDMI = calcConsumedDMI(ae.feedEntries||[], feedRes);
-  const subDMI  = (ae.subMoves||[]).reduce((s,sm)=>s+calcConsumedDMI(sm.feedEntries||[], getEffectiveFeedResidual(sm)), 0);
+  const subDMI  = (ae.subMoves||[]).reduce((s,sm)=>s+calcConsumedDMI(sm.feedEntries||[], getEffectiveFeedResidual(sm), _lastFeedCheck(sm)), 0);
   const sdmi = mainDMI + subDMI;
 
   // Cost: main event cost + sub-move costs
@@ -16449,6 +16459,16 @@ function getEffectiveFeedResidual(evOrSm){
   const checks = evOrSm.feedResidualChecks;
   if(Array.isArray(checks) && checks.length) return checks[checks.length-1].residualPct||0;
   return evOrSm.feedResidual||0;
+}
+
+// _lastFeedCheck: returns the last non-close residual check for an event or sub-move.
+// Used as the third arg to calcConsumedDMI so the type-anchored path fires correctly.
+// Returns null for close readings (closed events fall back to the scalar residual path).
+function _lastFeedCheck(evOrSm){
+  const checks = evOrSm.feedResidualChecks;
+  if(!Array.isArray(checks)||!checks.length) return null;
+  const last = checks[checks.length-1];
+  return (last&&!last.isCloseReading) ? last : null;
 }
 
 // _writePaddockObservation: upserts one observation into S.paddockObservations[].
@@ -16536,7 +16556,7 @@ function calcGrassDMIByWindow(ae, outDate, feedRes){
     const hasGrazingSubMoves = (ae.subMoves||[]).some(sm=>!sm.noPasture);
     const effectivelyNoPasture = ae.noPasture && !hasGrazingSubMoves;
     if(effectivelyNoPasture) return [];
-    const subDMI = (ae.subMoves||[]).reduce((s,sm)=>s+calcConsumedDMI(sm.feedEntries||[],getEffectiveFeedResidual(sm)),0);
+    const subDMI = (ae.subMoves||[]).reduce((s,sm)=>s+calcConsumedDMI(sm.feedEntries||[],getEffectiveFeedResidual(sm),_lastFeedCheck(sm)),0);
     const mainDMI = calcConsumedDMI(ae.feedEntries||[], feedRes||0);
     const grassDMI = Math.max(0, dmiPerDay*totalDays - mainDMI - subDMI);
     if(primaryPaddock) result[primaryPaddock] = grassDMI;
@@ -18267,7 +18287,7 @@ function renderEeAudSummary(ev){
   const paddocks = evPaddocks(ev);
   let padLines = '';
   const _allEntries = allFeedEntries(ev);
-  const _storedDM = calcConsumedDMI(_allEntries, getEffectiveFeedResidual(ev));
+  const _storedDM = calcConsumedDMI(_allEntries, getEffectiveFeedResidual(ev), _lastFeedCheck(ev));
   const _dmiTarget = grps.reduce((s,g)=>{const grp=getGroupById(g.groupId);return s+(grp?getGroupTotals(grp).dmiTarget:0);},0);
   const _totalDMTarget = _dmiTarget * days;
   const _pastureDM = ev.noPasture ? 0 : Math.max(0, _totalDMTarget - _storedDM);
@@ -18290,7 +18310,7 @@ function renderEeAudSummary(ev){
       if(!sm.date) return;
       const smEnd = sm.dateOut || dateOut;
       const smDays = Math.max(1, daysBetween(sm.date, smEnd));
-      const _smStoredDM = calcConsumedDMI(sm.feedEntries||[], getEffectiveFeedResidual(sm));
+      const _smStoredDM = calcConsumedDMI(sm.feedEntries||[], getEffectiveFeedResidual(sm), _lastFeedCheck(sm));
       const _smDmiT = _dmiTarget * smDays;
       const _smPastureDM = sm.noPasture ? 0 : Math.max(0, _smDmiT - _smStoredDM);
       const _smPAUD = (_dmPerAUD > 0) ? _smPastureDM / _dmPerAUD : 0;
@@ -18573,9 +18593,9 @@ function recalcEventTotals(ev){
 
   // DMI: main event uses ev.feedResidual; each sub-move uses its own feedResidual
   // (matches calcEventTotalsWithSubMoves — do NOT pool all entries with one residual)
-  const mainDMI = calcConsumedDMI(ev.feedEntries||[], getEffectiveFeedResidual(ev));
+  const mainDMI = calcConsumedDMI(ev.feedEntries||[], getEffectiveFeedResidual(ev), _lastFeedCheck(ev));
   const subDMI  = (ev.subMoves||[]).reduce((s,sm)=>
-    s + calcConsumedDMI(sm.feedEntries||[], getEffectiveFeedResidual(sm)), 0);
+    s + calcConsumedDMI(sm.feedEntries||[], getEffectiveFeedResidual(sm), _lastFeedCheck(sm)), 0);
   const storedDMI = mainDMI + subDMI;
   const feedCost  = calcEntryCost(ev.feedEntries||[]) +
     (ev.subMoves||[]).reduce((s,sm)=>s + calcEntryCost(sm.feedEntries||[]), 0);
@@ -19129,7 +19149,7 @@ function calcDmiVariance(ev){
   const dmiPct = t&&t.totalHead>0 ? (t.dmiTarget/(t.totalLiveWeight||head*wt)) : 0.025;
   const expectedDMI = head * wt * dmiPct * days;
   const allEntries = allFeedEntries(ev);
-  const actualDMI = calcConsumedDMI(allEntries, getEffectiveFeedResidual(ev));
+  const actualDMI = calcConsumedDMI(allEntries, getEffectiveFeedResidual(ev), _lastFeedCheck(ev));
   const varianceLbs = actualDMI - expectedDMI;
   const variancePct = expectedDMI > 0 ? Math.round((varianceLbs / expectedDMI) * 100) : 0;
   return { expectedDMI, actualDMI, varianceLbs, variancePct, days, dmiPct };
@@ -20418,7 +20438,7 @@ function renderRotationCalendar(containerId){
       grpIds.forEach(gId=>{ const g=getGroupById(gId); if(g){ const t=getGroupTotals(g); dmiTarget+=t.dmiTarget||0; } });
       if(!dmiTarget) dmiTarget = head * wt * 0.025;
       if(dmiTarget > 0){
-        const storedDMI = calcConsumedDMI(allFeedEntries(ev), getEffectiveFeedResidual(ev));
+        const storedDMI = calcConsumedDMI(allFeedEntries(ev), getEffectiveFeedResidual(ev), _lastFeedCheck(ev));
         pastureFrac = Math.max(0, (dmiTarget*days - storedDMI)) / (dmiTarget*days);
       }
     }
