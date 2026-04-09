@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260408.1137" id="app-version-meta"/>
+<meta name="app-version" content="b20260409.1236" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -4521,6 +4521,11 @@ function createFeedTransfer(srcEv, destEv, items, moveDate, moveTime){
     });
     pairs.push({transferPairId, batchId:item.batchId, qty:item.qty});
   });
+  // Decrement batch.remaining to reflect feed moved out of source inventory
+  resolved.forEach(item=>{
+    const batch=S.batches.find(b=>b.id===item.batchId);
+    if(batch && item.qty>0) batch.remaining=Math.max(0,+(batch.remaining-item.qty).toFixed(2));
+  });
   srcEv.updatedAt=now;
   destEv.updatedAt=now;
   return {success:true, pairs};
@@ -7506,6 +7511,13 @@ function wizSaveNew(){
       _oldEv.status='closed';
       _oldEv.dateOut=_oldEv.dateOut||inDate;
       _oldEv.feedResidual=_oldEv.feedResidual||0;
+      // Write closing feed check from last known residual so feed-in/out calcs work
+      if(allFeedEntries(_oldEv).length){
+        if(!Array.isArray(_oldEv.feedResidualChecks)) _oldEv.feedResidualChecks=[];
+        const _acLastCk=(_oldEv.feedResidualChecks||[]).filter(c=>!c.isCloseReading&&c.notes!=='transfer_opening').sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];
+        const _acResPct=_acLastCk?(_acLastCk.balesRemainingPct??_acLastCk.residualPct??_oldEv.feedResidual):_oldEv.feedResidual;
+        _oldEv.feedResidualChecks.push({id:Date.now(),date:inDate,residualPct:_acResPct,balesRemainingPct:_acResPct,typeChecks:_acLastCk?.typeChecks||null,notes:'move_close',isCloseReading:true});
+      }
       recalcEventTotals(_oldEv);
     }
     queueEventWrite(_oldEv);
@@ -7934,7 +7946,7 @@ let _bulkSurveyExpandedId = null;   // currently expanded card pastureId (accord
 let _bulkSurveyExpandAll  = false;  // true = all cards expanded
 let _bulkSurveySnapshot   = null;   // JSON snapshot for Cancel restore
 let _bulkSurveyFarmFilter = 'all';  // farm filter: 'all' or farmId string
-let _bulkSurveyTypeFilter = 'pasture'; // type filter: 'pasture' | 'mixed-use' | 'all'
+let _bulkSurveyTypeFilter = 'all'; // type filter: 'pasture' | 'mixed-use' | 'all'
 let _bulkSurveySearch     = '';     // search query for pasture name / field code
 
 // Pastures screen view: 'list' | 'surveys'
@@ -8013,7 +8025,7 @@ function openBulkSurveySheet(){
   _bulkSurveyExpandedId = null;
   _bulkSurveyExpandAll  = false;
   _bulkSurveyFarmFilter = 'all';
-  _bulkSurveyTypeFilter = 'pasture';
+  _bulkSurveyTypeFilter = 'all';
   _bulkSurveySearch     = '';
   renderSurveyPaddocks();
   document.getElementById('survey-sheet-wrap').classList.add('open');
@@ -8132,7 +8144,7 @@ function _resetBulkSurveyUIState(){
   _bulkSurveyExpandAll  = false;
   _bulkSurveySnapshot   = null;
   _bulkSurveyFarmFilter = 'all';
-  _bulkSurveyTypeFilter = 'pasture';
+  _bulkSurveyTypeFilter = 'all';
   _bulkSurveySearch     = '';
 }
 
@@ -15220,6 +15232,14 @@ function openCalvingSheet(){
   const grp=getAnimalGroup(damId);
   document.getElementById('calving-group-note').textContent=
     grp?'Calf will be added to: '+grp.name:'Dam has no group assigned — calf will be unassigned';
+  const cls=(S.animalClasses||[]).find(c=>c.id===dam.classId)||{};
+  const birthTerm=birthTermForSpecies(cls.species);
+  const youngTerm=youngTermForSpecies(cls.species);
+  document.getElementById('calving-sheet-title').textContent='Record '+birthTerm.toLowerCase();
+  document.getElementById('calving-date-label').textContent=birthTerm+' date';
+  const sexSel=document.getElementById('calving-sex');
+  sexSel.options[0].text='Female ('+youngTerm.toLowerCase()+')';
+  sexSel.options[1].text='Male ('+youngTerm.toLowerCase()+')';
   const damLabel=dam.systemId+(dam.tagNum?' · '+dam.tagNum:'');
   document.getElementById('calving-dam-label').textContent='Dam: '+damLabel;
   document.getElementById('calving-sheet-wrap').classList.add('open');
@@ -18627,6 +18647,7 @@ function recalcNpkValues(){
       ev.totals.capturedNPK={n:newNPK.n*capPct,p:newNPK.p*capPct,k:newNPK.k*capPct};
       ev.totals.capturedNPKVal=ev.totals.capturedNPK.n*nPrice+ev.totals.capturedNPK.p*pPrice+ev.totals.capturedNPK.k*kPrice;
     }
+    queueEventWrite(ev);
     updated++;
   });
 
@@ -21515,10 +21536,10 @@ window.addEventListener('offline', ()=>{
   <div class="sheet-backdrop" onclick="closeCalvingSheet()"></div>
   <div class="sheet">
     <div class="sheet-handle"></div>
-    <div style="font-size:16px;font-weight:600;margin-bottom:4px;">Record calving</div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:4px;" id="calving-sheet-title">Record calving</div>
     <div style="font-size:13px;color:var(--text2);margin-bottom:14px;" id="calving-dam-label"></div>
     <div class="two">
-      <div class="field"><label>Calving date</label><input type="date" id="calving-date"/></div>
+      <div class="field"><label id="calving-date-label">Calving date</label><input type="date" id="calving-date"/></div>
       <div class="field"><label>Calf sex</label>
         <select id="calving-sex">
           <option value="female">Female (heifer calf)</option>
@@ -23171,6 +23192,34 @@ function _mwSave(){
     queueEventWrite(srcEv);
 
     // ── 1b. Save inline feed check if shown ─────────────────────
+    // Fallback: if _fcTypeData wasn't populated by the render step (e.g. wizard entered
+    // a code path that skipped the feed check UI), build it now from the event's feed
+    // entries so the closing check is never silently dropped.
+    if(isLastGroup && !_fcTypeData.length && srcEv && allFeedEntries(srcEv).length){
+      const _ftMap={};
+      allFeedEntries(srcEv).forEach(entry=>{
+        (entry.lines||[]).forEach(line=>{
+          const batch=S.batches.find(b=>b.id===line.batchId);
+          if(!batch) return;
+          const ftId=batch.feedTypeId||batch.typeId;
+          if(!ftId) return;
+          if(!_ftMap[ftId]){
+            const ft=(S.feedTypes||[]).find(f=>f.id===ftId);
+            _ftMap[ftId]={feedTypeId:ftId,feedTypeName:ft?ft.name:(batch.label||'Feed'),unit:ft?ft.unit:(batch.unit||'unit'),totalUnits:0,lbsPerUnit:batch.wt||0,dmPct:batch.dm||85};
+          }
+          _ftMap[ftId].totalUnits+=Math.max(0,line.qty||0);
+        });
+      });
+      const _fbLastCk=(srcEv.feedResidualChecks||[]).filter(c=>!c.isCloseReading&&c.notes!=='transfer_opening').sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];
+      const _fbPct=_fbLastCk?(_fbLastCk.balesRemainingPct??_fbLastCk.residualPct??100):100;
+      const _fbTypeCks=_fbLastCk?.typeChecks||null;
+      _fcTypeData=Object.values(_ftMap).filter(t=>t.totalUnits>0).map(t=>{
+        let lastUnits;
+        if(_fbTypeCks){const tc=_fbTypeCks.find(c=>String(c.feedTypeId)===String(t.feedTypeId));lastUnits=tc?tc.remaining:t.totalUnits*(_fbPct/100);}
+        else{lastUnits=t.totalUnits*(_fbPct/100);}
+        return{...t,startedUnits:t.totalUnits,lastCheckUnits:parseFloat(lastUnits.toFixed(2)),lastCheckDate:_fbLastCk?.date||null,remaining:parseFloat(lastUnits.toFixed(2))};
+      });
+    }
     if(isLastGroup && _fcTypeData.length){
       // Read latest values from DOM inputs (user may have adjusted since render)
       _fcTypeData.forEach((t,idx)=>{

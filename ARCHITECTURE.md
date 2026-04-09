@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260408.1137`
+**Current build:** `b20260409.1236`
 **Last updated:** 2026-04-05
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -1315,9 +1315,11 @@ The FAB was hidden on mobile by OI-0147 to fix a badge z-index/overflow issue. R
 
 When the move wizard closes an event (last group leaving) and stored feed is present, step 3 shows two additional sections below the pasture close-out survey:
 
-**FINAL FEED CHECK** — same per-feed-type stepper+slider cards as standalone feed check, rendered inline via `_mwRenderInlineFeedCheck()`. Reuses `_fcTypeData[]` and all `_fc*` interaction handlers (wizard and standalone never open simultaneously).
+**FINAL FEED CHECK** — same per-feed-type stepper+slider cards as standalone feed check, rendered inline via `_mwRenderInlineFeedCheck()`. Reuses `_fcTypeData[]` and all `_fc*` interaction handlers (wizard and standalone never open simultaneously). **Fallback (b20260408):** if `_fcTypeData` is empty at `_mwSave()` time (e.g. the feed check UI section was not shown), `_mwSave()` re-populates it from the event's feed entries and last residual check before the guard — ensures the closing `move_close` record is always written when `isLastGroup` is true and the event has stored feed.
 
-**FEED DISPOSITION** — per-feed-type prompt: "X units remaining — move feed?" with two buttons: "Record as residual" (default) or "Move to destination". State: `_mwFeedDisposition{}` (feedTypeId → 'residual'|'move'). On save: close-reading feed check saved to source event; for each type with disposition 'move', a new feedEntry is created on the destination event with the remaining quantity. **NPK note:** feed transfer is inventory movement only — no NPK deposit. The existing livestock excretion path handles NPK.
+**FEED DISPOSITION** — per-feed-type prompt: "X units remaining — move feed?" with two buttons: "Record as residual" (default) or "Move to destination". State: `_mwFeedDisposition{}` (feedTypeId → 'residual'|'move'). On save: close-reading feed check saved to source event; for each type with disposition 'move', `createFeedTransfer()` creates paired neg/pos entries (double-entry ledger) and decrements `batch.remaining`. **NPK note:** feed transfer is inventory movement only — no NPK deposit. The existing livestock excretion path handles NPK.
+
+**`wizSaveNew()` auto-close feed check (b20260408):** when `wizSaveNew()` auto-closes a source event (last group leaving), it now writes a `move_close` closing feed check using the last known residual percentage. Previously the auto-close path set `status='closed'` without any feed check record.
 
 **Live refresh (b20260403.0934):** Disposition cards now update in real-time when the inline feed check stepper/slider values change. `_fcUpdateUI()` detects `_mwStep===3` and calls `_mwRenderDispositionCards()` to refresh `#mw-feed-disposition`. The `_mwSetDisposition()` handler also uses targeted DOM update instead of full step re-render, preserving stepper/slider input state.
 
