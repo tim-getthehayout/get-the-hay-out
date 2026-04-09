@@ -8814,9 +8814,10 @@ function renderSurveyPaddocks(){
       ? `<span class="badge bt" style="font-size:10px;">Active</span>`
       : '';
 
-    const ratingBadge = curRating != null
-      ? `<span style="font-size:11px;font-weight:600;color:${surveyRatingColor(curRating)};">${curRating}/100</span>`
-      : '';
+    const isComplete = _isBulkSurveyCardComplete(String(p.id));
+    const completeBadge = isComplete
+      ? `<span id="survey-status-${p.id}" style="font-size:12px;font-weight:600;color:var(--green);">✓ Complete</span>`
+      : `<span id="survey-status-${p.id}"></span>`;
 
     // Collapsed card header (always shown)
     const chevronDeg = isExpanded ? '180' : '0';
@@ -8825,7 +8826,7 @@ function renderSurveyPaddocks(){
         <span style="font-size:14px;font-weight:600;">${p.name}</span>
         <span style="font-size:11px;color:var(--text2);">${p.acres||0} ac</span>
         ${activeNote}
-        ${ratingBadge}
+        ${completeBadge}
       </div>
       <div style="font-size:16px;color:var(--text2);transform:rotate(${chevronDeg}deg);transition:transform 0.2s;flex-shrink:0;margin-left:8px;">⌃</div>
     </div>`;
@@ -8862,7 +8863,7 @@ function renderSurveyPaddocks(){
     const curCondition = surveyForageQuality[p.id]||null;
     const conditionBtns = ['Poor','Fair','Good','Excellent'].map(q=>{
       const active = curCondition === q;
-      return `<button type="button" onclick="surveyForageQuality['${p.id}']='${q}';_triggerSurveyDraftSave();_renderBulkConditionBtns('${p.id}')"
+      return `<button type="button" onclick="surveyForageQuality['${p.id}']='${q}';_triggerSurveyDraftSave();_renderBulkConditionBtns('${p.id}');_updateBulkSurveyCardStatus('${p.id}')"
         id="survey-cond-${p.id}-${q}"
         style="flex:1;padding:6px 0;font-size:12px;border-radius:6px;cursor:pointer;font-family:inherit;
         border:0.5px solid ${active?'var(--green)':'var(--border2)'};
@@ -8916,7 +8917,7 @@ function renderSurveyPaddocks(){
             <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;letter-spacing:0.03em;">AVG VEG HEIGHT (in)</div>
             <input type="number" id="survey-veght-${p.id}" min="0" max="72" step="0.5"
               value="${surveyVegHeight[p.id]??''}" placeholder="inches"
-              oninput="surveyVegHeight['${p.id}']=parseFloat(this.value)||null;_triggerSurveyDraftSave()"
+              oninput="surveyVegHeight['${p.id}']=parseFloat(this.value)||null;_triggerSurveyDraftSave();_updateBulkSurveyCardStatus('${p.id}')"
               style="width:100%;padding:6px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);
                      font-size:14px;background:var(--bg);color:var(--text);font-family:inherit;text-align:center;box-sizing:border-box;"/>
           </div>
@@ -8924,7 +8925,7 @@ function renderSurveyPaddocks(){
             <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;letter-spacing:0.03em;">AVG FORAGE COVER (%)</div>
             <input type="number" id="survey-cover-${p.id}" min="0" max="100" step="1"
               value="${surveyForageCover[p.id]??''}" placeholder="%"
-              oninput="surveyForageCover['${p.id}']=parseFloat(this.value)||null;_triggerSurveyDraftSave()"
+              oninput="surveyForageCover['${p.id}']=parseFloat(this.value)||null;_triggerSurveyDraftSave();_updateBulkSurveyCardStatus('${p.id}')"
               style="width:100%;padding:6px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);
                      font-size:14px;background:var(--bg);color:var(--text);font-family:inherit;text-align:center;box-sizing:border-box;"/>
           </div>
@@ -8944,7 +8945,7 @@ function renderSurveyPaddocks(){
               <div style="font-size:9px;color:var(--text2);margin-bottom:2px;">MIN days</div>
               <input type="number" placeholder="${st.recoveryMinDays||30}" min="1" max="365"
                 value="${curMin}"
-                oninput="surveyRecovery['${p.id}']={...(surveyRecovery['${p.id}']||{}),min:parseInt(this.value)||null};_triggerSurveyDraftSave();renderSurveyRecoveryPreview('${p.id}')"
+                oninput="surveyRecovery['${p.id}']={...(surveyRecovery['${p.id}']||{}),min:parseInt(this.value)||null};_triggerSurveyDraftSave();renderSurveyRecoveryPreview('${p.id}');_updateBulkSurveyCardStatus('${p.id}')"
                 id="rec-min-${p.id}"
                 style="width:60px;padding:5px 7px;border:0.5px solid var(--border2);border-radius:var(--radius);
                        font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;text-align:center;"/>
@@ -8957,7 +8958,7 @@ function renderSurveyPaddocks(){
               <div style="font-size:9px;color:var(--text2);margin-bottom:2px;">MAX days</div>
               <input type="number" placeholder="${st.recoveryMaxDays||60}" min="1" max="365"
                 value="${curMax}"
-                oninput="surveyRecovery['${p.id}']={...(surveyRecovery['${p.id}']||{}),max:parseInt(this.value)||null};_triggerSurveyDraftSave();renderSurveyRecoveryPreview('${p.id}')"
+                oninput="surveyRecovery['${p.id}']={...(surveyRecovery['${p.id}']||{}),max:parseInt(this.value)||null};_triggerSurveyDraftSave();renderSurveyRecoveryPreview('${p.id}');_updateBulkSurveyCardStatus('${p.id}')"
                 id="rec-max-${p.id}"
                 style="width:60px;padding:5px 7px;border:0.5px solid var(--border2);border-radius:var(--radius);
                        font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;text-align:center;"/>
@@ -8973,6 +8974,29 @@ function renderSurveyPaddocks(){
       </div>
     </div>`;
   }).join('');
+}
+
+// Helper: check if all required fields on a bulk survey card are filled
+function _isBulkSurveyCardComplete(pid){
+  if(surveyRatings[pid]==null) return false;
+  if(surveyVegHeight[pid]==null) return false;
+  if(surveyForageCover[pid]==null) return false;
+  if(!surveyForageQuality[pid]) return false;
+  const minEl = document.getElementById('rec-min-'+pid);
+  const maxEl = document.getElementById('rec-max-'+pid);
+  if(!minEl||!maxEl||!minEl.value||!maxEl.value) return false;
+  return true;
+}
+
+// Helper: update the status badge in the card header without full re-render
+function _updateBulkSurveyCardStatus(pid){
+  const el = document.getElementById('survey-status-'+pid);
+  if(!el) return;
+  const complete = _isBulkSurveyCardComplete(String(pid));
+  el.textContent = complete ? '✓ Complete' : '';
+  el.style.color = complete ? 'var(--green)' : '';
+  el.style.fontWeight = complete ? '600' : '';
+  el.style.fontSize = complete ? '12px' : '';
 }
 
 // Helper: update forage condition button styles without full re-render
@@ -9058,6 +9082,7 @@ function setSurveyRating(pastureId, pastureName, rating){
     selEl.innerHTML = `<span style="color:${color};font-weight:600;">${rating}/100 — ${surveyRatingLabel(rating)}</span>`;
   }
   _triggerSurveyDraftSave();
+  _updateBulkSurveyCardStatus(String(pastureId));
 }
 
 // saveSurvey: routes to correct handler based on mode
