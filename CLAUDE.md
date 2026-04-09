@@ -14,6 +14,15 @@
 - **`main`** — production, served by GitHub Pages
 - Never commit directly to `main`
 
+### Serial Work — No PRs, No Feature Branches
+
+This is a single-file PWA (`index.html`). Parallel branches and PRs are incompatible with this architecture — every change touches the same file, so parallel work produces conflicts or silent overwrites.
+
+- **Never create feature branches or PRs.** All work is committed directly to `dev`.
+- **Never use worktree isolation** (`isolation: "worktree"`) for implementation work.
+- **One Claude Code session at a time.** If Cowork or a user hands off multiple tasks, complete them sequentially — finish task N, commit, then start task N+1.
+- The only path to production is `dev` → `deploy.py deploy` → `main`.
+
 ### Deploy commands (run from `dev` branch)
 - `python3 deploy.py` — stamp files only (for WIP commits)
 - `python3 deploy.py deploy` — stamp, commit, merge dev→main, push (goes live)
