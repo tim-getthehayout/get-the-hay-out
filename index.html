@@ -9000,9 +9000,8 @@ function _isBulkSurveyCardComplete(pid){
   if(surveyVegHeight[pid]==null) return false;
   if(surveyForageCover[pid]==null) return false;
   if(!surveyForageQuality[pid]) return false;
-  const minEl = document.getElementById('rec-min-'+pid);
-  const maxEl = document.getElementById('rec-max-'+pid);
-  if(!minEl||!maxEl||!minEl.value||!maxEl.value) return false;
+  const rec = surveyRecovery[pid];
+  if(!rec||!rec.min||!rec.max) return false;
   return true;
 }
 
