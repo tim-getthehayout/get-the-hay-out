@@ -1,7 +1,7 @@
 # Get The Hay Out — Living Architecture Map
 **File:** `get-the-hay-out.html` (~14,532 lines · ~724KB · single-file PWA)
 **Deploy:** `deploy.py` → GitHub Pages → getthehayout.com
-**Current build:** `b20260409.2304`
+**Current build:** `b20260410.1449`
 **Last updated:** 2026-04-05
 
 > This is the authoritative navigation guide for every AI coding session.
@@ -1310,7 +1310,7 @@ The FAB was hidden on mobile by OI-0147 to fix a badge z-index/overflow issue. R
 
 **Supabase schema (b20260403.1023):** `event_feed_residual_checks` table has `check_date` (text), `check_time` (text, nullable), `residual_pct`, `bales_remaining_pct`, `is_close_reading`, `notes`, and `type_checks_json` (jsonb, nullable). The `type_checks_json` column stores the per-type breakdown as a JSON array. Assembly layer parses it back via `JSON.parse()`. **SQL migration required:** `ALTER TABLE event_feed_residual_checks ADD COLUMN IF NOT EXISTS check_time text; ALTER TABLE event_feed_residual_checks ADD COLUMN IF NOT EXISTS type_checks_json jsonb;`
 
-**Last check seeding:** If a prior check has `typeChecks[]`, per-type remaining values are restored. Otherwise, the overall `balesRemainingPct` is apportioned equally across types. This handles pre-migration checks gracefully.
+**Last check seeding:** If a prior check has `typeChecks[]`, per-type remaining values are restored. `startedUnits` is set to `tc.remaining + Math.max(0, t.totalUnits - tc.total)` — the amount present at the last check plus any new deliveries since (anchored via `tc.total`; falls back to `t.totalUnits` for old checks lacking `tc.total`). Otherwise, the overall `balesRemainingPct` is apportioned equally across types with `startedUnits = t.totalUnits`. This handles pre-migration checks gracefully. "Consumed since last check" and all input/slider caps use `startedUnits`, not `lastCheckUnits`.
 
 ### Feed disposition at close (OI-0155, b20260403.0047)
 
