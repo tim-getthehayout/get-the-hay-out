@@ -22971,10 +22971,13 @@ function _mwRenderInlineFeedCheck(srcEv, isLastGroup, hasStoredFeed){
     const lastDate = lastCheck?.date || null;
     const lastTypeChecks = lastCheck?.typeChecks || null;
     _fcTypeData = Object.values(typeMap).map(t=>{
-      let lastUnits;
-      if(lastTypeChecks){ const tc=lastTypeChecks.find(c=>String(c.feedTypeId)===String(t.feedTypeId)); lastUnits=tc?tc.remaining:t.totalUnits*(lastPct/100); }
-      else { lastUnits=t.totalUnits*(lastPct/100); }
-      return { ...t, startedUnits:t.totalUnits, lastCheckUnits:parseFloat(lastUnits.toFixed(2)), lastCheckDate:lastDate, remaining:parseFloat(lastUnits.toFixed(2)),
+      let lastUnits, startedUnits;
+      if(lastTypeChecks){
+        const tc=lastTypeChecks.find(c=>String(c.feedTypeId)===String(t.feedTypeId));
+        if(tc){ lastUnits=tc.remaining; const checkTotal=tc.total>0?tc.total:t.totalUnits; const newSinceCheck=Math.max(0,t.totalUnits-checkTotal); startedUnits=tc.remaining+newSinceCheck; }
+        else { lastUnits=t.totalUnits*(lastPct/100); startedUnits=t.totalUnits; }
+      } else { lastUnits=t.totalUnits*(lastPct/100); startedUnits=t.totalUnits; }
+      return { ...t, startedUnits:parseFloat(startedUnits.toFixed(2)), lastCheckUnits:parseFloat(lastUnits.toFixed(2)), lastCheckDate:lastDate, remaining:parseFloat(lastUnits.toFixed(2)),
         hasPriorCheck, userVerified:hasPriorCheck };
     });
   }
@@ -22984,7 +22987,7 @@ function _mwRenderInlineFeedCheck(srcEv, isLastGroup, hasStoredFeed){
   // Build per-type feed check cards (reuse fc- IDs — wizard and standalone never open simultaneously)
   const cards = _fcTypeData.map((t,idx)=>{
     const pct = t.startedUnits > 0 ? (t.remaining / t.startedUnits * 100) : 0;
-    const consumed = Math.max(0, t.lastCheckUnits - t.remaining);
+    const consumed = Math.max(0, t.startedUnits - t.remaining);
     const consumedDMI = consumed * t.lbsPerUnit * (t.dmPct/100);
     const unitLabel = _fcUnitLabel(t.unit);
     const _unverified=t.userVerified===false;
@@ -23002,7 +23005,7 @@ function _mwRenderInlineFeedCheck(srcEv, isLastGroup, hasStoredFeed){
         <div style="flex:1;"><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Remaining ${unitLabel}</label>
           <div style="display:flex;align-items:center;border:0.5px solid ${_borderCol};border-radius:8px;overflow:hidden;background:var(--bg);">
             <button style="width:36px;height:38px;border:none;background:var(--amber-l);color:var(--amber-d);font-size:18px;cursor:pointer;font-weight:500;font-family:inherit;" onclick="_fcAdj(${idx},-0.10)">−</button>
-            <input type="number" id="fc-units-${idx}" value="${t.remaining.toFixed(2)}" step="0.01" min="0" max="${t.lastCheckUnits}"
+            <input type="number" id="fc-units-${idx}" value="${t.remaining.toFixed(2)}" step="0.01" min="0" max="${t.startedUnits}"
               style="flex:1;text-align:center;border:none;font-size:16px;font-weight:500;padding:8px 0;background:transparent;color:var(--text);outline:none;width:50px;font-family:inherit;"
               oninput="_fcUnitsChanged(${idx})">
             <button style="width:36px;height:38px;border:none;background:var(--amber-l);color:var(--amber-d);font-size:18px;cursor:pointer;font-weight:500;font-family:inherit;" onclick="_fcAdj(${idx},0.10)">+</button>
@@ -23012,7 +23015,7 @@ function _mwRenderInlineFeedCheck(srcEv, isLastGroup, hasStoredFeed){
             style="width:100%;padding:10px 12px;border:0.5px solid var(--border2);border-radius:8px;font-size:16px;font-weight:500;background:var(--bg);text-align:center;box-sizing:border-box;font-family:inherit;color:var(--text);"
             oninput="_fcPctChanged(${idx})"></div>
       </div>
-      <input type="range" id="fc-slider-${idx}" min="0" max="${(t.lastCheckUnits/t.startedUnits*100).toFixed(1)}" value="${pct.toFixed(1)}" step="0.5" style="width:100%;accent-color:#BA7517;" oninput="_fcSliderChanged(${idx})">
+      <input type="range" id="fc-slider-${idx}" min="0" max="100" value="${pct.toFixed(1)}" step="0.5" style="width:100%;accent-color:#BA7517;" oninput="_fcSliderChanged(${idx})">
     </div>`;
   }).join('');
 
@@ -23652,16 +23655,27 @@ function openFeedCheckSheet(evId){
 
   _fcTypeData = Object.values(typeMap).map(t=>{
     // If we have per-type data from last check, use it; otherwise apportion by overall pct
-    let lastUnits;
+    let lastUnits, startedUnits;
     if(lastTypeChecks){
       const tc = lastTypeChecks.find(c=>String(c.feedTypeId)===String(t.feedTypeId));
-      lastUnits = tc ? tc.remaining : t.totalUnits * (lastPct/100);
+      if(tc){
+        lastUnits = tc.remaining;
+        // Anchor to cumulative total at last check (tc.total). If tc.total is 0 or missing
+        // (old check records pre-typeChecks), fall back to t.totalUnits so newSinceCheck=0.
+        const checkTotal = tc.total > 0 ? tc.total : t.totalUnits;
+        const newSinceCheck = Math.max(0, t.totalUnits - checkTotal);
+        startedUnits = tc.remaining + newSinceCheck;
+      } else {
+        lastUnits = t.totalUnits * (lastPct/100);
+        startedUnits = t.totalUnits;
+      }
     } else {
       lastUnits = t.totalUnits * (lastPct/100);
+      startedUnits = t.totalUnits;
     }
     return {
       ...t,
-      startedUnits: t.totalUnits,
+      startedUnits: parseFloat(startedUnits.toFixed(2)),
       lastCheckUnits: parseFloat(lastUnits.toFixed(2)),
       lastCheckDate: lastDate,
       remaining: parseFloat(lastUnits.toFixed(2)),
@@ -23691,7 +23705,7 @@ function _fcRender(){
 
   const cards = _fcTypeData.map((t,idx)=>{
     const pct = t.startedUnits > 0 ? (t.remaining / t.startedUnits * 100) : 0;
-    const consumed = Math.max(0, t.lastCheckUnits - t.remaining);
+    const consumed = Math.max(0, t.startedUnits - t.remaining);
     const consumedDMI = consumed * t.lbsPerUnit * (t.dmPct/100);
     const unitLabel = _fcUnitLabel(t.unit);
     const lastInfo = t.lastCheckDate
@@ -23707,7 +23721,7 @@ function _fcRender(){
           <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">Remaining ${unitLabel}</label>
           <div style="display:flex;align-items:center;border:0.5px solid var(--amber);border-radius:8px;overflow:hidden;background:var(--bg);">
             <button style="width:36px;height:38px;border:none;background:var(--amber-l);color:var(--amber-d);font-size:18px;cursor:pointer;font-weight:500;font-family:inherit;" onclick="_fcAdj(${idx},-0.10)">\u2212</button>
-            <input type="number" id="fc-units-${idx}" value="${t.remaining.toFixed(2)}" step="0.01" min="0" max="${t.lastCheckUnits}"
+            <input type="number" id="fc-units-${idx}" value="${t.remaining.toFixed(2)}" step="0.01" min="0" max="${t.startedUnits}"
               style="flex:1;text-align:center;border:none;font-size:16px;font-weight:500;padding:8px 0;background:transparent;color:var(--text);outline:none;width:50px;font-family:inherit;"
               oninput="_fcUnitsChanged(${idx})">
             <button style="width:36px;height:38px;border:none;background:var(--amber-l);color:var(--amber-d);font-size:18px;cursor:pointer;font-weight:500;font-family:inherit;" onclick="_fcAdj(${idx},0.10)">+</button>
@@ -23721,9 +23735,9 @@ function _fcRender(){
         </div>
       </div>
       <div style="margin-bottom:8px;">
-        <input type="range" id="fc-slider-${idx}" min="0" max="${(t.lastCheckUnits/t.startedUnits*100).toFixed(1)}" value="${pct.toFixed(1)}" step="0.5"
+        <input type="range" id="fc-slider-${idx}" min="0" max="100" value="${pct.toFixed(1)}" step="0.5"
           style="width:100%;accent-color:#BA7517;" oninput="_fcSliderChanged(${idx})">
-        <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text3);margin-top:2px;"><span>0%</span><span>50%</span><span>${Math.round(t.lastCheckUnits/t.startedUnits*100)}%</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text3);margin-top:2px;"><span>0%</span><span>50%</span><span>100%</span></div>
       </div>
       <div style="background:var(--amber-l);border-radius:8px;padding:8px 10px;display:flex;justify-content:space-between;align-items:center;">
         <span style="font-size:11px;color:var(--amber-d);">Consumed since last check</span>
@@ -23754,7 +23768,7 @@ function _fcUnitLabel(unit){
 
 function _fcAdj(idx, delta){
   const t = _fcTypeData[idx]; if(!t) return;
-  t.remaining = Math.max(0, Math.min(t.lastCheckUnits, parseFloat((t.remaining + delta).toFixed(2))));
+  t.remaining = Math.max(0, Math.min(t.startedUnits, parseFloat((t.remaining + delta).toFixed(2))));
   _fcUpdateUI(idx);
 }
 
@@ -23764,7 +23778,7 @@ function _fcUnitsChanged(idx){
   if(!input) return;
   let v = parseFloat(input.value);
   if(isNaN(v)) v = 0;
-  t.remaining = Math.max(0, Math.min(t.lastCheckUnits, parseFloat(v.toFixed(2))));
+  t.remaining = Math.max(0, Math.min(t.startedUnits, parseFloat(v.toFixed(2))));
   _fcUpdateUI(idx, true); // skip units input update — user is typing
 }
 
@@ -23775,7 +23789,7 @@ function _fcPctChanged(idx){
   let pct = parseFloat(pctEl.value);
   if(isNaN(pct)) pct = 0;
   pct = Math.max(0, Math.min(100, pct));
-  t.remaining = Math.min(t.lastCheckUnits, parseFloat((t.startedUnits * pct / 100).toFixed(2)));
+  t.remaining = Math.min(t.startedUnits, parseFloat((t.startedUnits * pct / 100).toFixed(2)));
   _fcUpdateUI(idx, false, true); // update units + slider, skip pct (user is typing)
 }
 
@@ -23784,7 +23798,7 @@ function _fcSliderChanged(idx){
   const slider = document.getElementById('fc-slider-'+idx);
   if(!slider) return;
   const pct = parseFloat(slider.value);
-  t.remaining = Math.min(t.lastCheckUnits, parseFloat((t.startedUnits * pct / 100).toFixed(2)));
+  t.remaining = Math.min(t.startedUnits, parseFloat((t.startedUnits * pct / 100).toFixed(2)));
   _fcUpdateUI(idx);
 }
 
@@ -23818,7 +23832,7 @@ function _fcUpdateUI(idx, skipUnits, skipPct){
   // Update consumed bar
   const consumedEl = document.getElementById('fc-consumed-'+idx);
   if(consumedEl){
-    const consumed = Math.max(0, t.lastCheckUnits - t.remaining);
+    const consumed = Math.max(0, t.startedUnits - t.remaining);
     const consumedDMI = consumed * t.lbsPerUnit * (t.dmPct/100);
     const unitLabel = _fcUnitLabel(t.unit);
     consumedEl.textContent = consumed.toFixed(2)+' '+unitLabel+' \u00b7 ~'+Math.round(consumedDMI).toLocaleString()+' lbs DMI';

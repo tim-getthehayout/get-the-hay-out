@@ -2922,17 +2922,17 @@ JS model has `name, volumeLbs, nPct, pPct, kPct, events[]`. Supabase has `source
 **Source:** Claude.ai design conversation — b20260405
 **Area:** DMI calculation / Event cards / Move wizard
 **Severity:** Bug
-**Status:** 🔴 Open
+**Status:** 🔴 Open (Bug B + Bug C fixed; Bug A + Fixes 2–4 remain)
 **Found:** b20260405
 
 Four linked bugs in `getDailyStoredDMI()` and `_renderDMIBars()`:
-- **Bug A:** Transfer residual shows 100% stored on destination (totalDM/1 day = entire DMI target)
-- **Bug B:** Adding feed inflates stored DMI retroactively (new feed spread across all past days)
-- **Bug C:** Feed check % applied to wrong cumulative base (new feed type inflates cumDMAt after check)
-- **Fix 1:** typeChecks-based anchor conversion (remaining lbs from unit counts, not % of shifting total)
-- **Fix 2:** Synthetic opening check on destination after transfer
-- **Fix 3:** Carry-forward rate from source event
-- **Fix 4:** Gray "no split" bars when no check exists (replaces broken totalDM/days estimate)
+- **Bug A:** Transfer residual shows 100% stored on destination (totalDM/1 day = entire DMI target) — **open**
+- **Bug B:** Adding feed inflates stored DMI retroactively (new feed spread across all past days) — **fixed b20260409.next** (`calcConsumedDMI` anchored to `typeChecks[]` unit counts)
+- **Bug C:** Feed check % applied to wrong cumulative base (new feed type inflates cumDMAt after check) — **fixed b20260409.next** (`startedUnits` now `tc.remaining + newSinceCheck`, not `t.totalUnits`)
+- **Fix 1:** typeChecks-based anchor conversion (remaining lbs from unit counts, not % of shifting total) — **done b20260409.next**
+- **Fix 2:** Synthetic opening check on destination after transfer — **open**
+- **Fix 3:** Carry-forward rate from source event — **open**
+- **Fix 4:** Gray "no split" bars when no check exists (replaces broken totalDM/days estimate) — **open**
 
 **Acceptance criteria:** Transfer creates synthetic check; DMI bars show gray when no check; adding feed doesn't retroactively inflate; typeChecks anchors immune to later feed additions.
 
