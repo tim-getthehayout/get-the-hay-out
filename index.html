@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260410.1449" id="app-version-meta"/>
+<meta name="app-version" content="b20260410.1616" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -22950,9 +22950,11 @@ function _mwRenderInlineFeedCheck(srcEv, isLastGroup, hasStoredFeed){
 
   // Initialize _fcTypeData if not already set for this wizard session
   if(!_fcTypeData.length){
+    const checkDate = todayStr(); // move wizard always records against today
     const entries = allFeedEntries(srcEv);
     const typeMap = {};
     entries.forEach(entry=>{
+      if((entry.date||'') > checkDate) return; // exclude bales added after today
       (entry.lines||[]).forEach(line=>{
         const batch = S.batches.find(b=>b.id===line.batchId);
         if(!batch) return;
@@ -22970,12 +22972,30 @@ function _mwRenderInlineFeedCheck(srcEv, isLastGroup, hasStoredFeed){
     const lastPct = lastCheck ? (lastCheck.balesRemainingPct ?? lastCheck.residualPct ?? 100) : 100;
     const lastDate = lastCheck?.date || null;
     const lastTypeChecks = lastCheck?.typeChecks || null;
+    // For null-typeChecks fallback: compute per-type totals as of last check date
+    const typeMapAtLastCheck = {};
+    if(lastCheck && !lastTypeChecks){
+      entries.forEach(entry=>{
+        if((entry.date||'') > lastDate) return;
+        (entry.lines||[]).forEach(line=>{
+          const batch = S.batches.find(b=>b.id===line.batchId);
+          if(!batch) return;
+          const ftId = batch.feedTypeId || batch.typeId;
+          if(!ftId) return;
+          typeMapAtLastCheck[ftId] = (typeMapAtLastCheck[ftId]||0) + Math.max(0, line.qty||0);
+        });
+      });
+    }
     _fcTypeData = Object.values(typeMap).map(t=>{
       let lastUnits, startedUnits;
       if(lastTypeChecks){
         const tc=lastTypeChecks.find(c=>String(c.feedTypeId)===String(t.feedTypeId));
         if(tc){ lastUnits=tc.remaining; const checkTotal=tc.total>0?tc.total:t.totalUnits; const newSinceCheck=Math.max(0,t.totalUnits-checkTotal); startedUnits=tc.remaining+newSinceCheck; }
         else { lastUnits=t.totalUnits*(lastPct/100); startedUnits=t.totalUnits; }
+      } else if(lastCheck){
+        const totalAtLastCheck = typeMapAtLastCheck[t.feedTypeId] || 0;
+        lastUnits = totalAtLastCheck * (lastPct/100);
+        startedUnits = lastUnits + Math.max(0, t.totalUnits - totalAtLastCheck);
       } else { lastUnits=t.totalUnits*(lastPct/100); startedUnits=t.totalUnits; }
       return { ...t, startedUnits:parseFloat(startedUnits.toFixed(2)), lastCheckUnits:parseFloat(lastUnits.toFixed(2)), lastCheckDate:lastDate, remaining:parseFloat(lastUnits.toFixed(2)),
         hasPriorCheck, userVerified:hasPriorCheck };
@@ -23620,10 +23640,19 @@ function openFeedCheckSheet(evId){
   const ev = S.events.find(e=>e.id===evId);
   if(!ev){ openEventEdit(evId); return; } // fallback
 
-  // Group feed entries by feed type
+  // Determine check date for time-aware totalUnits (Bug 2).
+  // When editing a past check, only count bales that existed at that check's date.
+  let checkDate = todayStr();
+  if(_fcEditId){
+    const editCk = (ev.feedResidualChecks||[]).find(c=>String(c.id)===String(_fcEditId));
+    if(editCk && editCk.date) checkDate = editCk.date;
+  }
+
+  // Group feed entries by feed type, filtered to entries on or before checkDate
   const entries = allFeedEntries(ev);
   const typeMap = {}; // feedTypeId → {totalUnits, feedTypeName, unit, lbsPerUnit, dmPct}
   entries.forEach(entry=>{
+    if((entry.date||'') > checkDate) return; // exclude bales added after the check date
     (entry.lines||[]).forEach(line=>{
       const batch = S.batches.find(b=>b.id===line.batchId);
       if(!batch) return;
@@ -23653,6 +23682,22 @@ function openFeedCheckSheet(evId){
   // Per-type checks if stored
   const lastTypeChecks = lastCheck?.typeChecks || null;
 
+  // For the null-typeChecks fallback (Bug 1): compute per-type totals as of last check date
+  // so we can derive lastRemaining and newSinceCheck without inflating by later bales.
+  const typeMapAtLastCheck = {};
+  if(lastCheck && !lastTypeChecks){
+    entries.forEach(entry=>{
+      if((entry.date||'') > lastDate) return;
+      (entry.lines||[]).forEach(line=>{
+        const batch = S.batches.find(b=>b.id===line.batchId);
+        if(!batch) return;
+        const ftId = batch.feedTypeId || batch.typeId;
+        if(!ftId) return;
+        typeMapAtLastCheck[ftId] = (typeMapAtLastCheck[ftId]||0) + Math.max(0, line.qty||0);
+      });
+    });
+  }
+
   _fcTypeData = Object.values(typeMap).map(t=>{
     // If we have per-type data from last check, use it; otherwise apportion by overall pct
     let lastUnits, startedUnits;
@@ -23669,6 +23714,14 @@ function openFeedCheckSheet(evId){
         lastUnits = t.totalUnits * (lastPct/100);
         startedUnits = t.totalUnits;
       }
+    } else if(lastCheck){
+      // Fallback path: no per-type typeChecks on the last check (old data).
+      // Use the total that existed at the last check date to avoid inflating startedUnits
+      // with bales added after that check.
+      const totalAtLastCheck = typeMapAtLastCheck[t.feedTypeId] || 0;
+      lastUnits = totalAtLastCheck * (lastPct/100);
+      const newSince = Math.max(0, t.totalUnits - totalAtLastCheck);
+      startedUnits = lastUnits + newSince;
     } else {
       lastUnits = t.totalUnits * (lastPct/100);
       startedUnits = t.totalUnits;
@@ -23714,7 +23767,7 @@ function _fcRender(){
     return `<div class="card" style="padding:14px;margin-bottom:10px;">
       <div style="margin-bottom:10px;">
         <div style="font-size:13px;font-weight:500;">${escHtml(t.feedTypeName)} (${escHtml(unitLabel)})</div>
-        <div style="font-size:11px;color:var(--text2);">Started: ${t.startedUnits.toFixed(0)} ${unitLabel} \u00b7 ${lastInfo}</div>
+        <div style="font-size:11px;color:var(--text2);">Started: ${t.startedUnits.toFixed(1)} ${unitLabel} \u00b7 ${lastInfo}</div>
       </div>
       <div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:12px;">
         <div style="flex:1;">
