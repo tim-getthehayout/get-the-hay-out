@@ -3285,3 +3285,8 @@ Upload `gthy-feedback-YYYY-MM-DD-HHMM.json` at session start for Claude to diff 
 | 1774899624820 | b20260401.2245 | — | "Display name not sticking in between sessions..." — **resolved at source, no OI** |
 | 1774899577986 | b20260401.2245 | — | "Feedback not available on settings screen" — **resolved at source, no OI** |
 | 1774818620446 | b20260401.2245 | — | "Need to be able to edit existing open feedback items" — **resolved at source, no OI** |
+
+## Change Log
+
+| Date | Session | Changes |
+|------|---------|---------|
