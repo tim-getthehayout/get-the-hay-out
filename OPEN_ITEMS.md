@@ -1,5 +1,5 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260406.2214
+**Last updated:** b20260417
 **Reconciled against build:** b20260406.2214
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
@@ -23,7 +23,7 @@
 | 🟡 Open — Polish | 3 |
 | 🔵 Open — Enhancement | 24 |
 | ⚪ Open — Debt | 9 |
-| ✅ Closed | 134 |
+| ✅ Closed | 137 |
 
 ---
 
@@ -3182,6 +3182,54 @@ The bulk survey sticky header had a Cancel button and a Close button that trigge
 **Closed:** b20260409
 
 Entering forage height, cover, condition, and rating data in the bulk survey, then saving and reopening the draft only retained a subset of fields. Two root causes: (1) `saveSurveyDraft()` built `_allPids` only from `surveyRatings`, `surveyForageQuality`, `surveyVegHeight`, and `surveyForageCover` — paddocks where only `surveyRecovery` or `surveyNotes` was changed were excluded from the save set. (2) `setSurveyRating()` did not call `_triggerSurveyDraftSave()`, so rating changes were not auto-saved to the draft. Fixed both.
+
+---
+
+### OI-0204 — Flush delete ordering violates FK constraints (parent before child)
+**Source:** User report (Will) — b20260417
+**Area:** Sync / Supabase
+**Severity:** Bug
+**Status:** ✅ Closed (GH-10)
+**Found:** b20260417
+**Closed:** b20260417
+
+`flushToSupabase()` processes tiers 0→1→2 for both upserts and deletes. For upserts this is correct (parents first), but for deletes the order must be reversed (children first). Currently `animal_groups` deletes (Tier 1) fire before `animal_group_memberships` deletes (Tier 2), and `animals` deletes (Tier 1) fire before `animal_weight_records` deletes (Tier 2). Supabase FK constraints block every parent delete, creating 100+ errors per session that re-queue endlessly.
+
+**Fix:** Split flush into two passes — delete pass in reverse tier order (Tier 2→1→0), upsert pass in forward tier order (Tier 0→1→2).
+
+**Acceptance criteria:** "Push all to Supabase" empties the queue with zero FK constraint errors.
+
+---
+
+### OI-0205 — Duplicate animal groups created (same name, different IDs)
+**Source:** User report (Will) — b20260417
+**Area:** Animals / Groups
+**Severity:** Bug
+**Status:** ✅ Closed (GH-10)
+**Found:** b20260417
+**Closed:** b20260417
+
+Backup shows "Herd 1" and "Herd 2" each appearing twice with different IDs. Memberships split across copies. Likely created by a race condition or double-save.
+
+**Fix:** (1) One-time migration to merge duplicate-named groups and consolidate memberships. (2) Save guard to prevent creating a group with a name that already exists.
+
+**Acceptance criteria:** Each group name appears exactly once per operation. Attempting to create a duplicate name shows a warning.
+
+---
+
+### OI-0206 — ai_bulls ID type mismatch (string vs bigint)
+**Source:** User report (Will) — b20260417
+**Area:** Animals / AI Bulls
+**Severity:** Bug
+**Status:** ✅ Closed (GH-10)
+**Found:** b20260417
+**Closed:** b20260417
+
+App generates bull IDs like `"BULL-1776357644340"` (string) but Supabase `ai_bulls.id` column is `bigint`. Every bull write fails with "invalid input syntax for type bigint". Bull "Conneally" never syncs.
+
+**Fix:** Change ID generation to numeric `Date.now()`. Migration strips `"BULL-"` prefix from existing IDs.
+
+**Acceptance criteria:** AI bulls sync to Supabase without type errors.
 
 ---
 
