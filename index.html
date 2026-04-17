@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260410.1616" id="app-version-meta"/>
+<meta name="app-version" content="b20260417.1211" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -4285,18 +4285,24 @@ async function _flushToSupabaseInner(){
       if(!byTable.has(key)) byTable.set(key, []);
       byTable.get(key).push(op);
     }
-    // Process each tier sequentially; within a tier, deletes run FIRST, then inserts/upserts.
-    // Without this ordering, a DELETE WHERE event_id=X can race against INSERT rows for the
-    // same event_id, causing the INSERT to succeed then immediately be wiped by the DELETE.
-    for(let tier = 0; tier < FLUSH_TIERS.length; tier++){
+    // OI-0204: Split into two passes to preserve FK integrity in both directions.
+    //   Delete pass — iterate tiers in REVERSE order so child rows delete before parents
+    //     (e.g. animal_group_memberships before animal_groups).
+    //   Upsert pass — iterate tiers in FORWARD order so parents upsert before children.
+    // Both passes share the same byTable map; each tier's entries are removed as consumed.
+    for(let tier = FLUSH_TIERS.length - 1; tier >= 0; tier--){
       const tierDeletes = [];
-      const tierUpserts = [];
       for(const table of FLUSH_TIERS[tier]){
-        if(byTable.has(table)){ tierUpserts.push(...byTable.get(table)); byTable.delete(table); }
         const delKey = '_delete:' + table;
         if(byTable.has(delKey)){ tierDeletes.push(...byTable.get(delKey)); byTable.delete(delKey); }
       }
       if(tierDeletes.length) await Promise.all(tierDeletes.map(op => _flushOneOp(op, failed)));
+    }
+    for(let tier = 0; tier < FLUSH_TIERS.length; tier++){
+      const tierUpserts = [];
+      for(const table of FLUSH_TIERS[tier]){
+        if(byTable.has(table)){ tierUpserts.push(...byTable.get(table)); byTable.delete(table); }
+      }
       if(tierUpserts.length) await Promise.all(tierUpserts.map(op => _flushOneOp(op, failed)));
     }
     // Safety net: any tables not in FLUSH_TIERS flush last
@@ -4786,6 +4792,8 @@ function ensureDataArrays(){
   (S.pastures||[]).forEach(p=>{
     if(p.fieldCode === undefined) p.fieldCode = null;
   });
+  dedupeAnimalGroups();   // OI-0205
+  migrateAIBullIds();     // OI-0206
 }
 
 function exportDataJSON(){
@@ -9972,7 +9980,7 @@ function addAIBull(){
   if(!name){ alert('Enter a sire name'); return; }
   if(!S.aiBulls) S.aiBulls=[];
   S.aiBulls.push({
-    id: 'BULL-'+Date.now(),
+    id: Date.now(), // OI-0206: numeric — matches ai_bulls.id bigint
     name,
     regNum:  document.getElementById('ab-reg').value.trim()||null,
     breed:   document.getElementById('ab-breed').value.trim()||null,
@@ -10216,7 +10224,7 @@ function addAIBullFromSheet(){
   if(!name){alert('Enter a sire name');return;}
   if(!S.aiBulls)S.aiBulls=[];
   S.aiBulls.push({
-    id:'BULL-'+Date.now(),name,archived:false,
+    id:Date.now(),name,archived:false, // OI-0206: numeric — matches ai_bulls.id bigint
     regNum:document.getElementById('mab-reg').value.trim()||null,
     breed:document.getElementById('mab-breed').value.trim()||null,
     epds:document.getElementById('mab-epds').value.trim()||null,
@@ -14423,6 +14431,15 @@ function saveGroupFromSheet(){
   const color = document.getElementById('ag-color').value || '#639922';
   const animalIds = [..._agSelectedAnimals];
   const editId = document.getElementById('ag-edit-id').value;
+
+  // OI-0205: case-insensitive dedup guard — block a second non-archived group with the same name.
+  const nameLower = name.toLowerCase();
+  const dup = (S.animalGroups||[]).find(g =>
+    !g.archived &&
+    String(g.id) !== String(editId||'') &&
+    (g.name||'').toLowerCase() === nameLower
+  );
+  if(dup){ alert('A group named "'+name+'" already exists. Choose a different name.'); return; }
 
   if(editId){
     // Edit existing group
@@ -19390,6 +19407,110 @@ function migrateSystemIds(){
   // discarding any groups/pastures added on other devices.
   if(idChanged){stampSetup();saveLocal();}
   else if(flagChanged){saveLocal();}
+}
+
+// OI-0205: Merge duplicate-named animal groups, reparent memberships, queue deletes for extras.
+// Safe to re-run: if no duplicates exist, it's a no-op.
+function dedupeAnimalGroups(){
+  if(!Array.isArray(S.animalGroups) || S.animalGroups.length<2) return;
+  const byName = new Map();
+  S.animalGroups.forEach(g=>{
+    const key = (g.name||'').trim().toLowerCase();
+    if(!key) return;
+    if(!byName.has(key)) byName.set(key, []);
+    byName.get(key).push(g);
+  });
+  const toRemove = new Set(); // group IDs to delete
+  let changed = false;
+  for(const [,groups] of byName){
+    if(groups.length < 2) continue;
+    changed = true;
+    // Oldest (lowest numeric id) wins — memberships move into this one.
+    groups.sort((a,b)=>{
+      const na = Number(a.id), nb = Number(b.id);
+      if(!isNaN(na) && !isNaN(nb)) return na-nb;
+      return String(a.id).localeCompare(String(b.id));
+    });
+    const keep = groups[0];
+    const dupes = groups.slice(1);
+    if(!Array.isArray(keep.animalIds)) keep.animalIds = [];
+    const keepAnimalIds = new Set(keep.animalIds);
+    for(const d of dupes){
+      // Merge animalIds
+      (d.animalIds||[]).forEach(id=>keepAnimalIds.add(id));
+      // Reparent memberships; drop rows that duplicate an open membership on the kept group
+      (S.animalGroupMemberships||[]).forEach(m=>{
+        if(String(m.groupId)!==String(d.id)) return;
+        const existingOpen = S.animalGroupMemberships.find(x =>
+          x!==m && String(x.groupId)===String(keep.id) && String(x.animalId)===String(m.animalId) && !x.dateLeft
+        );
+        if(existingOpen && !m.dateLeft){
+          // Duplicate open membership → close this one so Supabase delete removes it
+          queueWrite('_delete:animal_group_memberships', {id:m.id, operation_id:_sbOperationId});
+          m._drop = true;
+          return;
+        }
+        m.groupId = keep.id;
+        queueWrite('animal_group_memberships', _animalGroupMembershipRow(m, _sbOperationId));
+      });
+      // Queue delete for the duplicate group in Supabase
+      queueWrite('_delete:animal_groups', {id:d.id, operation_id:_sbOperationId});
+      toRemove.add(String(d.id));
+    }
+    keep.animalIds = [...keepAnimalIds];
+    queueWrite('animal_groups', _animalGroupRow(keep, _sbOperationId));
+  }
+  if(changed){
+    S.animalGroupMemberships = (S.animalGroupMemberships||[]).filter(m=>!m._drop);
+    S.animalGroups = S.animalGroups.filter(g => !toRemove.has(String(g.id)));
+    stampSetup();
+    saveLocal();
+    console.log('[MIGRATE] Deduped animal groups: removed '+toRemove.size+' duplicate(s)');
+  }
+}
+
+// OI-0206: Convert legacy string bull IDs ("BULL-123...") to numeric to match ai_bulls.id bigint.
+// Also strips stale sync-queue entries with string IDs so they stop failing on every flush.
+function migrateAIBullIds(){
+  if(!Array.isArray(S.aiBulls)) return;
+  const idMap = new Map(); // oldId(string) -> newId(number)
+  S.aiBulls.forEach(b=>{
+    if(typeof b.id === 'string' && b.id.startsWith('BULL-')){
+      const num = parseInt(b.id.slice(5), 10);
+      if(!isNaN(num) && num>0){
+        idMap.set(b.id, num);
+        b.id = num;
+      }
+    }
+  });
+  if(!idMap.size) return;
+  // Update any health event references to the old string IDs
+  (S.animals||[]).forEach(a=>{
+    (a.healthEvents||[]).forEach(evt=>{
+      if(evt.aiBullId && idMap.has(evt.aiBullId)){
+        evt.aiBullId = idMap.get(evt.aiBullId);
+        queueWrite('animal_health_events', _animalHealthEventRow(evt, a.id, _sbOperationId));
+      }
+    });
+  });
+  // Re-queue bulls with new numeric IDs
+  S.aiBulls.forEach(b=>queueWrite('ai_bulls', _aiBullRow(b, _sbOperationId)));
+  // Sweep the sync queue of any dead entries still carrying string BULL- IDs (they'd fail forever).
+  try{
+    const q = JSON.parse(localStorage.getItem('gthy-sync-queue')||'[]');
+    const cleaned = q.filter(op => {
+      const table = (op.table||'').replace('_delete:','');
+      const id = op.record && op.record.id;
+      if(table==='ai_bulls' && typeof id==='string' && id.startsWith('BULL-')) return false;
+      if(table==='animal_health_events' && typeof op.record?.ai_bull_id==='string' && op.record.ai_bull_id.startsWith('BULL-')) return false;
+      return true;
+    });
+    if(cleaned.length !== q.length){
+      localStorage.setItem('gthy-sync-queue', JSON.stringify(cleaned));
+    }
+  }catch(e){}
+  saveLocal();
+  console.log('[MIGRATE] Converted '+idMap.size+' BULL- id(s) to numeric');
 }
 
 // Fuzzy pasture lookup by name (handles "G2" ↔ "G - 2" etc.)
