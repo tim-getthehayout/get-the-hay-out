@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%23639922'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🌾%3C/text%3E%3C/svg%3E"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta name="app-version" content="b20260417.1211" id="app-version-meta"/>
+<meta name="app-version" content="b20260419.1955" id="app-version-meta"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -16785,7 +16785,7 @@ function renderAiProductSelect(){
 }
 
 function onAiProductChange(){
-  const id=parseInt(document.getElementById('ai-product').value);
+  const id=document.getElementById('ai-product').value;
   const p=S.inputProducts.find(x=>x.id===id);
   const info=document.getElementById('ai-product-info');
   const unitDisplay=document.getElementById('ai-unit-display');
@@ -16859,7 +16859,7 @@ function calcAiPreview(){
   let nTotal=0,pTotal=0,kTotal=0,costTotal=0,productName='',qty=0,unit='';
 
   if(sourceType==='product'){
-    const pid=parseInt(document.getElementById('ai-product').value);
+    const pid=document.getElementById('ai-product').value;
     const p=S.inputProducts.find(x=>x.id===pid);
     if(!p){prev.style.display='none';return;}
     qty=parseFloat(document.getElementById('ai-qty').value)||0;
@@ -16926,7 +16926,7 @@ function saveApplyInput(){
 
   // Create one application record
   const appId=Date.now();
-  const _appProd=sourceType==='product'?S.inputProducts.find(x=>x.id===parseInt(document.getElementById('ai-product').value)):null;
+  const _appProd=sourceType==='product'?S.inputProducts.find(x=>x.id===document.getElementById('ai-product').value):null;
   const application={
     id:appId, date, sourceType, productName, productId:_appProd?_appProd.id:null,
     totalCost:costTotal,

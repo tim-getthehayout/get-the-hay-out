@@ -19,11 +19,11 @@
 | Status | Count |
 |---|---|
 | 🔴 Open — Roadblock | 0 |
-| 🔴 Open — Bug | 8 |
+| 🔴 Open — Bug | 7 |
 | 🟡 Open — Polish | 3 |
 | 🔵 Open — Enhancement | 24 |
 | ⚪ Open — Debt | 9 |
-| ✅ Closed | 137 |
+| ✅ Closed | 138 |
 
 ---
 
@@ -3237,9 +3237,9 @@ App generates bull IDs like `"BULL-1776357644340"` (string) but Supabase `ai_bul
 **Source:** User report (Tim) — b20260419
 **Area:** Pastures / Apply Input
 **Severity:** Bug
-**Status:** 🔴 Open — Bug
+**Status:** ✅ Closed (GH-11)
 **Found:** b20260419
-**Closed:** —
+**Closed:** b20260419
 
 Apply Input dialog (Pastures → Apply Input) fails to save with the alert "Select a product/source, quantity, and at least one location" even when product, quantity, and pastures are all selected. Visible symptom: the **Unit** field stays at "—" after a product is picked, and the NPK info card under the product picker never appears.
 
@@ -3363,3 +3363,4 @@ Upload `gthy-feedback-YYYY-MM-DD-HHMM.json` at session start for Claude to diff 
 
 | Date | Session | Changes |
 |------|---------|---------|
+| 2026-04-19 | b20260419 | OI-0207 → ✅ Closed (GH-11): removed `parseInt()` from three `ai-product` value reads so input products with string IDs (`IP-XXXXX`) are found. Bug count 8→7, Closed 137→138. |
