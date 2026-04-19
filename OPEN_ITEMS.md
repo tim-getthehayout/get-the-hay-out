@@ -1,5 +1,5 @@
 # Get The Hay Out — Open Items
-**Last updated:** b20260417
+**Last updated:** b20260419.1924
 **Reconciled against build:** b20260406.2214
 **Managed by Claude.** Do not edit manually — Claude updates this file during sessions.
 
@@ -19,7 +19,7 @@
 | Status | Count |
 |---|---|
 | 🔴 Open — Roadblock | 0 |
-| 🔴 Open — Bug | 7 |
+| 🔴 Open — Bug | 8 |
 | 🟡 Open — Polish | 3 |
 | 🔵 Open — Enhancement | 24 |
 | ⚪ Open — Debt | 9 |
@@ -3230,6 +3230,31 @@ App generates bull IDs like `"BULL-1776357644340"` (string) but Supabase `ai_bul
 **Fix:** Change ID generation to numeric `Date.now()`. Migration strips `"BULL-"` prefix from existing IDs.
 
 **Acceptance criteria:** AI bulls sync to Supabase without type errors.
+
+---
+
+### OI-0207 — Apply Input dialog can't save: product string ID parsed as int
+**Source:** User report (Tim) — b20260419
+**Area:** Pastures / Apply Input
+**Severity:** Bug
+**Status:** 🔴 Open — Bug
+**Found:** b20260419
+**Closed:** —
+
+Apply Input dialog (Pastures → Apply Input) fails to save with the alert "Select a product/source, quantity, and at least one location" even when product, quantity, and pastures are all selected. Visible symptom: the **Unit** field stays at "—" after a product is picked, and the NPK info card under the product picker never appears.
+
+**Root cause:** Input products use string IDs (`IP-XXXXX`) but three functions in the apply-input flow call `parseInt()` on the `ai-product` select value before the product lookup. `parseInt("IP-00001")` returns `NaN`, so `S.inputProducts.find(x => x.id === NaN)` never matches. The empty `Unit` field and missing NPK card are the first visible failure; the save-time validation alert is the downstream symptom.
+
+**Affected functions (all in `index.html`):**
+- `onAiProductChange()` (~line 16788)
+- `calcAiPreview()` (~line 16862)
+- `saveApplyInput()` (~line 16929)
+
+**Why manure batches still work:** Manure batch IDs are numeric (`Date.now()`), so `parseInt()` round-trips cleanly. Only the product path is broken.
+
+**Fix:** Remove `parseInt()` from all three sites — read the select value as a string and compare against `x.id` directly. Spec: `github/issues/fix-apply-input-product-id-string-mismatch.md`.
+
+**Acceptance criteria:** Selecting a product populates the Unit field and NPK card; save produces a valid application record on the selected pastures; manure-batch path still works.
 
 ---
 
